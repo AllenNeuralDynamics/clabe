@@ -27,7 +27,6 @@ dependencies = [
     "semver",
     "rich",
     "aind_behavior_services < 1",
-    "aind-slims-api",
 ]
 
 [project.urls]
@@ -38,6 +37,7 @@ Changelog = "https://github.com/AllenNeuralDynamics/Aind.Behavior.ExperimentLaun
 
 [project.optional-dependencies]
 aind-services = [
+    "aind-slims-api",
     "aind-watchdog-service",
     "aind-data-schema<2",
     "ms-active-directory",
