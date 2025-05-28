@@ -1,16 +1,25 @@
+import importlib.util
 import logging
 import os
 from datetime import datetime
 from typing import Callable, List, Optional
 
-from aind_slims_api import SlimsClient, exceptions
-from aind_slims_api.models import SlimsBehaviorSession, SlimsInstrument, SlimsMouseContent, SlimsWaterlogResult
 from pydantic import ValidationError
 from typing_extensions import override
 
 from .. import __version__, ui
 from ..behavior_launcher._launcher import BehaviorLauncher, ByAnimalFiles
 from ..launcher._base import TRig, TSession, TTaskLogic
+
+if importlib.util.find_spec("aind_slims_api") is None:
+    raise ImportError(
+        "The 'aind_slims_api' package is required to use this module. "
+        "Install the optional dependencies defined in `project.toml` "
+        "by running `pip install .[aind-services]`"
+    )
+
+from aind_slims_api import SlimsClient, exceptions
+from aind_slims_api.models import SlimsBehaviorSession, SlimsInstrument, SlimsMouseContent, SlimsWaterlogResult
 
 _BehaviorPickerAlias = ui.PickerBase[BehaviorLauncher[TRig, TSession, TTaskLogic], TRig, TSession, TTaskLogic]
 

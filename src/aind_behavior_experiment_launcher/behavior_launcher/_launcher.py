@@ -14,9 +14,9 @@ from typing_extensions import override
 
 from .. import logging_helper, ui
 from ..launcher._base import BaseLauncher, TRig, TSession, TTaskLogic
+from ._aind_auth import validate_aind_username
 from ._cli import BehaviorCliArgs
 from ._model_modifiers import BySubjectModifierManager
-from ._services import validate_aind_username
 
 logger = logging.getLogger(__name__)
 
