@@ -1,0 +1,31 @@
+2025-05-08T221659Z - aind_behavior_experiment_launcher.behavior_launcher.slims_picker - INFO - Attempting to connect to Slims
+2025-05-08T221659Z - aind_behavior_experiment_launcher.behavior_launcher.slims_picker - INFO - Successfully connected to Slims
+2025-05-08T221659Z - aind_behavior_experiment_launcher.launcher._base - INFO - -------------------------------
+
+
+         ██████╗██╗      █████╗ ██████╗ ███████╗
+        ██╔════╝██║     ██╔══██╗██╔══██╗██╔════╝
+        ██║     ██║     ███████║██████╔╝█████╗
+        ██║     ██║     ██╔══██║██╔══██╗██╔══╝
+        ╚██████╗███████╗██║  ██║██████╔╝███████╗
+        ╚═════╝╚══════╝╚═╝  ╚═╝╚═════╝ ╚══════╝
+
+        Command-line-interface Launcher for AIND Behavior Experiments
+        Press Control+C to exit at any time.
+        
+CLABE Version: 0.4.1
+TaskLogic (TaskLogicModel) Schema Version: 0.0.0
+Rig (RigModel) Schema Version: 0.0.0
+Session (AindBehaviorSessionModel) Schema Version: 0.3.1
+-------------------------------
+2025-05-08T221832Z - aind_behavior_experiment_launcher.behavior_launcher.slims_picker - ERROR - Rig dfgdfg not found in Slims. Try again.
+2025-05-08T221913Z - aind_behavior_experiment_launcher.behavior_launcher._launcher - INFO - Pre-run hook started.
+2025-05-08T221913Z - aind_behavior_experiment_launcher.launcher._base - INFO - Pre-run hook completed.
+2025-05-08T221913Z - aind_behavior_experiment_launcher.behavior_launcher._launcher - INFO - Running hook started.
+2025-05-08T221913Z - __main__ - INFO - Running EchoApp...
+2025-05-08T221913Z - __main__ - INFO - EchoApp completed.
+2025-05-08T221913Z - __main__ - INFO - echo full stdout dump: 
+"hello world"
+
+2025-05-08T221913Z - aind_behavior_experiment_launcher.launcher._base - INFO - Run hook completed.
+2025-05-08T221913Z - aind_behavior_experiment_launcher.behavior_launcher._launcher - INFO - Post-run hook started.

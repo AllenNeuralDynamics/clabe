@@ -19,7 +19,13 @@ if importlib.util.find_spec("aind_slims_api") is None:
     )
 
 from aind_slims_api import SlimsClient, exceptions
-from aind_slims_api.models import SlimsBehaviorSession, SlimsInstrument, SlimsMouseContent, SlimsWaterlogResult
+from aind_slims_api.models import (
+    SlimsBehaviorSession,
+    SlimsInstrument,
+    SlimsMouseContent,
+    SlimsWaterlogResult,
+    SlimsInstrumentRdrc
+)
 
 _BehaviorPickerAlias = ui.PickerBase[BehaviorLauncher[TRig, TSession, TTaskLogic], TRig, TSession, TTaskLogic]
 
@@ -28,6 +34,7 @@ logger = logging.getLogger(__name__)
 SLIMS_USERNAME = os.environ.get("SLIMS_USERNAME", None)
 SLIMS_PASSWORD = os.environ.get("SLIMS_PASSWORD", None)
 SLIMS_URL: str = os.environ.get("SLIMS_URL", None)
+RIG_ID = os.environ.get("RIG_ID", None)             # TODO: Change to whatever the env var is called
 
 logger.debug("SLIMS_USERNAME: %s", SLIMS_USERNAME)
 logger.debug("SLIMS_PASSWORD: %s", SLIMS_PASSWORD)
@@ -245,55 +252,25 @@ class SlimsPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
         """
 
         while True:
-            rig = None
-            while rig is None:
-                # TODO: use env vars to determine rig name
-                rig = self.ui_helper.input("Enter rig name: ")
+            rig = RIG_ID
+            while not self._slims_rig:
+                if not rig:
+                    rig = self.ui_helper.input("Enter rig name: ")
                 try:
                     self._slims_rig = self.slims_client.fetch_model(SlimsInstrument, name=rig)
                 except exceptions.SlimsRecordNotFound:
                     logger.error(f"Rig {rig} not found in Slims. Try again.")
                     rig = None
 
-            i = slice(-1, None)
-            attachments = self.slims_client.fetch_attachments(self.slims_rig)
-            while True:
-                # attempt to fetch rig_model attachment from slims
-                try:
-                    attachment = attachments[i]
-                    if not attachment:  # catch empty list
-                        ValueError("No attachments exist ([]).")
+            # confirm instrument matches id from session model
+            assert(self.slims_session.instrument_pk == self.slims_rig.pk)
 
-                    elif len(attachment) > 1:
-                        att_names = [attachment.name for attachment in attachment]
-                        att = self.ui_helper.prompt_pick_from_list(
-                            att_names,
-                            prompt="Choose an attachment:",
-                            allow_0_as_none=True,
-                        )
-                        attachment = [attachment[att_names.index(att)]]
+            # fetch latest reference
+            ref = self.slims_client.fetch_model(SlimsInstrumentRdrc, name=self.launcher.task_logic_schema.name)
+            rig_model = self.slims_client.fetch_attachment(ref).json()   # fetch latest attachment
+            return self.launcher.rig_schema_model(**rig_model)
 
-                    rig_model = self.slims_client.fetch_attachment_content(attachment[0]).json()
-                except (IndexError, ValueError) as exc:
-                    raise ValueError(f"No rig configuration found attached to rig model {rig}") from exc
 
-                # validate and return model and retry if validation fails
-                try:
-                    return self.launcher.rig_schema_model(**rig_model)
-
-                except ValidationError as e:
-                    # remove last tried attachment
-                    index = attachments.index(attachment[0])
-                    del attachments[index]
-
-                    if not attachments:  # attachment list empty
-                        raise ValueError(f"No valid rig configuration found attached to rig model {rig}") from e
-                    else:
-                        logger.error(
-                            f"Validation error for last rig configuration found attached to rig model {rig}: "
-                            f"{e}. Please pick a different configuration."
-                        )
-                        i = slice(-11, None)
 
     def pick_session(self) -> TSession:
         """
