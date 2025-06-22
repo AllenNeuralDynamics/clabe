@@ -94,13 +94,32 @@ nav:
 - API Reference:
   - api/index.md
   - Apps:
-    - core: api/apps/core.md
+    - apps: api/apps/apps.md
   - Behavior_launcher:
-    - core: api/behavior_launcher/core.md
+    - behavior_launcher: api/behavior_launcher/behavior_launcher.md
     - slims_picker: api/behavior_launcher/slims_picker.md
-  - Logging_helper: []
+  - Data_mapper:
+    - data_mapper: api/data_mapper/data_mapper.md
+    - aind_data_schema: api/data_mapper/aind_data_schema.md
+    - helpers: api/data_mapper/helpers.md
+  - Data_transfer:
+    - data_transfer: api/data_transfer/data_transfer.md
+    - aind_watchdog: api/data_transfer/aind_watchdog.md
+    - robocopy: api/data_transfer/robocopy.md
+  - Git_manager:
+    - git_manager: api/git_manager/git_manager.md
+  - Launcher:
+    - launcher: api/launcher/launcher.md
+    - cli: api/launcher/cli.md
+  - Resource_monitor:
+    - resource_monitor: api/resource_monitor/resource_monitor.md
+  - Ui:
+    - ui: api/ui/ui.md
+    - picker: api/ui/picker.md
+    - ui_helper: api/ui/ui_helper.md
 - Issues: https://github.com/AllenNeuralDynamics/clabe/issues
 - Examples:
-  - Example: doc_examples/one.md
+  - AIND Experiment: docs_examples/behavior_launcher.md
+  - AIND Experiment with SLIMS: docs_examples/slims_launcher.md
 watch:
 - src/clabe

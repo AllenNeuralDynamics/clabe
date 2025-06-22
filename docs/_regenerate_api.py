@@ -1,29 +1,70 @@
-#!/usr/bin/env uv run
-"""
-Script to regenerate the API documentation structure in mkdocs.yml
-based on the current state of the library.
-"""
-
 import logging
 import shutil
 from pathlib import Path
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, List, Union
 
 import yaml
 
-# Constants
-ROOT_DIR: Path = Path(__file__).parent.parent
-PACKAGE_NAME: str = "clabe"
-SRC_DIR: Path = ROOT_DIR / "src" / f"{PACKAGE_NAME}"
-DOCS_DIR: Path = ROOT_DIR / "docs"
-API_DIR: Path = DOCS_DIR / "api"
-MKDOCS_YML: Path = ROOT_DIR / "mkdocs.yml"
-API_LABEL: str = "API Reference"
+ROOT_DIR = Path(__file__).parent.parent
+PACKAGE_NAME = "clabe"
+SRC_DIR = ROOT_DIR / "src" / PACKAGE_NAME
+DOCS_DIR = ROOT_DIR / "docs"
+API_DIR = DOCS_DIR / "api"
+MKDOCS_YML = ROOT_DIR / "mkdocs.yml"
+API_LABEL = "API Reference"
+INCLUDE_PRIVATE_MODULES = False
 
-# Leaving this manual for now.
-DOCUMENTED_MODULES: List[str] = ["apps", "behavior_launcher", "logging_helper"]
-TO_COPY: List[str] = ["assets", "examples", "LICENSE"]
-log: logging.Logger = logging.getLogger("mkdocs")
+TO_COPY = ["assets", "examples", "LICENSE"]
+log = logging.getLogger("mkdocs")
+
+
+def discover_python_modules(package_root: Path, include_private: bool = False) -> List[str]:
+    modules = []
+    
+    def _find_modules(current_path: Path, prefix: str = "") -> None:
+        if not current_path.exists() or not current_path.is_dir():
+            return
+        
+        for item in current_path.iterdir():
+            if not item.is_dir():
+                continue
+            if not (item / "__init__.py").exists():
+                continue
+
+            if item.name.startswith("_") and not include_private:
+                continue
+
+            module_name = f"{prefix}{item.name}" if prefix else item.name
+            modules.append(module_name)
+
+            # Recursively search subdirectories for nested modules
+            _find_modules(item, f"{module_name}.")
+    
+    _find_modules(package_root)
+    return sorted(modules)
+
+
+def discover_module_files(module_path: Path, include_private: bool = False) -> List[str]:
+    files = []
+    
+    def _find_files(current_path: Path, prefix: str = "") -> None:
+        if not current_path.exists() or not current_path.is_dir():
+            return
+        
+        for item in current_path.iterdir():
+            if item.is_file() and item.suffix == ".py":
+                if item.name.startswith("_") and not include_private:
+                    continue
+                file_name = f"{prefix}{item.stem}" if prefix else item.stem
+                files.append(file_name)
+            elif item.is_dir() and not item.name.startswith("__"):
+                if item.name.startswith("_") and not include_private:
+                    continue
+                # Recursively search subdirectories
+                _find_files(item, f"{prefix}{item.name}." if prefix else f"{item.name}.")
+    
+    _find_files(module_path)
+    return sorted(files)
 
 
 def on_pre_build(config: Dict[str, Any]) -> None:
@@ -49,43 +90,38 @@ def on_pre_build(config: Dict[str, Any]) -> None:
     main()
 
 
-def find_modules(base_dir: Path, module_name: str) -> List[Tuple[str, str]]:
-    """Find all Python modules in the given directory."""
-    modules: List[Tuple[str, str]] = []
-    dir_path: Path = base_dir / module_name
-
-    if not dir_path.is_dir():
-        return modules
-
-    if (dir_path / "__init__.py").exists():
-        modules.append(("core", f"{module_name}"))
-
-    for item in dir_path.iterdir():
-        if item.is_file() and item.suffix == ".py" and not item.name.startswith("_"):
-            modules.append((item.stem, f"{module_name}.{item.stem}"))
-
-    modules.sort(key=lambda x: x[0])
-    return modules
-
-
 def generate_api_structure() -> Dict[str, List[Dict[str, str]]]:
-    """Generate the API documentation structure."""
     api_structure: Dict[str, List[Dict[str, str]]] = {}
+    modules = discover_python_modules(SRC_DIR, INCLUDE_PRIVATE_MODULES)
 
-    for module_name in DOCUMENTED_MODULES:
+    for module_name in modules:
         module_structure: List[Dict[str, str]] = []
-        modules: List[Tuple[str, str]] = find_modules(SRC_DIR, module_name)
+        module_path = SRC_DIR / module_name.replace(".", "/")
+        
+        # Add the module's __init__.py as the main module entry
+        safe_module_name = module_name.replace(".", "_")
+        module_structure.append({
+            module_name: f"api/{safe_module_name}/{safe_module_name}.md"
+        })
+        
+        module_files = discover_module_files(module_path, INCLUDE_PRIVATE_MODULES)
+        for file_name in module_files:
+            safe_file_name = file_name.replace(".", "_")
+            module_structure.append({
+                file_name: f"api/{safe_module_name}/{safe_file_name}.md"
+            })
 
-        for name, import_path in modules:
-            md_file: str = f"api/{module_name}/{name}.md"
+        (API_DIR / safe_module_name).mkdir(parents=True, exist_ok=True)
 
-            (API_DIR / module_name).mkdir(parents=True, exist_ok=True)
+        with open(DOCS_DIR / f"api/{safe_module_name}/{safe_module_name}.md", "w") as f:
+            f.write(f"# {module_name}\n\n")
+            f.write(f"::: {PACKAGE_NAME}.{module_name}\n")
 
-            with open(DOCS_DIR / md_file, "w") as f:
-                f.write(f"# {import_path}\n\n")
-                f.write(f"::: {PACKAGE_NAME}.{import_path}\n")
-
-            module_structure.append({name: md_file})
+        for file_name in module_files:
+            safe_file_name = file_name.replace(".", "_")
+            with open(DOCS_DIR / f"api/{safe_module_name}/{safe_file_name}.md", "w") as f:
+                f.write(f"# {module_name}.{file_name}\n\n")
+                f.write(f"::: {PACKAGE_NAME}.{module_name}.{file_name}\n")
 
         api_structure[module_name] = module_structure
 
@@ -93,7 +129,6 @@ def generate_api_structure() -> Dict[str, List[Dict[str, str]]]:
 
 
 def update_mkdocs_yml(api_structure: Dict[str, List[Dict[str, str]]]) -> None:
-    """Rewrite the mkdocs.yml overriding the API Reference section only!."""
     with open(MKDOCS_YML, "r") as f:
         config: Dict[str, Any] = yaml.safe_load(f)
 
@@ -113,7 +148,6 @@ def update_mkdocs_yml(api_structure: Dict[str, List[Dict[str, str]]]) -> None:
 
 
 def main() -> None:
-    """Main function."""
     log.info("Regenerating API documentation...")
 
     # Generate API structure

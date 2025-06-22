@@ -1,4 +1,4 @@
-# aind-behavior-experiment-laucher
+# clabe
 
 ![CI](https://github.com/AllenNeuralDynamics/Aind.Behavior.ExperimentLauncher/actions/workflows/ci.yml/badge.svg)
 [![PyPI - Version](https://img.shields.io/pypi/v/aind-behavior-experiment-launcher)](https://pypi.org/project/aind-behavior-experiment-launcher/)
