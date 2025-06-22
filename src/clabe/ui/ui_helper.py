@@ -38,6 +38,22 @@ class _UiHelperBase(abc.ABC):
         Args:
             print_func: Custom function for printing messages
             input_func: Custom function for receiving input
+            
+        Example:
+            # Default UI helper
+            helper = DefaultUIHelper()
+            
+            # Custom print/input functions
+            def custom_print(msg):
+                logging.info(f"UI: {msg}")
+                
+            def custom_input(prompt):
+                return input(f"[CUSTOM] {prompt}")
+                
+            helper = DefaultUIHelper(
+                print_func=custom_print,
+                input_func=custom_input
+            )
         """
         self._print = print_func if print_func is not None else _DEFAULT_PRINT_FUNC
         self._input = input_func if input_func is not None else _DEFAULT_INPUT_FUNC
@@ -51,6 +67,11 @@ class _UiHelperBase(abc.ABC):
 
         Returns:
             Any: The result of the print function
+            
+        Example:
+            helper = DefaultUIHelper()
+            helper.print("Hello, world!")
+            helper.print("Status: Processing...")
         """
         return self._print(message)
 
@@ -63,6 +84,11 @@ class _UiHelperBase(abc.ABC):
 
         Returns:
             str: The user input
+            
+        Example:
+            helper = DefaultUIHelper()
+            name = helper.input("Enter your name: ")
+            password = helper.input("Enter password: ")
         """
         return self._input(prompt)
 
@@ -77,6 +103,12 @@ class _UiHelperBase(abc.ABC):
 
         Returns:
             Optional[str]: The selected item or None
+            
+        Example:
+            # Implemented in subclasses like DefaultUIHelper
+            helper = DefaultUIHelper()
+            options = ["red", "green", "blue"]
+            color = helper.prompt_pick_from_list(options, "Choose a color:")
         """
 
     @abc.abstractmethod
@@ -89,6 +121,12 @@ class _UiHelperBase(abc.ABC):
 
         Returns:
             bool: True for yes, False for no
+            
+        Example:
+            # Implemented in subclasses like DefaultUIHelper
+            helper = DefaultUIHelper()
+            if helper.prompt_yes_no_question("Save changes?"):
+                save_file()
         """
 
     @abc.abstractmethod
@@ -101,6 +139,11 @@ class _UiHelperBase(abc.ABC):
 
         Returns:
             str: The user input
+            
+        Example:
+            # Implemented in subclasses like DefaultUIHelper
+            helper = DefaultUIHelper()
+            description = helper.prompt_text("Enter description: ")
         """
 
     @abc.abstractmethod
@@ -113,6 +156,11 @@ class _UiHelperBase(abc.ABC):
 
         Returns:
             float: The parsed user input
+            
+        Example:
+            # Implemented in subclasses like DefaultUIHelper
+            helper = DefaultUIHelper()
+            price = helper.prompt_float("Enter price: $")
         """
         pass
 

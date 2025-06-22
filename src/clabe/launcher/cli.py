@@ -108,6 +108,17 @@ class BaseCliArgs(BaseSettings, cli_prog_name="clabe", cli_kebab_case=True):
 
         Returns:
             Tuple[PydanticBaseSettingsSource, ...]: Ordered tuple of settings sources
+            
+        Example:
+            # This method is automatically called by Pydantic
+            # when creating a BaseCliArgs instance. Settings are loaded
+            # in this priority order:
+            # 1. init_settings (constructor arguments)
+            # 2. YAML config files
+            # 3. Environment variables
+            # 4. .env files
+            # 5. File secrets
+            args = BaseCliArgs(data_dir="/override/path")  # init_settings
         """
         return (
             init_settings,

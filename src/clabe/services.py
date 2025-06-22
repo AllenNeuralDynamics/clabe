@@ -65,6 +65,16 @@ class ServiceFactory(Generic[TService, TLauncher]):
             
         Raises:
             ValueError: If the argument is neither a service nor a service factory
+            
+        Example:
+            # Using a service instance
+            service = MyService()
+            factory = ServiceFactory(service)
+            
+            # Using a factory function
+            def create_service(launcher):
+                return MyService(launcher.config)
+            factory = ServiceFactory(create_service)
         """
         self._service_factory: Optional[Callable[[TLauncher], TService]] = None
         self._service: Optional[TService] = None
@@ -94,6 +104,11 @@ class ServiceFactory(Generic[TService, TLauncher]):
             
         Raises:
             ValueError: If no service factory is set and no service instance exists
+            
+        Example:
+            factory = ServiceFactory(create_service)
+            launcher = MyLauncher(...)
+            service = factory.build(launcher)  # Creates the service
         """
         if self._service is None:
             if self._service_factory is None:
@@ -109,6 +124,12 @@ class ServiceFactory(Generic[TService, TLauncher]):
 
         Returns:
             The service instance or None if not yet created
+            
+        Example:
+            factory = ServiceFactory(create_service)
+            print(factory.service)  # None (not built yet)
+            service = factory.build(launcher)
+            print(factory.service)  # The created service instance
         """
         return self._service
 
@@ -136,6 +157,14 @@ class ServicesFactoryManager(Generic[TLauncher]):
         Args:
             launcher: An optional launcher instance to register
             **kwargs: Additional keyword arguments (unused)
+            
+        Example:
+            # Create without launcher
+            manager = ServicesFactoryManager()
+            
+            # Create with launcher
+            launcher = MyLauncher(...)
+            manager = ServicesFactoryManager(launcher=launcher)
         """
         self._launcher_reference = launcher
         self._services: Dict[str, ServiceFactory] = {}
@@ -152,6 +181,11 @@ class ServicesFactoryManager(Generic[TLauncher]):
             
         Raises:
             KeyError: If the service name is not found
+            
+        Example:
+            manager = ServicesFactoryManager(launcher)
+            manager.attach_service_factory("my_service", MyService())
+            service = manager["my_service"]  # Dictionary-style access
         """
         return self._services[name].build(self.launcher)
 
@@ -164,6 +198,14 @@ class ServicesFactoryManager(Generic[TLauncher]):
 
         Returns:
             The service instance or None if not found
+            
+        Example:
+            manager = ServicesFactoryManager(launcher)
+            service = manager.try_get_service("my_service")
+            if service is not None:
+                print("Service found")
+            else:
+                print("Service not found")
         """
         srv = self._services.get(name, None)
         return srv.build(self.launcher) if srv is not None else None
@@ -187,6 +229,15 @@ class ServicesFactoryManager(Generic[TLauncher]):
         Raises:
             IndexError: If a service with the same name is already registered
             ValueError: If the service_factory is not a valid type
+            
+        Example:
+            manager = ServicesFactoryManager(launcher)
+            
+            # Attach a service instance
+            manager.attach_service_factory("my_service", MyService())
+            
+            # Attach a factory function
+            manager.attach_service_factory("other_service", lambda l: OtherService(l))
         """
         if name in self._services:
             raise IndexError(f"Service with name {name} is already registered")
@@ -281,6 +332,14 @@ class ServicesFactoryManager(Generic[TLauncher]):
 
         Returns:
             An iterable of services of the specified type
+            
+        Example:
+            manager = ServicesFactoryManager(launcher)
+            manager.attach_service_factory("db", DatabaseService())
+            manager.attach_service_factory("cache", CacheService())
+            
+            db_services = list(manager.get_services_of_type(DatabaseService))
+            print(f"Found {len(db_services)} database services")
         """
         yield from (service for service in self.services if isinstance(service, service_type))
 

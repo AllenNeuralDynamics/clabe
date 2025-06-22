@@ -63,6 +63,15 @@ class PickerBase(abc.ABC, Generic[_L, _R, _S, _T]):
         Args:
             launcher: The launcher instance
             ui_helper: The UI helper instance
+            
+        Example:
+            # Create picker without dependencies
+            picker = MyPicker()
+            
+            # Create picker with launcher and UI helper
+            launcher = MyLauncher(...)
+            ui_helper = DefaultUIHelper()
+            picker = MyPicker(launcher=launcher, ui_helper=ui_helper)
         """
         self._launcher = launcher
         self._ui_helper = ui_helper
