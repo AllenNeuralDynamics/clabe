@@ -15,7 +15,7 @@ class BySubjectModifier(Protocol, Generic[_R, _S, _T]):
     schemas based on subject-specific requirements. Implementations should modify
     the schemas in-place as needed.
 
-    Examples:
+    Example:
         ```python
         # Define a modifier that sets a field on the session schema
         def my_modifier(rig_schema=None, session_schema=None, task_logic_schema=None, **kwargs):
@@ -53,7 +53,7 @@ class BySubjectModifierManager(Generic[_R, _S, _T]):
     Attributes:
         _modifiers (List[BySubjectModifier]): List of registered modifier functions
 
-    Examples:
+    Example:
         ```python
         # Create a manager and register a modifier
         mgr = BySubjectModifierManager()

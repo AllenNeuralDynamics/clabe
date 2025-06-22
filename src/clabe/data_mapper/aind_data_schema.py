@@ -33,7 +33,7 @@ class AindDataSchemaDataMapper(_base.DataMapper[_TAdsObject], abc.ABC):
     Attributes:
         session_name (str): The name of the session associated with the data
 
-    Examples:
+    Example:
         ```python
         # Example subclass implementing session_name
         class MySessionMapper(AindDataSchemaDataMapper):

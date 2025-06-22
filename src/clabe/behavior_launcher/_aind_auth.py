@@ -36,7 +36,7 @@ if platform.system() == "Windows":
         Raises:
             concurrent.futures.TimeoutError: If the validation operation times out
 
-        Examples:
+        Example:
             ```python
             # Validate a username in Active Directory
             is_valid = validate_aind_username("j.doe")

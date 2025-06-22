@@ -39,7 +39,7 @@ class _UiHelperBase(abc.ABC):
             print_func: Custom function for printing messages
             input_func: Custom function for receiving input
 
-        Examples:
+        Example:
             ```python
             # Default UI helper
             helper = DefaultUIHelper()
@@ -70,7 +70,7 @@ class _UiHelperBase(abc.ABC):
         Returns:
             Any: The result of the print function
 
-        Examples:
+        Example:
             ```python
             helper = DefaultUIHelper()
             helper.print("Hello, world!")
@@ -89,7 +89,7 @@ class _UiHelperBase(abc.ABC):
         Returns:
             str: The user input
 
-        Examples:
+        Example:
             ```python
             helper = DefaultUIHelper()
             name = helper.input("Enter your name: ")
@@ -110,7 +110,7 @@ class _UiHelperBase(abc.ABC):
         Returns:
             Optional[str]: The selected item or None
 
-        Examples:
+        Example:
             ```python
             # Implemented in subclasses like DefaultUIHelper
             helper = DefaultUIHelper()
@@ -130,7 +130,7 @@ class _UiHelperBase(abc.ABC):
         Returns:
             bool: True for yes, False for no
 
-        Examples:
+        Example:
             ```python
             # Implemented in subclasses like DefaultUIHelper
             helper = DefaultUIHelper()
@@ -150,7 +150,7 @@ class _UiHelperBase(abc.ABC):
         Returns:
             str: The user input
 
-        Examples:
+        Example:
             ```python
             # Implemented in subclasses like DefaultUIHelper
             helper = DefaultUIHelper()
@@ -169,7 +169,7 @@ class _UiHelperBase(abc.ABC):
         Returns:
             float: The parsed user input
 
-        Examples:
+        Example:
             ```python
             # Implemented in subclasses like DefaultUIHelper
             helper = DefaultUIHelper()
@@ -189,7 +189,7 @@ class DefaultUIHelper(_UiHelperBase):
     This class provides a concrete implementation of the UI helper interface
     using standard console input/output for user interactions.
 
-    Examples:
+    Example:
         ```python
         helper = DefaultUIHelper()
 
@@ -225,7 +225,7 @@ class DefaultUIHelper(_UiHelperBase):
         Returns:
             Optional[str]: The selected item or None
 
-        Examples:
+        Example:
             ```python
             helper = DefaultUIHelper()
             files = ["file1.txt", "file2.txt", "file3.txt"]
@@ -268,7 +268,7 @@ class DefaultUIHelper(_UiHelperBase):
         Returns:
             bool: True for yes, False for no
 
-        Examples:
+        Example:
             ```python
             helper = DefaultUIHelper()
 
@@ -301,7 +301,7 @@ class DefaultUIHelper(_UiHelperBase):
         Returns:
             str: The user input
 
-        Examples:
+        Example:
             ```python
             helper = DefaultUIHelper()
 
@@ -325,7 +325,7 @@ class DefaultUIHelper(_UiHelperBase):
         Returns:
             float: The parsed user input
 
-        Examples:
+        Example:
             ```python
             helper = DefaultUIHelper()
 
@@ -357,7 +357,7 @@ def prompt_field_from_input(model: Type[_TModel], field_name: str, default: Opti
     Returns:
         Optional[_T]: The validated input value or the default value
 
-    Examples:
+    Example:
         ```python
         from pydantic import BaseModel, Field
 

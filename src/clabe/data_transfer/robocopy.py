@@ -33,7 +33,7 @@ class RobocopyService(DataTransfer):
         extra_args (str): Additional Robocopy command arguments
         _ui_helper (ui.UiHelper): UI helper for user prompts
 
-    Examples:
+    Example:
         ```python
         # Basic file copying:
         service = RobocopyService(
@@ -80,7 +80,7 @@ class RobocopyService(DataTransfer):
             force_dir: Whether to ensure the destination directory exists. Default is True
             ui_helper: UI helper for user prompts. Default is None
 
-        Examples:
+        Example:
             ```python
             # Initialize with basic parameters:
             service = RobocopyService("C:/source", "D:/destination")
@@ -197,7 +197,7 @@ class RobocopyService(DataTransfer):
         Returns:
             True if the user confirms, False otherwise
 
-        Examples:
+        Example:
             ```python
             # Interactive transfer confirmation:
             service = RobocopyService("C:/data", "D:/backup")

@@ -25,7 +25,7 @@ class DataMapper(IService, abc.ABC, Generic[TMapTo]):
     Attributes:
         _mapped (Optional[TMapTo]): The mapped data object, set after successful mapping
 
-    Examples:
+    Example:
         ```python
         # Creating a custom data mapper
         class MyDataMapper(DataMapper[MyTargetType]):

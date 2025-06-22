@@ -31,7 +31,7 @@ class BaseCliArgs(BaseSettings, cli_prog_name="clabe", cli_kebab_case=True):
         temp_dir (os.PathLike): Directory used for launcher temp files.
         group_by_subject_log (CliExplicitFlag[bool]): Whether to group data logging by subject.
 
-    Examples:
+    Example:
         ```python
         # Create CLI args from command line
         args = BaseCliArgs()
@@ -111,7 +111,7 @@ class BaseCliArgs(BaseSettings, cli_prog_name="clabe", cli_kebab_case=True):
         Returns:
             Tuple[PydanticBaseSettingsSource, ...]: Ordered tuple of settings sources
 
-        Examples:
+        Example:
             ```python
             # This method is automatically called by Pydantic
             # when creating a BaseCliArgs instance. Settings are loaded

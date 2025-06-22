@@ -32,7 +32,7 @@ class App(IService, abc.ABC):
         Subclasses must implement the abstract methods and property to define the specific
         behavior of the application.
 
-    Examples:
+    Example:
         ```python
         # Implement a custom app
         class MyApp(App):
@@ -89,7 +89,7 @@ class App(IService, abc.ABC):
         Returns:
             Self: The updated application instance.
 
-        Examples:
+        Example:
             ```python
             # Add application settings
             app.add_app_settings(debug=True, verbose=False)

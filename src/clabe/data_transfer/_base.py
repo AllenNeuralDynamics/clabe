@@ -17,7 +17,7 @@ class DataTransfer(IService, abc.ABC):
     providing a consistent API for different transfer mechanisms such as file copying,
     cloud uploads, or network transfers.
 
-    Examples:
+    Example:
         ```python
         # Implementing a custom data transfer service:
         class MyTransferService(DataTransfer):

@@ -15,7 +15,7 @@ class BehaviorCliArgs(BaseCliArgs):
         skip_data_transfer (CliImplicitFlag[bool]): Whether to skip data transfer after the experiment
         skip_data_mapping (CliImplicitFlag[bool]): Whether to skip data mapping after the experiment
 
-    Examples:
+    Example:
         ```python
         # Create CLI args for a behavior experiment
         args = BehaviorCliArgs(..., skip_data_transfer=True, skip_data_mapping=False)

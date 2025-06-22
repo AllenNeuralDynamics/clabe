@@ -72,7 +72,7 @@ class BonsaiApp(App):
             print_cmd (bool): Whether to print the command being executed. Defaults to False.
             ui_helper (Optional[UiHelper]): UI helper instance. Defaults to DefaultUIHelper.
 
-        Examples:
+        Example:
             ```python
             # Create and run a Bonsai app
             app = BonsaiApp(workflow="workflow.bonsai")
@@ -291,7 +291,7 @@ class AindBehaviorServicesBonsaiApp(BonsaiApp):
     AIND behavior experiments, including automatic configuration of task logic,
     session, and rig paths for the Bonsai workflow.
 
-    Examples:
+    Example:
         ```python
         # Create an AIND behavior services Bonsai app
         app = AindBehaviorServicesBonsaiApp(workflow="behavior_workflow.bonsai")
@@ -320,7 +320,7 @@ class AindBehaviorServicesBonsaiApp(BonsaiApp):
         Raises:
             ValueError: If the required launcher argument is not provided
 
-        Examples:
+        Example:
             ```python
             # Add AIND behavior settings
             app.add_app_settings(launcher=my_launcher)

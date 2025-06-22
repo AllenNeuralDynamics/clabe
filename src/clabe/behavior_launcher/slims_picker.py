@@ -48,7 +48,7 @@ class SlimsPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
     This class integrates with the SLIMS laboratory information management system to fetch
     experiment configurations, manage mouse records, and handle water logging for behavior experiments.
 
-    Examples:
+    Example:
         ```python
         # Initialize picker with launcher and SLIMS credentials
         picker = SlimsPicker(launcher=my_launcher, username="user", password="pass")
@@ -86,7 +86,7 @@ class SlimsPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
             water_calculator: Function to calculate water amount. If None, user will be prompted
             **kwargs: Additional keyword arguments
 
-        Examples:
+        Example:
             ```python
             # Initialize with explicit credentials
             picker = SlimsPicker(launcher=my_launcher, username="user", password="pass")
@@ -249,7 +249,7 @@ class SlimsPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
             water_supplement_delivered_ml: Supplemental water given in session in mL
             water_supplement_recommended_ml: Optional recommended water amount in mL
 
-        Examples:
+        Example:
             ```python
             # Write a waterlog entry to SLIMS
             picker.write_waterlog(weight_g=25.0, water_earned_ml=1.2, water_supplement_delivered_ml=0.5)
@@ -289,7 +289,7 @@ class SlimsPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
         Raises:
             ValueError: If no rig is found in SLIMS or no valid attachment exists
 
-        Examples:
+        Example:
             ```python
             # Pick a rig configuration from SLIMS
             rig = picker.pick_rig()
@@ -360,7 +360,7 @@ class SlimsPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
         Raises:
             ValueError: If no session model is found in SLIMS for the specified mouse
 
-        Examples:
+        Example:
             ```python
             # Pick a session configuration from SLIMS
             session = picker.pick_session()
@@ -418,7 +418,7 @@ class SlimsPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
         Raises:
             ValueError: If no valid task logic attachment is found in the SLIMS session
 
-        Examples:
+        Example:
             ```python
             # Pick task logic from SLIMS session attachments
             task_logic = picker.pick_task_logic()
@@ -463,7 +463,7 @@ class SlimsPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
             software_version: Software version used to run the session
             schedule_date: Date when the session will be run
 
-        Examples:
+        Example:
             ```python
             # Write a new behavior session to SLIMS
             picker.write_behavior_session(task_logic=task_logic, notes="Session notes")
@@ -502,7 +502,7 @@ class SlimsPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
         Establishes the SLIMS client connection and validates connectivity before
         proceeding with picker operations.
 
-        Examples:
+        Example:
             ```python
             # Initialize the picker and connect to SLIMS
             picker.initialize()

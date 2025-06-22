@@ -59,7 +59,7 @@ class WatchdogDataTransferService(DataTransfer):
         platform (Platform): Platform associated with the data
         Various other configuration attributes for transfer customization
 
-    Examples:
+    Example:
         ```python
         # Basic watchdog service setup:
         service = WatchdogDataTransferService(
@@ -128,7 +128,7 @@ class WatchdogDataTransferService(DataTransfer):
             upload_job_configs: List of job configurations for the transfer
             ui_helper: UI helper for user prompts
 
-        Examples:
+        Example:
             ```python
             # Basic initialization:
 
@@ -328,7 +328,7 @@ class WatchdogDataTransferService(DataTransfer):
         Returns:
             A WatchConfig object
 
-        Examples:
+        Example:
             ```python
             # Create basic watch configuration:
             config = WatchdogDataTransferService.create_watch_config(
@@ -393,7 +393,7 @@ class WatchdogDataTransferService(DataTransfer):
         Raises:
             ValueError: If the project name is invalid
 
-        Examples:
+        Example:
             ```python
             # Create manifest from session data:
             session = Session(...)
@@ -557,7 +557,7 @@ class WatchdogDataTransferService(DataTransfer):
         Returns:
             True if the service is running, False otherwise
 
-        Examples:
+        Example:
             ```python
             # Check service status:
             service = WatchdogDataTransferService(source="C:/data", destination="//server/data")
@@ -692,7 +692,7 @@ class WatchdogDataTransferService(DataTransfer):
         Returns:
             True if the user confirms, False otherwise
 
-        Examples:
+        Example:
             ```python
             # Interactive manifest generation:
             service = WatchdogDataTransferService(source="C:/data", destination="//server/data")

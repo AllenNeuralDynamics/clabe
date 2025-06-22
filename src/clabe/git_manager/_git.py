@@ -28,7 +28,7 @@ class GitRepository(Repo):
             *args: Arguments passed to the parent Repo class
             **kwargs: Keyword arguments passed to the parent Repo class
 
-        Examples:
+        Example:
             ```python
             # Initialize with current directory
             repo = GitRepository()
@@ -50,7 +50,7 @@ class GitRepository(Repo):
         Returns:
             Self: The current instance for method chaining.
 
-        Examples:
+        Example:
             ```python
             repo = GitRepository("/path/to/repo")
             repo.reset_repo()  # Discards all uncommitted changes
@@ -69,7 +69,7 @@ class GitRepository(Repo):
         Returns:
             Self: The current instance for method chaining.
 
-        Examples:
+        Example:
             ```python
             repo = GitRepository("/path/to/repo")
             repo.clean_repo()  # Removes all untracked files and directories
@@ -88,7 +88,7 @@ class GitRepository(Repo):
         Returns:
             bool: True if the repository or any submodules have uncommitted changes.
 
-        Examples:
+        Example:
             ```python
             repo = GitRepository("/path/to/repo")
             if repo.is_dirty_with_submodules():
@@ -123,7 +123,7 @@ class GitRepository(Repo):
         Returns:
             List[str]: A list of file paths with uncommitted changes.
 
-        Examples:
+        Example:
             ```python
             repo = GitRepository("/path/to/repo")
             changes = repo.uncommitted_changes()
@@ -148,7 +148,7 @@ class GitRepository(Repo):
         Returns:
             Self: The current instance for method chaining.
 
-        Examples:
+        Example:
             ```python
             repo = GitRepository("/path/to/repo")
             repo.force_update_submodules()  # Updates all submodules
@@ -167,7 +167,7 @@ class GitRepository(Repo):
         Returns:
             Self: The current instance for method chaining.
 
-        Examples:
+        Example:
             ```python
             repo = GitRepository("/path/to/repo")
             repo.submodules_sync()  # Synchronizes submodule URLs
@@ -187,7 +187,7 @@ class GitRepository(Repo):
         Returns:
             Self: The current instance for method chaining.
 
-        Examples:
+        Example:
             ```python
             repo = GitRepository("/path/to/repo")
             repo.full_reset()  # Complete cleanup of repo and submodules
@@ -211,7 +211,7 @@ class GitRepository(Repo):
         Returns:
             Self: The current instance for method chaining.
 
-        Examples:
+        Example:
             ```python
             repo = GitRepository("/path/to/repo")
             ui_helper = ui.DefaultUIHelper()

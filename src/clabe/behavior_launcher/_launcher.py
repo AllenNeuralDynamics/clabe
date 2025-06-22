@@ -39,7 +39,7 @@ class BehaviorLauncher(BaseLauncher[TRig, TSession, TTaskLogic]):
         services_factory_manager (BehaviorServicesFactoryManager): Manager for experiment services
         _by_subject_modifiers_manager (BySubjectModifierManager): Manager for subject-specific modifications
 
-    Examples:
+    Example:
         ```python
         # Create a behavior launcher
         launcher = BehaviorLauncher(
@@ -254,7 +254,7 @@ class ByAnimalFiles(enum.StrEnum):
     Defines the standard file types that can be associated with individual
     animals/subjects in behavior experiments.
 
-    Examples:
+    Example:
         ```python
         # Use the task logic file type
         filename = f"{ByAnimalFiles.TASK_LOGIC}.json"
@@ -277,7 +277,7 @@ class DefaultBehaviorPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
         SUBJECT_SUFFIX (str): Directory suffix for subject configurations
         TASK_LOGIC_SUFFIX (str): Directory suffix for task logic configurations
 
-    Examples:
+    Example:
         ```python
         # Create a default behavior picker
         picker = DefaultBehaviorPicker(
@@ -525,7 +525,7 @@ class DefaultBehaviorPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
         Returns:
             str: The selected or entered subject name.
 
-        Examples:
+        Example:
             ```python
             # Choose a subject from the subjects directory
             subject = picker.choose_subject("Subjects")
@@ -562,7 +562,7 @@ class DefaultBehaviorPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
         Returns:
             Optional[List[str]]: List of experimenter names.
 
-        Examples:
+        Example:
             ```python
             # Prompt for experimenter with validation
             names = picker.prompt_experimenter(strict=True)

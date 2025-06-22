@@ -58,7 +58,7 @@ def snapshot_python_environment() -> Dict[str, str]:
     Returns:
         Dict[str, str]: A dictionary of package names and their versions
 
-    Examples:
+    Example:
         ```python
         # Capture the current Python environment:
         env_snapshot = snapshot_python_environment()
@@ -88,7 +88,7 @@ def snapshot_bonsai_environment(
     Returns:
         Dict[str, str]: A dictionary of package IDs and their versions
 
-    Examples:
+    Example:
         ```python
         # Capture Bonsai environment from default config:
         bonsai_env = snapshot_bonsai_environment()

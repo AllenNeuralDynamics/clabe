@@ -31,7 +31,7 @@ class PickerBase(abc.ABC, Generic[_L, _R, _S, _T]):
         _S: Type of the session model
         _T: Type of the task logic model
 
-    Examples:
+    Example:
         ```python
         class MyPicker(PickerBase):
             def pick_rig(self):
@@ -64,7 +64,7 @@ class PickerBase(abc.ABC, Generic[_L, _R, _S, _T]):
             launcher: The launcher instance
             ui_helper: The UI helper instance
 
-        Examples:
+        Example:
             ```python
             # Create picker without dependencies
             picker = MyPicker()
@@ -94,7 +94,7 @@ class PickerBase(abc.ABC, Generic[_L, _R, _S, _T]):
         Raises:
             ValueError: If a launcher is already registered
 
-        Examples:
+        Example:
             ```python
             picker = MyPicker()
             launcher = MyLauncher()
@@ -118,7 +118,7 @@ class PickerBase(abc.ABC, Generic[_L, _R, _S, _T]):
         Returns:
             bool: True if a launcher is registered, False otherwise
 
-        Examples:
+        Example:
             ```python
             picker = MyPicker()
             print(picker.has_launcher)  # False

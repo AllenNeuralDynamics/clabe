@@ -50,7 +50,7 @@ class PythonScriptApp(App):
             Constructs the `--extra` arguments for the `uv` command based on optional TOML dependencies.
         _validate_uv():
             Validates the presence of the `uv` executable. Raises an error if it is not installed.
-    Examples:
+    Example:
         ```python
         # Create and run a Python script app
         app = PythonScriptApp(script="my_script.py")
@@ -81,7 +81,7 @@ class PythonScriptApp(App):
             append_python_exe (bool): Whether to append the Python executable to the command.
             timeout (Optional[float]): Timeout for the script execution.
 
-        Examples:
+        Example:
             ```python
             # Initialize with basic script
             app = PythonScriptApp(script="test.py")
@@ -217,7 +217,7 @@ class PythonScriptApp(App):
         Raises:
             subprocess.CalledProcessError: If the environment creation fails.
 
-        Examples:
+        Example:
             ```python
             # Create a virtual environment
             app.create_environment()
