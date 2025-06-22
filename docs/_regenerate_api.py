@@ -20,11 +20,11 @@ log = logging.getLogger("mkdocs")
 
 def discover_python_modules(package_root: Path, include_private: bool = False) -> List[str]:
     modules = []
-    
+
     def _find_modules(current_path: Path, prefix: str = "") -> None:
         if not current_path.exists() or not current_path.is_dir():
             return
-        
+
         for item in current_path.iterdir():
             if not item.is_dir():
                 continue
@@ -39,18 +39,18 @@ def discover_python_modules(package_root: Path, include_private: bool = False) -
 
             # Recursively search subdirectories for nested modules
             _find_modules(item, f"{module_name}.")
-    
+
     _find_modules(package_root)
     return sorted(modules)
 
 
 def discover_module_files(module_path: Path, include_private: bool = False) -> List[str]:
     files = []
-    
+
     def _find_files(current_path: Path, prefix: str = "") -> None:
         if not current_path.exists() or not current_path.is_dir():
             return
-        
+
         for item in current_path.iterdir():
             if item.is_file() and item.suffix == ".py":
                 if item.name.startswith("_") and not include_private:
@@ -62,7 +62,7 @@ def discover_module_files(module_path: Path, include_private: bool = False) -> L
                     continue
                 # Recursively search subdirectories
                 _find_files(item, f"{prefix}{item.name}." if prefix else f"{item.name}.")
-    
+
     _find_files(module_path)
     return sorted(files)
 
@@ -72,7 +72,7 @@ def on_pre_build(config: Dict[str, Any]) -> None:
     for file_or_dir in TO_COPY:
         src: Path = ROOT_DIR / file_or_dir
         dest: Path = DOCS_DIR / file_or_dir
-        
+
         if src.exists():
             log.info(f"Copying {file_or_dir} to docs...")
 
@@ -97,19 +97,15 @@ def generate_api_structure() -> Dict[str, List[Dict[str, str]]]:
     for module_name in modules:
         module_structure: List[Dict[str, str]] = []
         module_path = SRC_DIR / module_name.replace(".", "/")
-        
+
         # Add the module's __init__.py as the main module entry
         safe_module_name = module_name.replace(".", "_")
-        module_structure.append({
-            module_name: f"api/{safe_module_name}/{safe_module_name}.md"
-        })
-        
+        module_structure.append({module_name: f"api/{safe_module_name}/{safe_module_name}.md"})
+
         module_files = discover_module_files(module_path, INCLUDE_PRIVATE_MODULES)
         for file_name in module_files:
             safe_file_name = file_name.replace(".", "_")
-            module_structure.append({
-                file_name: f"api/{safe_module_name}/{safe_file_name}.md"
-            })
+            module_structure.append({file_name: f"api/{safe_module_name}/{safe_file_name}.md"})
 
         (API_DIR / safe_module_name).mkdir(parents=True, exist_ok=True)
 
@@ -133,14 +129,14 @@ def update_mkdocs_yml(api_structure: Dict[str, List[Dict[str, str]]]) -> None:
         config: Dict[str, Any] = yaml.safe_load(f)
 
     nav: List[Union[str, Dict[str, Any]]] = config.get("nav", [])
-    
+
     for entry in nav:
         if isinstance(entry, dict) and API_LABEL in entry:
             api_ref: List[Union[str, Dict[str, List[Dict[str, str]]]]] = ["api/index.md"]
-            
+
             for module_name, module_content in api_structure.items():
                 api_ref.append({module_name.capitalize(): module_content})
-            
+
             entry[API_LABEL] = api_ref
 
     with open(MKDOCS_YML, "w") as f:
