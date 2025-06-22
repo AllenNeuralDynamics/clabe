@@ -19,6 +19,19 @@ class RobocopyService(DataTransfer):
     """
     A data transfer service that uses the Robocopy command-line utility to copy files
     between source and destination directories.
+    
+    This service provides a wrapper around the Windows Robocopy utility with configurable
+    options for file copying, logging, and directory management.
+    
+    Attributes:
+        source (PathLike): Source directory or file path
+        destination (PathLike): Destination directory or file path  
+        delete_src (bool): Whether to delete source after copying
+        overwrite (bool): Whether to overwrite existing files
+        force_dir (bool): Whether to ensure destination directory exists
+        log (Optional[PathLike]): Optional log file path for Robocopy output
+        extra_args (str): Additional Robocopy command arguments
+        _ui_helper (ui.UiHelper): UI helper for user prompts
     """
 
     def __init__(
@@ -36,14 +49,14 @@ class RobocopyService(DataTransfer):
         Initializes the RobocopyService.
 
         Args:
-            source: The source directory or file to copy.
-            destination: The destination directory or file.
-            log: Optional log file path for Robocopy output. Default is None.
-            extra_args: Additional arguments for the Robocopy command. Default is None.
-            delete_src: Whether to delete the source after copying. Default is False.
-            overwrite: Whether to overwrite existing files at the destination. Default is False.
-            force_dir: Whether to ensure the destination directory exists. Default is True.
-            ui_helper: UI helper for user prompts. Default is None.
+            source: The source directory or file to copy
+            destination: The destination directory or file
+            log: Optional log file path for Robocopy output. Default is None
+            extra_args: Additional arguments for the Robocopy command. Default is None
+            delete_src: Whether to delete the source after copying. Default is False
+            overwrite: Whether to overwrite existing files at the destination. Default is False
+            force_dir: Whether to ensure the destination directory exists. Default is True
+            ui_helper: UI helper for user prompts. Default is None
         """
         self.source = source
         self.destination = destination
@@ -59,6 +72,9 @@ class RobocopyService(DataTransfer):
     ) -> None:
         """
         Executes the data transfer using Robocopy.
+        
+        Processes source-destination mappings and executes Robocopy commands
+        for each pair, handling logging and error reporting.
         """
 
         # Loop through each source-destination pair and call robocopy'
@@ -97,16 +113,19 @@ class RobocopyService(DataTransfer):
     ) -> Optional[Dict[PathLike, PathLike]]:
         """
         Resolves the mapping between source and destination paths.
+        
+        Handles both single path mappings and dictionary-based multiple mappings
+        to create a consistent source-to-destination mapping structure.
 
         Args:
-            source: A single source path or a dictionary mapping sources to destinations.
-            destination: The destination path if the source is a single path.
+            source: A single source path or a dictionary mapping sources to destinations
+            destination: The destination path if the source is a single path
 
         Returns:
-            A dictionary mapping source paths to destination paths.
+            A dictionary mapping source paths to destination paths
 
         Raises:
-            ValueError: If the input arguments are invalid.
+            ValueError: If the input arguments are invalid or inconsistent
         """
         if source is None:
             return None
@@ -126,7 +145,7 @@ class RobocopyService(DataTransfer):
         Validates whether the Robocopy command is available on the system.
 
         Returns:
-            True if Robocopy is available, False otherwise.
+            True if Robocopy is available, False otherwise
         """
         if not _HAS_ROBOCOPY:
             logger.error("Robocopy command is not available on this system.")
@@ -138,6 +157,6 @@ class RobocopyService(DataTransfer):
         Prompts the user to confirm whether to trigger the Robocopy transfer.
 
         Returns:
-            True if the user confirms, False otherwise.
+            True if the user confirms, False otherwise
         """
         return self._ui_helper.prompt_yes_no_question("Would you like to trigger robocopy (Y/N)?")

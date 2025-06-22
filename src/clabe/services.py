@@ -15,7 +15,9 @@ logger = logging.getLogger(__name__)
 class IService(abc.ABC):
     """
     A base class for all services.
-    All services should inherit from this class.
+    
+    This abstract base class defines the interface that all services should inherit from.
+    It serves as a marker interface to identify service implementations across the system.
     """
 
 
@@ -27,22 +29,31 @@ TLauncher = TypeVar("TLauncher", bound="BaseLauncher")
 class ServiceFactory(Generic[TService, TLauncher]):
     """
     A factory class for defer the creation of service instances.
+    
+    This class allows for lazy instantiation of services, supporting both direct service
+    instances and factory functions that create services with launcher context.
 
     Attributes:
-        _service_factory: A callable that creates a service instance.
-        _service: An instance of the service.
+        _service_factory (Optional[Callable]): A callable that creates a service instance
+        _service (Optional[TService]): An instance of the service once created
     """
 
     @overload
     def __init__(self, service_or_factory: TService) -> None:
         """
-        Initializes the factory with a service type.
+        Initializes the factory with a service instance.
+        
+        Args:
+            service_or_factory: A pre-instantiated service instance
         """
 
     @overload
     def __init__(self, service_or_factory: Callable[[TLauncher], TService]) -> None:
         """
         Initializes the factory with a callable that creates a service instance.
+        
+        Args:
+            service_or_factory: A callable that takes a launcher and returns a service
         """
 
     def __init__(self, service_or_factory: Callable[[TLauncher], TService] | TService) -> None:
@@ -50,7 +61,10 @@ class ServiceFactory(Generic[TService, TLauncher]):
         Initializes the factory with either a service instance or a callable.
 
         Args:
-            service_or_factory: A service instance or a callable that creates a service.
+            service_or_factory: A service instance or a callable that creates a service
+            
+        Raises:
+            ValueError: If the argument is neither a service nor a service factory
         """
         self._service_factory: Optional[Callable[[TLauncher], TService]] = None
         self._service: Optional[TService] = None
@@ -66,14 +80,20 @@ class ServiceFactory(Generic[TService, TLauncher]):
     def build(self, launcher: TLauncher, *args, **kwargs) -> TService:
         """
         Builds/instantiates the service instance.
+        
+        If the service hasn't been created yet and a factory function is available,
+        it calls the factory with the launcher to create the service instance.
 
         Args:
-            launcher: The launcher instance to pass to the service factory.
-            *args: Additional positional arguments.
-            **kwargs: Additional keyword arguments.
+            launcher: The launcher instance to pass to the service factory
+            *args: Additional positional arguments
+            **kwargs: Additional keyword arguments
 
         Returns:
-            The service instance.
+            The service instance
+            
+        Raises:
+            ValueError: If no service factory is set and no service instance exists
         """
         if self._service is None:
             if self._service_factory is None:
@@ -88,7 +108,7 @@ class ServiceFactory(Generic[TService, TLauncher]):
         Returns the service instance if it has been created.
 
         Returns:
-            The service instance or None.
+            The service instance or None if not yet created
         """
         return self._service
 
@@ -96,10 +116,13 @@ class ServiceFactory(Generic[TService, TLauncher]):
 class ServicesFactoryManager(Generic[TLauncher]):
     """
     A manager class for handling multiple service factories.
+    
+    This class manages a collection of service factories, providing methods to register,
+    retrieve, and manage service instances with proper launcher context.
 
     Attributes:
-        _launcher_reference: A reference to the launcher instance.
-        _services: A dictionary of service factories.
+        _launcher_reference (Optional[TLauncher]): A reference to the launcher instance
+        _services (Dict[str, ServiceFactory]): A dictionary of service factories by name
     """
 
     def __init__(
@@ -111,33 +134,36 @@ class ServicesFactoryManager(Generic[TLauncher]):
         Initializes the manager with an optional launcher.
 
         Args:
-            launcher: An optional launcher instance.
-            **kwargs: Additional keyword arguments.
+            launcher: An optional launcher instance to register
+            **kwargs: Additional keyword arguments (unused)
         """
         self._launcher_reference = launcher
         self._services: Dict[str, ServiceFactory] = {}
 
     def __getitem__(self, name: str) -> IService:
         """
-        Retrieves a service by name.
+        Retrieves a service by name using dictionary-style access.
 
         Args:
-            name: The name of the service.
+            name: The name of the service to retrieve
 
         Returns:
-            The service instance.
+            The service instance
+            
+        Raises:
+            KeyError: If the service name is not found
         """
         return self._services[name].build(self.launcher)
 
     def try_get_service(self, name: str) -> Optional[IService]:
         """
-        Tries to retrieve a service by name.
+        Tries to retrieve a service by name without raising exceptions.
 
         Args:
-            name: The name of the service.
+            name: The name of the service to retrieve
 
         Returns:
-            The service instance or None if not found.
+            The service instance or None if not found
         """
         srv = self._services.get(name, None)
         return srv.build(self.launcher) if srv is not None else None
@@ -147,13 +173,20 @@ class ServicesFactoryManager(Generic[TLauncher]):
     ) -> Self:
         """
         Attaches a service factory to the manager.
+        
+        Registers a service factory, callable, or service instance with the manager
+        under the specified name.
 
         Args:
-            name: The name of the service.
-            service_factory: The service factory or callable.
+            name: The name to register the service under
+            service_factory: The service factory, callable, or service instance
 
         Returns:
-            The manager instance.
+            The manager instance for method chaining
+            
+        Raises:
+            IndexError: If a service with the same name is already registered
+            ValueError: If the service_factory is not a valid type
         """
         if name in self._services:
             raise IndexError(f"Service with name {name} is already registered")
@@ -170,12 +203,17 @@ class ServicesFactoryManager(Generic[TLauncher]):
     def detach_service_factory(self, name: str) -> Self:
         """
         Detaches a service factory from the manager.
+        
+        Removes a previously registered service factory from the manager.
 
         Args:
-            name: The name of the service.
+            name: The name of the service to remove
 
         Returns:
-            The manager instance.
+            The manager instance for method chaining
+            
+        Raises:
+            IndexError: If no service with the specified name is registered
         """
         if name in self._services:
             self._services.pop(name)
@@ -186,12 +224,18 @@ class ServicesFactoryManager(Generic[TLauncher]):
     def register_launcher(self, launcher: TLauncher) -> Self:
         """
         Registers a launcher with the manager.
+        
+        Associates a launcher instance with the manager, which will be passed
+        to service factories when creating service instances.
 
         Args:
-            launcher: The launcher instance.
+            launcher: The launcher instance to register
 
         Returns:
-            The manager instance.
+            The manager instance for method chaining
+            
+        Raises:
+            ValueError: If a launcher is already registered
         """
         if self._launcher_reference is None:
             self._launcher_reference = launcher
@@ -205,10 +249,10 @@ class ServicesFactoryManager(Generic[TLauncher]):
         Returns the registered launcher.
 
         Returns:
-            The launcher instance.
-
+            The launcher instance
+            
         Raises:
-            ValueError: If no launcher is registered.
+            ValueError: If no launcher is registered
         """
         if self._launcher_reference is None:
             raise ValueError("Launcher is not registered")
@@ -218,32 +262,38 @@ class ServicesFactoryManager(Generic[TLauncher]):
     def services(self) -> Iterable[IService]:
         """
         Returns all services managed by the manager.
+        
+        Creates and yields all service instances from the registered factories.
 
         Returns:
-            An iterable of service instances.
+            An iterable of service instances
         """
         yield from (service.build(self.launcher) for service in self._services.values())
 
     def get_services_of_type(self, service_type: Type[TService]) -> Iterable[TService]:
         """
         Retrieves all services of a specific type.
+        
+        Filters and returns only the services that are instances of the specified type.
 
         Args:
-            service_type: The type of services to retrieve.
+            service_type: The type of services to retrieve
 
         Returns:
-            An iterable of services of the specified type.
+            An iterable of services of the specified type
         """
         yield from (service for service in self.services if isinstance(service, service_type))
 
     def map(self, delegate: Callable[[IService], Any]) -> List[Any]:
         """
         Applies a delegate function to all services.
+        
+        Executes the provided function on each service instance and collects the results.
 
         Args:
-            delegate: A callable to apply to each service.
+            delegate: A callable to apply to each service
 
         Returns:
-            A list of results from the delegate function.
+            A list of results from the delegate function
         """
         return [delegate(service) for service in self.services]

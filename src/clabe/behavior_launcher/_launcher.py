@@ -30,6 +30,14 @@ class BehaviorLauncher(BaseLauncher[TRig, TSession, TTaskLogic]):
     """
     A launcher for behavior experiments that manages services, experiment configuration, and
     execution hooks.
+    
+    This class extends the BaseLauncher to provide specific functionality for behavior experiments,
+    including service management, configuration handling, and experiment lifecycle hooks.
+    
+    Attributes:
+        settings (BehaviorCliArgs): CLI arguments and configuration settings
+        services_factory_manager (BehaviorServicesFactoryManager): Manager for experiment services
+        _by_subject_modifiers_manager (BySubjectModifierManager): Manager for subject-specific modifications
     """
 
     settings: BehaviorCliArgs
@@ -49,6 +57,20 @@ class BehaviorLauncher(BaseLauncher[TRig, TSession, TTaskLogic]):
         by_subject_modifiers_manager: Optional[BySubjectModifierManager[TRig, TSession, TTaskLogic]] = None,
         **kwargs,
     ):
+        """
+        Initialize the BehaviorLauncher.
+        
+        Args:
+            settings (BehaviorCliArgs): CLI arguments and configuration settings
+            rig_schema_model: Model class for rig configuration
+            session_schema_model: Model class for session configuration  
+            task_logic_schema_model: Model class for task logic configuration
+            picker: Configuration picker instance
+            services: Optional services configuration
+            attached_logger: Optional logger instance
+            by_subject_modifiers_manager: Optional manager for subject-specific modifications
+            **kwargs: Additional keyword arguments passed to parent
+        """
         super().__init__(
             settings=settings,
             rig_schema_model=rig_schema_model,
@@ -77,7 +99,14 @@ class BehaviorLauncher(BaseLauncher[TRig, TSession, TTaskLogic]):
     def _pre_run_hook(self, *args, **kwargs) -> Self:
         """
         Hook executed before the main run logic.
-
+        
+        Performs initialization validation, sets experiment metadata, and applies
+        subject-specific modifications to schemas.
+        
+        Args:
+            *args: Variable length argument list
+            **kwargs: Arbitrary keyword arguments
+            
         Returns:
             Self: The current instance for method chaining.
         """
@@ -102,9 +131,19 @@ class BehaviorLauncher(BaseLauncher[TRig, TSession, TTaskLogic]):
     def _run_hook(self, *args, **kwargs) -> Self:
         """
         Hook executed during the main run logic.
-
+        
+        Configures and runs the main experiment application, handling any
+        execution errors that may occur.
+        
+        Args:
+            *args: Variable length argument list
+            **kwargs: Arbitrary keyword arguments
+            
         Returns:
             Self: The current instance for method chaining.
+            
+        Raises:
+            ValueError: If required schema instances are not set
         """
         logger.info("Running hook started.")
         if self._session_schema is None:
@@ -128,7 +167,14 @@ class BehaviorLauncher(BaseLauncher[TRig, TSession, TTaskLogic]):
     def _post_run_hook(self, *args, **kwargs) -> Self:
         """
         Hook executed after the main run logic.
-
+        
+        Handles experiment cleanup including finalizing the picker, data mapping,
+        log management, and data transfer.
+        
+        Args:
+            *args: Variable length argument list
+            **kwargs: Arbitrary keyword arguments
+            
         Returns:
             Self: The current instance for method chaining.
         """
@@ -190,6 +236,9 @@ _BehaviorPickerAlias = ui.PickerBase[BehaviorLauncher[TRig, TSession, TTaskLogic
 class ByAnimalFiles(enum.StrEnum):
     """
     Enum for file types associated with animals in the experiment.
+    
+    Defines the standard file types that can be associated with individual
+    animals/subjects in behavior experiments.
     """
 
     TASK_LOGIC = "task_logic"
@@ -200,7 +249,13 @@ class DefaultBehaviorPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
     A picker class for selecting rig, session, and task logic configurations for behavior experiments.
 
     This class provides methods to initialize directories, pick configurations, and prompt user inputs
-    for various components of the experiment setup.
+    for various components of the experiment setup. It manages the configuration library structure
+    and user interactions for selecting experiment parameters.
+    
+    Attributes:
+        RIG_SUFFIX (str): Directory suffix for rig configurations
+        SUBJECT_SUFFIX (str): Directory suffix for subject configurations  
+        TASK_LOGIC_SUFFIX (str): Directory suffix for task logic configurations
     """
 
     RIG_SUFFIX: str = "Rig"
@@ -221,11 +276,11 @@ class DefaultBehaviorPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
         Initializes the DefaultBehaviorPicker.
 
         Args:
-            launcher (Optional[BehaviorLauncher[TRig, TSession, TTaskLogic]]): The launcher instance associated with the picker.
-            ui_helper (Optional[ui.DefaultUIHelper]): Helper for user interface interactions.
-            config_library_dir (os.PathLike): Path to the configuration library directory.
-            experimenter_validator (Optional[Callable[[str], bool]]): Function to validate the experimenter's username. If None, no validation is performed.
-            **kwargs: Additional keyword arguments.
+            launcher: The launcher instance associated with the picker
+            ui_helper: Helper for user interface interactions
+            config_library_dir: Path to the configuration library directory
+            experimenter_validator: Function to validate the experimenter's username. If None, no validation is performed
+            **kwargs: Additional keyword arguments
         """
         super().__init__(launcher, ui_helper=ui_helper, **kwargs)
         self._config_library_dir = Path(config_library_dir)
@@ -274,7 +329,7 @@ class DefaultBehaviorPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
     @override
     def initialize(self) -> None:
         """
-        Initializes the picker
+        Initializes the picker by creating required directories if needed.
         """
         if self.launcher.settings.create_directories:
             self._create_directories()
@@ -282,6 +337,9 @@ class DefaultBehaviorPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
     def _create_directories(self) -> None:
         """
         Creates the required directories for configuration files.
+        
+        Creates the configuration library directory and all required subdirectories
+        for storing rig, task logic, and subject configurations.
         """
         self.launcher.create_directory(self.config_library_dir)
         self.launcher.create_directory(self.task_logic_dir)
@@ -291,6 +349,9 @@ class DefaultBehaviorPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
     def pick_rig(self) -> TRig:
         """
         Prompts the user to select a rig configuration file.
+        
+        Searches for available rig configuration files and either automatically
+        selects a single file or prompts the user to choose from multiple options.
 
         Returns:
             TRig: The selected rig configuration.
@@ -322,6 +383,9 @@ class DefaultBehaviorPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
     def pick_session(self) -> TSession:
         """
         Prompts the user to select or create a session configuration.
+        
+        Collects experimenter information, subject selection, and session notes
+        to create a new session configuration with appropriate metadata.
 
         Returns:
             TSession: The created or selected session configuration.
@@ -356,7 +420,12 @@ class DefaultBehaviorPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
     def pick_task_logic(self) -> TTaskLogic:
         """
         Prompts the user to select or create a task logic configuration.
-
+        
+        Attempts to load task logic in the following order:
+        1. From CLI if already set
+        2. From subject-specific folder
+        3. From user selection in task logic library
+        
         Returns:
             TTaskLogic: The created or selected task logic configuration.
 
@@ -412,9 +481,12 @@ class DefaultBehaviorPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
     def choose_subject(self, directory: str | os.PathLike) -> str:
         """
         Prompts the user to select or manually enter a subject name.
+        
+        Allows the user to either type a new subject name or select from
+        existing subject directories.
 
         Args:
-            directory (str | os.PathLike): Path to the directory containing subject folders.
+            directory: Path to the directory containing subject folders
 
         Returns:
             str: The selected or entered subject name.
@@ -439,10 +511,13 @@ class DefaultBehaviorPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
 
     def prompt_experimenter(self, strict: bool = True) -> Optional[List[str]]:
         """
-        Prompts the user to enter the experimenter's name(s). Multiple names can be separated by commas.
+        Prompts the user to enter the experimenter's name(s).
+        
+        Accepts multiple experimenter names separated by commas or spaces.
+        Validates names using the configured validator function if provided.
 
         Args:
-            strict (bool): Whether to enforce non-empty input.
+            strict: Whether to enforce non-empty input
 
         Returns:
             Optional[List[str]]: List of experimenter names.
@@ -464,4 +539,9 @@ class DefaultBehaviorPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
         return experimenter
 
     def finalize(self) -> None:
+        """
+        Finalizes the picker operations.
+        
+        Currently a no-op but can be extended for cleanup operations.
+        """
         return

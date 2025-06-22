@@ -38,6 +38,9 @@ class BehaviorServicesFactoryManager(ServicesFactoryManager[BehaviorLauncher]):
     This class provides methods to attach and retrieve various services such as
     app, data transfer, resource monitor, and data mapper. It ensures that the
     services are of the correct type and properly initialized.
+    
+    Attributes:
+        Services are managed internally through the parent class and accessed via properties.
     """
 
     def __init__(self, launcher: Optional[BehaviorLauncher] = None, **kwargs) -> None:
@@ -45,8 +48,8 @@ class BehaviorServicesFactoryManager(ServicesFactoryManager[BehaviorLauncher]):
         Initializes the BehaviorServicesFactoryManager.
 
         Args:
-            launcher (Optional[BehaviorLauncher]): The launcher instance to associate with the services.
-            **kwargs: Additional keyword arguments for service initialization.
+            launcher: The launcher instance to associate with the services
+            **kwargs: Additional keyword arguments for service initialization
         """
         super().__init__(launcher, **kwargs)
         self._add_to_services("app", kwargs)
@@ -59,11 +62,11 @@ class BehaviorServicesFactoryManager(ServicesFactoryManager[BehaviorLauncher]):
         Adds a service to the manager by attaching it to the appropriate factory.
 
         Args:
-            name (str): The name of the service to add.
-            input_kwargs (Dict[str, Any]): The keyword arguments containing the service instance or factory.
+            name: The name of the service to add
+            input_kwargs: The keyword arguments containing the service instance or factory
 
         Returns:
-            Optional[ServiceFactory]: The attached service factory, if any.
+            Optional[ServiceFactory]: The attached service factory, if any
         """
         srv = input_kwargs.pop(name, None)
         if srv is not None:
@@ -76,10 +79,10 @@ class BehaviorServicesFactoryManager(ServicesFactoryManager[BehaviorLauncher]):
         Retrieves the app service.
 
         Returns:
-            App: The app service instance.
+            App: The app service instance
 
         Raises:
-            ValueError: If the app service is not set.
+            ValueError: If the app service is not set
         """
         srv = self.try_get_service("app")
         srv = self._validate_service_type(srv, App)
@@ -92,7 +95,7 @@ class BehaviorServicesFactoryManager(ServicesFactoryManager[BehaviorLauncher]):
         Attaches an app service factory.
 
         Args:
-            value (_ServiceFactoryIsh[App]): The app service factory or instance.
+            value: The app service factory or instance
         """
         self.attach_service_factory("app", value)
 
@@ -102,7 +105,7 @@ class BehaviorServicesFactoryManager(ServicesFactoryManager[BehaviorLauncher]):
         Retrieves the data mapper service.
 
         Returns:
-            Optional[DataMapper]: The data mapper service instance.
+            Optional[DataMapper]: The data mapper service instance
         """
         srv = self.try_get_service("data_mapper")
         return self._validate_service_type(srv, DataMapper)
@@ -112,7 +115,7 @@ class BehaviorServicesFactoryManager(ServicesFactoryManager[BehaviorLauncher]):
         Attaches a data mapper service factory.
 
         Args:
-            value (_ServiceFactoryIsh[DataMapper]): The data mapper service factory or instance.
+            value: The data mapper service factory or instance
         """
         self.attach_service_factory("data_mapper", value)
 
@@ -122,7 +125,7 @@ class BehaviorServicesFactoryManager(ServicesFactoryManager[BehaviorLauncher]):
         Retrieves the resource monitor service.
 
         Returns:
-            Optional[ResourceMonitor]: The resource monitor service instance.
+            Optional[ResourceMonitor]: The resource monitor service instance
         """
         srv = self.try_get_service("resource_monitor")
         return self._validate_service_type(srv, ResourceMonitor)
@@ -132,7 +135,7 @@ class BehaviorServicesFactoryManager(ServicesFactoryManager[BehaviorLauncher]):
         Attaches a resource monitor service factory.
 
         Args:
-            value (_ServiceFactoryIsh[ResourceMonitor]): The resource monitor service factory or instance.
+            value: The resource monitor service factory or instance
         """
         self.attach_service_factory("resource_monitor", value)
 
@@ -142,7 +145,7 @@ class BehaviorServicesFactoryManager(ServicesFactoryManager[BehaviorLauncher]):
         Retrieves the data transfer service.
 
         Returns:
-            Optional[DataTransfer]: The data transfer service instance.
+            Optional[DataTransfer]: The data transfer service instance
         """
         srv = self.try_get_service("data_transfer")
         return self._validate_service_type(srv, DataTransfer)
@@ -152,7 +155,7 @@ class BehaviorServicesFactoryManager(ServicesFactoryManager[BehaviorLauncher]):
         Attaches a data transfer service factory.
 
         Args:
-            value (_ServiceFactoryIsh[DataTransfer]): The data transfer service factory or instance.
+            value: The data transfer service factory or instance
         """
         self.attach_service_factory("data_transfer", value)
 
@@ -162,14 +165,14 @@ class BehaviorServicesFactoryManager(ServicesFactoryManager[BehaviorLauncher]):
         Validates the type of a service.
 
         Args:
-            value (Any): The service instance to validate.
-            type_of (Type): The expected type of the service.
+            value: The service instance to validate
+            type_of: The expected type of the service
 
         Returns:
-            Optional[TService]: The validated service instance.
+            Optional[TService]: The validated service instance
 
         Raises:
-            ValueError: If the service is not of the expected type.
+            ValueError: If the service is not of the expected type
         """
         if value is None:
             return None
@@ -187,15 +190,18 @@ def watchdog_data_transfer_factory(
 ) -> Callable[[BehaviorLauncher], WatchdogDataTransferService]:
     """
     Creates a factory for the WatchdogDataTransferService.
+    
+    This factory creates a partial function that can be used to instantiate
+    a watchdog data transfer service with pre-configured parameters.
 
     Args:
-        destination (os.PathLike): The destination path for data transfer.
-        schedule_time (Optional[datetime.time]): The scheduled time for data transfer.
-        project_name (Optional[str]): The project name.
-        **watchdog_kwargs: Additional keyword arguments for the watchdog service.
+        destination: The destination path for data transfer
+        schedule_time: The scheduled time for data transfer
+        project_name: The project name for organization
+        **watchdog_kwargs: Additional keyword arguments for the watchdog service
 
     Returns:
-        Callable[[BehaviorLauncher], WatchdogDataTransferService]: A callable factory for the watchdog service.
+        Callable[[BehaviorLauncher], WatchdogDataTransferService]: A callable factory for the watchdog service
     """
     return partial(
         _watchdog_data_transfer_factory,
@@ -209,16 +215,19 @@ def watchdog_data_transfer_factory(
 def _watchdog_data_transfer_factory(launcher: BehaviorLauncher, **watchdog_kwargs) -> WatchdogDataTransferService:
     """
     Internal factory function for creating a WatchdogDataTransferService.
+    
+    This function is used internally by the watchdog_data_transfer_factory to create
+    the actual service instance with the launcher context.
 
     Args:
-        launcher (BehaviorLauncher): The launcher instance.
-        **watchdog_kwargs: Additional keyword arguments for the watchdog service.
+        launcher: The launcher instance providing context and configuration
+        **watchdog_kwargs: Additional keyword arguments for the watchdog service
 
     Returns:
-        WatchdogDataTransferService: The created watchdog service.
+        WatchdogDataTransferService: The created watchdog service
 
     Raises:
-        ValueError: If the data mapper service is not set or is of the wrong type.
+        ValueError: If the data mapper service is not set or is of the wrong type
     """
     if launcher.services_factory_manager.data_mapper is None:
         raise ValueError("Data mapper service is not set. Cannot create watchdog.")
@@ -242,13 +251,16 @@ def robocopy_data_transfer_factory(
 ) -> Callable[[BehaviorLauncher], RobocopyService]:
     """
     Creates a factory for the RobocopyService.
+    
+    This factory creates a partial function that can be used to instantiate
+    a robocopy data transfer service with pre-configured parameters.
 
     Args:
-        destination (os.PathLike): The destination path for data transfer.
-        **robocopy_kwargs: Additional keyword arguments for the robocopy service.
+        destination: The destination path for data transfer
+        **robocopy_kwargs: Additional keyword arguments for the robocopy service
 
     Returns:
-        Callable[[BehaviorLauncher], RobocopyService]: A callable factory for the robocopy service.
+        Callable[[BehaviorLauncher], RobocopyService]: A callable factory for the robocopy service
     """
     return partial(_robocopy_data_transfer_factory, destination=destination, **robocopy_kwargs)
 
@@ -258,14 +270,17 @@ def _robocopy_data_transfer_factory(
 ) -> RobocopyService:
     """
     Internal factory function for creating a RobocopyService.
+    
+    This function is used internally by the robocopy_data_transfer_factory to create
+    the actual service instance with the launcher context and proper destination paths.
 
     Args:
-        launcher (BehaviorLauncher): The launcher instance.
-        destination (os.PathLike): The destination path for data transfer.
-        **robocopy_kwargs: Additional keyword arguments for the robocopy service.
+        launcher: The launcher instance providing context and configuration
+        destination: The destination path for data transfer
+        **robocopy_kwargs: Additional keyword arguments for the robocopy service
 
     Returns:
-        RobocopyService: The created robocopy service.
+        RobocopyService: The created robocopy service
     """
     if launcher.group_by_subject_log:
         dst = Path(destination) / launcher.session_schema.subject / launcher.session_schema.session_name

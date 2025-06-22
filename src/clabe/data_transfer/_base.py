@@ -12,19 +12,30 @@ class DataTransfer(IService, abc.ABC):
     """
     Abstract base class for data transfer services. All data transfer implementations
     must inherit from this class and implement its abstract methods.
+    
+    This class defines the interface that all data transfer services must implement,
+    providing a consistent API for different transfer mechanisms such as file copying,
+    cloud uploads, or network transfers.
     """
 
     @abc.abstractmethod
     def transfer(self) -> None:
         """
         Executes the data transfer process. Must be implemented by subclasses.
+        
+        This method should contain the core logic for transferring data from
+        source to destination according to the service's specific implementation.
         """
 
     @abc.abstractmethod
     def validate(self) -> bool:
         """
         Validates the data transfer service. Must be implemented by subclasses.
+        
+        This method should verify that the service is properly configured and
+        ready to perform data transfers, checking for required dependencies,
+        connectivity, permissions, etc.
 
         Returns:
-            True if the service is valid, False otherwise.
+            True if the service is valid and ready for use, False otherwise
         """

@@ -80,15 +80,19 @@ class BaseCliArgs(BaseSettings, cli_prog_name="clabe", cli_kebab_case=True):
         """
         Customizes the order of settings sources for the CLI.
 
+        Defines the priority order for configuration sources, with initialization settings
+        taking precedence, followed by YAML files, environment variables, dotenv files,
+        and finally file secrets.
+
         Args:
-            settings_cls (Type[BaseSettings]): The settings class.
-            init_settings (PydanticBaseSettingsSource): Initial settings source.
-            env_settings (PydanticBaseSettingsSource): Environment variable settings source.
-            dotenv_settings (PydanticBaseSettingsSource): Dotenv settings source.
-            file_secret_settings (PydanticBaseSettingsSource): File secret settings source.
+            settings_cls: The settings class
+            init_settings: Initial settings source
+            env_settings: Environment variable settings source
+            dotenv_settings: Dotenv settings source
+            file_secret_settings: File secret settings source
 
         Returns:
-            Tuple[PydanticBaseSettingsSource, ...]: Ordered tuple of settings sources.
+            Tuple[PydanticBaseSettingsSource, ...]: Ordered tuple of settings sources
         """
         return (
             init_settings,

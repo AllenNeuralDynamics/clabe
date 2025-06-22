@@ -272,10 +272,34 @@ class BonsaiApp(App):
 
 
 class AindBehaviorServicesBonsaiApp(BonsaiApp):
+    """
+    Specialized Bonsai application for AIND behavior services integration.
+    
+    This class extends the base BonsaiApp to provide specific functionality for
+    AIND behavior experiments, including automatic configuration of task logic,
+    session, and rig paths for the Bonsai workflow.
+    """
+
     @overload
     def add_app_settings(self, *, launcher: Optional[BehaviorLauncher] = None, **kwargs) -> Self: ...
 
     def add_app_settings(self, **kwargs) -> Self:
+        """
+        Adds AIND behavior-specific application settings to the Bonsai workflow.
+        
+        This method automatically configures the TaskLogicPath, SessionPath, and RigPath
+        properties for the Bonsai workflow based on the launcher's schema models.
+
+        Args:
+            launcher: The behavior launcher instance containing schema models
+            **kwargs: Additional keyword arguments
+
+        Returns:
+            Self: The updated instance
+
+        Raises:
+            ValueError: If the required launcher argument is not provided
+        """
         launcher: BehaviorLauncher = kwargs.pop("launcher", None)
         if launcher is None:
             raise ValueError("Missing required argument 'launcher'.")

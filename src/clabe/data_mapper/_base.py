@@ -17,9 +17,13 @@ TMapTo = TypeVar("TMapTo", bound=Any)
 class DataMapper(IService, abc.ABC, Generic[TMapTo]):
     """
     Abstract base class for data mappers.
+    
+    This class defines the interface for mapping data from various sources to specific
+    target formats or schemas. It provides a generic framework for data transformation
+    and validation operations.
 
     Attributes:
-        _mapped (Optional[TMapTo]): The mapped data object.
+        _mapped (Optional[TMapTo]): The mapped data object, set after successful mapping
     """
 
     _mapped: Optional[TMapTo]
@@ -28,9 +32,12 @@ class DataMapper(IService, abc.ABC, Generic[TMapTo]):
     def map(self) -> TMapTo:
         """
         Maps data to the target schema or format.
+        
+        This method should contain the core logic for transforming input data
+        into the target format specified by the TMapTo type parameter.
 
         Returns:
-            TMapTo: The mapped data object.
+            TMapTo: The mapped data object
         """
         pass
 
@@ -38,9 +45,12 @@ class DataMapper(IService, abc.ABC, Generic[TMapTo]):
     def is_mapped(self) -> bool:
         """
         Checks if the data has been successfully mapped.
+        
+        This method should verify whether the mapping operation has been completed
+        and the data is available in the target format.
 
         Returns:
-            bool: True if the data is mapped, False otherwise.
+            bool: True if the data is mapped, False otherwise
         """
         pass
 
@@ -49,8 +59,12 @@ class DataMapper(IService, abc.ABC, Generic[TMapTo]):
     def mapped(self) -> TMapTo:
         """
         Retrieves the mapped data object.
+        
+        This property should return the successfully mapped data object.
+        Implementations should ensure that mapping has been completed before
+        returning the data.
 
         Returns:
-            TMapTo: The mapped data object.
+            TMapTo: The mapped data object
         """
         pass

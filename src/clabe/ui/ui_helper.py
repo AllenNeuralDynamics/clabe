@@ -17,6 +17,13 @@ _TModel = TypeVar("_TModel", bound=BaseModel)
 class _UiHelperBase(abc.ABC):
     """
     Abstract base class for UI helpers that provide methods for user interaction.
+    
+    This class defines the interface for user interface helpers that handle various
+    types of user input and interaction patterns in a consistent manner.
+    
+    Attributes:
+        _print (_PrintFunc): Function used for printing messages to the user
+        _input (_InputFunc): Function used for receiving input from the user
     """
 
     _print: _PrintFunc
@@ -29,8 +36,8 @@ class _UiHelperBase(abc.ABC):
         Initializes the UI helper with optional custom print and input functions.
 
         Args:
-            print_func (Optional[_PrintFunc]): Custom function for printing messages.
-            input_func (Optional[_PrintFunc]): Custom function for receiving input.
+            print_func: Custom function for printing messages
+            input_func: Custom function for receiving input
         """
         self._print = print_func if print_func is not None else _DEFAULT_PRINT_FUNC
         self._input = input_func if input_func is not None else _DEFAULT_INPUT_FUNC
@@ -40,10 +47,10 @@ class _UiHelperBase(abc.ABC):
         Prints a message using the configured print function.
 
         Args:
-            message (str): The message to print.
+            message: The message to print
 
         Returns:
-            Any: The result of the print function.
+            Any: The result of the print function
         """
         return self._print(message)
 
@@ -52,10 +59,10 @@ class _UiHelperBase(abc.ABC):
         Prompts the user for input using the configured input function.
 
         Args:
-            prompt (str): The prompt message.
+            prompt: The prompt message
 
         Returns:
-            str: The user input.
+            str: The user input
         """
         return self._input(prompt)
 
@@ -65,11 +72,11 @@ class _UiHelperBase(abc.ABC):
         Abstract method to prompt the user to pick an item from a list.
 
         Args:
-            value (List[str]): The list of items to choose from.
-            prompt (str): The prompt message.
+            value: The list of items to choose from
+            prompt: The prompt message
 
         Returns:
-            Optional[str]: The selected item or None.
+            Optional[str]: The selected item or None
         """
 
     @abc.abstractmethod
@@ -78,10 +85,10 @@ class _UiHelperBase(abc.ABC):
         Abstract method to prompt the user with a yes/no question.
 
         Args:
-            prompt (str): The question to ask.
+            prompt: The question to ask
 
         Returns:
-            bool: True for yes, False for no.
+            bool: True for yes, False for no
         """
 
     @abc.abstractmethod
@@ -90,10 +97,10 @@ class _UiHelperBase(abc.ABC):
         Abstract method to prompt the user for generic text input.
 
         Args:
-            prompt (str): The prompt message.
+            prompt: The prompt message
 
         Returns:
-            str: The user input.
+            str: The user input
         """
 
     @abc.abstractmethod
@@ -102,10 +109,10 @@ class _UiHelperBase(abc.ABC):
         Abstract method to prompt the user for a float input.
 
         Args:
-            prompt (str): The prompt message.
+            prompt: The prompt message
 
         Returns:
-            float: The parsed user input.
+            float: The parsed user input
         """
         pass
 
@@ -116,6 +123,9 @@ UiHelper: TypeAlias = _UiHelperBase
 class DefaultUIHelper(_UiHelperBase):
     """
     Default implementation of the UI helper for user interaction.
+    
+    This class provides a concrete implementation of the UI helper interface
+    using standard console input/output for user interactions.
     """
 
     def prompt_pick_from_list(
@@ -123,14 +133,17 @@ class DefaultUIHelper(_UiHelperBase):
     ) -> Optional[str]:
         """
         Prompts the user to pick an item from a list.
+        
+        Displays a numbered list of options and prompts the user to select
+        one by entering the corresponding number.
 
         Args:
-            value (List[str]): The list of items to choose from.
-            prompt (str): The prompt message.
-            allow_0_as_none (bool): Whether to allow 0 as a choice for None.
+            value: The list of items to choose from
+            prompt: The prompt message
+            allow_0_as_none: Whether to allow 0 as a choice for None
 
         Returns:
-            Optional[str]: The selected item or None.
+            Optional[str]: The selected item or None
         """
         while True:
             try:
@@ -154,12 +167,14 @@ class DefaultUIHelper(_UiHelperBase):
     def prompt_yes_no_question(self, prompt: str) -> bool:
         """
         Prompts the user with a yes/no question.
+        
+        Continues prompting until a valid yes/no response is received.
 
         Args:
-            prompt (str): The question to ask.
+            prompt: The question to ask
 
         Returns:
-            bool: True for yes, False for no.
+            bool: True for yes, False for no
         """
         while True:
             reply = input(prompt + " (Y\\N): ").upper()
@@ -173,12 +188,14 @@ class DefaultUIHelper(_UiHelperBase):
     def prompt_text(self, prompt: str) -> str:
         """
         Prompts the user for text input.
+        
+        Simple text input prompt that returns the user's input as a string.
 
         Args:
-            prompt (str): The prompt message.
+            prompt: The prompt message
 
         Returns:
-            str: The user input.
+            str: The user input
         """
         notes = str(input(prompt))
         return notes
@@ -186,12 +203,14 @@ class DefaultUIHelper(_UiHelperBase):
     def prompt_float(self, prompt: str) -> float:
         """
         Prompts the user for a float input.
+        
+        Continues prompting until a valid float value is entered.
 
         Args:
-            prompt (str): The prompt message.
+            prompt: The prompt message
 
         Returns:
-            float: The parsed user input.
+            float: The parsed user input
         """
         while True:
             try:
@@ -204,14 +223,17 @@ class DefaultUIHelper(_UiHelperBase):
 def prompt_field_from_input(model: Type[_TModel], field_name: str, default: Optional[_T] = None) -> Optional[_T]:
     """
     Prompts the user to input a value for a specific field in a model.
+    
+    Uses the model's field information to prompt for input and validates the
+    entered value against the field's type annotation.
 
     Args:
-        model (_TModel): The model containing the field.
-        field_name (str): The name of the field.
-        default (Optional[_T]): The default value if no input is provided.
+        model: The model containing the field
+        field_name: The name of the field
+        default: The default value if no input is provided
 
     Returns:
-        Optional[_T]: The validated input value or the default value.
+        Optional[_T]: The validated input value or the default value
     """
     _field = model.model_fields[field_name]
     _type_adaptor: TypeAdapter = TypeAdapter(_field.annotation)

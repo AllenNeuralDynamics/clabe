@@ -8,13 +8,19 @@ from ._base import Constraint
 def available_storage_constraint_factory(drive: os.PathLike = Path(r"C:\\"), min_bytes: float = 2e11) -> Constraint:
     """
     Creates a constraint to check if a drive has sufficient available storage.
+    
+    This factory function creates a constraint that validates whether the specified
+    drive has enough free space to meet the minimum requirements.
 
     Args:
-        drive (os.PathLike): The drive to check. Defaults to "C:\\".
-        min_bytes (float): Minimum required free space in bytes. Defaults to 200GB.
+        drive: The drive to check. Defaults to "C:\\":
+        min_bytes: Minimum required free space in bytes. Defaults to 200GB
 
     Returns:
-        Constraint: A constraint object for available storage.
+        Constraint: A constraint object for available storage validation
+        
+    Raises:
+        ValueError: If the drive path is not valid
     """
     if not os.path.ismount(drive):
         drive = os.path.splitdrive(drive)[0] + "\\"
@@ -32,12 +38,15 @@ def available_storage_constraint_factory(drive: os.PathLike = Path(r"C:\\"), min
 def remote_dir_exists_constraint_factory(dir_path: os.PathLike) -> Constraint:
     """
     Creates a constraint to check if a remote directory exists.
+    
+    This factory function creates a constraint that validates whether the specified
+    directory path exists and is accessible.
 
     Args:
-        dir_path (os.PathLike): The path of the directory to check.
+        dir_path: The path of the directory to check
 
     Returns:
-        Constraint: A constraint object for directory existence.
+        Constraint: A constraint object for directory existence validation
     """
     return Constraint(
         name="remote_dir_exists",

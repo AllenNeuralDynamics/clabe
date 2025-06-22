@@ -18,14 +18,23 @@ if platform.system() == "Windows":
         timeout: Optional[float] = 2,
     ) -> bool:
         """
-        Validates if the given username is in the AIND active directory.
+        Validates if the given username exists in the AIND Active Directory.
+        
+        This function authenticates with the corporate Active Directory and searches
+        for the specified username to verify its existence within the organization.
         See https://github.com/AllenNeuralDynamics/aind-watchdog-service/issues/110#issuecomment-2828869619
 
         Args:
-            username (str): The username to validate.
+            username: The username to validate against Active Directory
+            domain: The Active Directory domain to search. Defaults to Allen Institute domain
+            domain_username: Username for domain authentication. Defaults to current user
+            timeout: Timeout in seconds for the validation operation
 
         Returns:
-            bool: True if the username is valid, False otherwise.
+            bool: True if the username exists in Active Directory, False otherwise
+
+        Raises:
+            concurrent.futures.TimeoutError: If the validation operation times out
         """
 
         def _helper(username: str, domain: str, domain_username: Optional[str]) -> bool:
@@ -59,14 +68,21 @@ else:
         timeout: Optional[float] = 2,
     ) -> bool:
         """
-        Validates if the given username is in the AIND active directory.
-        This function is a no-op on non-Windows platforms.
+        Validates if the given username is in the AIND Active Directory.
+        
+        This function is a no-op on non-Windows platforms since Active Directory
+        authentication is not available.
+        
+        This function always returns True on non-Windows platforms.
 
         Args:
-            username (str): The username to validate.
+            username: The username to validate (ignored on non-Windows platforms)
+            domain: The Active Directory domain (ignored on non-Windows platforms)
+            domain_username: Username for domain authentication (ignored on non-Windows platforms)
+            timeout: Timeout for the validation operation (ignored on non-Windows platforms)
 
         Returns:
-            bool: Always returns True on non-Windows platforms.
+            bool: Always returns True on non-Windows platforms
         """
         logger.warning("Active Directory validation is not implemented for non-Windows platforms")
         return True

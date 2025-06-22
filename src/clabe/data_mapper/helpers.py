@@ -22,13 +22,16 @@ def get_cameras(
 ) -> Dict[str, CameraTypes]:
     """
     Retrieves a dictionary of cameras from the given rig instance.
+    
+    Extracts camera information from camera controllers within the rig model,
+    optionally filtering based on video writer availability.
 
     Args:
-        rig_instance (AindBehaviorRigModel): The rig model instance containing camera controllers.
-        exclude_without_video_writer (bool): If True, exclude cameras without a video writer.
+        rig_instance: The rig model instance containing camera controllers
+        exclude_without_video_writer: If True, exclude cameras without a video writer
 
     Returns:
-        Dict[str, CameraTypes]: A dictionary mapping camera names to their types.
+        Dict[str, CameraTypes]: A dictionary mapping camera names to their types
     """
     cameras: dict[str, CameraTypes] = {}
     camera_controllers = [x[1] for x in get_fields_of_type(rig_instance, CameraController)]
@@ -48,9 +51,12 @@ ISearchable = Union[pydantic.BaseModel, Dict, List]
 def snapshot_python_environment() -> Dict[str, str]:
     """
     Captures a snapshot of the current Python environment, including installed packages.
+    
+    Creates a record of all currently installed Python packages and their versions,
+    useful for reproducibility and debugging purposes.
 
     Returns:
-        Dict[str, str]: A dictionary of package names and their versions.
+        Dict[str, str]: A dictionary of package names and their versions
     """
     return {dist.name: dist.version for dist in metadata.distributions()}
 
@@ -60,12 +66,15 @@ def snapshot_bonsai_environment(
 ) -> Dict[str, str]:
     """
     Captures a snapshot of the Bonsai environment from the given configuration file.
+    
+    Parses the Bonsai configuration file to extract information about installed
+    packages and their versions, creating a snapshot of the Bonsai environment.
 
     Args:
-        config_file (os.PathLike): Path to the Bonsai configuration file.
+        config_file: Path to the Bonsai configuration file
 
     Returns:
-        Dict[str, str]: A dictionary of package IDs and their versions.
+        Dict[str, str]: A dictionary of package IDs and their versions
     """
     tree = ET.parse(Path(config_file))
     root = tree.getroot()
