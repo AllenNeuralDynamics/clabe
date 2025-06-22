@@ -19,7 +19,7 @@ if platform.system() == "Windows":
     ) -> bool:
         """
         Validates if the given username exists in the AIND Active Directory.
-        
+
         This function authenticates with the corporate Active Directory and searches
         for the specified username to verify its existence within the organization.
         See https://github.com/AllenNeuralDynamics/aind-watchdog-service/issues/110#issuecomment-2828869619
@@ -73,10 +73,10 @@ else:
     ) -> bool:
         """
         Validates if the given username is in the AIND Active Directory.
-        
+
         This function is a no-op on non-Windows platforms since Active Directory
         authentication is not available.
-        
+
         This function always returns True on non-Windows platforms.
 
         Args:

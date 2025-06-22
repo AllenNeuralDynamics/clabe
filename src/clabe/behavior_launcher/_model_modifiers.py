@@ -10,7 +10,7 @@ _T = TypeVar("_T", bound=AindBehaviorTaskLogicModel, contravariant=True)
 class BySubjectModifier(Protocol, Generic[_R, _S, _T]):
     """
     Protocol defining the interface for subject-specific schema modifiers.
-    
+
     This protocol defines a callable that can modify rig, session, and task logic
     schemas based on subject-specific requirements. Implementations should modify
     the schemas in-place as needed.
@@ -31,10 +31,10 @@ class BySubjectModifier(Protocol, Generic[_R, _S, _T]):
     ) -> None:
         """
         Applies subject-specific modifications to the provided schemas.
-        
+
         Args:
             rig_schema: Optional rig schema to modify
-            session_schema: Optional session schema to modify  
+            session_schema: Optional session schema to modify
             task_logic_schema: Optional task logic schema to modify
             **kwargs: Additional keyword arguments for modifier-specific parameters
         """
@@ -44,10 +44,10 @@ class BySubjectModifier(Protocol, Generic[_R, _S, _T]):
 class BySubjectModifierManager(Generic[_R, _S, _T]):
     """
     Manager for applying subject-specific modifications to experiment schemas.
-    
+
     This class manages a collection of modifiers that can be applied to rig,
     session, and task logic schemas based on subject-specific requirements.
-    
+
     Attributes:
         _modifiers (List[BySubjectModifier]): List of registered modifier functions
 
@@ -63,7 +63,7 @@ class BySubjectModifierManager(Generic[_R, _S, _T]):
     def __init__(self: Self, modifier: Optional[List[BySubjectModifier[_R, _S, _T]]] = None) -> None:
         """
         Initialize the modifier manager with an optional list of modifiers.
-        
+
         Args:
             modifier: Optional list of modifier functions to register initially
         """
@@ -72,7 +72,7 @@ class BySubjectModifierManager(Generic[_R, _S, _T]):
     def register_modifier(self, modifier: BySubjectModifier[_R, _S, _T]) -> None:
         """
         Register a new modifier function with the manager.
-        
+
         Args:
             modifier: The modifier function to register
         """
@@ -88,10 +88,10 @@ class BySubjectModifierManager(Generic[_R, _S, _T]):
     ) -> None:
         """
         Apply all registered modifiers to the provided schemas.
-        
+
         Iterates through all registered modifiers and applies them to the schemas
         in the order they were registered.
-        
+
         Args:
             rig_schema: Optional rig schema to modify
             session_schema: Optional session schema to modify

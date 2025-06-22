@@ -21,34 +21,34 @@ _T = TypeVar("_T", bound=AindBehaviorTaskLogicModel)
 class PickerBase(abc.ABC, Generic[_L, _R, _S, _T]):
     """
     Abstract base class for pickers that handle the selection of rigs, sessions, and task logic.
-    
+
     This class defines the interface for picker implementations that manage the selection
     and configuration of experiment components including rigs, sessions, and task logic.
-    
+
     Type Parameters:
         _L: Type of the launcher
         _R: Type of the rig model
         _S: Type of the session model
         _T: Type of the task logic model
-        
+
     Example:
         ```python
         class MyPicker(PickerBase):
             def pick_rig(self):
                 return MyRigModel(name="test_rig")
-            
+
             def pick_session(self):
                 return MySessionModel(subject="test_subject")
-            
+
             def pick_task_logic(self):
                 return MyTaskLogicModel(name="test_task")
-            
+
             def initialize(self):
                 pass
-            
+
             def finalize(self):
                 pass
-        
+
         picker = MyPicker()
         picker.register_launcher(launcher)
         picker.initialize()
@@ -63,11 +63,11 @@ class PickerBase(abc.ABC, Generic[_L, _R, _S, _T]):
         Args:
             launcher: The launcher instance
             ui_helper: The UI helper instance
-            
+
         Example:
             # Create picker without dependencies
             picker = MyPicker()
-            
+
             # Create picker with launcher and UI helper
             launcher = MyLauncher(...)
             ui_helper = DefaultUIHelper()
@@ -79,7 +79,7 @@ class PickerBase(abc.ABC, Generic[_L, _R, _S, _T]):
     def register_launcher(self, launcher: _L) -> Self:
         """
         Registers a launcher with the picker.
-        
+
         Associates a launcher instance with this picker for accessing experiment
         configuration and state.
 
@@ -88,15 +88,15 @@ class PickerBase(abc.ABC, Generic[_L, _R, _S, _T]):
 
         Returns:
             Self: The picker instance for method chaining
-            
+
         Raises:
             ValueError: If a launcher is already registered
-            
+
         Example:
             ```python
             picker = MyPicker()
             launcher = MyLauncher()
-            
+
             picker.register_launcher(launcher)
             # Now picker can access launcher settings
             settings = picker.launcher.settings
@@ -115,12 +115,12 @@ class PickerBase(abc.ABC, Generic[_L, _R, _S, _T]):
 
         Returns:
             bool: True if a launcher is registered, False otherwise
-            
+
         Example:
             ```python
             picker = MyPicker()
             print(picker.has_launcher)  # False
-            
+
             picker.register_launcher(launcher)
             print(picker.has_launcher)  # True
             ```
@@ -130,7 +130,7 @@ class PickerBase(abc.ABC, Generic[_L, _R, _S, _T]):
     def register_ui_helper(self, ui_helper: _UiHelperBase) -> Self:
         """
         Registers a UI helper with the picker.
-        
+
         Associates a UI helper instance with this picker for user interactions.
 
         Args:
@@ -138,7 +138,7 @@ class PickerBase(abc.ABC, Generic[_L, _R, _S, _T]):
 
         Returns:
             Self: The picker instance for method chaining
-            
+
         Raises:
             ValueError: If a UI helper is already registered
         """
@@ -165,7 +165,7 @@ class PickerBase(abc.ABC, Generic[_L, _R, _S, _T]):
 
         Returns:
             _L: The registered launcher
-            
+
         Raises:
             ValueError: If no launcher is registered
         """
@@ -180,7 +180,7 @@ class PickerBase(abc.ABC, Generic[_L, _R, _S, _T]):
 
         Returns:
             _UiHelperBase: The registered UI helper
-            
+
         Raises:
             ValueError: If no UI helper is registered
         """
@@ -192,7 +192,7 @@ class PickerBase(abc.ABC, Generic[_L, _R, _S, _T]):
     def pick_rig(self) -> _R:
         """
         Abstract method to pick a rig.
-        
+
         Subclasses must implement this method to provide rig selection functionality.
 
         Returns:
@@ -204,7 +204,7 @@ class PickerBase(abc.ABC, Generic[_L, _R, _S, _T]):
     def pick_session(self) -> _S:
         """
         Abstract method to pick a session.
-        
+
         Subclasses must implement this method to provide session selection/creation functionality.
 
         Returns:
@@ -216,7 +216,7 @@ class PickerBase(abc.ABC, Generic[_L, _R, _S, _T]):
     def pick_task_logic(self) -> _T:
         """
         Abstract method to pick task logic.
-        
+
         Subclasses must implement this method to provide task logic selection functionality.
 
         Returns:
@@ -228,7 +228,7 @@ class PickerBase(abc.ABC, Generic[_L, _R, _S, _T]):
     def initialize(self) -> None:
         """
         Abstract method to initialize the picker.
-        
+
         Subclasses should implement this method to perform any necessary setup operations.
         """
         ...
@@ -237,7 +237,7 @@ class PickerBase(abc.ABC, Generic[_L, _R, _S, _T]):
     def finalize(self) -> None:
         """
         Abstract method to finalize the picker.
-        
+
         Subclasses should implement this method to perform any necessary cleanup operations.
         """
         ...
@@ -246,7 +246,7 @@ class PickerBase(abc.ABC, Generic[_L, _R, _S, _T]):
 class DefaultPicker(PickerBase[_L, _R, _S, _T]):
     """
     Default implementation of the picker. This serves as a placeholder implementation.
-    
+
     This class provides a basic implementation that raises NotImplementedError for
     all picker methods, serving as a template for actual picker implementations.
     """
@@ -254,7 +254,7 @@ class DefaultPicker(PickerBase[_L, _R, _S, _T]):
     def pick_rig(self) -> _R:
         """
         Raises NotImplementedError as this method is not implemented.
-        
+
         Raises:
             NotImplementedError: Always, as this is a placeholder implementation
         """
@@ -263,7 +263,7 @@ class DefaultPicker(PickerBase[_L, _R, _S, _T]):
     def pick_session(self) -> _S:
         """
         Raises NotImplementedError as this method is not implemented.
-        
+
         Raises:
             NotImplementedError: Always, as this is a placeholder implementation
         """
@@ -272,7 +272,7 @@ class DefaultPicker(PickerBase[_L, _R, _S, _T]):
     def pick_task_logic(self) -> _T:
         """
         Raises NotImplementedError as this method is not implemented.
-        
+
         Raises:
             NotImplementedError: Always, as this is a placeholder implementation
         """
@@ -281,7 +281,7 @@ class DefaultPicker(PickerBase[_L, _R, _S, _T]):
     def initialize(self) -> None:
         """
         Placeholder implementation for initialization.
-        
+
         Does nothing in the default implementation.
         """
         return
@@ -289,7 +289,7 @@ class DefaultPicker(PickerBase[_L, _R, _S, _T]):
     def finalize(self) -> None:
         """
         Placeholder implementation for finalization.
-        
+
         Does nothing in the default implementation.
         """
         return

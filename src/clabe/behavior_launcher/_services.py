@@ -38,7 +38,7 @@ class BehaviorServicesFactoryManager(ServicesFactoryManager[BehaviorLauncher]):
     This class provides methods to attach and retrieve various services such as
     app, data transfer, resource monitor, and data mapper. It ensures that the
     services are of the correct type and properly initialized.
-    
+
     Attributes:
         Services are managed internally through the parent class and accessed via properties.
 
@@ -199,7 +199,7 @@ def watchdog_data_transfer_factory(
 ) -> Callable[[BehaviorLauncher], WatchdogDataTransferService]:
     """
     Creates a factory for the WatchdogDataTransferService.
-    
+
     This factory creates a partial function that can be used to instantiate
     a watchdog data transfer service with pre-configured parameters.
 
@@ -230,7 +230,7 @@ def watchdog_data_transfer_factory(
 def _watchdog_data_transfer_factory(launcher: BehaviorLauncher, **watchdog_kwargs) -> WatchdogDataTransferService:
     """
     Internal factory function for creating a WatchdogDataTransferService.
-    
+
     This function is used internally by the watchdog_data_transfer_factory to create
     the actual service instance with the launcher context.
 
@@ -266,7 +266,7 @@ def robocopy_data_transfer_factory(
 ) -> Callable[[BehaviorLauncher], RobocopyService]:
     """
     Creates a factory for the RobocopyService.
-    
+
     This factory creates a partial function that can be used to instantiate
     a robocopy data transfer service with pre-configured parameters.
 
@@ -291,7 +291,7 @@ def _robocopy_data_transfer_factory(
 ) -> RobocopyService:
     """
     Internal factory function for creating a RobocopyService.
-    
+
     This function is used internally by the robocopy_data_transfer_factory to create
     the actual service instance with the launcher context and proper destination paths.
 

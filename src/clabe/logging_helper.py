@@ -17,10 +17,10 @@ datetime_fmt = "%Y-%m-%dT%H%M%S%z"
 class _SeverityHighlightingHandler(rich.logging.RichHandler):
     """
     A custom logging handler that highlights log messages based on severity.
-    
+
     This handler extends RichHandler to provide visual highlighting for error and critical
     log messages using different styles and colors for better visibility.
-    
+
     Attributes:
         error_style (rich.style.Style): Style for error level messages
         critical_style (rich.style.Style): Style for critical level messages
@@ -29,7 +29,7 @@ class _SeverityHighlightingHandler(rich.logging.RichHandler):
     def __init__(self, *args, **kwargs):
         """
         Initializes the severity highlighting handler.
-        
+
         Args:
             *args: Arguments passed to the parent RichHandler
             **kwargs: Keyword arguments passed to the parent RichHandler (highlighter is removed)
@@ -45,14 +45,14 @@ class _SeverityHighlightingHandler(rich.logging.RichHandler):
     def render_message(self, record, message):
         """
         Renders log messages with severity-based styling.
-        
+
         Applies different visual styles to log messages based on their severity level,
         with special formatting for error and critical messages.
-        
+
         Args:
             record: The log record containing message metadata
             message: The log message to render
-            
+
         Returns:
             str: The styled message string
         """
@@ -70,7 +70,7 @@ rich_handler = _SeverityHighlightingHandler(rich_tracebacks=True, show_time=Fals
 class _TzFormatter(logging.Formatter):
     """
     A custom logging formatter that supports timezone-aware timestamps.
-    
+
     This formatter extends the standard logging.Formatter to provide timezone-aware
     timestamp formatting for log records.
 
@@ -93,7 +93,7 @@ class _TzFormatter(logging.Formatter):
     def formatTime(self, record, datefmt=None) -> str:
         """
         Formats the time of a log record using the specified timezone.
-        
+
         Converts the log record timestamp to the configured timezone and formats
         it using the AIND behavior services datetime formatting utilities.
 
@@ -114,7 +114,7 @@ utc_formatter = _TzFormatter(fmt, tz=datetime.timezone.utc)
 def add_file_logger(logger: TLogger, output_path: os.PathLike) -> TLogger:
     """
     Adds a file handler to the logger to write logs to a file.
-    
+
     Creates a new file handler with UTC timezone formatting and adds it to the
     specified logger for persistent log storage.
 
@@ -134,7 +134,7 @@ def add_file_logger(logger: TLogger, output_path: os.PathLike) -> TLogger:
 def shutdown_logger(logger: TLogger) -> None:
     """
     Shuts down the logger by closing all file handlers and calling logging.shutdown().
-    
+
     Performs a complete shutdown of the logging system, ensuring all file handlers
     are properly closed and resources are released.
 
@@ -148,7 +148,7 @@ def shutdown_logger(logger: TLogger) -> None:
 def close_file_handlers(logger: TLogger) -> TLogger:
     """
     Closes all file handlers associated with the logger.
-    
+
     Iterates through all handlers associated with the logger and closes any
     file handlers to ensure proper resource cleanup.
 

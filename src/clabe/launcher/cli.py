@@ -30,18 +30,18 @@ class BaseCliArgs(BaseSettings, cli_prog_name="clabe", cli_kebab_case=True):
         validate_init (CliExplicitFlag[bool]): Whether to validate the launcher state during initialization.
         temp_dir (os.PathLike): Directory used for launcher temp files.
         group_by_subject_log (CliExplicitFlag[bool]): Whether to group data logging by subject.
-        
+
     Example:
         # Create CLI args from command line
         args = BaseCliArgs()
-        
+
         # Create with specific values
         args = BaseCliArgs(
             data_dir="/path/to/data",
             debug_mode=True,
             subject="mouse_001"
         )
-        
+
         # Access properties
         print(f"Data directory: {args.data_dir}")
         print(f"Debug mode: {args.debug_mode}")
@@ -108,7 +108,7 @@ class BaseCliArgs(BaseSettings, cli_prog_name="clabe", cli_kebab_case=True):
 
         Returns:
             Tuple[PydanticBaseSettingsSource, ...]: Ordered tuple of settings sources
-            
+
         Example:
             # This method is automatically called by Pydantic
             # when creating a BaseCliArgs instance. Settings are loaded

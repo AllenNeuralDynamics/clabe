@@ -39,7 +39,7 @@ class App(IService, abc.ABC):
             def output_from_result(self, allow_stderr): return self
             @property
             def result(self): return self._result
-        
+
         app = MyApp()
         app.run()
     """

@@ -35,10 +35,10 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
     """
     Abstract base class for experiment launchers. Provides common functionality
     for managing configuration files, directories, and execution hooks.
-    
+
     This class serves as the foundation for all launcher implementations, providing
     schema management, directory handling, validation, and lifecycle management.
-    
+
     Type Parameters:
         TRig: Type of the rig schema model
         TSession: Type of the session schema model
@@ -121,7 +121,7 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
     def is_validate_init(self) -> bool:
         """
         Returns whether initialization validation is enabled.
-        
+
         Returns:
             bool: True if initialization validation is enabled
         """
@@ -131,7 +131,7 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
     def data_dir(self) -> Path:
         """
         Returns the data directory path.
-        
+
         Returns:
             Path: The data directory path
         """
@@ -141,7 +141,7 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
     def is_debug_mode(self) -> bool:
         """
         Returns whether debug mode is enabled.
-        
+
         Returns:
             bool: True if debug mode is enabled
         """
@@ -151,7 +151,7 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
     def allow_dirty(self) -> bool:
         """
         Returns whether dirty repository is allowed.
-        
+
         Returns:
             bool: True if dirty repository is allowed
         """
@@ -161,7 +161,7 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
     def skip_hardware_validation(self) -> bool:
         """
         Returns whether hardware validation should be skipped.
-        
+
         Returns:
             bool: True if hardware validation should be skipped
         """
@@ -171,7 +171,7 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
     def group_by_subject_log(self) -> bool:
         """
         Returns whether data logging should be grouped by subject.
-        
+
         Returns:
             bool: True if data logging should be grouped by subject
         """
@@ -180,13 +180,13 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
     def _register_picker(self, picker: ui.PickerBase[Self, TRig, TSession, TTaskLogic]) -> None:
         """
         Registers a picker for selecting schemas.
-        
+
         Associates a picker instance with the launcher and ensures it has
         the necessary UI helper for user interactions.
 
         Args:
             picker: The picker instance to register
-            
+
         Raises:
             ValueError: If the picker already has a launcher registered
         """
@@ -205,7 +205,7 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
     def subject(self) -> Optional[str]:
         """
         Returns the current subject name.
-        
+
         Returns:
             Optional[str]: The subject name or None if not set
         """
@@ -215,10 +215,10 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
     def subject(self, value: str) -> None:
         """
         Sets the subject name.
-        
+
         Args:
             value: The subject name to set
-            
+
         Raises:
             ValueError: If subject is already set
         """
@@ -230,7 +230,7 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
     def settings(self) -> BaseCliArgs:
         """
         Returns the launcher settings.
-        
+
         Returns:
             BaseCliArgs: The launcher settings
         """
@@ -241,10 +241,10 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
     def rig_schema(self) -> TRig:
         """
         Returns the rig schema instance.
-        
+
         Returns:
             TRig: The rig schema instance
-            
+
         Raises:
             ValueError: If rig schema instance is not set
         """
@@ -256,10 +256,10 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
     def session_schema(self) -> TSession:
         """
         Returns the session schema instance.
-        
+
         Returns:
             TSession: The session schema instance
-            
+
         Raises:
             ValueError: If session schema instance is not set
         """
@@ -271,10 +271,10 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
     def task_logic_schema(self) -> TTaskLogic:
         """
         Returns the task logic schema instance.
-        
+
         Returns:
             TTaskLogic: The task logic schema instance
-            
+
         Raises:
             ValueError: If task logic schema instance is not set
         """
@@ -286,7 +286,7 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
     def rig_schema_model(self) -> Type[TRig]:
         """
         Returns the rig schema model class.
-        
+
         Returns:
             Type[TRig]: The rig schema model class
         """
@@ -296,7 +296,7 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
     def session_schema_model(self) -> Type[TSession]:
         """
         Returns the session schema model class.
-        
+
         Returns:
             Type[TSession]: The session schema model class
         """
@@ -306,7 +306,7 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
     def task_logic_schema_model(self) -> Type[TTaskLogic]:
         """
         Returns the task logic schema model class.
-        
+
         Returns:
             Type[TTaskLogic]: The task logic schema model class
         """
@@ -316,10 +316,10 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
     def session_directory(self) -> Path:
         """
         Returns the session directory path.
-        
+
         Returns:
             Path: The session directory path
-            
+
         Raises:
             ValueError: If session_name is not set in the session schema
         """
@@ -334,10 +334,10 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
     def services_factory_manager(self) -> ServicesFactoryManager:
         """
         Returns the services factory manager.
-        
+
         Returns:
             ServicesFactoryManager: The services factory manager
-            
+
         Raises:
             ValueError: If services instance is not set
         """
@@ -349,7 +349,7 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
     def picker(self):
         """
         Returns the picker instance.
-        
+
         Returns:
             The picker instance used for schema selection
         """
@@ -358,10 +358,10 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
     def make_header(self) -> str:
         """
         Creates a formatted header string for the launcher.
-        
+
         Generates a header containing the CLABE ASCII art logo and version information
         for the launcher and schema models.
-        
+
         Returns:
             str: The formatted header string
         """
@@ -393,10 +393,10 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
     def main(self) -> None:
         """
         Main entry point for the launcher execution.
-        
+
         Orchestrates the complete launcher workflow including validation,
         UI prompting, hook execution, and cleanup.
-        
+
         Example:
             launcher = MyLauncher(...)
             launcher.main()  # Starts the launcher workflow
@@ -420,10 +420,10 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
     def _ui_prompt(self) -> Self:
         """
         Prompts for user input to select schemas if not already set.
-        
+
         Uses the picker to collect session, task logic, and rig schemas
         from user input if they haven't been pre-configured.
-        
+
         Returns:
             Self: The launcher instance for method chaining
         """
@@ -438,10 +438,10 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
     def _run_hooks(self) -> Self:
         """
         Executes the launcher lifecycle hooks in sequence.
-        
+
         Runs the pre-run, run, and post-run hooks in order, logging
         completion of each phase.
-        
+
         Returns:
             Self: The launcher instance for method chaining
         """
@@ -457,7 +457,7 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
     def _pre_run_hook(self, *args, **kwargs) -> Self:
         """
         Abstract method for pre-run logic. Must be implemented by subclasses.
-        
+
         This hook is executed before the main run logic and should contain
         any preparation or validation logic needed before experiment execution.
 
@@ -470,7 +470,7 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
     def _run_hook(self, *args, **kwargs) -> Self:
         """
         Abstract method for main run logic. Must be implemented by subclasses.
-        
+
         This hook contains the core experiment execution logic and should
         handle the primary workflow of the launcher.
 
@@ -483,7 +483,7 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
     def _post_run_hook(self, *args, **kwargs) -> Self:
         """
         Abstract method for post-run logic. Must be implemented by subclasses.
-        
+
         This hook is executed after the main run logic and should handle
         cleanup, data processing, and finalization tasks.
 
@@ -495,10 +495,10 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
     def _exit(self, code: int = 0, _force: bool = False) -> None:
         """
         Exits the launcher with the specified exit code.
-        
+
         Performs cleanup operations and exits the application, optionally
         prompting the user before exit.
-        
+
         Args:
             code: The exit code to use
             _force: Whether to force exit without user prompt
@@ -513,7 +513,7 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
     def _print_debug(self) -> None:
         """
         Prints diagnostic information for debugging purposes.
-        
+
         Outputs detailed information about the launcher state including
         directories, settings, and configuration for troubleshooting.
         """
@@ -539,10 +539,10 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
     def validate(self) -> None:
         """
         Validates the dependencies required for the launcher to run.
-        
+
         Checks Git repository state, handles dirty repository conditions,
         and ensures all prerequisites are met for experiment execution.
-        
+
         Example:
             launcher = MyLauncher(...)
             try:
@@ -574,10 +574,10 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
     def dispose(self) -> None:
         """
         Cleans up resources and exits the launcher.
-        
+
         Performs final cleanup operations and gracefully exits the launcher
         with a success code.
-        
+
         Example:
             launcher = MyLauncher(...)
             launcher.dispose()  # Cleans up and exits
@@ -589,10 +589,10 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
     def abspath(cls, path: os.PathLike) -> Path:
         """
         Helper method that converts a path to an absolute path.
-        
+
         Args:
             path: The path to convert
-            
+
         Returns:
             Path: The absolute path
         """
@@ -601,7 +601,7 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
     def _create_directory_structure(self) -> None:
         """
         Creates the required directory structure for the launcher.
-        
+
         Creates data and temporary directories needed for launcher operation,
         exiting with an error code if creation fails.
         """
@@ -635,7 +635,7 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
     def _copy_tmp_directory(self, dst: os.PathLike) -> None:
         """
         Copies the temporary directory to the specified destination.
-        
+
         Args:
             dst: The destination path for copying the temporary directory
         """
@@ -647,7 +647,7 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
     ) -> Optional[ServicesFactoryManager]:
         """
         Binds a ServicesFactoryManager instance to the launcher.
-        
+
         Associates a services factory manager with the launcher and registers
         the launcher with the services manager for bidirectional reference.
 
@@ -670,7 +670,7 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
     ) -> None:
         """
         Resolves and loads schema instances for the rig and task logic.
-        
+
         Loads schema definitions from JSON files and assigns them to the
         corresponding attributes if file paths are provided.
 

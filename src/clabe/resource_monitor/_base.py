@@ -12,24 +12,24 @@ logger = logging.getLogger(__name__)
 class ResourceMonitor(IService):
     """
     A service that monitors and validates resource constraints.
-    
+
     This service manages a collection of constraints that can be evaluated to ensure
     that system resources meet the requirements for experiment execution.
 
     Attributes:
         constraints (List[Constraint]): A list of constraints to monitor
-        
+
     Example:
         ```python
         from clabe.resource_monitor import available_storage_constraint_factory
-        
+
         # Create monitor with storage constraint
         monitor = ResourceMonitor()
         storage_constraint = available_storage_constraint_factory(
             drive="C:\\", min_bytes=1e9  # 1GB minimum
         )
         monitor.add_constraint(storage_constraint)
-        
+
         # Validate all constraints
         if monitor.validate():
             print("All constraints satisfied")
@@ -55,17 +55,17 @@ class ResourceMonitor(IService):
     def validate(self, *args, **kwargs) -> bool:
         """
         Validates all constraints.
-        
+
         Evaluates all registered constraints to determine if system resources
         meet the requirements.
 
         Returns:
             bool: True if all constraints are satisfied, False otherwise
-            
+
         Example:
             ```python
             monitor = ResourceMonitor([storage_constraint, memory_constraint])
-            
+
             if monitor.validate():
                 start_experiment()
             else:
@@ -77,24 +77,24 @@ class ResourceMonitor(IService):
     def add_constraint(self, constraint: Constraint) -> None:
         """
         Adds a new constraint to the monitor.
-        
+
         Registers a new constraint for monitoring with this resource monitor.
 
         Args:
             constraint: The constraint to add
-            
+
         Example:
             ```python
             monitor = ResourceMonitor()
-            
+
             # Add storage constraint
             storage_constraint = available_storage_constraint_factory()
             monitor.add_constraint(storage_constraint)
-            
+
             # Add custom constraint
             def check_memory():
                 return psutil.virtual_memory().available > 1e9
-            
+
             memory_constraint = Constraint(
                 name="memory_check",
                 constraint=check_memory
@@ -107,17 +107,17 @@ class ResourceMonitor(IService):
     def remove_constraint(self, constraint: Constraint) -> None:
         """
         Removes a constraint from the monitor.
-        
+
         Unregisters a previously added constraint from monitoring.
 
         Args:
             constraint: The constraint to remove
-            
+
         Example:
             ```python
             monitor = ResourceMonitor()
             monitor.add_constraint(constraint)
-            
+
             # Later remove it
             monitor.remove_constraint(constraint)
             ```
@@ -127,17 +127,17 @@ class ResourceMonitor(IService):
     def evaluate_constraints(self) -> bool:
         """
         Evaluates all constraints.
-        
+
         Iterates through all registered constraints and evaluates them, logging
         any failures that occur.
 
         Returns:
             bool: True if all constraints are satisfied, False otherwise
-            
+
         Example:
             ```python
             monitor = ResourceMonitor([constraint1, constraint2])
-            
+
             # Check if all constraints pass
             all_passed = monitor.evaluate_constraints()
             if not all_passed:
@@ -155,7 +155,7 @@ class ResourceMonitor(IService):
 class Constraint:
     """
     Represents a resource constraint.
-    
+
     This class encapsulates a constraint function along with its parameters and
     failure handling logic for resource monitoring.
 
@@ -165,25 +165,25 @@ class Constraint:
         args (List): Positional arguments for the constraint function
         kwargs (dict): Keyword arguments for the constraint function
         fail_msg_handler (Optional[Callable[..., str]]): A function to generate a failure message
-        
+
     Example:
         ```python
         # Simple constraint
         def check_disk_space(path, min_gb):
             free_gb = shutil.disk_usage(path).free / (1024**3)
             return free_gb >= min_gb
-        
+
         constraint = Constraint(
             name="disk_space_check",
             constraint=check_disk_space,
             kwargs={"path": "C:\\", "min_gb": 10},
             fail_msg_handler=lambda path, min_gb: f"Need {min_gb}GB free on {path}"
         )
-        
+
         simple_constraint = Constraint(
             name="simple_check",
             constraint=lambda x: x > 5)
-        
+
         # Evaluate constraint
         if constraint():
             print("Constraint passed")
@@ -207,13 +207,13 @@ class Constraint:
     def __call__(self) -> bool | Exception:
         """
         Evaluates the constraint.
-        
+
         Executes the constraint function with the stored arguments and returns
         the result of the evaluation.
 
         Returns:
             bool | Exception: True if the constraint is satisfied, otherwise raises an exception
-            
+
         Example:
             ```python
             constraint = Constraint(
@@ -221,7 +221,7 @@ class Constraint:
                 constraint=lambda x: x > 5,
                 kwargs={"x": 10}
             )
-            
+
             result = constraint()  # Returns True
             print(f"Constraint passed: {result}")
             ```
@@ -231,13 +231,13 @@ class Constraint:
     def on_fail(self) -> str:
         """
         Generates a failure message if the constraint is not satisfied.
-        
+
         Uses the registered failure message handler or a default message to
         provide information about constraint failures.
 
         Returns:
             str: The failure message
-            
+
         Example:
             ```python
             constraint = Constraint(
@@ -245,7 +245,7 @@ class Constraint:
                 constraint=lambda: False,  # Always fails
                 fail_msg_handler=lambda: "Not enough memory available"
             )
-            
+
             if not constraint():
                 print(constraint.on_fail())  # "Not enough memory available"
             ```

@@ -19,31 +19,31 @@ class RobocopyService(DataTransfer):
     """
     A data transfer service that uses the Robocopy command-line utility to copy files
     between source and destination directories.
-    
+
     This service provides a wrapper around the Windows Robocopy utility with configurable
     options for file copying, logging, and directory management.
-    
+
     Attributes:
         source (PathLike): Source directory or file path
-        destination (PathLike): Destination directory or file path  
+        destination (PathLike): Destination directory or file path
         delete_src (bool): Whether to delete source after copying
         overwrite (bool): Whether to overwrite existing files
         force_dir (bool): Whether to ensure destination directory exists
         log (Optional[PathLike]): Optional log file path for Robocopy output
         extra_args (str): Additional Robocopy command arguments
         _ui_helper (ui.UiHelper): UI helper for user prompts
-        
+
     Examples:
         Basic file copying:
-        
+
         service = RobocopyService(
             source="C:/data/experiment1",
             destination="D:/backup/experiment1"
         )
         service.transfer()
-        
+
         Copy with custom options:
-        
+
         service = RobocopyService(
             source="C:/data/experiment1",
             destination="D:/backup/experiment1",
@@ -79,14 +79,14 @@ class RobocopyService(DataTransfer):
             overwrite: Whether to overwrite existing files at the destination. Default is False
             force_dir: Whether to ensure the destination directory exists. Default is True
             ui_helper: UI helper for user prompts. Default is None
-            
+
         Examples:
             Initialize with basic parameters:
-            
+
             service = RobocopyService("C:/source", "D:/destination")
-            
+
             Initialize with logging and move operation:
-            
+
             service = RobocopyService(
                 source="C:/temp/data",
                 destination="D:/archive/data",
@@ -110,7 +110,7 @@ class RobocopyService(DataTransfer):
     ) -> None:
         """
         Executes the data transfer using Robocopy.
-        
+
         Processes source-destination mappings and executes Robocopy commands
         for each pair, handling logging and error reporting.
         """
@@ -151,7 +151,7 @@ class RobocopyService(DataTransfer):
     ) -> Optional[Dict[PathLike, PathLike]]:
         """
         Resolves the mapping between source and destination paths.
-        
+
         Handles both single path mappings and dictionary-based multiple mappings
         to create a consistent source-to-destination mapping structure.
 
@@ -196,10 +196,10 @@ class RobocopyService(DataTransfer):
 
         Returns:
             True if the user confirms, False otherwise
-            
+
         Examples:
             Interactive transfer confirmation:
-            
+
             service = RobocopyService("C:/data", "D:/backup")
             if service.prompt_input():
                 service.transfer()

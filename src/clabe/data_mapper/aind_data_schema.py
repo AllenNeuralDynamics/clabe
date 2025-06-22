@@ -26,7 +26,7 @@ _TAdsObject = TypeVar("_TAdsObject", bound=Union[ads_session.Session, ads_rig.Ri
 class AindDataSchemaDataMapper(_base.DataMapper[_TAdsObject], abc.ABC):
     """
     Abstract base class for mapping data to aind-data-schema objects.
-    
+
     This class provides the foundation for mapping experimental data to AIND data schema
     formats, ensuring consistent structure and metadata handling across different data types.
 
@@ -39,7 +39,7 @@ class AindDataSchemaDataMapper(_base.DataMapper[_TAdsObject], abc.ABC):
     def session_name(self) -> str:
         """
         Abstract property that must be implemented to return the session name.
-        
+
         Subclasses must implement this property to provide the session name
         associated with the data being mapped.
 
@@ -51,7 +51,7 @@ class AindDataSchemaDataMapper(_base.DataMapper[_TAdsObject], abc.ABC):
 class AindDataSchemaSessionDataMapper(AindDataSchemaDataMapper[ads_session.Session], abc.ABC):
     """
     Abstract base class for mapping session data to aind-data-schema Session objects.
-    
+
     This class specializes the generic data mapper for session-specific data,
     providing the interface for converting experimental session data to the
     AIND data schema Session format.
@@ -61,7 +61,7 @@ class AindDataSchemaSessionDataMapper(AindDataSchemaDataMapper[ads_session.Sessi
 class AindDataSchemaRigDataMapper(AindDataSchemaDataMapper[ads_rig.Rig], abc.ABC):
     """
     Abstract base class for mapping rig data to aind-data-schema Rig objects.
-    
+
     This class specializes the generic data mapper for rig-specific data,
     providing the interface for converting experimental rig configurations
     to the AIND data schema Rig format.

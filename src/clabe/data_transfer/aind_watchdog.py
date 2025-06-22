@@ -46,11 +46,11 @@ class WatchdogDataTransferService(DataTransfer):
     """
     A data transfer service that uses the aind-watchdog-service to monitor and transfer
     data based on manifest configurations.
-    
+
     This service integrates with the AIND data transfer infrastructure to automatically
     monitor directories for new data and transfer it to specified destinations with
     proper metadata handling and validation.
-    
+
     Attributes:
         source (PathLike): Source directory to monitor
         destination (PathLike): Destination directory for transfers
@@ -58,19 +58,19 @@ class WatchdogDataTransferService(DataTransfer):
         schedule_time (Optional[datetime.time]): Time to schedule transfers
         platform (Platform): Platform associated with the data
         Various other configuration attributes for transfer customization
-        
+
     Examples:
         Basic watchdog service setup:
-        
+
         service = WatchdogDataTransferService(
             source="C:/data/session_001",
             destination="//server/data/session_001",
             project_name="my_project", # Make sure it validates
             platform=Platform.BEHAVIOR
         )
-        
+
         Full configuration with session mapper:
-        
+
         session_mapper = MySessionMapper(session_data)
         service = WatchdogDataTransferService(
             source="C:/data/session_001",
@@ -127,18 +127,18 @@ class WatchdogDataTransferService(DataTransfer):
             session_name: Name of the session
             upload_job_configs: List of job configurations for the transfer
             ui_helper: UI helper for user prompts
-            
+
         Examples:
             Basic initialization:
-            
+
             service = WatchdogDataTransferService(
                 source="C:/data/session_001",
                 destination="//server/archive/session_001",
                 project_name="behavior_project"
             )
-            
+
             Advanced configuration:
-            
+
             service = WatchdogDataTransferService(
                 source="C:/data/session_001",
                 destination="//server/archive/session_001",
@@ -215,7 +215,7 @@ class WatchdogDataTransferService(DataTransfer):
     def transfer(self) -> None:
         """
         Executes the data transfer by generating a Watchdog manifest configuration.
-        
+
         Creates and deploys a manifest configuration file that the watchdog service
         will use to monitor and transfer data according to the specified parameters.
         """
@@ -259,7 +259,7 @@ class WatchdogDataTransferService(DataTransfer):
     def validate(self, create_config: bool = True) -> bool:
         """
         Validates the Watchdog service and its configuration.
-        
+
         Checks for required executables, configuration files, service status,
         and project name validity.
 
@@ -313,7 +313,7 @@ class WatchdogDataTransferService(DataTransfer):
     ) -> WatchConfig:
         """
         Creates a WatchConfig object for the Watchdog service.
-        
+
         Configures the directories and settings needed for the watchdog service
         to monitor and process data transfer manifests.
 
@@ -325,17 +325,17 @@ class WatchdogDataTransferService(DataTransfer):
 
         Returns:
             A WatchConfig object
-            
+
         Examples:
             Create basic watch configuration:
-            
+
             config = WatchdogDataTransferService.create_watch_config(
                 watched_directory="C:/watchdog/manifests",
                 manifest_complete_directory="C:/watchdog/completed"
             )
-            
+
             Create configuration with webhook:
-            
+
             config = WatchdogDataTransferService.create_watch_config(
                 watched_directory="C:/watchdog/manifests",
                 manifest_complete_directory="C:/watchdog/completed",
@@ -358,7 +358,7 @@ class WatchdogDataTransferService(DataTransfer):
     def is_valid_project_name(self) -> bool:
         """
         Checks if the project name is valid by querying the metadata service.
-        
+
         Validates the project name against the list of known projects from
         the AIND metadata service.
 
@@ -376,7 +376,7 @@ class WatchdogDataTransferService(DataTransfer):
     ) -> ManifestConfig:
         """
         Creates a ManifestConfig object from an aind-data-schema session.
-        
+
         Converts session metadata into a manifest configuration that can be
         used by the watchdog service for data transfer operations.
 
@@ -390,18 +390,18 @@ class WatchdogDataTransferService(DataTransfer):
 
         Raises:
             ValueError: If the project name is invalid
-            
+
         Examples:
             Create manifest from session data:
-            
+
             session = Session(...)
-            
+
             manifest = service.create_manifest_config_from_ads_session(
                 ads_session=session,
             )
-            
+
             Create with custom schemas:
-            
+
             schemas = ["C:/data/rig.json", "C:/data/processing.json"]
             manifest = service.create_manifest_config_from_ads_session(
                 ads_session=session,
@@ -454,7 +454,7 @@ class WatchdogDataTransferService(DataTransfer):
     ) -> ManifestConfig:
         """
         Adds transfer service arguments to the manifest configuration.
-        
+
         Configures job-specific parameters for different modalities and
         integrates them into the manifest configuration.
 
@@ -503,7 +503,7 @@ class WatchdogDataTransferService(DataTransfer):
     def _find_ads_schemas(source: PathLike) -> List[PathLike]:
         """
         Finds aind-data-schema schema files in the source directory.
-        
+
         Searches for standard AIND data schema files in the specified directory.
 
         Args:
@@ -525,7 +525,7 @@ class WatchdogDataTransferService(DataTransfer):
     ) -> list[str]:
         """
         Fetches the list of valid project names from the metadata service.
-        
+
         Queries the AIND metadata service to retrieve the current list of
         valid project names for validation purposes.
 
@@ -549,16 +549,16 @@ class WatchdogDataTransferService(DataTransfer):
     def is_running(self) -> bool:
         """
         Checks if the Watchdog service is currently running.
-        
+
         Uses system process monitoring to determine if the watchdog executable
         is currently active.
 
         Returns:
             True if the service is running, False otherwise
-            
+
         Examples:
             Check service status:
-            
+
             service = WatchdogDataTransferService(source="C:/data", destination="//server/data")
             if service.is_running():
                 print("Watchdog service is active")
@@ -575,7 +575,7 @@ class WatchdogDataTransferService(DataTransfer):
     def force_restart(self, kill_if_running: bool = True) -> subprocess.Popen[bytes]:
         """
         Attempts to restart the Watchdog application.
-        
+
         Terminates the existing service if running and starts a new instance
         with the current configuration.
 
@@ -596,7 +596,7 @@ class WatchdogDataTransferService(DataTransfer):
     def dump_manifest_config(self, path: Optional[os.PathLike] = None, make_dir: bool = True) -> Path:
         """
         Dumps the manifest configuration to a YAML file.
-        
+
         Saves the current manifest configuration to a file that can be
         processed by the watchdog service.
 
@@ -638,7 +638,7 @@ class WatchdogDataTransferService(DataTransfer):
     def _yaml_dump(model: BaseModel) -> str:
         """
         Converts a Pydantic model to a YAML string.
-        
+
         Serializes a Pydantic model to YAML format for file output.
 
         Args:
@@ -654,7 +654,7 @@ class WatchdogDataTransferService(DataTransfer):
     def _write_yaml(cls, model: BaseModel, path: PathLike) -> None:
         """
         Writes a Pydantic model to a YAML file.
-        
+
         Saves a Pydantic model as a YAML file at the specified path.
 
         Args:
@@ -668,7 +668,7 @@ class WatchdogDataTransferService(DataTransfer):
     def _read_yaml(path: PathLike) -> dict:
         """
         Reads a YAML file and returns its contents as a dictionary.
-        
+
         Loads and parses a YAML file into a Python dictionary.
 
         Args:
@@ -683,16 +683,16 @@ class WatchdogDataTransferService(DataTransfer):
     def prompt_input(self) -> bool:
         """
         Prompts the user to confirm whether to generate a manifest.
-        
+
         Provides user interaction to confirm manifest generation for the
         watchdog service.
 
         Returns:
             True if the user confirms, False otherwise
-            
+
         Examples:
             Interactive manifest generation:
-            
+
             service = WatchdogDataTransferService(source="C:/data", destination="//server/data")
             if service.prompt_input():
                 service.transfer()

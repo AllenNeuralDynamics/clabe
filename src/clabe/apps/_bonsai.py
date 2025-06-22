@@ -284,7 +284,7 @@ class BonsaiApp(App):
 class AindBehaviorServicesBonsaiApp(BonsaiApp):
     """
     Specialized Bonsai application for AIND behavior services integration.
-    
+
     This class extends the base BonsaiApp to provide specific functionality for
     AIND behavior experiments, including automatic configuration of task logic,
     session, and rig paths for the Bonsai workflow.
@@ -302,7 +302,7 @@ class AindBehaviorServicesBonsaiApp(BonsaiApp):
     def add_app_settings(self, **kwargs) -> Self:
         """
         Adds AIND behavior-specific application settings to the Bonsai workflow.
-        
+
         This method automatically configures the TaskLogicPath, SessionPath, and RigPath
         properties for the Bonsai workflow based on the launcher's schema models.
 

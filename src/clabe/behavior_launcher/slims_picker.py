@@ -44,7 +44,7 @@ if SLIMS_URL is None:
 class SlimsPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
     """
     Picker class that handles the selection of rigs, sessions, and task logic from SLIMS.
-    
+
     This class integrates with the SLIMS laboratory information management system to fetch
     experiment configurations, manage mouse records, and handle water logging for behavior experiments.
 
@@ -144,7 +144,7 @@ class SlimsPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
     def _test_client_connection(self) -> bool:
         """
         Test client connection by querying a test mouse ID.
-        
+
         SLIMS fails silently with bad credentials, so this method validates the connection
         by attempting to fetch a record and handling the expected exceptions.
 
@@ -172,7 +172,7 @@ class SlimsPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
     def slims_client(self) -> SlimsClient:
         """
         Returns the SLIMS client being used for session operations.
-        
+
         Returns:
             SlimsClient: The configured SLIMS client object
         """
@@ -185,7 +185,7 @@ class SlimsPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
 
         Returns:
             SlimsMouseContent: The current mouse/subject record from SLIMS
-            
+
         Raises:
             ValueError: If SLIMS mouse instance is not set
         """
@@ -202,7 +202,7 @@ class SlimsPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
 
         Returns:
             SlimsBehaviorSession: The current behavior session record from SLIMS
-            
+
         Raises:
             ValueError: If SLIMS session instance is not set
         """
@@ -219,7 +219,7 @@ class SlimsPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
 
         Returns:
             SlimsInstrument: The current rig/instrument record from SLIMS
-            
+
         Raises:
             ValueError: If SLIMS rig instance is not set
         """
@@ -273,7 +273,7 @@ class SlimsPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
     def pick_rig(self) -> TRig:
         """
         Prompts the user to provide a rig name and fetches configuration from SLIMS.
-        
+
         Searches SLIMS for the specified rig and deserializes the latest attachment
         into a rig schema model.
 
@@ -342,7 +342,7 @@ class SlimsPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
     def pick_session(self) -> TSession:
         """
         Prompts the user to select or create a session configuration using SLIMS data.
-        
+
         Fetches mouse information from SLIMS and creates a session configuration
         with experimenter details and session metadata.
 
@@ -399,7 +399,7 @@ class SlimsPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
     def pick_task_logic(self) -> TTaskLogic:
         """
         Returns task logic found as an attachment from the session loaded from SLIMS.
-        
+
         Attempts to load task logic from CLI first, then from SLIMS session attachments.
 
         Returns:
@@ -484,7 +484,7 @@ class SlimsPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
     def initialize(self) -> None:
         """
         Initializes the picker by connecting to SLIMS and testing the connection.
-        
+
         Establishes the SLIMS client connection and validates connectivity before
         proceeding with picker operations.
 
@@ -499,7 +499,7 @@ class SlimsPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
     def prompt_experimenter(self, strict: bool = True) -> Optional[List[str]]:
         """
         Prompts the user to enter the experimenter's name(s).
-        
+
         Accepts multiple experimenter names separated by commas or spaces.
 
         Args:
@@ -526,13 +526,13 @@ class SlimsPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
     ):
         """
         Calculates suggested water amount based on weight difference and earned water.
-        
+
         Args:
             weight_g: Current weight in grams
             water_earned_ml: Water earned during session in mL
             baseline_weight_g: Baseline weight in grams
             minimum_daily_water: Minimum daily water requirement in mL
-            
+
         Returns:
             float: Suggested water amount in mL
         """
@@ -543,7 +543,7 @@ class SlimsPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
     def suggest_water(self) -> None:
         """
         Calculates and suggests water amount based on current weight and water earned.
-        
+
         Prompts user for current weight and water earned, calculates suggested amount,
         and optionally writes the waterlog to SLIMS.
         """
@@ -583,7 +583,7 @@ class SlimsPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
     def finalize(self):
         """
         Finalizes the picker by suggesting water amount and handling waterlog.
-        
+
         Called at the end of the experiment to manage post-session water calculations
         and SLIMS waterlog entries.
         """
