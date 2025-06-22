@@ -42,8 +42,8 @@ aind-services = [
     "aind-data-schema<2",
     "ms-active-directory",
     "cryptography",
-    "winkerberos",
-    "ldap3",
+    "winkerberos; sys_platform == 'win32'",
+    "ldap3; sys_platform == 'win32'",
 ]
 
 dev = [
