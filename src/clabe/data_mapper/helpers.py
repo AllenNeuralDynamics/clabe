@@ -57,6 +57,18 @@ def snapshot_python_environment() -> Dict[str, str]:
 
     Returns:
         Dict[str, str]: A dictionary of package names and their versions
+        
+    Examples:
+        Capture the current Python environment:
+        
+        env_snapshot = snapshot_python_environment()
+        # Returns: {'numpy': '1.24.3', 'pandas': '2.0.1', 'aind-data-schema': '0.15.0', ...}
+        
+        Use for debugging package versions:
+        
+        packages = snapshot_python_environment()
+        print(f"NumPy version: {packages.get('numpy', 'Not installed')}")
+        # Prints: NumPy version: 1.24.3
     """
     return {dist.name: dist.version for dist in metadata.distributions()}
 
@@ -75,6 +87,17 @@ def snapshot_bonsai_environment(
 
     Returns:
         Dict[str, str]: A dictionary of package IDs and their versions
+        
+    Examples:
+        Capture Bonsai environment from default config:
+        
+        bonsai_env = snapshot_bonsai_environment()
+        # Returns: {'Bonsai.Core': '2.7.0', 'Bonsai.Vision': '2.8.0', 'Bonsai.Spinnaker': '0.3.0', ...}
+        
+        Capture from custom config file:
+        
+        custom_env = snapshot_bonsai_environment("./custom/bonsai.config")
+        # Returns: {'Bonsai.Core': '2.6.0', 'Bonsai.Arduino': '2.7.0', ...}
     """
     tree = ET.parse(Path(config_file))
     root = tree.getroot()

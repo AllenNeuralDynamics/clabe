@@ -16,6 +16,28 @@ class DataTransfer(IService, abc.ABC):
     This class defines the interface that all data transfer services must implement,
     providing a consistent API for different transfer mechanisms such as file copying,
     cloud uploads, or network transfers.
+    
+    Examples:
+        Implementing a custom data transfer service:
+        
+        class MyTransferService(DataTransfer):
+            def __init__(self, source, destination):
+                self.source = source
+                self.destination = destination
+                
+            def transfer(self) -> None:
+                # Implementation specific transfer logic
+                print(f"Transferring from {self.source} to {self.destination}")
+                
+            def validate(self) -> bool:
+                # Implementation specific validation
+                return Path(self.source).exists()
+                
+        Using the custom service:
+        
+        service = MyTransferService("C:/data", "D:/backup")
+        if service.validate():
+            service.transfer()
     """
 
     @abc.abstractmethod

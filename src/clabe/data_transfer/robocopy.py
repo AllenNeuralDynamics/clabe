@@ -32,6 +32,28 @@ class RobocopyService(DataTransfer):
         log (Optional[PathLike]): Optional log file path for Robocopy output
         extra_args (str): Additional Robocopy command arguments
         _ui_helper (ui.UiHelper): UI helper for user prompts
+        
+    Examples:
+        Basic file copying:
+        
+        service = RobocopyService(
+            source="C:/data/experiment1",
+            destination="D:/backup/experiment1"
+        )
+        service.transfer()
+        
+        Copy with custom options:
+        
+        service = RobocopyService(
+            source="C:/data/experiment1",
+            destination="D:/backup/experiment1",
+            delete_src=True,
+            overwrite=True,
+            log="copy_log.txt",
+            extra_args="/E /DCOPY:DAT /R:50 /W:5"
+        )
+        if service.validate():
+            service.transfer()
     """
 
     def __init__(
@@ -57,7 +79,23 @@ class RobocopyService(DataTransfer):
             overwrite: Whether to overwrite existing files at the destination. Default is False
             force_dir: Whether to ensure the destination directory exists. Default is True
             ui_helper: UI helper for user prompts. Default is None
+            
+        Examples:
+            Initialize with basic parameters:
+            
+            service = RobocopyService("C:/source", "D:/destination")
+            
+            Initialize with logging and move operation:
+            
+            service = RobocopyService(
+                source="C:/temp/data",
+                destination="D:/archive/data",
+                log="transfer.log",
+                delete_src=True,
+                extra_args="/E /COPY:DAT /R:10"
+            )
         """
+
         self.source = source
         self.destination = destination
         self.delete_src = delete_src
@@ -158,5 +196,15 @@ class RobocopyService(DataTransfer):
 
         Returns:
             True if the user confirms, False otherwise
+            
+        Examples:
+            Interactive transfer confirmation:
+            
+            service = RobocopyService("C:/data", "D:/backup")
+            if service.prompt_input():
+                service.transfer()
+                # User confirmed, transfer proceeds
+            else:
+                print("Transfer cancelled by user")
         """
         return self._ui_helper.prompt_yes_no_question("Would you like to trigger robocopy (Y/N)?")

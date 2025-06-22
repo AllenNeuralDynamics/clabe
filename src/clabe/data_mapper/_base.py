@@ -24,6 +24,31 @@ class DataMapper(IService, abc.ABC, Generic[TMapTo]):
 
     Attributes:
         _mapped (Optional[TMapTo]): The mapped data object, set after successful mapping
+
+    Examples:
+        Creating a custom data mapper:
+        
+        class MyDataMapper(DataMapper[MyTargetType]):
+            def map(self) -> MyTargetType:
+                # Implementation specific mapping logic
+                self._mapped = MyTargetType(...)
+                return self._mapped
+                
+            def is_mapped(self) -> bool:
+                return self._mapped is not None
+                
+            @property
+            def mapped(self) -> MyTargetType:
+                if not self.is_mapped():
+                    raise ValueError("Data not yet mapped")
+                return self._mapped
+        
+        Using the mapper:
+        
+        mapper = MyDataMapper()
+        result = mapper.map()
+        if mapper.is_mapped():
+            data = mapper.mapped
     """
 
     _mapped: Optional[TMapTo]

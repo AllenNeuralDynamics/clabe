@@ -58,6 +58,31 @@ class WatchdogDataTransferService(DataTransfer):
         schedule_time (Optional[datetime.time]): Time to schedule transfers
         platform (Platform): Platform associated with the data
         Various other configuration attributes for transfer customization
+        
+    Examples:
+        Basic watchdog service setup:
+        
+        service = WatchdogDataTransferService(
+            source="C:/data/session_001",
+            destination="//server/data/session_001",
+            project_name="my_project", # Make sure it validates
+            platform=Platform.BEHAVIOR
+        )
+        
+        Full configuration with session mapper:
+        
+        session_mapper = MySessionMapper(session_data)
+        service = WatchdogDataTransferService(
+            source="C:/data/session_001",
+            destination="//server/data/session_001",
+            aind_session_data_mapper=session_mapper,
+            project_name="behavior_study",
+            schedule_time=datetime.time(hour=22, minute=30),
+            platform=Platform.BEHAVIOR,
+            force_cloud_sync=True
+        )
+        if service.validate():
+            service.transfer()
     """
 
     def __init__(
@@ -102,6 +127,28 @@ class WatchdogDataTransferService(DataTransfer):
             session_name: Name of the session
             upload_job_configs: List of job configurations for the transfer
             ui_helper: UI helper for user prompts
+            
+        Examples:
+            Basic initialization:
+            
+            service = WatchdogDataTransferService(
+                source="C:/data/session_001",
+                destination="//server/archive/session_001",
+                project_name="behavior_project"
+            )
+            
+            Advanced configuration:
+            
+            service = WatchdogDataTransferService(
+                source="C:/data/session_001",
+                destination="//server/archive/session_001",
+                project_name="behavior_project",
+                schedule_time=datetime.time(hour=23),
+                platform=Platform.BEHAVIOR,
+                force_cloud_sync=True,
+                delete_modalities_source_after_success=True,
+                extra_identifying_info={"experiment_type": "foraging"}
+            )
         """
         self.source = source
         self.destination = destination
@@ -278,6 +325,23 @@ class WatchdogDataTransferService(DataTransfer):
 
         Returns:
             A WatchConfig object
+            
+        Examples:
+            Create basic watch configuration:
+            
+            config = WatchdogDataTransferService.create_watch_config(
+                watched_directory="C:/watchdog/manifests",
+                manifest_complete_directory="C:/watchdog/completed"
+            )
+            
+            Create configuration with webhook:
+            
+            config = WatchdogDataTransferService.create_watch_config(
+                watched_directory="C:/watchdog/manifests",
+                manifest_complete_directory="C:/watchdog/completed",
+                webhook_url="https://my-webhook.com/notify",
+                create_dir=True
+            )
         """
         if create_dir:
             if not Path(watched_directory).exists():
@@ -326,6 +390,23 @@ class WatchdogDataTransferService(DataTransfer):
 
         Raises:
             ValueError: If the project name is invalid
+            
+        Examples:
+            Create manifest from session data:
+            
+            session = Session(...)
+            
+            manifest = service.create_manifest_config_from_ads_session(
+                ads_session=session,
+            )
+            
+            Create with custom schemas:
+            
+            schemas = ["C:/data/rig.json", "C:/data/processing.json"]
+            manifest = service.create_manifest_config_from_ads_session(
+                ads_session=session,
+                ads_schemas=schemas,
+            )
         """
         processor_full_name = ",".join(ads_session.experimenter_full_name) or os.environ.get("USERNAME", "unknown")
 
@@ -474,6 +555,16 @@ class WatchdogDataTransferService(DataTransfer):
 
         Returns:
             True if the service is running, False otherwise
+            
+        Examples:
+            Check service status:
+            
+            service = WatchdogDataTransferService(source="C:/data", destination="//server/data")
+            if service.is_running():
+                print("Watchdog service is active")
+            else:
+                print("Watchdog service is not running")
+                service.force_restart()
         """
         output = subprocess.check_output(
             ["tasklist", "/FI", f"IMAGENAME eq {self.executable_path.name}"], shell=True, encoding="utf-8"
@@ -598,5 +689,15 @@ class WatchdogDataTransferService(DataTransfer):
 
         Returns:
             True if the user confirms, False otherwise
+            
+        Examples:
+            Interactive manifest generation:
+            
+            service = WatchdogDataTransferService(source="C:/data", destination="//server/data")
+            if service.prompt_input():
+                service.transfer()
+                print("Manifest generation confirmed")
+            else:
+                print("Manifest generation cancelled")
         """
         return self._ui_helper.prompt_yes_no_question("Would you like to generate a watchdog manifest (Y/N)?")
