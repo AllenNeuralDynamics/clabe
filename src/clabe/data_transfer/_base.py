@@ -18,8 +18,8 @@ class DataTransfer(IService, abc.ABC):
     cloud uploads, or network transfers.
 
     Examples:
-        Implementing a custom data transfer service:
-
+        ```python
+        # Implementing a custom data transfer service:
         class MyTransferService(DataTransfer):
             def __init__(self, source, destination):
                 self.source = source
@@ -33,11 +33,11 @@ class DataTransfer(IService, abc.ABC):
                 # Implementation specific validation
                 return Path(self.source).exists()
 
-        Using the custom service:
-
+        # Using the custom service:
         service = MyTransferService("C:/data", "D:/backup")
         if service.validate():
             service.transfer()
+        ```
     """
 
     @abc.abstractmethod

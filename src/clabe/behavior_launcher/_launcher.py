@@ -40,6 +40,7 @@ class BehaviorLauncher(BaseLauncher[TRig, TSession, TTaskLogic]):
         _by_subject_modifiers_manager (BySubjectModifierManager): Manager for subject-specific modifications
 
     Examples:
+        ```python
         # Create a behavior launcher
         launcher = BehaviorLauncher(
             settings=BehaviorCliArgs(...),
@@ -50,6 +51,7 @@ class BehaviorLauncher(BaseLauncher[TRig, TSession, TTaskLogic]):
         )
         # Run the experiment
         launcher.run()
+        ```
     """
 
     settings: BehaviorCliArgs
@@ -253,8 +255,10 @@ class ByAnimalFiles(enum.StrEnum):
     animals/subjects in behavior experiments.
 
     Examples:
+        ```python
         # Use the task logic file type
         filename = f"{ByAnimalFiles.TASK_LOGIC}.json"
+        ```
     """
 
     TASK_LOGIC = "task_logic"
@@ -274,6 +278,7 @@ class DefaultBehaviorPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
         TASK_LOGIC_SUFFIX (str): Directory suffix for task logic configurations
 
     Examples:
+        ```python
         # Create a default behavior picker
         picker = DefaultBehaviorPicker(
             launcher=some_launcher_instance,
@@ -284,6 +289,7 @@ class DefaultBehaviorPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
         rig = picker.pick_rig()
         session = picker.pick_session()
         task_logic = picker.pick_task_logic()
+        ```
     """
 
     RIG_SUFFIX: str = "Rig"
@@ -520,8 +526,10 @@ class DefaultBehaviorPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
             str: The selected or entered subject name.
 
         Examples:
+            ```python
             # Choose a subject from the subjects directory
             subject = picker.choose_subject("Subjects")
+            ```
         """
         subject = None
         while subject is None:
@@ -555,9 +563,11 @@ class DefaultBehaviorPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
             Optional[List[str]]: List of experimenter names.
 
         Examples:
+            ```python
             # Prompt for experimenter with validation
             names = picker.prompt_experimenter(strict=True)
             print("Experimenters:", names)
+            ```
         """
         experimenter: Optional[List[str]] = None
         while experimenter is None:

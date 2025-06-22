@@ -16,6 +16,7 @@ class BySubjectModifier(Protocol, Generic[_R, _S, _T]):
     the schemas in-place as needed.
 
     Examples:
+        ```python
         # Define a modifier that sets a field on the session schema
         def my_modifier(rig_schema=None, session_schema=None, task_logic_schema=None, **kwargs):
             if session_schema is not None:
@@ -24,6 +25,7 @@ class BySubjectModifier(Protocol, Generic[_R, _S, _T]):
         mgr = BySubjectModifierManager()
         mgr.register_modifier(my_modifier)
         mgr.apply_modifiers(session_schema=some_session)
+        ```
     """
 
     def __call__(
@@ -52,12 +54,14 @@ class BySubjectModifierManager(Generic[_R, _S, _T]):
         _modifiers (List[BySubjectModifier]): List of registered modifier functions
 
     Examples:
+        ```python
         # Create a manager and register a modifier
         mgr = BySubjectModifierManager()
         def mod(**kwargs): pass
         mgr.register_modifier(mod)
         # Apply all modifiers to schemas
         mgr.apply_modifiers(rig_schema=rig_schema, session_schema=session_schema, task_logic_schema=task_logic_schema)
+        ```
     """
 
     def __init__(self: Self, modifier: Optional[List[BySubjectModifier[_R, _S, _T]]] = None) -> None:

@@ -39,7 +39,8 @@ class _UiHelperBase(abc.ABC):
             print_func: Custom function for printing messages
             input_func: Custom function for receiving input
 
-        Example:
+        Examples:
+            ```python
             # Default UI helper
             helper = DefaultUIHelper()
 
@@ -54,6 +55,7 @@ class _UiHelperBase(abc.ABC):
                 print_func=custom_print,
                 input_func=custom_input
             )
+            ```
         """
         self._print = print_func if print_func is not None else _DEFAULT_PRINT_FUNC
         self._input = input_func if input_func is not None else _DEFAULT_INPUT_FUNC
@@ -68,10 +70,12 @@ class _UiHelperBase(abc.ABC):
         Returns:
             Any: The result of the print function
 
-        Example:
+        Examples:
+            ```python
             helper = DefaultUIHelper()
             helper.print("Hello, world!")
             helper.print("Status: Processing...")
+            ```
         """
         return self._print(message)
 
@@ -85,10 +89,12 @@ class _UiHelperBase(abc.ABC):
         Returns:
             str: The user input
 
-        Example:
+        Examples:
+            ```python
             helper = DefaultUIHelper()
             name = helper.input("Enter your name: ")
             password = helper.input("Enter password: ")
+            ```
         """
         return self._input(prompt)
 

@@ -51,11 +51,13 @@ class PythonScriptApp(App):
         _validate_uv():
             Validates the presence of the `uv` executable. Raises an error if it is not installed.
     Examples:
+        ```python
         # Create and run a Python script app
         app = PythonScriptApp(script="my_script.py")
         app.run()
         # Create with additional arguments
         app = PythonScriptApp(script="my_script.py", additional_arguments="foo")
+        ```
     """
 
     def __init__(
@@ -80,6 +82,7 @@ class PythonScriptApp(App):
             timeout (Optional[float]): Timeout for the script execution.
 
         Examples:
+            ```python
             # Initialize with basic script
             app = PythonScriptApp(script="test.py")
             # Initialize with dependencies and arguments
@@ -88,6 +91,7 @@ class PythonScriptApp(App):
                 additional_arguments="--verbose",
                 optional_toml_dependencies=["dev", "test"]
             )
+            ```
         """
         self._validate_uv()
         self._script = script
@@ -214,10 +218,12 @@ class PythonScriptApp(App):
             subprocess.CalledProcessError: If the environment creation fails.
 
         Examples:
+            ```python
             # Create a virtual environment
             app.create_environment()
             # Create with custom run kwargs
             app.create_environment(run_kwargs={"timeout": 30})
+            ```
         """
         logger.info("Creating Python environment with uv venv at %s...", self._project_directory)
         run_kwargs = run_kwargs or {}

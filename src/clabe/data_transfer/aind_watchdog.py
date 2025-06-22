@@ -60,8 +60,8 @@ class WatchdogDataTransferService(DataTransfer):
         Various other configuration attributes for transfer customization
 
     Examples:
-        Basic watchdog service setup:
-
+        ```python
+        # Basic watchdog service setup:
         service = WatchdogDataTransferService(
             source="C:/data/session_001",
             destination="//server/data/session_001",
@@ -69,8 +69,7 @@ class WatchdogDataTransferService(DataTransfer):
             platform=Platform.BEHAVIOR
         )
 
-        Full configuration with session mapper:
-
+        # Full configuration with session mapper:
         session_mapper = MySessionMapper(session_data)
         service = WatchdogDataTransferService(
             source="C:/data/session_001",
@@ -83,6 +82,7 @@ class WatchdogDataTransferService(DataTransfer):
         )
         if service.validate():
             service.transfer()
+        ```
     """
 
     def __init__(
@@ -327,21 +327,21 @@ class WatchdogDataTransferService(DataTransfer):
             A WatchConfig object
 
         Examples:
-            Create basic watch configuration:
-
+            ```python
+            # Create basic watch configuration:
             config = WatchdogDataTransferService.create_watch_config(
                 watched_directory="C:/watchdog/manifests",
                 manifest_complete_directory="C:/watchdog/completed"
             )
 
-            Create configuration with webhook:
-
+            # Create configuration with webhook:
             config = WatchdogDataTransferService.create_watch_config(
                 watched_directory="C:/watchdog/manifests",
                 manifest_complete_directory="C:/watchdog/completed",
                 webhook_url="https://my-webhook.com/notify",
                 create_dir=True
             )
+            ```
         """
         if create_dir:
             if not Path(watched_directory).exists():
@@ -392,21 +392,20 @@ class WatchdogDataTransferService(DataTransfer):
             ValueError: If the project name is invalid
 
         Examples:
-            Create manifest from session data:
-
+            ```python
+            # Create manifest from session data:
             session = Session(...)
-
             manifest = service.create_manifest_config_from_ads_session(
                 ads_session=session,
             )
 
-            Create with custom schemas:
-
+            # Create with custom schemas:
             schemas = ["C:/data/rig.json", "C:/data/processing.json"]
             manifest = service.create_manifest_config_from_ads_session(
                 ads_session=session,
                 ads_schemas=schemas,
             )
+            ```
         """
         processor_full_name = ",".join(ads_session.experimenter_full_name) or os.environ.get("USERNAME", "unknown")
 
@@ -557,14 +556,15 @@ class WatchdogDataTransferService(DataTransfer):
             True if the service is running, False otherwise
 
         Examples:
-            Check service status:
-
+            ```python
+            # Check service status:
             service = WatchdogDataTransferService(source="C:/data", destination="//server/data")
             if service.is_running():
                 print("Watchdog service is active")
             else:
                 print("Watchdog service is not running")
                 service.force_restart()
+            ```
         """
         output = subprocess.check_output(
             ["tasklist", "/FI", f"IMAGENAME eq {self.executable_path.name}"], shell=True, encoding="utf-8"
@@ -691,13 +691,14 @@ class WatchdogDataTransferService(DataTransfer):
             True if the user confirms, False otherwise
 
         Examples:
-            Interactive manifest generation:
-
+            ```python
+            # Interactive manifest generation:
             service = WatchdogDataTransferService(source="C:/data", destination="//server/data")
             if service.prompt_input():
                 service.transfer()
                 print("Manifest generation confirmed")
             else:
                 print("Manifest generation cancelled")
+            ```
         """
         return self._ui_helper.prompt_yes_no_question("Would you like to generate a watchdog manifest (Y/N)?")

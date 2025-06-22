@@ -33,6 +33,7 @@ class App(IService, abc.ABC):
         behavior of the application.
 
     Examples:
+        ```python
         # Implement a custom app
         class MyApp(App):
             def run(self): return subprocess.run(["echo", "hello"])
@@ -42,6 +43,7 @@ class App(IService, abc.ABC):
 
         app = MyApp()
         app.run()
+        ```
     """
 
     @abc.abstractmethod
@@ -88,7 +90,9 @@ class App(IService, abc.ABC):
             Self: The updated application instance.
 
         Examples:
+            ```python
             # Add application settings
             app.add_app_settings(debug=True, verbose=False)
+            ```
         """
         return self

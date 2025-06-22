@@ -34,16 +34,15 @@ class RobocopyService(DataTransfer):
         _ui_helper (ui.UiHelper): UI helper for user prompts
 
     Examples:
-        Basic file copying:
-
+        ```python
+        # Basic file copying:
         service = RobocopyService(
             source="C:/data/experiment1",
             destination="D:/backup/experiment1"
         )
         service.transfer()
 
-        Copy with custom options:
-
+        # Copy with custom options:
         service = RobocopyService(
             source="C:/data/experiment1",
             destination="D:/backup/experiment1",
@@ -54,6 +53,7 @@ class RobocopyService(DataTransfer):
         )
         if service.validate():
             service.transfer()
+        ```
     """
 
     def __init__(
@@ -81,12 +81,11 @@ class RobocopyService(DataTransfer):
             ui_helper: UI helper for user prompts. Default is None
 
         Examples:
-            Initialize with basic parameters:
-
+            ```python
+            # Initialize with basic parameters:
             service = RobocopyService("C:/source", "D:/destination")
 
-            Initialize with logging and move operation:
-
+            # Initialize with logging and move operation:
             service = RobocopyService(
                 source="C:/temp/data",
                 destination="D:/archive/data",
@@ -94,6 +93,7 @@ class RobocopyService(DataTransfer):
                 delete_src=True,
                 extra_args="/E /COPY:DAT /R:10"
             )
+            ```
         """
 
         self.source = source
@@ -198,13 +198,14 @@ class RobocopyService(DataTransfer):
             True if the user confirms, False otherwise
 
         Examples:
-            Interactive transfer confirmation:
-
+            ```python
+            # Interactive transfer confirmation:
             service = RobocopyService("C:/data", "D:/backup")
             if service.prompt_input():
                 service.transfer()
                 # User confirmed, transfer proceeds
             else:
                 print("Transfer cancelled by user")
+            ```
         """
         return self._ui_helper.prompt_yes_no_question("Would you like to trigger robocopy (Y/N)?")

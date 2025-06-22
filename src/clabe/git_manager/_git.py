@@ -28,12 +28,14 @@ class GitRepository(Repo):
             *args: Arguments passed to the parent Repo class
             **kwargs: Keyword arguments passed to the parent Repo class
 
-        Example:
+        Examples:
+            ```python
             # Initialize with current directory
             repo = GitRepository()
 
             # Initialize with specific path
             repo = GitRepository(path="/path/to/repo")
+            ```
         """
         super().__init__(*args, **kwargs)
         self._validate_git()
@@ -48,9 +50,11 @@ class GitRepository(Repo):
         Returns:
             Self: The current instance for method chaining.
 
-        Example:
+        Examples:
+            ```python
             repo = GitRepository("/path/to/repo")
             repo.reset_repo()  # Discards all uncommitted changes
+            ```
         """
         self.git.reset("--hard")
         return self
@@ -65,9 +69,11 @@ class GitRepository(Repo):
         Returns:
             Self: The current instance for method chaining.
 
-        Example:
+        Examples:
+            ```python
             repo = GitRepository("/path/to/repo")
             repo.clean_repo()  # Removes all untracked files and directories
+            ```
         """
         self.git.clean("-fd")
         return self
@@ -82,10 +88,12 @@ class GitRepository(Repo):
         Returns:
             bool: True if the repository or any submodules have uncommitted changes.
 
-        Example:
+        Examples:
+            ```python
             repo = GitRepository("/path/to/repo")
             if repo.is_dirty_with_submodules():
                 print("Repository or submodules have uncommitted changes")
+            ```
         """
         _is_dirty_repo = self.is_dirty(untracked_files=True)
         if _is_dirty_repo:
@@ -115,11 +123,13 @@ class GitRepository(Repo):
         Returns:
             List[str]: A list of file paths with uncommitted changes.
 
-        Example:
+        Examples:
+            ```python
             repo = GitRepository("/path/to/repo")
             changes = repo.uncommitted_changes()
             if changes:
                 print(f"Uncommitted changes found: {changes}")
+            ```
         """
         untracked_files = self.untracked_files
         changes = self._get_changes(self)
@@ -138,9 +148,11 @@ class GitRepository(Repo):
         Returns:
             Self: The current instance for method chaining.
 
-        Example:
+        Examples:
+            ```python
             repo = GitRepository("/path/to/repo")
             repo.force_update_submodules()  # Updates all submodules
+            ```
         """
         self.submodule_update()
         return self
@@ -155,9 +167,11 @@ class GitRepository(Repo):
         Returns:
             Self: The current instance for method chaining.
 
-        Example:
+        Examples:
+            ```python
             repo = GitRepository("/path/to/repo")
             repo.submodules_sync()  # Synchronizes submodule URLs
+            ```
         """
         self.git.submodule("sync", "--recursive")
         return self
@@ -173,9 +187,11 @@ class GitRepository(Repo):
         Returns:
             Self: The current instance for method chaining.
 
-        Example:
+        Examples:
+            ```python
             repo = GitRepository("/path/to/repo")
             repo.full_reset()  # Complete cleanup of repo and submodules
+            ```
         """
         self.reset_repo().submodules_sync().force_update_submodules().clean_repo()
         _ = [GitRepository(str(sub.abspath)).full_reset() for sub in self.submodules]
@@ -195,11 +211,13 @@ class GitRepository(Repo):
         Returns:
             Self: The current instance for method chaining.
 
-        Example:
+        Examples:
+            ```python
             repo = GitRepository("/path/to/repo")
             ui_helper = ui.DefaultUIHelper()
             repo.try_prompt_full_reset(ui_helper)  # Prompts user if dirty
             repo.try_prompt_full_reset(ui_helper, force_reset=True)  # Forces reset
+            ```
         """
         if force_reset:
             self.full_reset()

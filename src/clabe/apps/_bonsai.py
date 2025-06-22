@@ -73,6 +73,7 @@ class BonsaiApp(App):
             ui_helper (Optional[UiHelper]): UI helper instance. Defaults to DefaultUIHelper.
 
         Examples:
+            ```python
             # Create and run a Bonsai app
             app = BonsaiApp(workflow="workflow.bonsai")
             app.run()
@@ -81,6 +82,7 @@ class BonsaiApp(App):
                 workflow="workflow.bonsai",
                 is_editor_mode=False,
             )
+            ```
         """
         self.executable = Path(executable).resolve()
         self.workflow = Path(workflow).resolve()
@@ -290,10 +292,12 @@ class AindBehaviorServicesBonsaiApp(BonsaiApp):
     session, and rig paths for the Bonsai workflow.
 
     Examples:
+        ```python
         # Create an AIND behavior services Bonsai app
         app = AindBehaviorServicesBonsaiApp(workflow="behavior_workflow.bonsai")
         app.add_app_settings(launcher=my_launcher)
         app.run()
+        ```
     """
 
     @overload

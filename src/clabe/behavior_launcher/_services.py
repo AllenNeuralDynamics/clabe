@@ -43,6 +43,7 @@ class BehaviorServicesFactoryManager(ServicesFactoryManager[BehaviorLauncher]):
         Services are managed internally through the parent class and accessed via properties.
 
     Examples:
+        ```python
         # Create a manager and attach an app service
         mgr = BehaviorServicesFactoryManager()
         mgr.attach_app(App())
@@ -50,6 +51,7 @@ class BehaviorServicesFactoryManager(ServicesFactoryManager[BehaviorLauncher]):
         mgr.attach_data_transfer(DataTransfer())
         # Retrieve the app service
         app = mgr.app
+        ```
     """
 
     def __init__(self, launcher: Optional[BehaviorLauncher] = None, **kwargs) -> None:
@@ -213,10 +215,12 @@ def watchdog_data_transfer_factory(
         Callable[[BehaviorLauncher], WatchdogDataTransferService]: A callable factory for the watchdog service
 
     Examples:
+        ```python
         # Create a watchdog data transfer factory
         factory = watchdog_data_transfer_factory(destination="/mnt/data")
         # Use the factory with a launcher
         service = factory(launcher)
+        ```
     """
     return partial(
         _watchdog_data_transfer_factory,
@@ -278,10 +282,12 @@ def robocopy_data_transfer_factory(
         Callable[[BehaviorLauncher], RobocopyService]: A callable factory for the robocopy service
 
     Examples:
+        ```python
         # Create a robocopy data transfer factory
         factory = robocopy_data_transfer_factory(destination="/mnt/data")
         # Use the factory with a launcher
         service = factory(launcher)
+        ```
     """
     return partial(_robocopy_data_transfer_factory, destination=destination, **robocopy_kwargs)
 
