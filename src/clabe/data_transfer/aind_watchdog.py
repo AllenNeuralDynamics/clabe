@@ -129,7 +129,8 @@ class WatchdogDataTransferService(DataTransfer):
             ui_helper: UI helper for user prompts
 
         Examples:
-            Basic initialization:
+            ```python
+            # Basic initialization:
 
             service = WatchdogDataTransferService(
                 source="C:/data/session_001",
@@ -137,7 +138,7 @@ class WatchdogDataTransferService(DataTransfer):
                 project_name="behavior_project"
             )
 
-            Advanced configuration:
+            $ Advanced configuration:
 
             service = WatchdogDataTransferService(
                 source="C:/data/session_001",
@@ -149,6 +150,7 @@ class WatchdogDataTransferService(DataTransfer):
                 delete_modalities_source_after_success=True,
                 extra_identifying_info={"experiment_type": "foraging"}
             )
+            ```
         """
         self.source = source
         self.destination = destination

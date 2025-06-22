@@ -397,9 +397,11 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
         Orchestrates the complete launcher workflow including validation,
         UI prompting, hook execution, and cleanup.
 
-        Example:
+        Examples:
+            ```python
             launcher = MyLauncher(...)
             launcher.main()  # Starts the launcher workflow
+            ```
         """
         try:
             logger.info(self.make_header())
@@ -543,13 +545,15 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
         Checks Git repository state, handles dirty repository conditions,
         and ensures all prerequisites are met for experiment execution.
 
-        Example:
+        Examples:
+            ```python
             launcher = MyLauncher(...)
             try:
                 launcher.validate()
                 print("Validation successful")
             except Exception as e:
                 print(f"Validation failed: {e}")
+            ```
         """
         try:
             if self.repository.is_dirty():
@@ -578,9 +582,11 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
         Performs final cleanup operations and gracefully exits the launcher
         with a success code.
 
-        Example:
+        Examples:
+            ```python
             launcher = MyLauncher(...)
             launcher.dispose()  # Cleans up and exits
+            ```
         """
         logger.info("Disposing...")
         self._exit(0)

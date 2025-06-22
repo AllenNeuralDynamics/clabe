@@ -110,11 +110,13 @@ class _UiHelperBase(abc.ABC):
         Returns:
             Optional[str]: The selected item or None
 
-        Example:
+        Examples:
+            ```python
             # Implemented in subclasses like DefaultUIHelper
             helper = DefaultUIHelper()
             options = ["red", "green", "blue"]
             color = helper.prompt_pick_from_list(options, "Choose a color:")
+            ```
         """
 
     @abc.abstractmethod
@@ -128,11 +130,13 @@ class _UiHelperBase(abc.ABC):
         Returns:
             bool: True for yes, False for no
 
-        Example:
+        Examples:
+            ```python
             # Implemented in subclasses like DefaultUIHelper
             helper = DefaultUIHelper()
             if helper.prompt_yes_no_question("Save changes?"):
                 save_file()
+
         """
 
     @abc.abstractmethod
@@ -146,10 +150,12 @@ class _UiHelperBase(abc.ABC):
         Returns:
             str: The user input
 
-        Example:
+        Examples:
+            ```python
             # Implemented in subclasses like DefaultUIHelper
             helper = DefaultUIHelper()
             description = helper.prompt_text("Enter description: ")
+            ```
         """
 
     @abc.abstractmethod
@@ -163,10 +169,12 @@ class _UiHelperBase(abc.ABC):
         Returns:
             float: The parsed user input
 
-        Example:
+        Examples:
+            ```python
             # Implemented in subclasses like DefaultUIHelper
             helper = DefaultUIHelper()
             price = helper.prompt_float("Enter price: $")
+            ```
         """
         pass
 
@@ -181,7 +189,7 @@ class DefaultUIHelper(_UiHelperBase):
     This class provides a concrete implementation of the UI helper interface
     using standard console input/output for user interactions.
 
-    Example:
+    Examples:
         ```python
         helper = DefaultUIHelper()
 
@@ -217,7 +225,7 @@ class DefaultUIHelper(_UiHelperBase):
         Returns:
             Optional[str]: The selected item or None
 
-        Example:
+        Examples:
             ```python
             helper = DefaultUIHelper()
             files = ["file1.txt", "file2.txt", "file3.txt"]
@@ -260,7 +268,7 @@ class DefaultUIHelper(_UiHelperBase):
         Returns:
             bool: True for yes, False for no
 
-        Example:
+        Examples:
             ```python
             helper = DefaultUIHelper()
 
@@ -293,7 +301,7 @@ class DefaultUIHelper(_UiHelperBase):
         Returns:
             str: The user input
 
-        Example:
+        Examples:
             ```python
             helper = DefaultUIHelper()
 
@@ -317,7 +325,7 @@ class DefaultUIHelper(_UiHelperBase):
         Returns:
             float: The parsed user input
 
-        Example:
+        Examples:
             ```python
             helper = DefaultUIHelper()
 
@@ -349,7 +357,7 @@ def prompt_field_from_input(model: Type[_TModel], field_name: str, default: Opti
     Returns:
         Optional[_T]: The validated input value or the default value
 
-    Example:
+    Examples:
         ```python
         from pydantic import BaseModel, Field
 

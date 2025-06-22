@@ -22,7 +22,7 @@ def available_storage_constraint_factory(drive: os.PathLike = Path(r"C:\\"), min
     Raises:
         ValueError: If the drive path is not valid
 
-    Example:
+    Examples:
         ```python
 
         # Check for 1TB free space on D: drive
@@ -62,7 +62,7 @@ def remote_dir_exists_constraint_factory(dir_path: os.PathLike) -> Constraint:
     Returns:
         Constraint: A constraint object for directory existence validation
 
-        Example:
+        Examples:
         ```python
         # Check if network share exists
         network_constraint = remote_dir_exists_constraint_factory(

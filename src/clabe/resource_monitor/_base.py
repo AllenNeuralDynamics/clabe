@@ -19,7 +19,7 @@ class ResourceMonitor(IService):
     Attributes:
         constraints (List[Constraint]): A list of constraints to monitor
 
-    Example:
+    Examples:
         ```python
         from clabe.resource_monitor import available_storage_constraint_factory
 
@@ -62,7 +62,7 @@ class ResourceMonitor(IService):
         Returns:
             bool: True if all constraints are satisfied, False otherwise
 
-        Example:
+        Examples:
             ```python
             monitor = ResourceMonitor([storage_constraint, memory_constraint])
 
@@ -83,7 +83,7 @@ class ResourceMonitor(IService):
         Args:
             constraint: The constraint to add
 
-        Example:
+        Examples:
             ```python
             monitor = ResourceMonitor()
 
@@ -113,7 +113,7 @@ class ResourceMonitor(IService):
         Args:
             constraint: The constraint to remove
 
-        Example:
+        Examples:
             ```python
             monitor = ResourceMonitor()
             monitor.add_constraint(constraint)
@@ -134,7 +134,7 @@ class ResourceMonitor(IService):
         Returns:
             bool: True if all constraints are satisfied, False otherwise
 
-        Example:
+        Examples:
             ```python
             monitor = ResourceMonitor([constraint1, constraint2])
 
@@ -166,7 +166,7 @@ class Constraint:
         kwargs (dict): Keyword arguments for the constraint function
         fail_msg_handler (Optional[Callable[..., str]]): A function to generate a failure message
 
-    Example:
+    Examples:
         ```python
         # Simple constraint
         def check_disk_space(path, min_gb):
@@ -214,7 +214,7 @@ class Constraint:
         Returns:
             bool | Exception: True if the constraint is satisfied, otherwise raises an exception
 
-        Example:
+        Examples:
             ```python
             constraint = Constraint(
                 name="test",
@@ -238,7 +238,7 @@ class Constraint:
         Returns:
             str: The failure message
 
-        Example:
+        Examples:
             ```python
             constraint = Constraint(
                 name="memory_check",

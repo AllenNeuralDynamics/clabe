@@ -321,8 +321,10 @@ class AindBehaviorServicesBonsaiApp(BonsaiApp):
             ValueError: If the required launcher argument is not provided
 
         Examples:
+            ```python
             # Add AIND behavior settings
             app.add_app_settings(launcher=my_launcher)
+            ```
         """
         launcher: BehaviorLauncher = kwargs.pop("launcher", None)
         if launcher is None:
