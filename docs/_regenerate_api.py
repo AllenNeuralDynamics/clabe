@@ -135,7 +135,7 @@ def update_mkdocs_yml(api_structure: Dict[str, List[Dict[str, str]]]) -> None:
             api_ref: List[Union[str, Dict[str, List[Dict[str, str]]]]] = ["api/index.md"]
 
             for module_name, module_content in api_structure.items():
-                api_ref.append({module_name.capitalize(): module_content})
+                api_ref.append({module_name.capitalize().replace("_", " "): module_content})
 
             entry[API_LABEL] = api_ref
 
