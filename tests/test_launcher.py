@@ -4,10 +4,10 @@ from unittest.mock import create_autospec, patch
 
 from aind_behavior_services import AindBehaviorRigModel, AindBehaviorSessionModel, AindBehaviorTaskLogicModel
 
-from aind_behavior_experiment_launcher import ui
-from aind_behavior_experiment_launcher.launcher import BaseLauncher
-from aind_behavior_experiment_launcher.launcher.cli import BaseCliArgs
-from aind_behavior_experiment_launcher.services import ServicesFactoryManager
+from clabe import ui
+from clabe.launcher import BaseLauncher
+from clabe.launcher.cli import BaseCliArgs
+from clabe.services import ServicesFactoryManager
 
 
 class BaseLauncherMock(BaseLauncher):
@@ -22,7 +22,7 @@ class BaseLauncherMock(BaseLauncher):
 
 
 class TestBaseLauncher(unittest.TestCase):
-    @patch("aind_behavior_experiment_launcher.launcher.BaseLauncher.validate", return_value=True)
+    @patch("clabe.launcher.BaseLauncher.validate", return_value=True)
     def setUp(self, mock_validate):
         self.rig_schema_model = create_autospec(AindBehaviorRigModel)
         self.session_schema_model = create_autospec(AindBehaviorSessionModel)
@@ -77,7 +77,7 @@ class TestBaseLauncher(unittest.TestCase):
         BaseLauncher.create_directory(directory)
         mock_makedirs.assert_called_once_with(directory)
 
-    @patch("aind_behavior_experiment_launcher.launcher.BaseLauncher._create_directory_structure")
+    @patch("clabe.launcher.BaseLauncher._create_directory_structure")
     @patch("os.path.exists", return_value=False)
     def test_create_directory_structure(self, mock_path_exists, mock_makedirs):
         self.launcher._create_directory_structure()

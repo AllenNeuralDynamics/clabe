@@ -21,7 +21,7 @@ from ._model_modifiers import BySubjectModifierManager
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from aind_behavior_experiment_launcher.behavior_launcher._services import BehaviorServicesFactoryManager
+    from clabe.behavior_launcher._services import BehaviorServicesFactoryManager
 else:
     BehaviorServicesFactoryManager = Any
 

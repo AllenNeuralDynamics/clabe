@@ -9,10 +9,10 @@ from aind_data_schema_models.modalities import Modality
 from aind_data_schema_models.platforms import Platform
 from aind_watchdog_service.models.manifest_config import BucketType
 
-from aind_behavior_experiment_launcher import ui
-from aind_behavior_experiment_launcher.data_mapper.aind_data_schema import AindDataSchemaSessionDataMapper
-from aind_behavior_experiment_launcher.data_transfer import RobocopyService
-from aind_behavior_experiment_launcher.data_transfer.aind_watchdog import (
+from clabe import ui
+from clabe.data_mapper.aind_data_schema import AindDataSchemaSessionDataMapper
+from clabe.data_transfer import RobocopyService
+from clabe.data_transfer.aind_watchdog import (
     ManifestConfig,
     ModalityConfigs,
     WatchConfig,
@@ -108,7 +108,7 @@ class TestWatchdogDataTransferService(unittest.TestCase):
         self.assertEqual(self.service.force_cloud_sync, self.force_cloud_sync)
         self.assertEqual(self.service.transfer_endpoint, self.transfer_endpoint)
 
-    @patch("aind_behavior_experiment_launcher.data_transfer.aind_watchdog.subprocess.check_output")
+    @patch("clabe.data_transfer.aind_watchdog.subprocess.check_output")
     def test_is_running(self, mock_check_output):
         mock_check_output.return_value = (
             "Image Name                     PID Session Name        Session#    Mem Usage\n"
@@ -117,12 +117,12 @@ class TestWatchdogDataTransferService(unittest.TestCase):
         )
         self.assertTrue(self.service.is_running())
 
-    @patch("aind_behavior_experiment_launcher.data_transfer.aind_watchdog.subprocess.check_output")
+    @patch("clabe.data_transfer.aind_watchdog.subprocess.check_output")
     def test_is_not_running(self, mock_check_output):
         mock_check_output.return_value = "INFO: No tasks are running which match the specified criteria."
         self.assertFalse(self.service.is_running())
 
-    @patch("aind_behavior_experiment_launcher.data_transfer.aind_watchdog.requests.get")
+    @patch("clabe.data_transfer.aind_watchdog.requests.get")
     def test_get_project_names(self, mock_get):
         mock_response = MagicMock()
         mock_response.ok = True
@@ -131,7 +131,7 @@ class TestWatchdogDataTransferService(unittest.TestCase):
         project_names = self.service._get_project_names()
         self.assertIn("test_project", project_names)
 
-    @patch("aind_behavior_experiment_launcher.data_transfer.aind_watchdog.requests.get")
+    @patch("clabe.data_transfer.aind_watchdog.requests.get")
     def test_get_project_names_fail(self, mock_get):
         mock_response = MagicMock()
         mock_response.ok = False
@@ -140,14 +140,14 @@ class TestWatchdogDataTransferService(unittest.TestCase):
             self.service._get_project_names()
 
     @patch(
-        "aind_behavior_experiment_launcher.data_transfer.aind_watchdog.WatchdogDataTransferService.is_running",
+        "clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.is_running",
         return_value=True,
     )
     @patch(
-        "aind_behavior_experiment_launcher.data_transfer.aind_watchdog.WatchdogDataTransferService.is_valid_project_name",
+        "clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.is_valid_project_name",
         return_value=True,
     )
-    @patch("aind_behavior_experiment_launcher.data_transfer.aind_watchdog.WatchdogDataTransferService._read_yaml")
+    @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService._read_yaml")
     def test_validate_success(self, mock_read_yaml, mock_is_valid_project_name, mock_is_running):
         mock_read_yaml.return_value = WatchConfig(
             flag_dir="mock_flag_dir", manifest_complete="manifest_complete_dir"
@@ -156,7 +156,7 @@ class TestWatchdogDataTransferService(unittest.TestCase):
             self.assertTrue(self.service.validate(create_config=False))
 
     @patch(
-        "aind_behavior_experiment_launcher.data_transfer.aind_watchdog.WatchdogDataTransferService.is_running",
+        "clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.is_running",
         return_value=False,
     )
     def test_validate_fail(self, mock_is_running):
@@ -184,7 +184,7 @@ class TestWatchdogDataTransferService(unittest.TestCase):
                 validate=self.validate,
             )
 
-    @patch("aind_behavior_experiment_launcher.data_transfer.aind_watchdog.Path.exists", return_value=True)
+    @patch("clabe.data_transfer.aind_watchdog.Path.exists", return_value=True)
     def test_find_ads_schemas(self, mock_exists):
         source = "mock_source_path"
         expected_files = [Path(source) / f"{file}.json" for file in CORE_FILES]
@@ -192,8 +192,8 @@ class TestWatchdogDataTransferService(unittest.TestCase):
         result = WatchdogDataTransferService._find_ads_schemas(source)
         self.assertEqual(result, expected_files)
 
-    @patch("aind_behavior_experiment_launcher.data_transfer.aind_watchdog.Path.mkdir")
-    @patch("aind_behavior_experiment_launcher.data_transfer.aind_watchdog.WatchdogDataTransferService._write_yaml")
+    @patch("clabe.data_transfer.aind_watchdog.Path.mkdir")
+    @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService._write_yaml")
     def test_dump_manifest_config(self, mock_write_yaml, mock_mkdir):
         path = Path("flag_dir/manifest_test_manifest.yaml")
         result = self.service.dump_manifest_config()
@@ -205,8 +205,8 @@ class TestWatchdogDataTransferService(unittest.TestCase):
         mock_write_yaml.assert_called_once()
         mock_mkdir.assert_called_once_with(parents=True, exist_ok=True)
 
-    @patch("aind_behavior_experiment_launcher.data_transfer.aind_watchdog.Path.mkdir")
-    @patch("aind_behavior_experiment_launcher.data_transfer.aind_watchdog.WatchdogDataTransferService._write_yaml")
+    @patch("clabe.data_transfer.aind_watchdog.Path.mkdir")
+    @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService._write_yaml")
     def test_dump_manifest_config_custom_path(self, mock_write_yaml, mock_mkdir):
         custom_path = Path("custom_path/manifest_test_manifest.yaml")
         result = self.service.dump_manifest_config(path=custom_path)
@@ -307,7 +307,7 @@ class TestRobocopyService(unittest.TestCase):
         self.assertTrue(self.service.overwrite)
         self.assertFalse(self.service.force_dir)
 
-    @patch("src.aind_behavior_experiment_launcher.data_transfer.robocopy.subprocess.Popen")
+    @patch("src.clabe.data_transfer.robocopy.subprocess.Popen")
     @patch.object(MockUiHelper, "prompt_yes_no_question", return_value=True)
     def test_transfer(self, mock_ui_helper, mock_popen):
         mock_process = MagicMock()

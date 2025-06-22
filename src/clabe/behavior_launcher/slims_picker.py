@@ -225,7 +225,7 @@ class SlimsPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
                 total_water_ml=water_earned_ml + water_supplement_delivered_ml,
                 comments=self.launcher.session_schema.notes,
                 workstation=self.launcher.rig_schema.rig_name,
-                sw_source="aind_behavior_experiment_launcher",
+                sw_source="clabe",
                 sw_version=__version__,
                 test_pk=self._slims_client.fetch_pk("Test", test_name="test_waterlog"),
             )

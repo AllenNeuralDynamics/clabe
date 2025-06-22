@@ -7,13 +7,13 @@ from aind_slims_api.exceptions import SlimsRecordNotFound
 from aind_slims_api.models import SlimsAttachment, SlimsBehaviorSession, SlimsInstrument, SlimsMouseContent
 from pydantic import ValidationError
 
-from aind_behavior_experiment_launcher.behavior_launcher import (
+from clabe.behavior_launcher import (
     BehaviorLauncher,
     BehaviorServicesFactoryManager,
     SlimsPicker,
 )
-from aind_behavior_experiment_launcher.behavior_launcher._launcher import ByAnimalFiles
-from aind_behavior_experiment_launcher.launcher.cli import BaseCliArgs
+from clabe.behavior_launcher._launcher import ByAnimalFiles
+from clabe.launcher.cli import BaseCliArgs
 
 MOCK_MOUSE = SlimsMouseContent(point_of_contact="test", water_restricted=False, barcode="test", baseline_weight_g=0)
 MOCK_TASK_LOGIC_ATTACHMENT = SlimsAttachment(pk=0, name=ByAnimalFiles.TASK_LOGIC.value)
@@ -31,7 +31,7 @@ def slims_validation_error() -> ValidationError:
 
 class TestSlimsPicker(unittest.TestCase):
     @patch.multiple(
-        "aind_behavior_experiment_launcher.behavior_launcher.slims_picker.SlimsClient",
+        "clabe.behavior_launcher.slims_picker.SlimsClient",
         __init__=MagicMock(return_value=None),
         fetch_model=MagicMock(return_value=None),
     )
@@ -63,7 +63,7 @@ class TestSlimsPicker(unittest.TestCase):
         self.picker = self.launcher.picker
 
     @patch.multiple(
-        "aind_behavior_experiment_launcher.behavior_launcher.slims_picker.SlimsClient",
+        "clabe.behavior_launcher.slims_picker.SlimsClient",
         fetch_model=MagicMock(side_effect=[SlimsRecordNotFound(), SlimsInstrument(name="test")]),
         fetch_attachments=MagicMock(return_value=[SlimsAttachment(pk=0, name="namesake")] * 2),
         fetch_attachment_content=MagicMock(),
@@ -77,7 +77,7 @@ class TestSlimsPicker(unittest.TestCase):
         self.assertIsNotNone(self.picker.slims_rig)  # check that rig has been saved as property
 
     @patch.multiple(
-        "aind_behavior_experiment_launcher.behavior_launcher.slims_picker.SlimsClient",
+        "clabe.behavior_launcher.slims_picker.SlimsClient",
         fetch_model=MagicMock(return_value=SlimsInstrument(name="test")),
         fetch_attachments=MagicMock(return_value=[SlimsAttachment(pk=0, name="namesake")] * 2),
         fetch_attachment_content=MagicMock(),
@@ -97,7 +97,7 @@ class TestSlimsPicker(unittest.TestCase):
             self.assertTrue("No rig configuration found attached to rig model" in str(context.exception))
 
     @patch.multiple(
-        "aind_behavior_experiment_launcher.behavior_launcher.slims_picker.SlimsClient",
+        "clabe.behavior_launcher.slims_picker.SlimsClient",
         fetch_model=MagicMock(return_value=SlimsInstrument(name="test")),
         fetch_attachments=MagicMock(return_value=[]),
     )
@@ -108,7 +108,7 @@ class TestSlimsPicker(unittest.TestCase):
             self.assertTrue("No valid rig configuration found attached to rig model" in str(context.exception))
 
     @patch.multiple(
-        "aind_behavior_experiment_launcher.behavior_launcher.slims_picker.SlimsClient",
+        "clabe.behavior_launcher.slims_picker.SlimsClient",
         fetch_model=MagicMock(side_effect=[SlimsRecordNotFound(), MOCK_MOUSE]),
         fetch_models=MagicMock(side_effect=[[SlimsBehaviorSession()], []]),
     )
@@ -123,7 +123,7 @@ class TestSlimsPicker(unittest.TestCase):
         self.assertIsNotNone(self.picker.slims_mouse)  # check that mouse has been saved as property
 
     @patch.multiple(
-        "aind_behavior_experiment_launcher.behavior_launcher.slims_picker.SlimsClient",
+        "clabe.behavior_launcher.slims_picker.SlimsClient",
         fetch_model=MagicMock(return_value=MOCK_MOUSE),
         fetch_models=MagicMock(return_value=[]),
     )
@@ -135,7 +135,7 @@ class TestSlimsPicker(unittest.TestCase):
             self.assertTrue("No session found on slims for mouse" in str(context.exception))
 
     @patch.multiple(
-        "aind_behavior_experiment_launcher.behavior_launcher.slims_picker.SlimsClient",
+        "clabe.behavior_launcher.slims_picker.SlimsClient",
         fetch_attachments=MagicMock(return_value=[MOCK_TASK_LOGIC_ATTACHMENT]),
         fetch_attachment_content=MagicMock(),
     )
@@ -146,7 +146,7 @@ class TestSlimsPicker(unittest.TestCase):
         self.assertIsNotNone(task_logic)
 
     @patch.multiple(
-        "aind_behavior_experiment_launcher.behavior_launcher.slims_picker.SlimsClient",
+        "clabe.behavior_launcher.slims_picker.SlimsClient",
         fetch_attachments=MagicMock(return_value=[]),
         fetch_attachment_content=MagicMock(),
     )
@@ -158,7 +158,7 @@ class TestSlimsPicker(unittest.TestCase):
             self.assertTrue("No task_logic model found on with loaded slims session for " in str(context.exception))
 
     @patch.multiple(
-        "aind_behavior_experiment_launcher.behavior_launcher.slims_picker.SlimsClient",
+        "clabe.behavior_launcher.slims_picker.SlimsClient",
         fetch_attachments=MagicMock(return_value=[SlimsAttachment(pk=0, name="test")]),
         fetch_attachment_content=MagicMock(),
     )
@@ -170,7 +170,7 @@ class TestSlimsPicker(unittest.TestCase):
             self.assertTrue("No task_logic model found on with loaded slims session for " in str(context.exception))
 
     @patch.multiple(
-        "aind_behavior_experiment_launcher.behavior_launcher.slims_picker.SlimsClient",
+        "clabe.behavior_launcher.slims_picker.SlimsClient",
         fetch_attachments=MagicMock(return_value=[MOCK_TASK_LOGIC_ATTACHMENT]),
         fetch_attachment_content=MagicMock(),
     )
@@ -182,12 +182,12 @@ class TestSlimsPicker(unittest.TestCase):
             self.assertTrue("Slims session instance not set." in str(context.exception))
 
     @patch.multiple(
-        "aind_behavior_experiment_launcher.behavior_launcher.slims_picker.SlimsClient",
+        "clabe.behavior_launcher.slims_picker.SlimsClient",
         add_model=MagicMock(return_value=SlimsBehaviorSession()),
         add_attachment_content=MagicMock(),
     )
     @patch.multiple(
-        "aind_behavior_experiment_launcher.behavior_launcher.BehaviorLauncher",
+        "clabe.behavior_launcher.BehaviorLauncher",
         session_schema=AindBehaviorSessionModel(experiment="", experiment_version="0.0.0", root_path="", subject="0"),
     )
     def test_push_session(self):

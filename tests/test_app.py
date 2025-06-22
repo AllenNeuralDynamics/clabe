@@ -4,8 +4,8 @@ import unittest.mock
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from aind_behavior_experiment_launcher import ui
-from aind_behavior_experiment_launcher.apps import BonsaiApp, PythonScriptApp
+from clabe import ui
+from clabe.apps import BonsaiApp, PythonScriptApp
 
 
 class MockUiHelper(ui.UiHelper):
@@ -31,7 +31,7 @@ class TestBonsaiApp(unittest.TestCase):
         self.executable = Path("bonsai/bonsai.exe")
         self.app = BonsaiApp(workflow=self.workflow, executable=self.executable, ui_helper=MockUiHelper())
 
-    @patch("aind_behavior_experiment_launcher.apps._bonsai.run_bonsai_process")
+    @patch("clabe.apps._bonsai.run_bonsai_process")
     @patch("pathlib.Path.exists", return_value=True)
     def test_run(self, mock_pathlib, mock_run_bonsai_process):
         mock_result = MagicMock(spec=subprocess.CompletedProcess)
@@ -126,7 +126,7 @@ class TestPythonScriptApp(unittest.TestCase):
         self.assertEqual(result.returncode, 0)
 
     @patch("subprocess.run")
-    @patch("aind_behavior_experiment_launcher.apps._python_script.PythonScriptApp._has_venv", return_value=True)
+    @patch("clabe.apps._python_script.PythonScriptApp._has_venv", return_value=True)
     def test_run_with_python_exe(self, mock_has_env, mock_run):
         mock_run.return_value = MagicMock(returncode=0)
         result = self.app.run()
@@ -134,7 +134,7 @@ class TestPythonScriptApp(unittest.TestCase):
         self.assertEqual(result.returncode, 0)
 
     @patch("subprocess.run")
-    @patch("aind_behavior_experiment_launcher.apps._python_script.PythonScriptApp._has_venv", return_value=True)
+    @patch("clabe.apps._python_script.PythonScriptApp._has_venv", return_value=True)
     def test_run_without_python_exe(self, mock_has_env, mock_run):
         self.app._append_python_exe = False
         mock_run.return_value = MagicMock(returncode=0)
@@ -142,14 +142,14 @@ class TestPythonScriptApp(unittest.TestCase):
         mock_run.assert_called_once()
         self.assertEqual(result.returncode, 0)
 
-    @patch("aind_behavior_experiment_launcher.apps._python_script.PythonScriptApp._log_process_std_output")
+    @patch("clabe.apps._python_script.PythonScriptApp._log_process_std_output")
     def test_output_from_result_success(self, mock_log):
         mock_log.return_value = None
         self.app._result = subprocess.CompletedProcess(args="test", returncode=0, stdout="output", stderr="")
         result = self.app.output_from_result()
         self.assertEqual(result, self.app)
 
-    @patch("aind_behavior_experiment_launcher.apps._python_script.PythonScriptApp._log_process_std_output")
+    @patch("clabe.apps._python_script.PythonScriptApp._log_process_std_output")
     def test_output_from_result_failure(self, mock_log):
         mock_log.return_value = None
         self.app._result = subprocess.CompletedProcess(args="test", returncode=1, stdout="output", stderr="error")

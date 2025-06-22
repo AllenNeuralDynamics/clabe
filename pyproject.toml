@@ -3,7 +3,7 @@ requires = ["setuptools", "setuptools-scm"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "aind-behavior-experiment-launcher"
+name = "aind-clabe"
 description = "A library for a minimal framework that can be used to build experimental interfaces."
 authors = [
     { name = "Bruno Cruz", email = "bruno.cruz@alleninstitute.org" }
@@ -30,10 +30,10 @@ dependencies = [
 ]
 
 [project.urls]
-Documentation = "https://allenneuraldynamics.github.io/Aind.Behavior.ExperimentLauncher/"
-Repository = "https://github.com/AllenNeuralDynamics/Aind.Behavior.ExperimentLauncher/"
-Issues = "https://github.com/AllenNeuralDynamics/Aind.Behavior.ExperimentLauncher/issues"
-Changelog = "https://github.com/AllenNeuralDynamics/Aind.Behavior.ExperimentLauncher/releases"
+Documentation = "https://allenneuraldynamics.github.io/clabe/"
+Repository = "https://github.com/AllenNeuralDynamics/clabe/"
+Issues = "https://github.com/AllenNeuralDynamics/clabe/issues"
+Changelog = "https://github.com/AllenNeuralDynamics/clabe/releases"
 
 [project.optional-dependencies]
 aind-services = [
@@ -50,18 +50,16 @@ dev = [
     "ruff",
     "codespell",
     "coverage",
-    "aind-behavior-experiment-launcher[aind-services]",
+    "aind-clabe[aind-services]",
 ]
 
 docs = [
-    "aind-behavior-experiment-launcher[aind-services]",
-    "Sphinx<7.3",
-    "furo",
-    "sphinx-jinja",
-    "sphinx-jsonschema",
-    "sphinx-copybutton",
-    "sphinx_mdinclude",
-    "autodoc_pydantic"
+    "aind-clabe[aind-services]",
+    'mkdocs',
+    'mkdocs-material',
+    'mkdocstrings[python]',
+    'pymdown-extensions',
+    'ruff',
 ]
 
 [tool.setuptools.packages.find]
@@ -71,7 +69,7 @@ where = ["src"]
 aind_behavior_task_launcher = ["py.typed"]
 
 [tool.setuptools.dynamic]
-version = { attr = "aind_behavior_experiment_launcher.__version__" }
+version = { attr = "clabe.__version__" }
 readme = { file = "README.md", content-type = "text/markdown" }
 
 [tool.ruff]
@@ -91,7 +89,7 @@ ignore-words-list = "nd, assertIn"
 
 [tool.coverage.run]
 omit = ["*__init__*"]
-source = ["aind_behavior_experiment_launcher", "tests"]
+source = ["clabe", "tests"]
 
 [tool.coverage.report]
 exclude_lines = [
