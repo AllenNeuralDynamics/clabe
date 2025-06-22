@@ -21,6 +21,20 @@ def available_storage_constraint_factory(drive: os.PathLike = Path(r"C:\\"), min
         
     Raises:
         ValueError: If the drive path is not valid
+        
+    Example:
+        ```python
+        
+        # Check for 1TB free space on D: drive
+        large_storage_constraint = available_storage_constraint_factory(
+            drive="D:\\",
+            min_bytes=1e12  # 1TB
+        )
+        
+        # Use in resource monitor
+        monitor = ResourceMonitor()
+        monitor.add_constraint(large_storage_constraint)
+        ```
     """
     if not os.path.ismount(drive):
         drive = os.path.splitdrive(drive)[0] + "\\"
@@ -47,6 +61,27 @@ def remote_dir_exists_constraint_factory(dir_path: os.PathLike) -> Constraint:
 
     Returns:
         Constraint: A constraint object for directory existence validation
+    
+        Example:
+        ```python
+        # Check if network share exists
+        network_constraint = remote_dir_exists_constraint_factory(
+            "\\\\server\\shared_folder"
+        )
+        
+        # Check if local directory exists
+        local_constraint = remote_dir_exists_constraint_factory(
+            "/data/experiments"
+        )
+        
+        # Use in resource monitor
+        monitor = ResourceMonitor()
+        monitor.add_constraint(network_constraint)
+        monitor.add_constraint(local_constraint)
+        
+        if monitor.validate():
+            print("All directories accessible")
+        ```
     """
     return Constraint(
         name="remote_dir_exists",

@@ -30,6 +30,30 @@ class PickerBase(abc.ABC, Generic[_L, _R, _S, _T]):
         _R: Type of the rig model
         _S: Type of the session model
         _T: Type of the task logic model
+        
+    Example:
+        ```python
+        class MyPicker(PickerBase):
+            def pick_rig(self):
+                return MyRigModel(name="test_rig")
+            
+            def pick_session(self):
+                return MySessionModel(subject="test_subject")
+            
+            def pick_task_logic(self):
+                return MyTaskLogicModel(name="test_task")
+            
+            def initialize(self):
+                pass
+            
+            def finalize(self):
+                pass
+        
+        picker = MyPicker()
+        picker.register_launcher(launcher)
+        picker.initialize()
+        rig = picker.pick_rig()
+        ```
     """
 
     def __init__(self, launcher: Optional[_L] = None, *, ui_helper: Optional[_UiHelperBase] = None, **kwargs) -> None:
@@ -58,6 +82,16 @@ class PickerBase(abc.ABC, Generic[_L, _R, _S, _T]):
             
         Raises:
             ValueError: If a launcher is already registered
+            
+        Example:
+            ```python
+            picker = MyPicker()
+            launcher = MyLauncher()
+            
+            picker.register_launcher(launcher)
+            # Now picker can access launcher settings
+            settings = picker.launcher.settings
+            ```
         """
         if self._launcher is None:
             self._launcher = launcher
@@ -72,6 +106,15 @@ class PickerBase(abc.ABC, Generic[_L, _R, _S, _T]):
 
         Returns:
             bool: True if a launcher is registered, False otherwise
+            
+        Example:
+            ```python
+            picker = MyPicker()
+            print(picker.has_launcher)  # False
+            
+            picker.register_launcher(launcher)
+            print(picker.has_launcher)  # True
+            ```
         """
         return self._launcher is not None
 

@@ -126,6 +126,24 @@ class DefaultUIHelper(_UiHelperBase):
     
     This class provides a concrete implementation of the UI helper interface
     using standard console input/output for user interactions.
+    
+    Example:
+        ```python
+        helper = DefaultUIHelper()
+        
+        # Get user choice from list
+        options = ["Option A", "Option B", "Option C"]
+        choice = helper.prompt_pick_from_list(options, "Choose an option:")
+        
+        # Ask yes/no question
+        proceed = helper.prompt_yes_no_question("Continue with operation?")
+        
+        # Get text input
+        name = helper.prompt_text("Enter your name: ")
+        
+        # Get numeric input
+        value = helper.prompt_float("Enter a number: ")
+        ```
     """
 
     def prompt_pick_from_list(
@@ -144,6 +162,18 @@ class DefaultUIHelper(_UiHelperBase):
 
         Returns:
             Optional[str]: The selected item or None
+            
+        Example:
+            ```python
+            helper = DefaultUIHelper()
+            files = ["file1.txt", "file2.txt", "file3.txt"]
+            selected = helper.prompt_pick_from_list(files, "Choose a file:")
+            
+            # With None option disabled
+            selected = helper.prompt_pick_from_list(
+                files, "Must choose a file:", allow_0_as_none=False
+            )
+            ```
         """
         while True:
             try:
@@ -175,6 +205,18 @@ class DefaultUIHelper(_UiHelperBase):
 
         Returns:
             bool: True for yes, False for no
+            
+        Example:
+            ```python
+            helper = DefaultUIHelper()
+            
+            if helper.prompt_yes_no_question("Save changes?"):
+                save_data()
+            
+            proceed = helper.prompt_yes_no_question("Delete all files?")
+            if proceed:
+                delete_files()
+            ```
         """
         while True:
             reply = input(prompt + " (Y\\N): ").upper()
@@ -196,6 +238,15 @@ class DefaultUIHelper(_UiHelperBase):
 
         Returns:
             str: The user input
+            
+        Example:
+            ```python
+            helper = DefaultUIHelper()
+            
+            name = helper.prompt_text("Enter your name: ")
+            description = helper.prompt_text("Enter description: ")
+            path = helper.prompt_text("Enter file path: ")
+            ```
         """
         notes = str(input(prompt))
         return notes
@@ -211,6 +262,15 @@ class DefaultUIHelper(_UiHelperBase):
 
         Returns:
             float: The parsed user input
+            
+        Example:
+            ```python
+            helper = DefaultUIHelper()
+            
+            temperature = helper.prompt_float("Enter temperature: ")
+            weight = helper.prompt_float("Enter weight in kg: ")
+            price = helper.prompt_float("Enter price: $")
+            ```
         """
         while True:
             try:
@@ -234,6 +294,21 @@ def prompt_field_from_input(model: Type[_TModel], field_name: str, default: Opti
 
     Returns:
         Optional[_T]: The validated input value or the default value
+        
+    Example:
+        ```python
+        from pydantic import BaseModel, Field
+        
+        class UserModel(BaseModel):
+            name: str = Field(description="User's full name")
+            age: int = Field(description="User's age in years")
+        
+        # Prompt for name field
+        name = prompt_field_from_input(UserModel, "name", "Anonymous")
+        
+        # Prompt for age field
+        age = prompt_field_from_input(UserModel, "age", 18)
+        ```
     """
     _field = model.model_fields[field_name]
     _type_adaptor: TypeAdapter = TypeAdapter(_field.annotation)
