@@ -1,4 +1,18 @@
-# clabe
+<div align="center">
+
+<pre>
+ ██████╗██╗      █████╗ ██████╗ ███████╗
+██╔════╝██║     ██╔══██╗██╔══██╗██╔════╝
+██║     ██║     ███████║██████╔╝█████╗  
+██║     ██║     ██╔══██║██╔══██╗██╔══╝  
+╚██████╗███████╗██║  ██║██████╔╝███████╗
+ ╚═════╝╚══════╝╚═╝  ╚═╝╚═════╝ ╚══════╝
+
+Command-line-interface Launcher for AIND Behavior Experiments
+</pre>
+</div>
+
+
 
 ![CI](https://github.com/AllenNeuralDynamics/Aind.Behavior.ExperimentLauncher/actions/workflows/ci.yml/badge.svg)
 [![PyPI - Version](https://img.shields.io/pypi/v/aind-clabe)](https://pypi.org/project/aind-clabe/)
@@ -6,20 +20,31 @@
 [![ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
 
-Source for for a minimal framework that can be used to build experimental interfaces
+# clabe
 
----
+A library for building workflows for behavior experiments.
 
-## Introduction
+> ⚠️ **Caution:**  
+> This repository is currently under active development and is subject to frequent changes. Features and APIs may evolve without prior notice.
 
+## Installing and Upgrading
 
-The launcher module of this library provides a frontend interface to launch, monitor and manage behavior tasks using this library. It is also designed to interface with the AIND Services.
+If you choose to clone the repository, you can install the package by running the following command from the root directory of the repository:
 
-### AIND Services Module
+```bash
+pip install .
+```
 
-While we will try to keep this library up to date, it is recommended to check the original repositories for the most recent updates.
+Otherwise, you can use pip:
 
-A list of services relevant for this library include:
+```bash
+pip install aind-clabe
+```
+
+## Getting started and API usage
+
+The library provides a main class "Launcher" that can be used to create a linear workflow for behavior experiments. These workflows rely on modular interfaces that can be used to interact with various components of the experiment and other services.
+Some of these services are specific for AIND:
 
 - [aind-data-schema](https://github.com/AllenNeuralDynamics/aind-data-schema)
 - [aind-data-schema-models](https://github.com/AllenNeuralDynamics/aind-data-schema-models)
@@ -27,15 +52,25 @@ A list of services relevant for this library include:
 - [aind-slims-api](https://github.com/AllenNeuralDynamics/aind-slims-api)
 - [aind-data-mapper](https://github.com/AllenNeuralDynamics/aind-metadata-mapper)
 
-We will generally try to wrap the services provided by these repositories into a more user-friendly and opinionated interface that can be used by the Aind Behavior Services library and other repositories.
-
 We will also try to scope all dependencies of the related to AIND Services to its own optional dependency list in the `./pyproject.toml` file of this repository. Therefore, in order to use this module, you will need to install these optional dependencies by running:
 
-```pip install .[aind-services]```
+```uv sync --extra aind-services```
 
-Feedback and contributions are welcome!
+A basic example of how to use the Launcher class can be found in the `examples` directory of this repository.
 
-## General instructions
+## Contributors
 
-This repository follows the project structure laid out in the [Aind.Behavior.Services repository](https://github.com/AllenNeuralDynamics/Aind.Behavior.Services).
+Contributions to this repository are welcome! However, please ensure that your code adheres to the recommended DevOps practices below:
 
+### Linting
+
+We use [ruff](https://docs.astral.sh/ruff/) as our primary linting tool.
+
+### Testing
+
+Attempt to add tests when new features are added.
+To run the currently available tests, run `uv run -m unittest` from the root of the repository.
+
+### Lock files
+
+We use [uv](https://docs.astral.sh/uv/) to manage our lock files and therefore encourage everyone to use uv as a package manager as well.
