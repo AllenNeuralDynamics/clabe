@@ -28,7 +28,7 @@ jobs:
           content = f.read();
           match = re.search(r'__version__\s*=\s*[\'\"]([^\'\"]+)[\'\"]', content); 
           print(match.group(1)) if match else exit(1)")
-        echo "PACKAGE_NAME=aind-clabe >> $GITHUB_ENV
+        echo "PACKAGE_NAME=aind-clabe" >> $GITHUB_ENV
         echo "PACKAGE_VERSION=$version" >> $GITHUB_ENV
       shell: bash
 
@@ -62,5 +62,7 @@ jobs:
       - name: Build
         run: uv build
 
+      - name: Publish
+        run: uv publish --token ${{ secrets.AIND_PYPI_TOKEN }}
       - name: Publish
         run: uv publish --token ${{ secrets.AIND_PYPI_TOKEN }}
