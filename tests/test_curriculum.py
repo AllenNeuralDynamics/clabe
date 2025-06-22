@@ -4,7 +4,7 @@ import unittest
 from aind_behavior_curriculum import Metrics, TrainerState
 from semver import Version
 
-from aind_behavior_experiment_launcher.apps import PythonScriptApp
+from clabe.apps import PythonScriptApp
 from tests import TESTS_ASSETS, SubmoduleManager
 
 SubmoduleManager.initialize_submodules()
