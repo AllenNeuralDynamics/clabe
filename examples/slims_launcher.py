@@ -1,5 +1,4 @@
 import logging
-import os
 import subprocess
 from pathlib import Path
 from typing import Literal, Optional, Self
@@ -17,13 +16,14 @@ from clabe.behavior_launcher import (
     BehaviorCliArgs,
     BehaviorLauncher,
     BehaviorServicesFactoryManager,
-    DefaultBehaviorPicker,
+    SlimsPicker,
 )
+
+# TODO: refactor this someday to use a common module
 
 logger = logging.getLogger(__name__)
 
 TASK_NAME = "RandomTask"
-LIB_CONFIG = rf"local\AindBehavior.db\{TASK_NAME}"
 
 
 class RigModel(AindBehaviorRigModel):
@@ -110,30 +110,13 @@ def make_launcher():
         rig_schema_model=RigModel,
         session_schema_model=AindBehaviorSessionModel,
         task_logic_schema_model=TaskLogicModel,
-        picker=DefaultBehaviorPicker(config_library_dir=Path(LIB_CONFIG)),
+        picker=SlimsPicker(),
         services=srv,
         settings=behavior_cli_args,
     )
 
 
-def create_fake_subjects():
-    subjects = ["00000", "123456"]
-    for subject in subjects:
-        os.makedirs(f"{LIB_CONFIG}/Subjects/{subject}", exist_ok=True)
-        with open(f"{LIB_CONFIG}/Subjects/{subject}/task_logic.json", "w", encoding="utf-8") as f:
-            f.write(TaskLogicModel(task_parameters={"subject": subject}).model_dump_json(indent=2))
-
-
-def create_fake_rig():
-    computer_name = os.getenv("COMPUTERNAME")
-    os.makedirs(_dir := f"{LIB_CONFIG}/Rig/{computer_name}", exist_ok=True)
-    with open(f"{_dir}/rig1.json", "w", encoding="utf-8") as f:
-        f.write(RigModel().model_dump_json(indent=2))
-
-
 def main():
-    create_fake_subjects()
-    create_fake_rig()
     launcher = make_launcher()
     launcher.main()
     return None

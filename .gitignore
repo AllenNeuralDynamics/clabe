@@ -54,6 +54,10 @@ cover/
 # Sphinx documentation
 docs/_build/
 
+# Mkdocs
+docs/site/
+site/
+
 # Jupyter Notebook
 .ipynb_checkpoints
 
@@ -71,5 +75,8 @@ ipython_config.py
 
 # venv
 .venv/
+
+# pycharm
+.idea/
 
 local

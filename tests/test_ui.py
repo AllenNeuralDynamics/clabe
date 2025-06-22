@@ -1,13 +1,13 @@
 import unittest
 from unittest.mock import MagicMock, create_autospec, patch
 
-from aind_behavior_experiment_launcher.launcher.behavior_launcher import (
+from clabe.behavior_launcher import (
     BehaviorLauncher,
     BehaviorServicesFactoryManager,
     DefaultBehaviorPicker,
 )
-from aind_behavior_experiment_launcher.launcher.cli import BaseCliArgs
-from aind_behavior_experiment_launcher.ui import DefaultUIHelper
+from clabe.launcher.cli import BaseCliArgs
+from clabe.ui import DefaultUIHelper
 from tests import suppress_stdout
 
 
@@ -39,11 +39,13 @@ class TestDefaultBehaviorPicker(unittest.TestCase):
 
     @patch("builtins.input", side_effect=["John Doe"])
     def test_prompt_experimenter(self, mock_input):
+        self.assertIsInstance(self.picker, DefaultBehaviorPicker)
+        self.picker._experimenter_validator = lambda x: x in ["John", "Doe"]
         result = self.picker.prompt_experimenter()
         self.assertEqual(result, ["John", "Doe"])
 
-    @patch("aind_behavior_experiment_launcher.launcher.behavior_launcher.model_from_json_file")
-    @patch("aind_behavior_experiment_launcher.launcher.behavior_launcher.glob.glob")
+    @patch("clabe.behavior_launcher._launcher.model_from_json_file")
+    @patch("glob.glob")
     def test_prompt_rig_input(self, mock_glob, mock_model_from_json_file):
         with suppress_stdout():
             mock_glob.return_value = ["/path/to/rig1.json"]
@@ -51,8 +53,8 @@ class TestDefaultBehaviorPicker(unittest.TestCase):
             rig = self.picker.pick_rig()
             self.assertIsNotNone(rig)
 
-    @patch("aind_behavior_experiment_launcher.launcher.behavior_launcher.model_from_json_file")
-    @patch("aind_behavior_experiment_launcher.launcher.behavior_launcher.glob.glob")
+    @patch("clabe.behavior_launcher._launcher.model_from_json_file")
+    @patch("glob.glob")
     @patch("os.path.isfile", return_value=True)
     @patch("builtins.input", return_value="1")
     def test_prompt_task_logic_input(self, mock_input, mock_is_file, mock_glob, mock_model_from_json_file):
