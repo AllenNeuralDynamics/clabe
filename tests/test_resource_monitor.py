@@ -4,7 +4,7 @@ import warnings
 from shutil import _ntuple_diskusage
 from unittest.mock import MagicMock, patch
 
-from aind_behavior_experiment_launcher.resource_monitor import (
+from clabe.resource_monitor import (
     Constraint,
     ResourceMonitor,
     available_storage_constraint_factory,

@@ -1,8 +1,8 @@
 import unittest
 from unittest.mock import create_autospec
 
-from src.aind_behavior_experiment_launcher.launcher import BaseLauncher
-from src.aind_behavior_experiment_launcher.services import IService, ServiceFactory, ServicesFactoryManager
+from src.clabe.launcher import BaseLauncher
+from src.clabe.services import IService, ServiceFactory, ServicesFactoryManager
 
 
 class TestServicesFactoryManager(unittest.TestCase):

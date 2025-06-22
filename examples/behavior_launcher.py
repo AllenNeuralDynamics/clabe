@@ -11,9 +11,9 @@ from pydantic import Field
 from pydantic_settings import CliApp
 from typing_extensions import override
 
-from aind_behavior_experiment_launcher import resource_monitor
-from aind_behavior_experiment_launcher.apps import App
-from aind_behavior_experiment_launcher.behavior_launcher import (
+from clabe import resource_monitor
+from clabe.apps import App
+from clabe.behavior_launcher import (
     BehaviorCliArgs,
     BehaviorLauncher,
     BehaviorServicesFactoryManager,
