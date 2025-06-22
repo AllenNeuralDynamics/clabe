@@ -71,6 +71,16 @@ class BonsaiApp(App):
             timeout (Optional[float]): Timeout for the Bonsai process. Defaults to None.
             print_cmd (bool): Whether to print the command being executed. Defaults to False.
             ui_helper (Optional[UiHelper]): UI helper instance. Defaults to DefaultUIHelper.
+
+        Examples:
+            # Create and run a Bonsai app
+            app = BonsaiApp(workflow="workflow.bonsai")
+            app.run()
+            # Create with custom settings
+            app = BonsaiApp(
+                workflow="workflow.bonsai",
+                is_editor_mode=False,
+            )
         """
         self.executable = Path(executable).resolve()
         self.workflow = Path(workflow).resolve()
@@ -278,6 +288,12 @@ class AindBehaviorServicesBonsaiApp(BonsaiApp):
     This class extends the base BonsaiApp to provide specific functionality for
     AIND behavior experiments, including automatic configuration of task logic,
     session, and rig paths for the Bonsai workflow.
+
+    Examples:
+        # Create an AIND behavior services Bonsai app
+        app = AindBehaviorServicesBonsaiApp(workflow="behavior_workflow.bonsai")
+        app.add_app_settings(launcher=my_launcher)
+        app.run()
     """
 
     @overload
@@ -299,6 +315,10 @@ class AindBehaviorServicesBonsaiApp(BonsaiApp):
 
         Raises:
             ValueError: If the required launcher argument is not provided
+
+        Examples:
+            # Add AIND behavior settings
+            app.add_app_settings(launcher=my_launcher)
         """
         launcher: BehaviorLauncher = kwargs.pop("launcher", None)
         if launcher is None:

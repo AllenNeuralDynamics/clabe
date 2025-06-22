@@ -32,7 +32,6 @@ class BaseCliArgs(BaseSettings, cli_prog_name="clabe", cli_kebab_case=True):
         group_by_subject_log (CliExplicitFlag[bool]): Whether to group data logging by subject.
         
     Example:
-        ```python
         # Create CLI args from command line
         args = BaseCliArgs()
         
@@ -46,7 +45,6 @@ class BaseCliArgs(BaseSettings, cli_prog_name="clabe", cli_kebab_case=True):
         # Access properties
         print(f"Data directory: {args.data_dir}")
         print(f"Debug mode: {args.debug_mode}")
-        ```
     """
 
     model_config = SettingsConfigDict(

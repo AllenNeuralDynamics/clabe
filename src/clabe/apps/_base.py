@@ -31,6 +31,17 @@ class App(IService, abc.ABC):
     Notes:
         Subclasses must implement the abstract methods and property to define the specific
         behavior of the application.
+
+    Examples:
+        # Implement a custom app
+        class MyApp(App):
+            def run(self): return subprocess.run(["echo", "hello"])
+            def output_from_result(self, allow_stderr): return self
+            @property
+            def result(self): return self._result
+        
+        app = MyApp()
+        app.run()
     """
 
     @abc.abstractmethod
@@ -75,5 +86,9 @@ class App(IService, abc.ABC):
 
         Returns:
             Self: The updated application instance.
+
+        Examples:
+            # Add application settings
+            app.add_app_settings(debug=True, verbose=False)
         """
         return self
