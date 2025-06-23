@@ -94,6 +94,8 @@ def generate_api_structure() -> Dict[str, List[Dict[str, str]]]:
     api_structure: Dict[str, List[Dict[str, str]]] = {}
     modules = discover_python_modules(SRC_DIR, INCLUDE_PRIVATE_MODULES)
 
+    API_DIR.mkdir(parents=True, exist_ok=True)
+
     for item in SRC_DIR.iterdir():
         if item.is_file() and item.suffix == ".py":
             if item.name.startswith("_") and not INCLUDE_PRIVATE_MODULES:
