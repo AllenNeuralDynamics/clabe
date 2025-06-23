@@ -12,7 +12,7 @@ import pydantic
 from aind_behavior_services.utils import model_from_json_file
 from typing_extensions import override
 
-from .. import logging_helper, ui
+from .. import _logging_helper, ui
 from ..launcher._base import BaseLauncher, TRig, TSession, TTaskLogic
 from ._aind_auth import validate_aind_username
 from ._cli import BehaviorCliArgs
@@ -207,7 +207,7 @@ class BehaviorLauncher(BaseLauncher[TRig, TSession, TTaskLogic]):
             except Exception as e:
                 logger.error("Data mapper service has failed: %s", e)
 
-        logging_helper.close_file_handlers(logger)
+        _logging_helper.close_file_handlers(logger)
 
         try:
             self._copy_tmp_directory(self.session_directory / "Behavior" / "Logs")
