@@ -94,6 +94,18 @@ def generate_api_structure() -> Dict[str, List[Dict[str, str]]]:
     api_structure: Dict[str, List[Dict[str, str]]] = {}
     modules = discover_python_modules(SRC_DIR, INCLUDE_PRIVATE_MODULES)
 
+    for item in SRC_DIR.iterdir():
+        if item.is_file() and item.suffix == ".py":
+            if item.name.startswith("_") and not INCLUDE_PRIVATE_MODULES:
+                continue
+            file_name = item.stem.replace("-", "_").replace(" ", "_")
+            safe_file_name = item.stem.replace(".", "_")
+            api_structure[file_name] = [{file_name: f"api/{safe_file_name}.md"}]
+
+            with open(DOCS_DIR / f"api/{safe_file_name}.md", "w") as f:
+                f.write(f"# {file_name}\n\n")
+                f.write(f"::: {PACKAGE_NAME}.{file_name}\n")
+
     for module_name in modules:
         module_structure: List[Dict[str, str]] = []
         module_path = SRC_DIR / module_name.replace(".", "/")
@@ -120,7 +132,6 @@ def generate_api_structure() -> Dict[str, List[Dict[str, str]]]:
                 f.write(f"::: {PACKAGE_NAME}.{module_name}.{file_name}\n")
 
         api_structure[module_name] = module_structure
-
     return api_structure
 
 
@@ -133,9 +144,9 @@ def update_mkdocs_yml(api_structure: Dict[str, List[Dict[str, str]]]) -> None:
     for entry in nav:
         if isinstance(entry, dict) and API_LABEL in entry:
             api_ref: List[Union[str, Dict[str, List[Dict[str, str]]]]] = ["api/index.md"]
-
             for module_name, module_content in api_structure.items():
-                api_ref.append({module_name.capitalize().replace("_", " "): module_content})
+                display_name = module_name.replace("_", " ").title()
+                api_ref.append({display_name: module_content})
 
             entry[API_LABEL] = api_ref
 

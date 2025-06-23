@@ -253,6 +253,3 @@ class GitRepository(Repo):
                 "git is not installed in this computer. Please install git. https://git-scm.com/downloads"
             )
         return True
-
-
-__all__ = [GitRepository]
