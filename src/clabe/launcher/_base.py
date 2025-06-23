@@ -16,7 +16,7 @@ from aind_behavior_services import (
 )
 from aind_behavior_services.utils import format_datetime, model_from_json_file, utcnow
 
-from .. import __version__, logging_helper, ui
+from .. import __version__, _logging_helper, ui
 from ..git_manager import GitRepository
 from ..services import ServicesFactoryManager
 from .cli import BaseCliArgs
@@ -77,10 +77,10 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
 
         # Solve logger
         if attached_logger:
-            _logger = logging_helper.add_file_logger(attached_logger, self.temp_dir / "launcher.log")
+            _logger = _logging_helper.add_file_logger(attached_logger, self.temp_dir / "launcher.log")
         else:
             root_logger = logging.getLogger()
-            _logger = logging_helper.add_file_logger(root_logger, self.temp_dir / "launcher.log")
+            _logger = _logging_helper.add_file_logger(root_logger, self.temp_dir / "launcher.log")
 
         if settings.debug_mode:
             _logger.setLevel(logging.DEBUG)
@@ -398,10 +398,8 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
         UI prompting, hook execution, and cleanup.
 
         Example:
-            ```python
             launcher = MyLauncher(...)
             launcher.main()  # Starts the launcher workflow
-            ```
         """
         try:
             logger.info(self.make_header())
@@ -507,7 +505,7 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
         """
         logger.info("Exiting with code %s", code)
         if logger is not None:
-            logging_helper.shutdown_logger(logger)
+            _logging_helper.shutdown_logger(logger)
         if not _force:
             self.picker.ui_helper.input("Press any key to exit...")
         sys.exit(code)
@@ -546,14 +544,12 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
         and ensures all prerequisites are met for experiment execution.
 
         Example:
-            ```python
             launcher = MyLauncher(...)
             try:
                 launcher.validate()
                 print("Validation successful")
             except Exception as e:
                 print(f"Validation failed: {e}")
-            ```
         """
         try:
             if self.repository.is_dirty():
@@ -583,10 +579,8 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
         with a success code.
 
         Example:
-            ```python
             launcher = MyLauncher(...)
             launcher.dispose()  # Cleans up and exits
-            ```
         """
         logger.info("Disposing...")
         self._exit(0)

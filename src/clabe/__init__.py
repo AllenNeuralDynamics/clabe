@@ -2,7 +2,7 @@ __version__ = "0.5.0"
 
 import logging
 
-from .logging_helper import datetime_fmt, fmt, rich_handler
+from ._logging_helper import datetime_fmt, fmt, rich_handler
 
 logger = logging.getLogger(__name__)
 

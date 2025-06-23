@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from clabe.logging_helper import add_file_logger
+from clabe._logging_helper import add_file_logger
 
 
 class TestLoggingHelper(unittest.TestCase):

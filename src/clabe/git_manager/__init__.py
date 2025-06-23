@@ -1,1 +1,3 @@
-from ._git import GitRepository as GitRepository
+from ._git import GitRepository
+
+__all__ = ["GitRepository"]
