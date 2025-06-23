@@ -92,7 +92,6 @@ markdown_extensions:
 nav:
 - Home: index.md
 - API Reference:
-  - api/index.md
   - Services:
     - services: api/services.md
   - Apps:

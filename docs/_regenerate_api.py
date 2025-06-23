@@ -143,7 +143,7 @@ def update_mkdocs_yml(api_structure: Dict[str, List[Dict[str, str]]]) -> None:
 
     for entry in nav:
         if isinstance(entry, dict) and API_LABEL in entry:
-            api_ref: List[Union[str, Dict[str, List[Dict[str, str]]]]] = ["api/index.md"]
+            api_ref: List[Union[str, Dict[str, List[Dict[str, str]]]]] = []
             for module_name, module_content in api_structure.items():
                 display_name = module_name.replace("_", " ").title()
                 api_ref.append({display_name: module_content})
