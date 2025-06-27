@@ -3,7 +3,7 @@ import logging
 import logging.handlers
 import os
 from pathlib import Path
-from typing import TypeVar
+from typing import Optional, TypeVar
 
 import aind_behavior_services.utils as utils
 import rich.logging
@@ -110,11 +110,6 @@ class _TzFormatter(logging.Formatter):
 
 
 utc_formatter = _TzFormatter(fmt, tz=datetime.timezone.utc)
-
-
-import logging
-import logging.handlers
-from typing import Optional
 
 
 class AibsLogServerHandler(logging.handlers.SocketHandler):
