@@ -2,13 +2,13 @@ __version__ = "0.5.1"
 
 import logging
 
-from ._logging_helper import datetime_fmt, fmt, rich_handler
+from . import logging_helper
 
 logger = logging.getLogger(__name__)
 
 logging.basicConfig(
     level=logging.INFO,
-    format=fmt,
-    datefmt=datetime_fmt,
-    handlers=[rich_handler],
+    format=logging_helper.log_fmt,
+    datefmt=logging_helper.datetime_fmt,
+    handlers=[logging_helper.rich_handler],
 )

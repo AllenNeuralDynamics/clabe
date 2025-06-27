@@ -2,15 +2,22 @@ import datetime
 import logging
 import os
 from pathlib import Path
-from typing import TypeVar
+from typing import TYPE_CHECKING, TypeVar
 
 import aind_behavior_services.utils as utils
 import rich.logging
 import rich.style
 
+if TYPE_CHECKING:
+    from ..launcher import BaseLauncher
+
+    TLauncher = TypeVar("TLauncher", bound="BaseLauncher")
+else:
+    TLauncher = TypeVar("TLauncher")
+
 TLogger = TypeVar("TLogger", bound=logging.Logger)
 
-fmt = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+log_fmt = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 datetime_fmt = "%Y-%m-%dT%H%M%S%z"
 
 
@@ -42,7 +49,7 @@ class _SeverityHighlightingHandler(rich.logging.RichHandler):
         self.error_style = rich.style.Style(color="white", bgcolor="red")
         self.critical_style = rich.style.Style(color="white", bgcolor="red", bold=True)
 
-    def render_message(self, record, message):
+    def render_message(self, record, message):  # type: ignore[override]
         """
         Renders log messages with severity-based styling.
 
@@ -108,10 +115,10 @@ class _TzFormatter(logging.Formatter):
         return utils.format_datetime(record_time)
 
 
-utc_formatter = _TzFormatter(fmt, tz=datetime.timezone.utc)
+utc_formatter = _TzFormatter(log_fmt, tz=datetime.timezone.utc)
 
 
-def add_file_logger(logger: TLogger, output_path: os.PathLike) -> TLogger:
+def add_file_handler(logger: TLogger, output_path: os.PathLike) -> TLogger:
     """
     Adds a file handler to the logger to write logs to a file.
 
@@ -131,7 +138,7 @@ def add_file_logger(logger: TLogger, output_path: os.PathLike) -> TLogger:
     return logger
 
 
-def shutdown_logger(logger: TLogger) -> None:
+def shutdown_logger(logger: TLogger) -> TLogger:
     """
     Shuts down the logger by closing all file handlers and calling logging.shutdown().
 
@@ -143,6 +150,7 @@ def shutdown_logger(logger: TLogger) -> None:
     """
     close_file_handlers(logger)
     logging.shutdown()
+    return logger
 
 
 def close_file_handlers(logger: TLogger) -> TLogger:
