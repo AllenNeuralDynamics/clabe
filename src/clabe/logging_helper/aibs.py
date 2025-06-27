@@ -25,6 +25,29 @@ class AibsLogServerHandler(logging.handlers.SocketHandler):
         version (str): The version of the project.
         rig_id (str): The ID of the rig.
         comp_id (str): The ID of the computer.
+
+    Examples:
+        ```python
+        import logging
+        import os
+        from clabe.logging_helper.aibs import AibsLogServerHandler
+
+        # Initialize the handler
+        handler = AibsLogServerHandler(
+            project_name='my_project',
+            version='1.0.0',
+            host='localhost',
+            port=5000
+        )
+
+        # Create a logger and add the handler
+        logger = logging.getLogger('my_logger')
+        logger.setLevel(logging.INFO)
+        logger.addHandler(handler)
+
+        # Log a message
+        logger.info('This is a test log message.')
+        ```
     """
 
     def __init__(
@@ -104,6 +127,28 @@ def add_handler(
 
     Returns:
         The logger with the added handler.
+
+    Examples:
+        ```python
+        import logging
+        import os
+        from clabe.logging_helper.aibs import add_handler
+
+        # Create a logger
+        logger = logging.getLogger('my_logger')
+        logger.setLevel(logging.INFO)
+
+        # Add the AIBS log server handler
+        logger = add_handler(
+            logger,
+            logserver_url='localhost:5000',
+            version='1.0.0',
+            project_name='my_project',
+        )
+
+        # Log a message
+        logger.info('This is another test log message.')
+        ```
     """
     host, port = logserver_url.split(":")
     socket_handler = AibsLogServerHandler(
@@ -122,16 +167,37 @@ def attach_to_launcher(launcher: TLauncher, logserver_url: str, version: str, pr
 
     Args:
         launcher: The launcher instance to attach the handler to.
-        launcher: The launcher instance to attach the handler to.
         logserver_url: The URL of the log server in the format 'host:port'.
         version: The version of the project.
         project_name: The name of the project.
 
     Returns:
         The launcher instance with the attached handler.
+
+    Examples:
+        ```python
+        import logging
+        import os
+        from clabe.launcher import BaseLauncher
+        from clabe.logging_helper.aibs import attach_to_launcher
+
+        # Initialize the launcher
+        launcher = MyLauncher(...) # Replace with your custom launcher class
+
+        # Attach the AIBS log server handler to the launcher
+        launcher = attach_to_launcher(
+            launcher,
+            logserver_url='localhost:5000',
+            version='1.0.0',
+            project_name='my_launcher_project',
+        )
+
+        # Run the launcher (this will log a message)
+        launcher.run()
+        ```
     """
 
-    AibsLogServerHandler.add_handler(
+    add_handler(
         launcher.logger,
         logserver_url=logserver_url,
         version=version,
