@@ -1,5 +1,6 @@
 import datetime
 import logging
+import logging.handlers
 import os
 from pathlib import Path
 from typing import TypeVar
@@ -42,7 +43,7 @@ class _SeverityHighlightingHandler(rich.logging.RichHandler):
         self.error_style = rich.style.Style(color="white", bgcolor="red")
         self.critical_style = rich.style.Style(color="white", bgcolor="red", bold=True)
 
-    def render_message(self, record, message):
+    def render_message(self, record, message):  # type: ignore[override]
         """
         Renders log messages with severity-based styling.
 
@@ -109,6 +110,66 @@ class _TzFormatter(logging.Formatter):
 
 
 utc_formatter = _TzFormatter(fmt, tz=datetime.timezone.utc)
+
+
+import logging
+import logging.handlers
+from typing import Optional
+
+
+class AibsLogServerHandler(logging.handlers.SocketHandler):
+    def __init__(
+        self,
+        project_name: str,
+        version: str,
+        host: str,
+        port: int,
+        rig_id: Optional[str] = None,
+        comp_id: Optional[str] = None,
+        *args,
+        **kwargs,
+    ):
+        super().__init__(host, port, *args, **kwargs)
+
+        self.project_name = project_name
+        self.version = version
+        self.rig_id = rig_id or os.getenv("aibs_rig_id", None)
+        self.comp_id = comp_id or os.getenv("aibs_comp_id", None)
+
+        if not self.rig_id:
+            raise ValueError("Rig id must be provided or set in the environment variable 'aibs_rig_id'.")
+        if not self.comp_id:
+            raise ValueError("Computer id must be provided or set in the environment variable 'aibs_comp_id'.")
+
+        self.formatter = logging.Formatter(
+            fmt="%(asctime)s\n%(name)s\n%(levelname)s\n%(funcName)s (%(filename)s:%(lineno)d)\n%(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+
+    def emit(self, record: logging.LogRecord) -> None:
+        record.project = self.project_name
+        record.rig_id = self.rig_id
+        record.comp_id = self.comp_id
+        record.version = self.version
+        record.extra = None  # set extra to None because this sends a pickled record
+        super().emit(record)
+
+    @staticmethod
+    def add_handler(
+        logger: TLogger,
+        logserver_url: str,
+        version: str,
+        project_name: str,
+    ) -> TLogger:
+        host, port = logserver_url.split(":")
+        socket_handler = AibsLogServerHandler(
+            host=host,
+            port=int(port),
+            project_name=project_name,
+            version=version,
+        )
+        logger.addHandler(socket_handler)
+        return logger
 
 
 def add_file_logger(logger: TLogger, output_path: os.PathLike) -> TLogger:

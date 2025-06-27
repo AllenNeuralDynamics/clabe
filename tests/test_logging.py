@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from clabe._logging_helper import add_file_logger
+from clabe._logging_helper import AibsLogServerHandler, add_file_logger
 
 
 class TestLoggingHelper(unittest.TestCase):
@@ -22,6 +22,23 @@ class TestLoggingHelper(unittest.TestCase):
         self.assertEqual(len(logger.handlers), 1)
         self.assertEqual(logger.handlers[0], mock_file_handler_instance)
         mock_file_handler.assert_called_once_with(output_path, encoding="utf-8", mode="w")
+
+    @patch("clabe._logging_helper.AibsLogServerHandler")
+    def test_add_log_server_handler(self, mock_log_server_handler):
+        mock_log_server_handler_instance = MagicMock()
+        mock_log_server_handler.return_value = mock_log_server_handler_instance
+
+        logserver_url = "localhost:12345"
+        logger = AibsLogServerHandler.add_handler(self.logger, logserver_url, "0.1.0", "mock_project")
+
+        self.assertEqual(len(logger.handlers), 1)
+        self.assertEqual(logger.handlers[0], mock_log_server_handler_instance)
+        mock_log_server_handler.assert_called_once_with(
+            host="localhost",
+            port=12345,
+            project_name="mock_project",
+            version="0.1.0",
+        )
 
 
 if __name__ == "__main__":
