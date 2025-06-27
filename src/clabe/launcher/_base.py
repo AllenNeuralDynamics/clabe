@@ -128,6 +128,16 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
         return self.settings.validate_init
 
     @property
+    def logger(self) -> logging.Logger:
+        """
+        Returns the logger instance used by the launcher.
+
+        Returns:
+            logging.Logger: The logger instance
+        """
+        return self._logger
+
+    @property
     def data_dir(self) -> Path:
         """
         Returns the data directory path.

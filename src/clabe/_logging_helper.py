@@ -3,11 +3,17 @@ import logging
 import logging.handlers
 import os
 from pathlib import Path
-from typing import Optional, TypeVar
+from typing import Optional, TypeVar, TYPE_CHECKING
 
 import aind_behavior_services.utils as utils
 import rich.logging
 import rich.style
+
+if TYPE_CHECKING:
+    from .launcher import BaseLauncher
+    TLauncher = TypeVar("TLauncher", bound="BaseLauncher")
+else:
+    TLauncher = TypeVar("TLauncher")
 
 TLogger = TypeVar("TLogger", bound=logging.Logger)
 
@@ -165,6 +171,20 @@ class AibsLogServerHandler(logging.handlers.SocketHandler):
         )
         logger.addHandler(socket_handler)
         return logger
+
+    @staticmethod
+    def attach_to_launcher(launcher: TLauncher,
+                           logserver_url: str,
+                           version: str,
+                           project_name: str) -> TLauncher:
+
+        AibsLogServerHandler.add_handler(
+            launcher.logger,
+            logserver_url=logserver_url,
+            version=version,
+            project_name=project_name,
+        )
+        return launcher
 
 
 def add_file_logger(logger: TLogger, output_path: os.PathLike) -> TLogger:
