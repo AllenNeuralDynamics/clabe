@@ -1,4 +1,22 @@
 from clabe import ui
+from clabe.ui.picker import PickerBase
+
+
+class MockPicker(PickerBase):
+    def pick_rig(self):
+        raise NotImplementedError("pick_rig method is not implemented")
+
+    def pick_session(self):
+        raise NotImplementedError("pick_session method is not implemented")
+
+    def pick_task_logic(self):
+        raise NotImplementedError("pick_task_logic method is not implemented")
+
+    def initialize(self) -> None:
+        return
+
+    def finalize(self) -> None:
+        return
 
 
 class MockUiHelper(ui.UiHelper):
