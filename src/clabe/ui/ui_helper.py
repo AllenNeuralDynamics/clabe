@@ -233,7 +233,7 @@ class DefaultUIHelper(_UiHelperBase):
                         raise ValueError
                 return value[choice - 1]
             except ValueError as e:
-                logger.error("Invalid choice. Try again. %s", e)
+                logger.info("Invalid choice. Try again. %s", e)
 
     def prompt_yes_no_question(self, prompt: str) -> bool:
         """
