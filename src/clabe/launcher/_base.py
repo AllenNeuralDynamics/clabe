@@ -416,7 +416,7 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
             if self.is_debug_mode:
                 self._print_debug()
 
-            if self.is_validate_init:
+            if not self.is_debug_mode:
                 self.validate()
 
             self._ui_prompt()

@@ -127,12 +127,12 @@ class BehaviorLauncher(BaseLauncher[TRig, TSession, TTaskLogic]):
         logger.info("Pre-run hook started.")
 
         if self.settings.validate_init:
-            logger.debug("Validating initialization.")
-            if self.services_factory_manager.resource_monitor is not None:
-                logger.debug("Evaluating resource monitor constraints.")
-                if not self.services_factory_manager.resource_monitor.evaluate_constraints():
-                    logger.critical("Resource monitor constraints failed.")
-                    self._exit(-1)
+        logger.debug("Validating initialization.")
+        if self.services_factory_manager.resource_monitor is not None:
+            logger.debug("Evaluating resource monitor constraints.")
+            if not self.services_factory_manager.resource_monitor.evaluate_constraints():
+                logger.critical("Resource monitor constraints failed.")
+                self._exit(-1)
 
         self.session_schema.experiment = self.task_logic_schema.name
         self.session_schema.experiment_version = self.task_logic_schema.version

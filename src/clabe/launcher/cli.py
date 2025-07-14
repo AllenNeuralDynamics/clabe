@@ -27,7 +27,6 @@ class BaseCliArgs(BaseSettings, cli_prog_name="clabe", cli_kebab_case=True):
         subject (Optional[str]): The name of the subject. If None, will be prompted later.
         task_logic_path (Optional[os.PathLike]): Path to the task logic schema. If None, will be prompted later.
         rig_path (Optional[os.PathLike]): Path to the rig schema. If None, will be prompted later.
-        validate_init (CliExplicitFlag[bool]): Whether to validate the launcher state during initialization.
         temp_dir (os.PathLike): Directory used for launcher temp files.
         group_by_subject_log (CliExplicitFlag[bool]): Whether to group data logging by subject.
 
@@ -72,9 +71,6 @@ class BaseCliArgs(BaseSettings, cli_prog_name="clabe", cli_kebab_case=True):
     )
     session_path: Optional[os.PathLike] = Field(
         default=None, description="The path to the session schema instance. If None, will be prompted later"
-    )
-    validate_init: CliExplicitFlag[bool] = Field(
-        default=True, description="Whether to validate the launcher state during initialization"
     )
     temp_dir: os.PathLike = Field(
         default=Path("local/.temp"), description="The directory used for the launcher temp files"

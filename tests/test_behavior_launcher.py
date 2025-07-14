@@ -33,7 +33,6 @@ class TestBehaviorLauncher(unittest.TestCase):
             skip_hardware_validation=False,
             debug_mode=False,
             group_by_subject_log=False,
-            validate_init=False,
         )
         self.launcher = BehaviorLauncher(
             rig_schema_model=MagicMock(),
@@ -134,7 +133,6 @@ class TestBehaviorLauncherSaveTempModel(unittest.TestCase):
             skip_hardware_validation=False,
             debug_mode=False,
             group_by_subject_log=False,
-            validate_init=False,
         )
         self.launcher = BehaviorLauncher(
             rig_schema_model=MagicMock(),
