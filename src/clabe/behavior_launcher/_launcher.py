@@ -412,7 +412,7 @@ class DefaultBehaviorPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
                 except pydantic.ValidationError as e:
                     logger.error("Failed to validate pydantic model. Try again. %s", e)
                 except ValueError as e:
-                    logger.error("Invalid choice. Try again. %s", e)
+                    logger.info("Invalid choice. Try again. %s", e)
 
     def pick_session(self) -> TSession:
         """
@@ -426,7 +426,7 @@ class DefaultBehaviorPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
         """
         experimenter = self.prompt_experimenter(strict=True)
         if self.launcher.subject is not None:
-            logging.info("Subject provided via CLABE: %s", self.launcher.settings.subject)
+            logger.info("Subject provided via CLABE: %s", self.launcher.settings.subject)
             subject = self.launcher.subject
         else:
             subject = self.choose_subject(self.subject_dir)
@@ -506,7 +506,7 @@ class DefaultBehaviorPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
             except pydantic.ValidationError as e:
                 logger.error("Failed to validate pydantic model. Try again. %s", e)
             except (ValueError, FileNotFoundError) as e:
-                logger.error("Invalid choice. Try again. %s", e)
+                logger.info("Invalid choice. Try again. %s", e)
         if task_logic is None:
             logger.error("No task logic file found.")
             raise ValueError("No task logic file found.")
@@ -574,7 +574,7 @@ class DefaultBehaviorPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
             _user_input = self.ui_helper.prompt_text("Experimenter name: ")
             experimenter = _user_input.replace(",", " ").split()
             if strict & (len(experimenter) == 0):
-                logger.error("Experimenter name is not valid. Try again.")
+                logger.info("Experimenter name is not valid. Try again.")
                 experimenter = None
             else:
                 if self._experimenter_validator:

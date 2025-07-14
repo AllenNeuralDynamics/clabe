@@ -304,7 +304,7 @@ class SlimsPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
                 try:
                     self._slims_rig = self.slims_client.fetch_model(SlimsInstrument, name=rig)
                 except exceptions.SlimsRecordNotFound:
-                    logger.error(f"Rig {rig} not found in Slims. Try again.")
+                    logger.info(f"Rig {rig} not found in Slims. Try again.")
                     rig = None
 
             i = slice(-1, None)
@@ -341,7 +341,7 @@ class SlimsPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
                     if not attachments:  # attachment list empty
                         raise ValueError(f"No valid rig configuration found attached to rig model {rig}") from e
                     else:
-                        logger.error(
+                        logger.info(
                             f"Validation error for last rig configuration found attached to rig model {rig}: "
                             f"{e}. Please pick a different configuration."
                         )
@@ -369,7 +369,7 @@ class SlimsPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
 
         experimenter = self.prompt_experimenter(strict=True)
         if self.launcher.subject is not None:
-            logging.info("Subject provided via CLABE: %s", self.launcher.settings.subject)
+            logger.info("Subject provided via CLABE: %s", self.launcher.settings.subject)
             subject = self.launcher.subject
         else:
             subject = None
@@ -530,7 +530,7 @@ class SlimsPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
             _user_input = self.ui_helper.prompt_text("Experimenter name: ")
             experimenter = _user_input.replace(",", " ").split()
             if strict & (len(experimenter) == 0):
-                logger.error("Experimenter name is not valid.")
+                logger.info("Experimenter name is not valid.")
                 experimenter = None
             else:
                 return experimenter
