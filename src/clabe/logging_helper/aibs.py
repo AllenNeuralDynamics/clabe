@@ -32,7 +32,7 @@ class AibsLogServerHandler(logging.handlers.SocketHandler):
         import os
         from clabe.logging_helper.aibs import AibsLogServerHandler
 
-        # Initialize the handler
+        # Initialize the handler with default ERROR level
         handler = AibsLogServerHandler(
             project_name='my_project',
             version='1.0.0',
@@ -40,13 +40,14 @@ class AibsLogServerHandler(logging.handlers.SocketHandler):
             port=5000
         )
 
-        # Create a logger and add the handler
-        logger = logging.getLogger('my_logger')
-        logger.setLevel(logging.INFO)
-        logger.addHandler(handler)
-
-        # Log a message
-        logger.info('This is a test log message.')
+        # Initialize the handler with custom level
+        handler = AibsLogServerHandler(
+            project_name='my_project',
+            version='1.0.0',
+            host='localhost',
+            port=5000,
+            level=logging.WARNING
+        )
         ```
     """
 
@@ -58,6 +59,7 @@ class AibsLogServerHandler(logging.handlers.SocketHandler):
         port: int,
         rig_id: Optional[str] = None,
         comp_id: Optional[str] = None,
+        level: int = logging.ERROR,
         *args,
         **kwargs,
     ):
@@ -73,10 +75,12 @@ class AibsLogServerHandler(logging.handlers.SocketHandler):
                 the 'aibs_rig_id' environment variable.
             comp_id: The ID of the computer. If not provided, it will be read
                 from the 'aibs_comp_id' environment variable.
+            level: The minimum logging level to handle. Defaults to logging.ERROR.
             *args: Additional arguments to pass to the SocketHandler.
             **kwargs: Additional keyword arguments to pass to the SocketHandler.
         """
         super().__init__(host, port, *args, **kwargs)
+        self.setLevel(level)
 
         self.project_name = project_name
         self.version = version
@@ -115,6 +119,7 @@ def add_handler(
     logserver_url: str,
     version: str,
     project_name: str,
+    level: int = logging.ERROR,
 ) -> TLogger:
     """
     Adds an AIBS log server handler to the logger.
@@ -124,6 +129,7 @@ def add_handler(
         logserver_url: The URL of the log server in the format 'host:port'.
         version: The version of the project.
         project_name: The name of the project.
+        level: The minimum logging level to handle. Defaults to logging.ERROR.
 
     Returns:
         The logger with the added handler.
@@ -138,7 +144,7 @@ def add_handler(
         logger = logging.getLogger('my_logger')
         logger.setLevel(logging.INFO)
 
-        # Add the AIBS log server handler
+        # Add the AIBS log server handler with default ERROR level
         logger = add_handler(
             logger,
             logserver_url='localhost:5000',
@@ -146,8 +152,14 @@ def add_handler(
             project_name='my_project',
         )
 
-        # Log a message
-        logger.info('This is another test log message.')
+        # Add handler with custom level
+        logger = add_handler(
+            logger,
+            logserver_url='localhost:5000',
+            version='1.0.0',
+            project_name='my_project',
+            level=logging.WARNING
+        )
         ```
     """
     host, port = logserver_url.split(":")
@@ -156,12 +168,15 @@ def add_handler(
         port=int(port),
         project_name=project_name,
         version=version,
+        level=level,
     )
     logger.addHandler(socket_handler)
     return logger
 
 
-def attach_to_launcher(launcher: TLauncher, logserver_url: str, version: str, project_name: str) -> TLauncher:
+def attach_to_launcher(
+    launcher: TLauncher, logserver_url: str, version: str, project_name: str, level: int = logging.ERROR
+) -> TLauncher:
     """
     Attaches an AIBS log server handler to a launcher instance.
 
@@ -170,6 +185,7 @@ def attach_to_launcher(launcher: TLauncher, logserver_url: str, version: str, pr
         logserver_url: The URL of the log server in the format 'host:port'.
         version: The version of the project.
         project_name: The name of the project.
+        level: The minimum logging level to handle. Defaults to logging.ERROR.
 
     Returns:
         The launcher instance with the attached handler.
@@ -184,7 +200,7 @@ def attach_to_launcher(launcher: TLauncher, logserver_url: str, version: str, pr
         # Initialize the launcher
         launcher = MyLauncher(...) # Replace with your custom launcher class
 
-        # Attach the AIBS log server handler to the launcher
+        # Attach the AIBS log server handler with default ERROR level
         launcher = attach_to_launcher(
             launcher,
             logserver_url='localhost:5000',
@@ -192,8 +208,14 @@ def attach_to_launcher(launcher: TLauncher, logserver_url: str, version: str, pr
             project_name='my_launcher_project',
         )
 
-        # Run the launcher (this will log a message)
-        launcher.run()
+        # Attach handler with custom level
+        launcher = attach_to_launcher(
+            launcher,
+            logserver_url='localhost:5000',
+            version='1.0.0',
+            project_name='my_launcher_project',
+            level=logging.WARNING
+        )
         ```
     """
 
@@ -202,5 +224,6 @@ def attach_to_launcher(launcher: TLauncher, logserver_url: str, version: str, pr
         logserver_url=logserver_url,
         version=version,
         project_name=project_name,
+        level=level,
     )
     return launcher

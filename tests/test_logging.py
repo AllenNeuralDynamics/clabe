@@ -29,7 +29,7 @@ class TestLoggingHelper(unittest.TestCase):
         mock_log_server_handler.return_value = mock_log_server_handler_instance
 
         logserver_url = "localhost:12345"
-        logger = aibs.add_handler(self.logger, logserver_url, "0.1.0", "mock_project")
+        logger = aibs.add_handler(self.logger, logserver_url, "0.1.0", "mock_project", level=logging.ERROR)
 
         self.assertEqual(len(logger.handlers), 1)
         self.assertEqual(logger.handlers[0], mock_log_server_handler_instance)
@@ -38,6 +38,7 @@ class TestLoggingHelper(unittest.TestCase):
             port=12345,
             project_name="mock_project",
             version="0.1.0",
+            level=logging.ERROR,
         )
 
 
