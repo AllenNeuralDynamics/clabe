@@ -9,7 +9,6 @@ from aind_data_schema_models.modalities import Modality
 from aind_data_schema_models.platforms import Platform
 from aind_watchdog_service.models.manifest_config import BucketType
 
-from clabe import ui
 from clabe.data_mapper.aind_data_schema import AindDataSchemaSessionDataMapper
 from clabe.data_transfer import RobocopyService
 from clabe.data_transfer.aind_watchdog import (
@@ -19,22 +18,7 @@ from clabe.data_transfer.aind_watchdog import (
     WatchdogDataTransferService,
 )
 
-
-class MockUiHelper(ui.UiHelper):
-    def __init__(self):
-        super().__init__(print_func=lambda x: None, input_func=lambda x: "1")
-
-    def prompt_pick_from_list(self, *args, **kwargs):
-        return ""
-
-    def prompt_yes_no_question(self, prompt: str) -> bool:
-        return True
-
-    def prompt_text(self, prompt: str) -> str:
-        return ""
-
-    def prompt_float(self, prompt):
-        return 0.0
+from .fixtures import MockUiHelper
 
 
 class TestWatchdogDataTransferService(unittest.TestCase):

@@ -186,7 +186,7 @@ class RobocopyService(DataTransfer):
             True if Robocopy is available, False otherwise
         """
         if not _HAS_ROBOCOPY:
-            logger.error("Robocopy command is not available on this system.")
+            logger.warning("Robocopy command is not available on this system.")
             return False
         return True
 
