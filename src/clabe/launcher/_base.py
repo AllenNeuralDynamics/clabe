@@ -6,7 +6,7 @@ import shutil
 import sys
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Generic, Optional, Self, Type, TypeVar
+from typing import Callable, Generic, Optional, Self, Type, TypeVar
 
 import pydantic
 from aind_behavior_services import (
@@ -19,6 +19,7 @@ from aind_behavior_services.utils import format_datetime, model_from_json_file, 
 from .. import __version__, logging_helper, ui
 from ..git_manager import GitRepository
 from ..services import ServicesFactoryManager
+from ._hooks import HookManager
 from .cli import BaseCliArgs
 
 TRig = TypeVar("TRig", bound=AindBehaviorRigModel)
@@ -87,6 +88,13 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
 
         self._logger = _logger
 
+        # Create hook managers
+        self._hook_managers: dict[Callable, HookManager] = {
+            self._pre_run_hook: HookManager(self._pre_run_hook),
+            self._run_hook: HookManager(self._run_hook),
+            self._post_run_hook: HookManager(self._post_run_hook),
+        }
+
         # Solve services and git repository
         self._bind_launcher_services(services)
 
@@ -118,14 +126,17 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
             self._create_directory_structure()
 
     @property
-    def is_validate_init(self) -> bool:
+    def hook_managers(self) -> dict[Callable, HookManager]:
         """
-        Returns whether initialization validation is enabled.
+        Returns the hook managers for the launcher.
+
+        Provides access to the pre-run, run, and post-run hook managers
+        for managing lifecycle hooks.
 
         Returns:
-            bool: True if initialization validation is enabled
+            dict[Callable, HookManager]: The hook managers for the launcher
         """
-        return self.settings.validate_init
+        return self._hook_managers
 
     @property
     def logger(self) -> logging.Logger:
