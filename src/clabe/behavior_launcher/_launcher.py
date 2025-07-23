@@ -127,8 +127,8 @@ class BehaviorLauncher(BaseLauncher[TRig, TSession, TTaskLogic]):
             Self: The current instance for method chaining.
         """
         logger.info("Pre-run hook started.")
-
-        if self.settings.validate_init:
+        hook_manager = self._hook_managers[self._pre_run_hook]
+        hook_manager.run(on_error_resume=True)
         logger.debug("Validating initialization.")
         if self.services_factory_manager.resource_monitor is not None:
             logger.debug("Evaluating resource monitor constraints.")
