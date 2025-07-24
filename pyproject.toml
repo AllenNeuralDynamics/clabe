@@ -41,6 +41,7 @@ aind-services = [
     "aind-watchdog-service",
     "aind-data-schema<2",
     "ms-active-directory",
+    "aind-data-transfer-service",
     "cryptography",
     "winkerberos; sys_platform == 'win32'",
     "ldap3; sys_platform == 'win32'",
