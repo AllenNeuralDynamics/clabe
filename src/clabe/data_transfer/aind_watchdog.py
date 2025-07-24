@@ -16,7 +16,7 @@ import os
 import subprocess
 from os import PathLike
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Type, Union
+from typing import TYPE_CHECKING, Any, Callable, ClassVar, Dict, List, Optional, Union
 
 import aind_watchdog_service.models
 import pydantic
@@ -24,19 +24,14 @@ import requests
 import yaml
 from aind_data_schema.core.metadata import CORE_FILES
 from aind_data_schema.core.session import Session as AdsSession
-from aind_data_schema_models.platforms import Platform
-from aind_watchdog_service.models.manifest_config import (
-    BucketType,
-    ManifestConfig,
-    ModalityConfigs,
-)
+from aind_watchdog_service.models.manifest_config import BucketType, ManifestConfig, ModalityConfigs, Platform
 from aind_watchdog_service.models.watch_config import WatchConfig
 from pydantic import BaseModel
-from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict, YamlConfigSettingsSource
 from requests.exceptions import HTTPError
 
 from .. import ui
 from ..data_mapper.aind_data_schema import AindDataSchemaSessionDataMapper
+from ..services import ServiceSettings
 from ._base import DataTransfer
 
 if TYPE_CHECKING:
@@ -50,11 +45,13 @@ logger = logging.getLogger(__name__)
 _JobConfigs = Union[ModalityConfigs, Callable[["WatchdogDataTransferService"], Union[ModalityConfigs]]]
 
 
-class WatchdogSettings(BaseSettings):
+class WatchdogSettings(ServiceSettings):
+    _yml_section: ClassVar[Optional[str]] = "watchdog"
+
     destination: PathLike
     schedule_time: Optional[datetime.time] = datetime.time(hour=20)
     project_name: str
-    platform: Platform = getattr(Platform, "BEHAVIOR")
+    platform: Platform = "behavior"
     capsule_id: Optional[str] = None
     script: Optional[Dict[str, List[str]]] = None
     s3_bucket: BucketType = BucketType.PRIVATE
@@ -64,25 +61,6 @@ class WatchdogSettings(BaseSettings):
     delete_modalities_source_after_success: bool = False
     extra_identifying_info: Optional[dict] = None
     upload_job_configs: Optional[Any] = None
-
-    model_config = SettingsConfigDict(yaml_file=["./watchdog_settings.yml", "./local/watchdog_settings.yml"])
-
-    @classmethod
-    def settings_customise_sources(
-        cls,
-        settings_cls: Type[BaseSettings],
-        init_settings: PydanticBaseSettingsSource,
-        env_settings: PydanticBaseSettingsSource,
-        dotenv_settings: PydanticBaseSettingsSource,
-        file_secret_settings: PydanticBaseSettingsSource,
-    ) -> Tuple[PydanticBaseSettingsSource, ...]:
-        return (
-            init_settings,
-            YamlConfigSettingsSource(settings_cls),
-            env_settings,
-            dotenv_settings,
-            file_secret_settings,
-        )
 
 
 class WatchdogDataTransferService(DataTransfer):

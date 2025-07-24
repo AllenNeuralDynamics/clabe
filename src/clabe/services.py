@@ -2,7 +2,12 @@ from __future__ import annotations
 
 import abc
 import logging
+import typing as t
 from typing import TYPE_CHECKING, Any, Callable, Dict, Generic, Iterable, List, Optional, Self, Type, TypeVar, overload
+
+import pydantic_settings as ps
+
+from .constants import KNOWN_CONFIG_FILES
 
 if TYPE_CHECKING:
     from .launcher import BaseLauncher
@@ -371,3 +376,37 @@ class ServicesFactoryManager(Generic[TLauncher]):
             A list of results from the delegate function
         """
         return [delegate(service) for service in self.services]
+
+
+class ServiceSettings(ps.BaseSettings, abc.ABC):
+    """
+    Base class for service settings with YAML configuration support.
+
+    This class automatically uses the class name (lowercased) as the YAML config section
+    unless _yml_section is explicitly defined.
+    """
+
+    _yml_section: t.ClassVar[t.Optional[str]] = None
+
+    @classmethod
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        section_name = cls._yml_section if cls._yml_section is not None else cls.__name__.lower()
+        cls.model_config = ps.SettingsConfigDict(yaml_file=KNOWN_CONFIG_FILES, yaml_config_section=section_name)
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: Type[ps.BaseSettings],
+        init_settings: ps.PydanticBaseSettingsSource,
+        env_settings: ps.PydanticBaseSettingsSource,
+        dotenv_settings: ps.PydanticBaseSettingsSource,
+        file_secret_settings: ps.PydanticBaseSettingsSource,
+    ) -> t.Tuple[ps.PydanticBaseSettingsSource, ...]:
+        return (
+            init_settings,
+            ps.YamlConfigSettingsSource(settings_cls),
+            env_settings,
+            dotenv_settings,
+            file_secret_settings,
+        )

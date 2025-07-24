@@ -87,7 +87,7 @@ class AindDataSchemaRigDataMapper(AindDataSchemaDataMapper[ads_rig.Rig], abc.ABC
     providing the interface for converting experimental rig configurations
     to the AIND data schema Rig format.
     """
-    
+
     def rig_schema(self) -> ads_rig.Rig:
         """
         Returns the rig schema for the mapped rig data.
