@@ -382,8 +382,25 @@ class ServiceSettings(ps.BaseSettings, abc.ABC):
     """
     Base class for service settings with YAML configuration support.
 
-    This class automatically uses the class name (lowercased) as the YAML config section
-    unless _yml_section is explicitly defined.
+    This class provides automatic YAML configuration loading using pydantic-settings. The configuration is loaded from
+    files defined in KNOWN_CONFIG_FILES.
+
+    Attributes:
+        _yml_section: Optional class variable to override the config section name
+
+    Example:
+        ```python
+        # Define a settings class
+        class MyServiceSettings(ServiceSettings):
+            _yml_section: ClassVar[str] = "my_service"
+
+            host: str = "localhost"
+            port: int = 8080
+            enabled: bool = True
+
+        # Usage will automatically load from YAML files
+        settings = MyServiceSettings()
+        ```
     """
 
     _yml_section: t.ClassVar[t.Optional[str]] = None

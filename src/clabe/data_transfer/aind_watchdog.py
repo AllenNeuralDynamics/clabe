@@ -73,34 +73,38 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
     proper metadata handling and validation.
 
     Attributes:
-        source (PathLike): Source directory to monitor
-        destination (PathLike): Destination directory for transfers
-        project_name (Optional[str]): Name of the project for organization
-        schedule_time (Optional[datetime.time]): Time to schedule transfers
-        platform (Platform): Platform associated with the data
-        Various other configuration attributes for transfer customization
+        _source (PathLike): Source directory to monitor
+        _settings (WatchdogSettings): Service settings containing destination and configuration
+        _aind_session_data_mapper (Optional[AindDataSchemaSessionDataMapper]): Mapper for session data
+        _ui_helper (ui.UiHelper): UI helper for user prompts
+        Various configuration attributes accessible via settings
 
     Example:
         ```python
         # Basic watchdog service setup:
+        settings = WatchdogSettings(
+            destination="//server/data/session_001",
+            project_name="my_project"
+        )
         service = WatchdogDataTransferService(
             source="C:/data/session_001",
-            destination="//server/data/session_001",
-            project_name="my_project", # Make sure it validates
-            platform=Platform.BEHAVIOR
+            settings=settings
         )
 
         # Full configuration with session mapper:
-        session_mapper = MySessionMapper(session_data)
-        service = WatchdogDataTransferService(
-            source="C:/data/session_001",
+        settings = WatchdogSettings(
             destination="//server/data/session_001",
-            aind_session_data_mapper=session_mapper,
             project_name="behavior_study",
             schedule_time=datetime.time(hour=22, minute=30),
             platform=Platform.BEHAVIOR,
             force_cloud_sync=True
         )
+        session_mapper = MySessionMapper(session_data)
+        service = WatchdogDataTransferService(
+            source="C:/data/session_001",
+            settings=settings
+        )
+        service = service.with_aind_session_data_mapper(session_mapper)
         if service.validate():
             service.transfer()
         ```
@@ -120,37 +124,25 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
 
         Args:
             source: The source directory or file to monitor
-            destination: The destination directory or file
-            aind_session_data_mapper: Mapper for session data to AIND schema
-            schedule_time: Time to schedule the transfer
-            project_name: Name of the project
-            platform: Platform associated with the data
-            capsule_id: Capsule ID for the session
-            script: Optional scripts to execute during transfer
-            s3_bucket: S3 bucket type for cloud storage
-            mount: Mount point for the destination
-            force_cloud_sync: Whether to force synchronization with the cloud
-            transfer_endpoint: Endpoint for the transfer service
-            delete_modalities_source_after_success: Whether to delete source modalities after success
+            settings: WatchdogSettings containing destination and configuration options
             validate: Whether to validate the project name
             session_name: Name of the session
-            upload_job_configs: List of job configurations for the transfer
             ui_helper: UI helper for user prompts
 
         Example:
             ```python
             # Basic initialization:
-
-            service = WatchdogDataTransferService(
-                source="C:/data/session_001",
+            settings = WatchdogSettings(
                 destination="//server/archive/session_001",
                 project_name="behavior_project"
             )
-
-            $ Advanced configuration:
-
             service = WatchdogDataTransferService(
                 source="C:/data/session_001",
+                settings=settings
+            )
+
+            # Advanced configuration:
+            settings = WatchdogSettings(
                 destination="//server/archive/session_001",
                 project_name="behavior_project",
                 schedule_time=datetime.time(hour=23),
@@ -159,7 +151,11 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
                 delete_modalities_source_after_success=True,
                 extra_identifying_info={"experiment_type": "foraging"}
             )
-            ```"
+            service = WatchdogDataTransferService(
+                source="C:/data/session_001",
+                settings=settings
+            )
+            ```
         """
         self._settings = settings
         self._source = source
@@ -560,7 +556,11 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         Example:
             ```python
             # Check service status:
-            service = WatchdogDataTransferService(source="C:/data", destination="//server/data")
+            settings = WatchdogSettings(
+                destination="//server/data",
+                project_name="my_project"
+            )
+            service = WatchdogDataTransferService(source="C:/data", settings=settings)
             if service.is_running():
                 print("Watchdog service is active")
             else:
@@ -695,7 +695,11 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         Example:
             ```python
             # Interactive manifest generation:
-            service = WatchdogDataTransferService(source="C:/data", destination="//server/data")
+            settings = WatchdogSettings(
+                destination="//server/data",
+                project_name="my_project"
+            )
+            service = WatchdogDataTransferService(source="C:/data", settings=settings)
             if service.prompt_input():
                 service.transfer()
                 print("Manifest generation confirmed")

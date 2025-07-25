@@ -22,22 +22,26 @@ class DataTransfer(IService, abc.ABC, Generic[TSettings]):
 
     Example:
         ```python
-        # Implementing a custom data transfer service:
-        class MyTransferService(DataTransfer):
-            def __init__(self, source, destination):
+        # Implementing a custom data transfer service with settings:
+        class MyTransferSettings(ServiceSettings):
+            destination: str
+
+        class MyTransferService(DataTransfer[MyTransferSettings]):
+            def __init__(self, source: str, settings: MyTransferSettings):
                 self.source = source
-                self.destination = destination
+                self._settings = settings
 
             def transfer(self) -> None:
                 # Implementation specific transfer logic
-                print(f"Transferring from {self.source} to {self.destination}")
+                print(f"Transferring from {self.source} to {self._settings.destination}")
 
             def validate(self) -> bool:
                 # Implementation specific validation
                 return Path(self.source).exists()
 
         # Using the custom service:
-        service = MyTransferService("C:/data", "D:/backup")
+        settings = MyTransferSettings(destination="D:/backup")
+        service = MyTransferService("C:/data", settings)
         if service.validate():
             service.transfer()
         ```

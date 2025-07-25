@@ -42,9 +42,10 @@ class BehaviorLauncher(BaseLauncher[TRig, TSession, TTaskLogic]):
 
     Example:
         ```python
-        # Create a behavior launcher
+        # Create a behavior launcher with settings
+        settings = BehaviorCliArgs(...)
         launcher = BehaviorLauncher(
-            settings=BehaviorCliArgs(...),
+            settings=settings,
             rig_schema_model=RigModelType,
             session_schema_model=SessionModelType,
             task_logic_schema_model=TaskLogicModelType,
@@ -284,10 +285,13 @@ class DefaultBehaviorPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
 
     Example:
         ```python
+        # Create settings for the picker
+        settings = DefaultBehaviorPickerSettings(config_library_dir="config_dir")
+
         # Create a default behavior picker
         picker = DefaultBehaviorPicker(
             launcher=some_launcher_instance,
-            config_library_dir="config_dir",
+            settings=settings,
         )
         # Initialize and pick configurations
         picker.initialize()
@@ -316,8 +320,8 @@ class DefaultBehaviorPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
 
         Args:
             launcher: The launcher instance associated with the picker
+            settings: Settings containing configuration including config_library_dir
             ui_helper: Helper for user interface interactions
-            config_library_dir: Path to the configuration library directory
             experimenter_validator: Function to validate the experimenter's username. If None, no validation is performed
             **kwargs: Additional keyword arguments
         """

@@ -52,25 +52,26 @@ class AibsLogServerHandler(logging.handlers.SocketHandler):
     Examples:
         ```python
         import logging
-        import os
-        from clabe.logging_helper.aibs import AibsLogServerHandler
+        from clabe.logging_helper.aibs import AibsLogServerHandler, AibsLogServerHandlerSettings
 
-        # Initialize the handler with default ERROR level
-        handler = AibsLogServerHandler(
+        # Initialize the handler with settings
+        settings = AibsLogServerHandlerSettings(
             project_name='my_project',
             version='1.0.0',
             host='localhost',
             port=5000
         )
+        handler = AibsLogServerHandler(settings=settings)
 
-        # Initialize the handler with custom level
-        handler = AibsLogServerHandler(
+        # Initialize with custom level
+        settings = AibsLogServerHandlerSettings(
             project_name='my_project',
             version='1.0.0',
             host='localhost',
             port=5000,
             level=logging.WARNING
         )
+        handler = AibsLogServerHandler(settings=settings)
         ```
     """
 
@@ -84,15 +85,7 @@ class AibsLogServerHandler(logging.handlers.SocketHandler):
         Initializes the AIBS log server handler.
 
         Args:
-            project_name: The name of the project.
-            version: The version of the project.
-            host: The hostname of the log server.
-            port: The port of the log server.
-            rig_id: The ID of the rig. If not provided, it will be read from
-                the 'aibs_rig_id' environment variable.
-            comp_id: The ID of the computer. If not provided, it will be read
-                from the 'aibs_comp_id' environment variable.
-            level: The minimum logging level to handle. Defaults to logging.ERROR.
+            settings: AibsLogServerHandlerSettings containing all configuration options
             *args: Additional arguments to pass to the SocketHandler.
             **kwargs: Additional keyword arguments to pass to the SocketHandler.
         """
@@ -131,10 +124,7 @@ def add_handler(
 
     Args:
         logger: The logger to add the handler to.
-        logserver_url: The URL of the log server in the format 'host:port'.
-        version: The version of the project.
-        project_name: The name of the project.
-        level: The minimum logging level to handle. Defaults to logging.ERROR.
+        settings: AibsLogServerHandlerSettings containing configuration options
 
     Returns:
         The logger with the added handler.
@@ -142,29 +132,30 @@ def add_handler(
     Examples:
         ```python
         import logging
-        import os
-        from clabe.logging_helper.aibs import add_handler
+        from clabe.logging_helper.aibs import add_handler, AibsLogServerHandlerSettings
 
         # Create a logger
         logger = logging.getLogger('my_logger')
         logger.setLevel(logging.INFO)
 
         # Add the AIBS log server handler with default ERROR level
-        logger = add_handler(
-            logger,
-            logserver_url='localhost:5000',
-            version='1.0.0',
+        settings = AibsLogServerHandlerSettings(
             project_name='my_project',
+            version='1.0.0',
+            host='localhost',
+            port=5000
         )
+        logger = add_handler(logger, settings)
 
         # Add handler with custom level
-        logger = add_handler(
-            logger,
-            logserver_url='localhost:5000',
-            version='1.0.0',
+        settings = AibsLogServerHandlerSettings(
             project_name='my_project',
+            version='1.0.0',
+            host='localhost',
+            port=5000,
             level=logging.WARNING
         )
+        logger = add_handler(logger, settings)
         ```
     """
     socket_handler = AibsLogServerHandler(settings=settings)
@@ -178,10 +169,7 @@ def attach_to_launcher(launcher: TLauncher, settings: AibsLogServerHandlerSettin
 
     Args:
         launcher: The launcher instance to attach the handler to.
-        logserver_url: The URL of the log server in the format 'host:port'.
-        version: The version of the project.
-        project_name: The name of the project.
-        level: The minimum logging level to handle. Defaults to logging.ERROR.
+        settings: AibsLogServerHandlerSettings containing configuration options
 
     Returns:
         The launcher instance with the attached handler.
@@ -189,29 +177,30 @@ def attach_to_launcher(launcher: TLauncher, settings: AibsLogServerHandlerSettin
     Examples:
         ```python
         import logging
-        import os
         from clabe.launcher import BaseLauncher
-        from clabe.logging_helper.aibs import attach_to_launcher
+        from clabe.logging_helper.aibs import attach_to_launcher, AibsLogServerHandlerSettings
 
         # Initialize the launcher
         launcher = MyLauncher(...) # Replace with your custom launcher class
 
         # Attach the AIBS log server handler with default ERROR level
-        launcher = attach_to_launcher(
-            launcher,
-            logserver_url='localhost:5000',
-            version='1.0.0',
+        settings = AibsLogServerHandlerSettings(
             project_name='my_launcher_project',
+            version='1.0.0',
+            host='localhost',
+            port=5000
         )
+        launcher = attach_to_launcher(launcher, settings)
 
         # Attach handler with custom level
-        launcher = attach_to_launcher(
-            launcher,
-            logserver_url='localhost:5000',
-            version='1.0.0',
+        settings = AibsLogServerHandlerSettings(
             project_name='my_launcher_project',
+            version='1.0.0',
+            host='localhost',
+            port=5000,
             level=logging.WARNING
         )
+        launcher = attach_to_launcher(launcher, settings)
         ```
     """
 

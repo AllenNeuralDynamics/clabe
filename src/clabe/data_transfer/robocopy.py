@@ -37,31 +37,30 @@ class RobocopyService(DataTransfer[RobocopySettings]):
 
     Attributes:
         source (PathLike): Source directory or file path
-        destination (PathLike): Destination directory or file path
-        delete_src (bool): Whether to delete source after copying
-        overwrite (bool): Whether to overwrite existing files
-        force_dir (bool): Whether to ensure destination directory exists
-        log (Optional[PathLike]): Optional log file path for Robocopy output
-        extra_args (str): Additional Robocopy command arguments
+        _settings (RobocopySettings): Service settings containing destination, options, etc.
         _ui_helper (ui.UiHelper): UI helper for user prompts
 
     Example:
         ```python
         # Basic file copying:
+        settings = RobocopySettings(destination="D:/backup/experiment1")
         service = RobocopyService(
             source="C:/data/experiment1",
-            destination="D:/backup/experiment1"
+            settings=settings
         )
         service.transfer()
 
         # Copy with custom options:
-        service = RobocopyService(
-            source="C:/data/experiment1",
+        settings = RobocopySettings(
             destination="D:/backup/experiment1",
             delete_src=True,
             overwrite=True,
             log="copy_log.txt",
             extra_args="/E /DCOPY:DAT /R:50 /W:5"
+        )
+        service = RobocopyService(
+            source="C:/data/experiment1",
+            settings=settings
         )
         if service.validate():
             service.transfer()
@@ -80,27 +79,23 @@ class RobocopyService(DataTransfer[RobocopySettings]):
 
         Args:
             source: The source directory or file to copy
-            destination: The destination directory or file
-            log: Optional log file path for Robocopy output. Default is None
-            extra_args: Additional arguments for the Robocopy command. Default is None
-            delete_src: Whether to delete the source after copying. Default is False
-            overwrite: Whether to overwrite existing files at the destination. Default is False
-            force_dir: Whether to ensure the destination directory exists. Default is True
+            settings: RobocopySettings containing destination and options
             ui_helper: UI helper for user prompts. Default is None
 
         Example:
             ```python
             # Initialize with basic parameters:
-            service = RobocopyService("C:/source", "D:/destination")
+            settings = RobocopySettings(destination="D:/destination")
+            service = RobocopyService("C:/source", settings)
 
             # Initialize with logging and move operation:
-            service = RobocopyService(
-                source="C:/temp/data",
+            settings = RobocopySettings(
                 destination="D:/archive/data",
                 log="transfer.log",
                 delete_src=True,
                 extra_args="/E /COPY:DAT /R:10"
             )
+            service = RobocopyService("C:/temp/data", settings)
             ```
         """
 
@@ -203,7 +198,8 @@ class RobocopyService(DataTransfer[RobocopySettings]):
         Example:
             ```python
             # Interactive transfer confirmation:
-            service = RobocopyService("C:/data", "D:/backup")
+            settings = RobocopySettings(destination="D:/backup")
+            service = RobocopyService("C:/data", settings)
             if service.prompt_input():
                 service.transfer()
                 # User confirmed, transfer proceeds
