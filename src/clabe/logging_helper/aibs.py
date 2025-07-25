@@ -1,7 +1,11 @@
 import logging
 import logging.handlers
 import os
-from typing import TYPE_CHECKING, Optional, TypeVar
+from typing import TYPE_CHECKING, ClassVar, TypeVar
+
+import pydantic
+
+from ..services import ServiceSettings
 
 if TYPE_CHECKING:
     from ..launcher import BaseLauncher
@@ -11,6 +15,25 @@ else:
     TLauncher = TypeVar("TLauncher")
 
 TLogger = TypeVar("TLogger", bound=logging.Logger)
+
+
+def _getenv(key: str) -> str:
+    value = os.getenv(key, None)
+    if value is None:
+        raise ValueError(f"Environment variable '{key}' is not set.")
+    return value
+
+
+class AibsLogServerHandlerSettings(ServiceSettings):
+    _yml_section: ClassVar[str] = "aibs_log_server_handler"
+
+    rig_id: str = pydantic.Field(default_factory=lambda: _getenv("aibs_rig_id"))
+    comp_id: str = pydantic.Field(default_factory=lambda: _getenv("aibs_comp_id"))
+    project_name: str
+    version: str
+    host: str = "eng-logtools.corp.alleninstitute.org"
+    port: int = 9000
+    level: int = logging.ERROR
 
 
 class AibsLogServerHandler(logging.handlers.SocketHandler):
@@ -53,13 +76,7 @@ class AibsLogServerHandler(logging.handlers.SocketHandler):
 
     def __init__(
         self,
-        project_name: str,
-        version: str,
-        host: str,
-        port: int,
-        rig_id: Optional[str] = None,
-        comp_id: Optional[str] = None,
-        level: int = logging.ERROR,
+        settings: AibsLogServerHandlerSettings,
         *args,
         **kwargs,
     ):
@@ -79,18 +96,9 @@ class AibsLogServerHandler(logging.handlers.SocketHandler):
             *args: Additional arguments to pass to the SocketHandler.
             **kwargs: Additional keyword arguments to pass to the SocketHandler.
         """
-        super().__init__(host, port, *args, **kwargs)
-        self.setLevel(level)
-
-        self.project_name = project_name
-        self.version = version
-        self.rig_id = rig_id or os.getenv("aibs_rig_id", None)
-        self.comp_id = comp_id or os.getenv("aibs_comp_id", None)
-
-        if not self.rig_id:
-            raise ValueError("Rig id must be provided or set in the environment variable 'aibs_rig_id'.")
-        if not self.comp_id:
-            raise ValueError("Computer id must be provided or set in the environment variable 'aibs_comp_id'.")
+        super().__init__(settings.host, settings.port, *args, **kwargs)
+        self.setLevel(settings.level)
+        self._settings = settings
 
         self.formatter = logging.Formatter(
             fmt="%(asctime)s\n%(name)s\n%(levelname)s\n%(funcName)s (%(filename)s:%(lineno)d)\n%(message)s",
@@ -106,20 +114,17 @@ class AibsLogServerHandler(logging.handlers.SocketHandler):
         Args:
             record: The log record to emit.
         """
-        record.project = self.project_name
-        record.rig_id = self.rig_id
-        record.comp_id = self.comp_id
-        record.version = self.version
+        record.project = self._settings.project_name
+        record.rig_id = self._settings.rig_id
+        record.comp_id = self._settings.comp_id
+        record.version = self._settings.version
         record.extra = None  # set extra to None because this sends a pickled record
         super().emit(record)
 
 
 def add_handler(
     logger: TLogger,
-    logserver_url: str,
-    version: str,
-    project_name: str,
-    level: int = logging.ERROR,
+    settings: AibsLogServerHandlerSettings,
 ) -> TLogger:
     """
     Adds an AIBS log server handler to the logger.
@@ -162,21 +167,12 @@ def add_handler(
         )
         ```
     """
-    host, port = logserver_url.split(":")
-    socket_handler = AibsLogServerHandler(
-        host=host,
-        port=int(port),
-        project_name=project_name,
-        version=version,
-        level=level,
-    )
+    socket_handler = AibsLogServerHandler(settings=settings)
     logger.addHandler(socket_handler)
     return logger
 
 
-def attach_to_launcher(
-    launcher: TLauncher, logserver_url: str, version: str, project_name: str, level: int = logging.ERROR
-) -> TLauncher:
+def attach_to_launcher(launcher: TLauncher, settings: AibsLogServerHandlerSettings) -> TLauncher:
     """
     Attaches an AIBS log server handler to a launcher instance.
 
@@ -221,9 +217,6 @@ def attach_to_launcher(
 
     add_handler(
         launcher.logger,
-        logserver_url=logserver_url,
-        version=version,
-        project_name=project_name,
-        level=level,
+        settings=settings,
     )
     return launcher
