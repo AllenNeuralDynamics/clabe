@@ -3,9 +3,10 @@ import shutil
 import subprocess
 from os import PathLike, makedirs
 from pathlib import Path
-from typing import Dict, Optional
+from typing import ClassVar, Dict, Optional
 
 from .. import ui
+from ..services import ServiceSettings
 from ._base import DataTransfer
 
 logger = logging.getLogger(__name__)
@@ -15,7 +16,18 @@ DEFAULT_EXTRA_ARGS = "/E /DCOPY:DAT /R:100 /W:3 /tee"
 _HAS_ROBOCOPY = shutil.which("robocopy") is not None
 
 
-class RobocopyService(DataTransfer):
+class RobocopySettings(ServiceSettings):
+    _yml_section: ClassVar[str] = "robocopy"
+
+    destination: PathLike
+    log: Optional[PathLike] = None
+    extra_args: str = DEFAULT_EXTRA_ARGS
+    delete_src: bool = False
+    overwrite: bool = False
+    force_dir: bool = True
+
+
+class RobocopyService(DataTransfer[RobocopySettings]):
     """
     A data transfer service that uses the Robocopy command-line utility to copy files
     between source and destination directories.
@@ -25,31 +37,30 @@ class RobocopyService(DataTransfer):
 
     Attributes:
         source (PathLike): Source directory or file path
-        destination (PathLike): Destination directory or file path
-        delete_src (bool): Whether to delete source after copying
-        overwrite (bool): Whether to overwrite existing files
-        force_dir (bool): Whether to ensure destination directory exists
-        log (Optional[PathLike]): Optional log file path for Robocopy output
-        extra_args (str): Additional Robocopy command arguments
+        _settings (RobocopySettings): Service settings containing destination, options, etc.
         _ui_helper (ui.UiHelper): UI helper for user prompts
 
     Example:
         ```python
         # Basic file copying:
+        settings = RobocopySettings(destination="D:/backup/experiment1")
         service = RobocopyService(
             source="C:/data/experiment1",
-            destination="D:/backup/experiment1"
+            settings=settings
         )
         service.transfer()
 
         # Copy with custom options:
-        service = RobocopyService(
-            source="C:/data/experiment1",
+        settings = RobocopySettings(
             destination="D:/backup/experiment1",
             delete_src=True,
             overwrite=True,
             log="copy_log.txt",
             extra_args="/E /DCOPY:DAT /R:50 /W:5"
+        )
+        service = RobocopyService(
+            source="C:/data/experiment1",
+            settings=settings
         )
         if service.validate():
             service.transfer()
@@ -59,12 +70,8 @@ class RobocopyService(DataTransfer):
     def __init__(
         self,
         source: PathLike,
-        destination: PathLike,
-        log: Optional[PathLike] = None,
-        extra_args: Optional[str] = None,
-        delete_src: bool = False,
-        overwrite: bool = False,
-        force_dir: bool = True,
+        settings: RobocopySettings,
+        *,
         ui_helper: Optional[ui.UiHelper] = None,
     ):
         """
@@ -72,37 +79,28 @@ class RobocopyService(DataTransfer):
 
         Args:
             source: The source directory or file to copy
-            destination: The destination directory or file
-            log: Optional log file path for Robocopy output. Default is None
-            extra_args: Additional arguments for the Robocopy command. Default is None
-            delete_src: Whether to delete the source after copying. Default is False
-            overwrite: Whether to overwrite existing files at the destination. Default is False
-            force_dir: Whether to ensure the destination directory exists. Default is True
+            settings: RobocopySettings containing destination and options
             ui_helper: UI helper for user prompts. Default is None
 
         Example:
             ```python
             # Initialize with basic parameters:
-            service = RobocopyService("C:/source", "D:/destination")
+            settings = RobocopySettings(destination="D:/destination")
+            service = RobocopyService("C:/source", settings)
 
             # Initialize with logging and move operation:
-            service = RobocopyService(
-                source="C:/temp/data",
+            settings = RobocopySettings(
                 destination="D:/archive/data",
                 log="transfer.log",
                 delete_src=True,
                 extra_args="/E /COPY:DAT /R:10"
             )
+            service = RobocopyService("C:/temp/data", settings)
             ```
         """
 
         self.source = source
-        self.destination = destination
-        self.delete_src = delete_src
-        self.overwrite = overwrite
-        self.force_dir = force_dir
-        self.log = log
-        self.extra_args = extra_args if extra_args else DEFAULT_EXTRA_ARGS
+        self._settings = settings
         self._ui_helper = ui_helper or ui.DefaultUIHelper()
 
     def transfer(
@@ -117,7 +115,7 @@ class RobocopyService(DataTransfer):
 
         # Loop through each source-destination pair and call robocopy'
         logger.info("Starting robocopy transfer service.")
-        src_dist = self._solve_src_dst_mapping(self.source, self.destination)
+        src_dist = self._solve_src_dst_mapping(self.source, self._settings.destination)
         if src_dist is None:
             raise ValueError("Source and destination should be provided.")
 
@@ -125,14 +123,14 @@ class RobocopyService(DataTransfer):
             dst = Path(dst)
             src = Path(src)
             try:
-                command = ["robocopy", f"{src.as_posix()}", f"{dst.as_posix()}", self.extra_args]
-                if self.log:
-                    command.append(f'/LOG:"{Path(dst) / self.log}"')
-                if self.delete_src:
+                command = ["robocopy", f"{src.as_posix()}", f"{dst.as_posix()}", self._settings.extra_args]
+                if self._settings.log:
+                    command.append(f'/LOG:"{Path(dst) / self._settings.log}"')
+                if self._settings.delete_src:
                     command.append("/MOV")
-                if self.overwrite:
+                if self._settings.overwrite:
                     command.append("/IS")
-                if self.force_dir:
+                if self._settings.force_dir:
                     makedirs(dst, exist_ok=True)
                 cmd = " ".join(command)
                 logger.info("Running Robocopy command: %s", cmd)
@@ -200,7 +198,8 @@ class RobocopyService(DataTransfer):
         Example:
             ```python
             # Interactive transfer confirmation:
-            service = RobocopyService("C:/data", "D:/backup")
+            settings = RobocopySettings(destination="D:/backup")
+            service = RobocopyService("C:/data", settings)
             if service.prompt_input():
                 service.transfer()
                 # User confirmed, transfer proceeds

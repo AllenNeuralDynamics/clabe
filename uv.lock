@@ -51,6 +51,7 @@ dependencies = [
 [package.optional-dependencies]
 aind-services = [
     { name = "aind-data-schema" },
+    { name = "aind-data-transfer-service" },
     { name = "aind-watchdog-service" },
     { name = "cryptography" },
     { name = "ldap3", marker = "sys_platform == 'win32'" },
@@ -59,6 +60,7 @@ aind-services = [
 ]
 dev = [
     { name = "aind-data-schema" },
+    { name = "aind-data-transfer-service" },
     { name = "aind-watchdog-service" },
     { name = "codespell" },
     { name = "coverage" },
@@ -70,6 +72,7 @@ dev = [
 ]
 docs = [
     { name = "aind-data-schema" },
+    { name = "aind-data-transfer-service" },
     { name = "aind-watchdog-service" },
     { name = "cryptography" },
     { name = "ldap3", marker = "sys_platform == 'win32'" },
@@ -88,6 +91,7 @@ requires-dist = [
     { name = "aind-clabe", extras = ["aind-services"], marker = "extra == 'dev'" },
     { name = "aind-clabe", extras = ["aind-services"], marker = "extra == 'docs'" },
     { name = "aind-data-schema", marker = "extra == 'aind-services'", specifier = "<2" },
+    { name = "aind-data-transfer-service", marker = "extra == 'aind-services'" },
     { name = "aind-watchdog-service", marker = "extra == 'aind-services'" },
     { name = "codespell", marker = "extra == 'dev'" },
     { name = "coverage", marker = "extra == 'dev'" },
@@ -166,6 +170,21 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/bf/1b/df6b9734f27b09f8e60e53b96d5b4dc1ef116dceef9024834bffc2e82f70/aind_data_transfer_models-0.17.1.tar.gz", hash = "sha256:8d2893957607676e870deb14413245fc02f2c0b5070faf8b9ede7bab8e2463c4", size = 51625 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b4/97/835f7108d880702bfedcc3dad1352607755f9ef70f6b8a04c3014e611d87/aind_data_transfer_models-0.17.1-py3-none-any.whl", hash = "sha256:ecb74750b66b08a718a4174ce2e37f89feaa5788140008f77946bfeb02554e1b", size = 14555 },
+]
+
+[[package]]
+name = "aind-data-transfer-service"
+version = "1.17.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "aind-data-schema-models" },
+    { name = "email-validator" },
+    { name = "pydantic" },
+    { name = "pydantic-settings" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/1e/5d/c3125eb2814ae591c5e4468ae66bf2acb2f4a0e312b307c6f1ed14cd4710/aind_data_transfer_service-1.17.0.tar.gz", hash = "sha256:9e571b5240d95e9def0ffbc898d2794b4dbff23949dab50de0bde480cd903851", size = 225272 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/25/f2/496afa68554b784bc73903aeca20e859981593d050ac51de4bb9cea8adc1/aind_data_transfer_service-1.17.0-py3-none-any.whl", hash = "sha256:23cb0dfe891db09446688afa90d3fc7451cbe13104fb2e04ed5870d06d293db5", size = 50960 },
 ]
 
 [[package]]

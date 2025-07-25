@@ -14,6 +14,7 @@ from typing_extensions import override
 
 from .. import logging_helper, ui
 from ..launcher._base import BaseLauncher, TRig, TSession, TTaskLogic
+from ..services import ServiceSettings
 from ._aind_auth import validate_aind_username
 from ._cli import BehaviorCliArgs
 from ._model_modifiers import BySubjectModifierManager
@@ -41,9 +42,10 @@ class BehaviorLauncher(BaseLauncher[TRig, TSession, TTaskLogic]):
 
     Example:
         ```python
-        # Create a behavior launcher
+        # Create a behavior launcher with settings
+        settings = BehaviorCliArgs(...)
         launcher = BehaviorLauncher(
-            settings=BehaviorCliArgs(...),
+            settings=settings,
             rig_schema_model=RigModelType,
             session_schema_model=SessionModelType,
             task_logic_schema_model=TaskLogicModelType,
@@ -264,6 +266,10 @@ class ByAnimalFiles(enum.StrEnum):
     TASK_LOGIC = "task_logic"
 
 
+class DefaultBehaviorPickerSettings(ServiceSettings):
+    config_library_dir: os.PathLike
+
+
 class DefaultBehaviorPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
     """
     A picker class for selecting rig, session, and task logic configurations for behavior experiments.
@@ -279,10 +285,13 @@ class DefaultBehaviorPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
 
     Example:
         ```python
+        # Create settings for the picker
+        settings = DefaultBehaviorPickerSettings(config_library_dir="config_dir")
+
         # Create a default behavior picker
         picker = DefaultBehaviorPicker(
             launcher=some_launcher_instance,
-            config_library_dir="config_dir",
+            settings=settings,
         )
         # Initialize and pick configurations
         picker.initialize()
@@ -301,8 +310,8 @@ class DefaultBehaviorPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
         self,
         launcher: Optional[BehaviorLauncher[TRig, TSession, TTaskLogic]] = None,
         *,
+        settings: DefaultBehaviorPickerSettings,
         ui_helper: Optional[ui.DefaultUIHelper] = None,
-        config_library_dir: os.PathLike,
         experimenter_validator: Optional[Callable[[str], bool]] = validate_aind_username,
         **kwargs,
     ):
@@ -311,13 +320,13 @@ class DefaultBehaviorPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
 
         Args:
             launcher: The launcher instance associated with the picker
+            settings: Settings containing configuration including config_library_dir
             ui_helper: Helper for user interface interactions
-            config_library_dir: Path to the configuration library directory
             experimenter_validator: Function to validate the experimenter's username. If None, no validation is performed
             **kwargs: Additional keyword arguments
         """
         super().__init__(launcher, ui_helper=ui_helper, **kwargs)
-        self._config_library_dir = Path(config_library_dir)
+        self._settings = settings
         self._experimenter_validator = experimenter_validator
 
     @property
@@ -328,7 +337,7 @@ class DefaultBehaviorPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
         Returns:
             Path: The configuration library directory.
         """
-        return self._config_library_dir
+        return Path(self._settings.config_library_dir)
 
     @property
     def rig_dir(self) -> Path:
@@ -338,7 +347,7 @@ class DefaultBehaviorPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
         Returns:
             Path: The rig configuration directory.
         """
-        return Path(os.path.join(self._config_library_dir, self.RIG_SUFFIX, self.launcher.computer_name))
+        return Path(os.path.join(self.config_library_dir, self.RIG_SUFFIX, self.launcher.computer_name))
 
     @property
     def subject_dir(self) -> Path:
@@ -348,7 +357,7 @@ class DefaultBehaviorPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
         Returns:
             Path: The subject configuration directory.
         """
-        return Path(os.path.join(self._config_library_dir, self.SUBJECT_SUFFIX))
+        return Path(os.path.join(self.config_library_dir, self.SUBJECT_SUFFIX))
 
     @property
     def task_logic_dir(self) -> Path:
@@ -358,7 +367,7 @@ class DefaultBehaviorPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
         Returns:
             Path: The task logic configuration directory.
         """
-        return Path(os.path.join(self._config_library_dir, self.TASK_LOGIC_SUFFIX))
+        return Path(os.path.join(self.config_library_dir, self.TASK_LOGIC_SUFFIX))
 
     @override
     def initialize(self) -> None:

@@ -8,12 +8,13 @@ from pydantic_settings import (
     CliExplicitFlag,
     CliImplicitFlag,
     PydanticBaseSettingsSource,
-    SettingsConfigDict,
     YamlConfigSettingsSource,
 )
 
+from ..services import ServiceSettings
 
-class BaseCliArgs(BaseSettings, cli_prog_name="clabe", cli_kebab_case=True):
+
+class BaseCliArgs(ServiceSettings, cli_prog_name="clabe", cli_kebab_case=True):
     """
     Base class for CLI arguments using Pydantic for validation and configuration.
 
@@ -46,10 +47,6 @@ class BaseCliArgs(BaseSettings, cli_prog_name="clabe", cli_kebab_case=True):
         print(f"Data directory: {args.data_dir}")
         print(f"Debug mode: {args.debug_mode}")
     """
-
-    model_config = SettingsConfigDict(
-        env_prefix="CLABE_", yaml_file=["./clabe_default.yml", "./local/clabe_custom.yml"]
-    )
 
     data_dir: os.PathLike = Field(description="The data directory where to save the data")
     repository_dir: Optional[os.PathLike] = Field(default=None, description="The repository root directory")

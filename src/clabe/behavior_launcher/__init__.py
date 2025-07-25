@@ -1,5 +1,5 @@
 from ..behavior_launcher._cli import BehaviorCliArgs
-from ..behavior_launcher._launcher import BehaviorLauncher, DefaultBehaviorPicker
+from ..behavior_launcher._launcher import BehaviorLauncher, DefaultBehaviorPicker, DefaultBehaviorPickerSettings
 from ..behavior_launcher._model_modifiers import (
     BySubjectModifier,
     BySubjectModifierManager,
@@ -19,4 +19,5 @@ __all__ = [
     "BehaviorLauncher",
     "BySubjectModifier",
     "BySubjectModifierManager",
+    "DefaultBehaviorPickerSettings",
 ]

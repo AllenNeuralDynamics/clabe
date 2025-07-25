@@ -66,6 +66,18 @@ class AindDataSchemaSessionDataMapper(AindDataSchemaDataMapper[ads_session.Sessi
     AIND data schema Session format.
     """
 
+    def session_schema(self) -> ads_session.Session:
+        """
+        Returns the session schema for the mapped session data.
+
+        This method should be implemented by subclasses to return the specific
+        session schema that corresponds to the data being mapped.
+
+        Returns:
+            ads_session.Session: The session schema object
+        """
+        raise NotImplementedError("Subclasses must implement this method to return the session schema.")
+
 
 class AindDataSchemaRigDataMapper(AindDataSchemaDataMapper[ads_rig.Rig], abc.ABC):
     """
@@ -75,3 +87,15 @@ class AindDataSchemaRigDataMapper(AindDataSchemaDataMapper[ads_rig.Rig], abc.ABC
     providing the interface for converting experimental rig configurations
     to the AIND data schema Rig format.
     """
+
+    def rig_schema(self) -> ads_rig.Rig:
+        """
+        Returns the rig schema for the mapped rig data.
+
+        This method should be implemented by subclasses to return the specific
+        rig schema that corresponds to the data being mapped.
+
+        Returns:
+            ads_rig.Rig: The rig schema object
+        """
+        raise NotImplementedError("Subclasses must implement this method to return the rig schema.")
