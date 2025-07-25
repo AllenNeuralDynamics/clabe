@@ -16,6 +16,7 @@ from clabe.data_transfer.aind_watchdog import (
     ModalityConfigs,
     WatchConfig,
     WatchdogDataTransferService,
+    WatchdogSettings,
 )
 
 from .fixtures import MockUiHelper
@@ -25,33 +26,25 @@ class TestWatchdogDataTransferService(unittest.TestCase):
     def setUp(self):
         os.environ["WATCHDOG_EXE"] = "watchdog.exe"
         os.environ["WATCHDOG_CONFIG"] = "watchdog_config.yml"
-        self.source = "source_path"
-        self.destination = "destination_path"
-        self.aind_data_mapper = MagicMock(spec=AindDataSchemaSessionDataMapper)
-        self.schedule_time = time(hour=20)
-        self.project_name = "test_project"
-        self.platform = Platform.BEHAVIOR
-        self.capsule_id = "capsule_id"
-        self.script = {"script_key": ["script_value"]}
-        self.s3_bucket = BucketType.PRIVATE
-        self.mount = "mount_path"
-        self.force_cloud_sync = True
-        self.transfer_endpoint = "http://aind-data-transfer-service/api/v1/submit_jobs"
+        self.source = Path("source_path")
         self.validate = False
+        self.aind_data_mapper = MagicMock(spec=AindDataSchemaSessionDataMapper)
+        self.settings = WatchdogSettings(
+            destination=Path("destination_path"),
+            schedule_time=time(hour=20),
+            project_name="test_project",
+            platform="behavior",
+            capsule_id="capsule_id",
+            script={"script_key": ["script_value"]},
+            s3_bucket=BucketType.PRIVATE,
+            mount="mount_path",
+            force_cloud_sync=True,
+            transfer_endpoint="http://aind-data-transfer-service/api/v1/submit_jobs",
+        )
 
         self.service = WatchdogDataTransferService(
             self.source,
-            destination=self.destination,
-            aind_session_data_mapper=self.aind_data_mapper,
-            schedule_time=self.schedule_time,
-            project_name=self.project_name,
-            platform=self.platform,
-            capsule_id=self.capsule_id,
-            script=self.script,
-            s3_bucket=self.s3_bucket,
-            mount=self.mount,
-            force_cloud_sync=self.force_cloud_sync,
-            transfer_endpoint=self.transfer_endpoint,
+            settings=self.settings,
             validate=self.validate,
             ui_helper=MockUiHelper(),
         )
@@ -81,16 +74,16 @@ class TestWatchdogDataTransferService(unittest.TestCase):
         )
 
     def test_initialization(self):
-        self.assertEqual(self.service.destination, self.destination)
-        self.assertEqual(self.service.project_name, self.project_name)
-        self.assertEqual(self.service.schedule_time, self.schedule_time)
-        self.assertEqual(self.service.platform, self.platform)
-        self.assertEqual(self.service.capsule_id, self.capsule_id)
-        self.assertEqual(self.service.script, self.script)
-        self.assertEqual(self.service.s3_bucket, self.s3_bucket)
-        self.assertEqual(self.service.mount, self.mount)
-        self.assertEqual(self.service.force_cloud_sync, self.force_cloud_sync)
-        self.assertEqual(self.service.transfer_endpoint, self.transfer_endpoint)
+        self.assertEqual(self.service._settings.destination, self.settings.destination)
+        self.assertEqual(self.service._settings.project_name, self.settings.project_name)
+        self.assertEqual(self.service._settings.schedule_time, self.settings.schedule_time)
+        self.assertEqual(self.service._settings.platform, self.settings.platform)
+        self.assertEqual(self.service._settings.capsule_id, self.settings.capsule_id)
+        self.assertEqual(self.service._settings.script, self.settings.script)
+        self.assertEqual(self.service._settings.s3_bucket, self.settings.s3_bucket)
+        self.assertEqual(self.service._settings.mount, self.settings.mount)
+        self.assertEqual(self.service._settings.force_cloud_sync, self.settings.force_cloud_sync)
+        self.assertEqual(self.service._settings.transfer_endpoint, self.settings.transfer_endpoint)
 
     @patch("clabe.data_transfer.aind_watchdog.subprocess.check_output")
     def test_is_running(self, mock_check_output):
@@ -154,19 +147,9 @@ class TestWatchdogDataTransferService(unittest.TestCase):
         with self.assertRaises(ValueError):
             WatchdogDataTransferService(
                 self.source,
-                destination=self.destination,
-                aind_session_data_mapper=self.aind_data_mapper,
-                schedule_time=self.schedule_time,
-                project_name=self.project_name,
-                platform=self.platform,
-                capsule_id=self.capsule_id,
-                script=self.script,
-                s3_bucket=self.s3_bucket,
-                mount=self.mount,
-                force_cloud_sync=self.force_cloud_sync,
-                transfer_endpoint=self.transfer_endpoint,
+                settings=self.settings,
                 validate=self.validate,
-            )
+            ).with_aind_session_data_mapper(self.aind_data_mapper)
 
     @patch("clabe.data_transfer.aind_watchdog.Path.exists", return_value=True)
     def test_find_ads_schemas(self, mock_exists):
@@ -217,7 +200,7 @@ class TestWatchdogDataTransferService(unittest.TestCase):
         def modality_configs_factory(watchdog_service: WatchdogDataTransferService):
             return ModalityConfigs(
                 modality=Modality.BEHAVIOR_VIDEOS,
-                source=(Path(watchdog_service.source) / Modality.BEHAVIOR_VIDEOS.abbreviation).as_posix(),
+                source=(Path(watchdog_service._source) / Modality.BEHAVIOR_VIDEOS.abbreviation).as_posix(),
                 compress_raw_data=True,
                 job_settings={"key": "value"},
             )
@@ -232,7 +215,7 @@ class TestWatchdogDataTransferService(unittest.TestCase):
     def test_add_transfer_service_args_from_instance(self):
         modality_configs = ModalityConfigs(
             modality=Modality.BEHAVIOR_VIDEOS,
-            source=(Path(self.service.source) / Modality.BEHAVIOR_VIDEOS.abbreviation).as_posix(),
+            source=(Path(self.service._source) / Modality.BEHAVIOR_VIDEOS.abbreviation).as_posix(),
             compress_raw_data=True,
             job_settings={"key": "value"},  # needs mode to be json, otherwise parent class will raise an error
         )
@@ -248,14 +231,14 @@ class TestWatchdogDataTransferService(unittest.TestCase):
         def modality_configs_factory(watchdog_service: WatchdogDataTransferService):
             return ModalityConfigs(
                 modality=Modality.BEHAVIOR_VIDEOS,
-                source=(Path(watchdog_service.source) / Modality.BEHAVIOR_VIDEOS.abbreviation).as_posix(),
+                source=(Path(watchdog_service._source) / Modality.BEHAVIOR_VIDEOS.abbreviation).as_posix(),
                 compress_raw_data=True,
                 job_settings={"key": "value"},
             )
 
         modality_configs = ModalityConfigs(
             modality=Modality.BEHAVIOR_VIDEOS,
-            source=(Path(self.service.source) / Modality.BEHAVIOR_VIDEOS.abbreviation).as_posix(),
+            source=(Path(self.service._source) / Modality.BEHAVIOR_VIDEOS.abbreviation).as_posix(),
             job_settings={"key": "value"},  # needs mode to be json, otherwise parent class will raise an error
         )
 
