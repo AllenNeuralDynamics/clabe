@@ -4,25 +4,9 @@ import unittest.mock
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from clabe import ui
 from clabe.apps import BonsaiApp, PythonScriptApp
 
-
-class MockUiHelper(ui.UiHelper):
-    def __init__(self):
-        super().__init__(print_func=lambda x: None, input_func=lambda x: "1")
-
-    def prompt_pick_from_list(self, *args, **kwargs):
-        return ""
-
-    def prompt_yes_no_question(self, prompt: str) -> bool:
-        return True
-
-    def prompt_text(self, prompt: str) -> str:
-        return ""
-
-    def prompt_float(self, prompt):
-        return 0.0
+from .fixtures import MockUiHelper
 
 
 class TestBonsaiApp(unittest.TestCase):

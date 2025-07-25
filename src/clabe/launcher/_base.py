@@ -690,11 +690,11 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
             task_logic_path: Path to the JSON file containing the task logic schema
         """
         if rig_path_path is not None:
-            logging.info("Loading rig schema from %s", self.settings.rig_path)
+            logger.info("Loading rig schema from %s", self.settings.rig_path)
             self._rig_schema = model_from_json_file(rig_path_path, self.rig_schema_model)
         if session_path is not None:
-            logging.info("Loading session schema from %s", self.settings.session_path)
+            logger.info("Loading session schema from %s", self.settings.session_path)
             self._session_schema = model_from_json_file(session_path, self.session_schema_model)
         if task_logic_path is not None:
-            logging.info("Loading task logic schema from %s", self._settings.task_logic_path)
+            logger.info("Loading task logic schema from %s", self._settings.task_logic_path)
             self._task_logic_schema = model_from_json_file(task_logic_path, self.task_logic_schema_model)

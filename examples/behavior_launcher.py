@@ -18,6 +18,7 @@ from clabe.behavior_launcher import (
     BehaviorLauncher,
     BehaviorServicesFactoryManager,
     DefaultBehaviorPicker,
+    DefaultBehaviorPickerSettings,
 )
 
 logger = logging.getLogger(__name__)
@@ -110,7 +111,7 @@ def make_launcher():
         rig_schema_model=RigModel,
         session_schema_model=AindBehaviorSessionModel,
         task_logic_schema_model=TaskLogicModel,
-        picker=DefaultBehaviorPicker(config_library_dir=Path(LIB_CONFIG)),
+        picker=DefaultBehaviorPicker(settings=DefaultBehaviorPickerSettings(config_library_dir=LIB_CONFIG)),
         services=srv,
         settings=behavior_cli_args,
     )

@@ -132,7 +132,7 @@ class PythonScriptApp(App):
         logger.info("Starting python script %s...", self._script)
 
         if not self._has_venv():
-            logging.warning("Python environment not found. Creating one...")
+            logger.warning("Python environment not found. Creating one...")
             self.create_environment()
 
         _script = f"{self._script} {self._additional_arguments}"
@@ -273,7 +273,7 @@ class PythonScriptApp(App):
             RuntimeError: If `uv` is not installed.
         """
         if not _HAS_UV:
-            logging.error("uv executable not detected.")
+            logger.error("uv executable not detected.")
             raise RuntimeError(
                 "uv is not installed in this computer. Please install uv. see https://docs.astral.sh/uv/getting-started/installation/"
             )
