@@ -3,9 +3,10 @@ import shutil
 import subprocess
 from os import PathLike, makedirs
 from pathlib import Path
-from typing import Dict, Optional
+from typing import ClassVar, Dict, Optional
 
 from .. import ui
+from ..services import ServiceSettings
 from ._base import DataTransfer
 
 logger = logging.getLogger(__name__)
@@ -13,6 +14,17 @@ logger = logging.getLogger(__name__)
 DEFAULT_EXTRA_ARGS = "/E /DCOPY:DAT /R:100 /W:3 /tee"
 
 _HAS_ROBOCOPY = shutil.which("robocopy") is not None
+
+
+class RobocopySettings(ServiceSettings):
+    _yml_section: ClassVar[str] = "robocopy"
+
+    destination: PathLike
+    log: Optional[PathLike] = None
+    extra_args: str = DEFAULT_EXTRA_ARGS
+    delete_src: bool = False
+    overwrite: bool = False
+    force_dir: bool = True
 
 
 class RobocopyService(DataTransfer):
@@ -59,12 +71,8 @@ class RobocopyService(DataTransfer):
     def __init__(
         self,
         source: PathLike,
-        destination: PathLike,
-        log: Optional[PathLike] = None,
-        extra_args: Optional[str] = None,
-        delete_src: bool = False,
-        overwrite: bool = False,
-        force_dir: bool = True,
+        settings: RobocopySettings,
+        *,
         ui_helper: Optional[ui.UiHelper] = None,
     ):
         """
@@ -97,12 +105,7 @@ class RobocopyService(DataTransfer):
         """
 
         self.source = source
-        self.destination = destination
-        self.delete_src = delete_src
-        self.overwrite = overwrite
-        self.force_dir = force_dir
-        self.log = log
-        self.extra_args = extra_args if extra_args else DEFAULT_EXTRA_ARGS
+        self._settings = settings
         self._ui_helper = ui_helper or ui.DefaultUIHelper()
 
     def transfer(
@@ -117,7 +120,7 @@ class RobocopyService(DataTransfer):
 
         # Loop through each source-destination pair and call robocopy'
         logger.info("Starting robocopy transfer service.")
-        src_dist = self._solve_src_dst_mapping(self.source, self.destination)
+        src_dist = self._solve_src_dst_mapping(self.source, self._settings.destination)
         if src_dist is None:
             raise ValueError("Source and destination should be provided.")
 
@@ -125,14 +128,14 @@ class RobocopyService(DataTransfer):
             dst = Path(dst)
             src = Path(src)
             try:
-                command = ["robocopy", f"{src.as_posix()}", f"{dst.as_posix()}", self.extra_args]
-                if self.log:
-                    command.append(f'/LOG:"{Path(dst) / self.log}"')
-                if self.delete_src:
+                command = ["robocopy", f"{src.as_posix()}", f"{dst.as_posix()}", self._settings.extra_args]
+                if self._settings.log:
+                    command.append(f'/LOG:"{Path(dst) / self._settings.log}"')
+                if self._settings.delete_src:
                     command.append("/MOV")
-                if self.overwrite:
+                if self._settings.overwrite:
                     command.append("/IS")
-                if self.force_dir:
+                if self._settings.force_dir:
                     makedirs(dst, exist_ok=True)
                 cmd = " ".join(command)
                 logger.info("Running Robocopy command: %s", cmd)

@@ -8,7 +8,6 @@ from aind_data_schema.core.metadata import CORE_FILES
 from aind_watchdog_service.models.manifest_config import BucketType
 
 from clabe.data_mapper.aind_data_schema import AindDataSchemaSessionDataMapper
-from clabe.data_transfer import RobocopyService
 from clabe.data_transfer.aind_watchdog import (
     ManifestConfig,
     ModalityConfigs,
@@ -16,6 +15,7 @@ from clabe.data_transfer.aind_watchdog import (
     WatchdogDataTransferService,
     WatchdogSettings,
 )
+from clabe.data_transfer.robocopy import RobocopyService, RobocopySettings
 
 from .fixtures import MockUiHelper
 
@@ -248,29 +248,30 @@ class TestWatchdogDataTransferService(unittest.TestCase):
 
 class TestRobocopyService(unittest.TestCase):
     def setUp(self):
-        self.source = "source_path"
-        self.destination = "destination_path"
-        self.log = "log_path"
-        self.extra_args = "/MIR"
-        self.service = RobocopyService(
-            source=self.source,
-            destination=self.destination,
-            log=self.log,
-            extra_args=self.extra_args,
+        self.source = Path("source_path")
+
+        self.settings = RobocopySettings(
+            destination=Path("destination_path"),
+            log=Path("log_path"),
+            extra_args="/MIR",
             delete_src=True,
             overwrite=True,
             force_dir=False,
+        )
+        self.service = RobocopyService(
+            source=self.source,
+            settings=self.settings,
             ui_helper=MockUiHelper(),
         )
 
     def test_initialization(self):
         self.assertEqual(self.service.source, self.source)
-        self.assertEqual(self.service.destination, self.destination)
-        self.assertEqual(self.service.log, self.log)
-        self.assertEqual(self.service.extra_args, self.extra_args)
-        self.assertTrue(self.service.delete_src)
-        self.assertTrue(self.service.overwrite)
-        self.assertFalse(self.service.force_dir)
+        self.assertEqual(self.service._settings.destination, self.settings.destination)
+        self.assertEqual(self.service._settings.log, self.settings.log)
+        self.assertEqual(self.service._settings.extra_args, self.settings.extra_args)
+        self.assertTrue(self.service._settings.delete_src)
+        self.assertTrue(self.service._settings.overwrite)
+        self.assertFalse(self.service._settings.force_dir)
 
     @patch("src.clabe.data_transfer.robocopy.subprocess.Popen")
     @patch.object(MockUiHelper, "prompt_yes_no_question", return_value=True)
@@ -281,11 +282,11 @@ class TestRobocopyService(unittest.TestCase):
         self.service.transfer()
 
     def test_solve_src_dst_mapping_single_path(self):
-        result = self.service._solve_src_dst_mapping(self.source, self.destination)
-        self.assertEqual(result, {Path(self.source): Path(self.destination)})
+        result = self.service._solve_src_dst_mapping(self.source, self.settings.destination)
+        self.assertEqual(result, {Path(self.source): Path(self.settings.destination)})
 
     def test_solve_src_dst_mapping_dict(self):
-        source_dict = {self.source: self.destination}
+        source_dict = {self.source: self.settings.destination}
         result = self.service._solve_src_dst_mapping(source_dict, None)
         self.assertEqual(result, source_dict)
 
