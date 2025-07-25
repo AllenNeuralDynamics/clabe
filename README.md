@@ -49,7 +49,6 @@ Some of these services are specific for AIND:
 - [aind-data-schema](https://github.com/AllenNeuralDynamics/aind-data-schema)
 - [aind-data-schema-models](https://github.com/AllenNeuralDynamics/aind-data-schema-models)
 - [aind-watchdog-service](https://github.com/AllenNeuralDynamics/aind-watchdog-service)
-- [aind-slims-api](https://github.com/AllenNeuralDynamics/aind-slims-api)
 - [aind-data-mapper](https://github.com/AllenNeuralDynamics/aind-metadata-mapper)
 
 We will also try to scope all dependencies of the related to AIND Services to its own optional dependency list in the `./pyproject.toml` file of this repository. Therefore, in order to use this module, you will need to install these optional dependencies by running:
