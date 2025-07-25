@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import abc
 import logging
+from typing import Generic, TypeVar
 
-from ..services import IService
+from ..services import IService, ServiceSettings
 
 logger = logging.getLogger(__name__)
 
+TSettings = TypeVar("TSettings", bound=ServiceSettings)
 
-class DataTransfer(IService, abc.ABC):
+
+class DataTransfer(IService, abc.ABC, Generic[TSettings]):
     """
     Abstract base class for data transfer services. All data transfer implementations
     must inherit from this class and implement its abstract methods.
@@ -61,3 +64,9 @@ class DataTransfer(IService, abc.ABC):
         Returns:
             True if the service is valid and ready for use, False otherwise
         """
+
+    _settings: TSettings
+
+    @property
+    def settings(self) -> TSettings:
+        return self._settings

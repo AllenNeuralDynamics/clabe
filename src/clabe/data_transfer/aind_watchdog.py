@@ -63,7 +63,7 @@ class WatchdogSettings(ServiceSettings):
     upload_job_configs: Optional[Any] = None
 
 
-class WatchdogDataTransferService(DataTransfer):
+class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
     """
     A data transfer service that uses the aind-watchdog-service to monitor and transfer
     data based on manifest configurations.

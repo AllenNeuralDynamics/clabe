@@ -27,7 +27,7 @@ class RobocopySettings(ServiceSettings):
     force_dir: bool = True
 
 
-class RobocopyService(DataTransfer):
+class RobocopyService(DataTransfer[RobocopySettings]):
     """
     A data transfer service that uses the Robocopy command-line utility to copy files
     between source and destination directories.
