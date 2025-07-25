@@ -7,10 +7,12 @@ from aind_behavior_services.session import AindBehaviorSessionModel
 
 from clabe.apps._bonsai import BonsaiApp
 from clabe.behavior_launcher import (
+    BehaviorCliArgs,
     BehaviorLauncher,
     BehaviorServicesFactoryManager,
     BySubjectModifierManager,
     DefaultBehaviorPicker,
+    DefaultBehaviorPickerSettings,
 )
 from clabe.data_mapper import DataMapper
 from clabe.data_transfer import DataTransfer
@@ -25,7 +27,7 @@ class TestBehaviorLauncher(unittest.TestCase):
         self.services_factory_manager.app = MagicMock()
         self.services_factory_manager.data_mapper = MagicMock()
         self.services_factory_manager.data_transfer = MagicMock()
-        self.args = BaseCliArgs(
+        self.args = BehaviorCliArgs(
             data_dir="/path/to/data",
             temp_dir="/path/to/temp",
             repository_dir=None,
@@ -39,7 +41,7 @@ class TestBehaviorLauncher(unittest.TestCase):
             rig_schema_model=MagicMock(),
             task_logic_schema_model=MagicMock(),
             session_schema_model=MagicMock(),
-            picker=DefaultBehaviorPicker(config_library_dir="/path/to/config"),
+            picker=DefaultBehaviorPicker(settings=DefaultBehaviorPickerSettings(config_library_dir="/path/to/config")),
             settings=self.args,
             services=self.services_factory_manager,
             attached_logger=None,
@@ -140,7 +142,7 @@ class TestBehaviorLauncherSaveTempModel(unittest.TestCase):
             rig_schema_model=MagicMock(),
             task_logic_schema_model=MagicMock(),
             session_schema_model=MagicMock(),
-            picker=DefaultBehaviorPicker(config_library_dir="/path/to/config"),
+            picker=DefaultBehaviorPicker(settings=DefaultBehaviorPickerSettings(config_library_dir="/path/to/config")),
             services=self.services_factory_manager,
             attached_logger=None,
             settings=self.args,

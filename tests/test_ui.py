@@ -7,6 +7,7 @@ from clabe.behavior_launcher import (
     BehaviorServicesFactoryManager,
     DefaultBehaviorPicker,
 )
+from clabe.behavior_launcher._launcher import DefaultBehaviorPickerSettings
 from clabe.ui import DefaultUIHelper
 from tests import suppress_stdout
 
@@ -32,7 +33,7 @@ class TestDefaultBehaviorPicker(unittest.TestCase):
             attached_logger=None,
             picker=DefaultBehaviorPicker(
                 ui_helper=DefaultUIHelper(print_func=MagicMock(), input_func=input),
-                config_library_dir="/path/to/config",
+                settings=DefaultBehaviorPickerSettings(config_library_dir="/path/to/config"),
             ),
         )
         self.picker = self.launcher.picker
