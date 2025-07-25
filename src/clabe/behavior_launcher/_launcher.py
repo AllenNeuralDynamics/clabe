@@ -55,7 +55,6 @@ class BehaviorLauncher(BaseLauncher[TRig, TSession, TTaskLogic]):
         ```
     """
 
-    settings: BaseLauncherCliArgs
     services_factory_manager: BehaviorServicesFactoryManager
     _by_subject_modifiers_manager: BySubjectModifierManager[TRig, TSession, TTaskLogic]
 
