@@ -13,10 +13,9 @@ from aind_behavior_services.utils import model_from_json_file
 from typing_extensions import override
 
 from .. import logging_helper, ui
-from ..launcher._base import BaseLauncher, TRig, TSession, TTaskLogic
+from ..launcher._base import BaseLauncher, TRig, TSession, TTaskLogic, BaseLauncherCliArgs
 from ..services import ServiceSettings
 from ._aind_auth import validate_aind_username
-from ._cli import BehaviorCliArgs
 from ._model_modifiers import BySubjectModifierManager
 
 logger = logging.getLogger(__name__)
@@ -36,14 +35,14 @@ class BehaviorLauncher(BaseLauncher[TRig, TSession, TTaskLogic]):
     including service management, configuration handling, and experiment lifecycle hooks.
 
     Attributes:
-        settings (BehaviorCliArgs): CLI arguments and configuration settings
+        settings (BaseLauncherCliArgs): CLI arguments and configuration settings
         services_factory_manager (BehaviorServicesFactoryManager): Manager for experiment services
         _by_subject_modifiers_manager (BySubjectModifierManager): Manager for subject-specific modifications
 
     Example:
         ```python
         # Create a behavior launcher with settings
-        settings = BehaviorCliArgs(...)
+        settings = BaseLauncherCliArgs(...)
         launcher = BehaviorLauncher(
             settings=settings,
             rig_schema_model=RigModelType,
@@ -56,14 +55,14 @@ class BehaviorLauncher(BaseLauncher[TRig, TSession, TTaskLogic]):
         ```
     """
 
-    settings: BehaviorCliArgs
+    settings: BaseLauncherCliArgs
     services_factory_manager: BehaviorServicesFactoryManager
     _by_subject_modifiers_manager: BySubjectModifierManager[TRig, TSession, TTaskLogic]
 
     def __init__(  # pylint: disable=useless-parent-delegation
         self,
         *,
-        settings: BehaviorCliArgs,
+        settings: BaseLauncherCliArgs,
         rig_schema_model,
         session_schema_model,
         task_logic_schema_model,
@@ -77,7 +76,7 @@ class BehaviorLauncher(BaseLauncher[TRig, TSession, TTaskLogic]):
         Initialize the BehaviorLauncher.
 
         Args:
-            settings (BehaviorCliArgs): CLI arguments and configuration settings
+            settings (BaseLauncherCliArgs): CLI arguments and configuration settings
             rig_schema_model: Model class for rig configuration
             session_schema_model: Model class for session configuration
             task_logic_schema_model: Model class for task logic configuration
@@ -101,17 +100,6 @@ class BehaviorLauncher(BaseLauncher[TRig, TSession, TTaskLogic]):
             by_subject_modifiers_manager or BySubjectModifierManager[TRig, TSession, TTaskLogic]()
         )
 
-    @property
-    def by_subject_modifiers_manager(self) -> BySubjectModifierManager[TRig, TSession, TTaskLogic]:
-        """
-        Returns the manager for by-subject modifiers.
-
-        Returns:
-            BySubjectModifierManager: The by-subject modifiers manager.
-        """
-        return self._by_subject_modifiers_manager
-
-    @override
     def _pre_run_hook(self, *args, **kwargs) -> Self:
         """
         Hook executed before the main run logic.
@@ -126,21 +114,12 @@ class BehaviorLauncher(BaseLauncher[TRig, TSession, TTaskLogic]):
         Returns:
             Self: The current instance for method chaining.
         """
-        logger.info("Pre-run hook started.")
-        hook_manager = self._hook_managers[self._pre_run_hook]
-        hook_manager.run(on_error_resume=True)
-        logger.debug("Validating initialization.")
-        if self.services_factory_manager.resource_monitor is not None:
-            logger.debug("Evaluating resource monitor constraints.")
-            if not self.services_factory_manager.resource_monitor.evaluate_constraints():
-                logger.critical("Resource monitor constraints failed.")
-                self._exit(-1)
 
         self.session_schema.experiment = self.task_logic_schema.name
         self.session_schema.experiment_version = self.task_logic_schema.version
-        self.by_subject_modifiers_manager.apply_modifiers(
-            rig_schema=self.rig_schema, session_schema=self.session_schema, task_logic_schema=self.task_logic_schema
-        )
+
+        super()._pre_run_hook(*args, **kwargs)
+
         return self
 
     @override
@@ -161,13 +140,15 @@ class BehaviorLauncher(BaseLauncher[TRig, TSession, TTaskLogic]):
         Raises:
             ValueError: If required schema instances are not set
         """
-        logger.info("Running hook started.")
+
         if self._session_schema is None:
             raise ValueError("Session schema instance not set.")
         if self._task_logic_schema is None:
             raise ValueError("Task logic schema instance not set.")
         if self._rig_schema is None:
             raise ValueError("Rig schema instance not set.")
+
+        super()._run_hook(*args, **kwargs)
 
         self.services_factory_manager.app.add_app_settings(launcher=self)
 
@@ -194,13 +175,7 @@ class BehaviorLauncher(BaseLauncher[TRig, TSession, TTaskLogic]):
         Returns:
             Self: The current instance for method chaining.
         """
-        logger.info("Post-run hook started.")
-
-        try:
-            self.picker.finalize()
-            logger.info("Picker finalized successfully.")
-        except Exception as e:
-            logger.error("Picker finalized with errors: %s", e)
+        super()._post_run_hook(*args, **kwargs)
 
         if (not self.settings.skip_data_mapping) and (self.services_factory_manager.data_mapper is not None):
             try:
@@ -210,7 +185,6 @@ class BehaviorLauncher(BaseLauncher[TRig, TSession, TTaskLogic]):
                 logger.error("Data mapper service has failed: %s", e)
 
         logging_helper.close_file_handlers(logger)
-
         try:
             self._copy_tmp_directory(self.session_directory / "Behavior" / "Logs")
         except ValueError:
@@ -593,11 +567,3 @@ class DefaultBehaviorPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
                             experimenter = None
                             break
         return experimenter
-
-    def finalize(self) -> None:
-        """
-        Finalizes the picker operations.
-
-        Currently a no-op but can be extended for cleanup operations.
-        """
-        return

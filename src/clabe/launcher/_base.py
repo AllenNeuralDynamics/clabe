@@ -4,9 +4,9 @@ import logging
 import os
 import shutil
 import sys
-from abc import ABC, abstractmethod
+from abc import ABC
 from pathlib import Path
-from typing import Callable, Generic, Optional, Self, Type, TypeVar
+from typing import Any, Generic, Optional, Self, Type, TypeVar
 
 import pydantic
 from aind_behavior_services import (
@@ -19,8 +19,8 @@ from aind_behavior_services.utils import format_datetime, model_from_json_file, 
 from .. import __version__, logging_helper, ui
 from ..git_manager import GitRepository
 from ..services import ServicesFactoryManager
-from ._hooks import HookManager
-from .cli import BaseCliArgs
+from ._hooks import HookManagerCollection
+from .cli import BaseLauncherCliArgs
 
 TRig = TypeVar("TRig", bound=AindBehaviorRigModel)
 TSession = TypeVar("TSession", bound=AindBehaviorSessionModel)
@@ -49,7 +49,7 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
     def __init__(
         self,
         *,
-        settings: BaseCliArgs,
+        settings: BaseLauncherCliArgs,
         rig_schema_model: Type[TRig],
         session_schema_model: Type[TSession],
         task_logic_schema_model: Type[TTaskLogic],
@@ -89,11 +89,7 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
         self._logger = _logger
 
         # Create hook managers
-        self._hook_managers: dict[Callable, HookManager] = {
-            self._pre_run_hook: HookManager(self._pre_run_hook),
-            self._run_hook: HookManager(self._run_hook),
-            self._post_run_hook: HookManager(self._post_run_hook),
-        }
+        self._hooks: HookManagerCollection[Self, Any] = HookManagerCollection.from_launcher(self)
 
         # Solve services and git repository
         self._bind_launcher_services(services)
@@ -126,7 +122,7 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
             self._create_directory_structure()
 
     @property
-    def hook_managers(self) -> dict[Callable, HookManager]:
+    def hook_managers(self) -> HookManagerCollection[Self, Any]:
         """
         Returns the hook managers for the launcher.
 
@@ -134,9 +130,9 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
         for managing lifecycle hooks.
 
         Returns:
-            dict[Callable, HookManager]: The hook managers for the launcher
+            HookManagerCollection[Self, Any]: The hook managers for the launcher
         """
-        return self._hook_managers
+        return self._hooks
 
     @property
     def logger(self) -> logging.Logger:
@@ -248,12 +244,12 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
         self._subject = value
 
     @property
-    def settings(self) -> BaseCliArgs:
+    def settings(self) -> BaseLauncherCliArgs:
         """
         Returns the launcher settings.
 
         Returns:
-            BaseCliArgs: The launcher settings
+            BaseLauncherCliArgs: The launcher settings
         """
         return self._settings
 
@@ -474,7 +470,6 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
         logger.info("Post-run hook completed.")
         return self
 
-    @abstractmethod
     def _pre_run_hook(self, *args, **kwargs) -> Self:
         """
         Abstract method for pre-run logic. Must be implemented by subclasses.
@@ -485,9 +480,10 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
         Returns:
             Self: The current instance for method chaining
         """
-        raise NotImplementedError("Method not implemented.")
+        logger.info("Pre-run hook started.")
+        self._hooks.get_hook_manager(self._pre_run_hook).run(self)
+        return self
 
-    @abstractmethod
     def _run_hook(self, *args, **kwargs) -> Self:
         """
         Abstract method for main run logic. Must be implemented by subclasses.
@@ -498,12 +494,13 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
         Returns:
             Self: The current instance for method chaining
         """
-        raise NotImplementedError("Method not implemented.")
+        logger.info("Run hook started.")
+        self._hooks.get_hook_manager(self._run_hook).run(self)
+        return self
 
-    @abstractmethod
     def _post_run_hook(self, *args, **kwargs) -> Self:
         """
-        Abstract method for post-run logic. Must be implemented by subclasses.
+        Base method for post-run logic. Must be implemented by subclasses.
 
         This hook is executed after the main run logic and should handle
         cleanup, data processing, and finalization tasks.
@@ -511,7 +508,9 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
         Returns:
             Self: The current instance for method chaining
         """
-        raise NotImplementedError("Method not implemented.")
+        logger.info("Post-run hook started.")
+        self._hooks.get_hook_manager(self._post_run_hook).run(self)
+        return self
 
     def _exit(self, code: int = 0, _force: bool = False) -> None:
         """
