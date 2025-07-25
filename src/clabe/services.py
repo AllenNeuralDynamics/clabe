@@ -391,8 +391,9 @@ class ServiceSettings(ps.BaseSettings, abc.ABC):
     @classmethod
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        section_name = cls._yml_section if cls._yml_section is not None else cls.__name__.lower()
-        cls.model_config = ps.SettingsConfigDict(yaml_file=KNOWN_CONFIG_FILES, yaml_config_section=section_name)
+        cls.model_config = ps.SettingsConfigDict(
+            yaml_file=KNOWN_CONFIG_FILES, yaml_config_section=cls._yml_section, extra="ignore"
+        )
 
     @classmethod
     def settings_customise_sources(
@@ -405,8 +406,32 @@ class ServiceSettings(ps.BaseSettings, abc.ABC):
     ) -> t.Tuple[ps.PydanticBaseSettingsSource, ...]:
         return (
             init_settings,
-            ps.YamlConfigSettingsSource(settings_cls),
+            _SafeYamlSettingsSource(settings_cls),
             env_settings,
             dotenv_settings,
             file_secret_settings,
         )
+
+
+class _SafeYamlSettingsSource(ps.YamlConfigSettingsSource):
+    def __init__(
+        self,
+        settings_cls: type[ps.BaseSettings],
+        yaml_file: ps.sources.types.PathType | None = ps.sources.types.DEFAULT_PATH,
+        yaml_file_encoding: str | None = None,
+        yaml_config_section: str | None = None,
+    ):
+        try:
+            # pydantic-settings will raise an error if a yaml_config_section is passed but is not found in the yaml file
+            # We override this behavior to allow us to have a behavior as if the file did not exist in the first place
+            # We may consider raising a more useful error in the future
+            super().__init__(settings_cls, yaml_file, yaml_file_encoding, yaml_config_section)
+        except KeyError:
+            settings_cls.model_config.update({"yaml_config_section": None})
+            super().__init__(settings_cls, yaml_file, yaml_file_encoding, None)
+
+    def __call__(self) -> Dict[str, Any]:
+        try:
+            return super().__call__()
+        except KeyError:
+            return {}

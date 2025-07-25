@@ -48,8 +48,6 @@ class BaseCliArgs(ServiceSettings, cli_prog_name="clabe", cli_kebab_case=True):
         print(f"Debug mode: {args.debug_mode}")
     """
 
-    _yml_section = "clabe"
-
     data_dir: os.PathLike = Field(description="The data directory where to save the data")
     repository_dir: Optional[os.PathLike] = Field(default=None, description="The repository root directory")
     create_directories: CliImplicitFlag[bool] = Field(
