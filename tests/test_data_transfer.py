@@ -5,8 +5,6 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from aind_data_schema.core.metadata import CORE_FILES
-from aind_data_schema_models.modalities import Modality
-from aind_data_schema_models.platforms import Platform
 from aind_watchdog_service.models.manifest_config import BucketType
 
 from clabe.data_mapper.aind_data_schema import AindDataSchemaSessionDataMapper
@@ -51,7 +49,7 @@ class TestWatchdogDataTransferService(unittest.TestCase):
 
         self.service._manifest_config = ManifestConfig(
             name="test_manifest",
-            modalities={Modality.BEHAVIOR: ["path/to/behavior"], Modality.BEHAVIOR_VIDEOS: ["path/to/behavior-videos"]},
+            modalities={"behavior": ["path/to/behavior"], "behavior-videos": ["path/to/behavior-videos"]},
             subject_id=1,
             acquisition_datetime="2023-01-01T00:00:00",
             schemas=["path/to/schema"],
@@ -59,8 +57,8 @@ class TestWatchdogDataTransferService(unittest.TestCase):
             mount="mount_path",
             processor_full_name="processor_name",
             project_name="test_project",
-            schedule_time=self.schedule_time,
-            platform=Platform.BEHAVIOR,
+            schedule_time=self.settings.schedule_time,
+            platform="behavior",
             capsule_id="capsule_id",
             s3_bucket=BucketType.PRIVATE,
             script={"script_key": ["script_value"]},
@@ -199,8 +197,8 @@ class TestWatchdogDataTransferService(unittest.TestCase):
     def test_add_transfer_service_args_from_factory(self):
         def modality_configs_factory(watchdog_service: WatchdogDataTransferService):
             return ModalityConfigs(
-                modality=Modality.BEHAVIOR_VIDEOS,
-                source=(Path(watchdog_service._source) / Modality.BEHAVIOR_VIDEOS.abbreviation).as_posix(),
+                modality="behavior-videos",
+                source=(Path(watchdog_service._source) / "behavior-videos").as_posix(),
                 compress_raw_data=True,
                 job_settings={"key": "value"},
             )
@@ -214,8 +212,8 @@ class TestWatchdogDataTransferService(unittest.TestCase):
 
     def test_add_transfer_service_args_from_instance(self):
         modality_configs = ModalityConfigs(
-            modality=Modality.BEHAVIOR_VIDEOS,
-            source=(Path(self.service._source) / Modality.BEHAVIOR_VIDEOS.abbreviation).as_posix(),
+            modality="behavior-videos",
+            source=(Path(self.service._source) / "behavior-videos").as_posix(),
             compress_raw_data=True,
             job_settings={"key": "value"},  # needs mode to be json, otherwise parent class will raise an error
         )
@@ -230,15 +228,15 @@ class TestWatchdogDataTransferService(unittest.TestCase):
     def test_add_transfer_service_args_fail_on_duplicate_modality(self):
         def modality_configs_factory(watchdog_service: WatchdogDataTransferService):
             return ModalityConfigs(
-                modality=Modality.BEHAVIOR_VIDEOS,
-                source=(Path(watchdog_service._source) / Modality.BEHAVIOR_VIDEOS.abbreviation).as_posix(),
+                modality="behavior-videos",
+                source=(Path(watchdog_service._source) / "behavior-videos").as_posix(),
                 compress_raw_data=True,
                 job_settings={"key": "value"},
             )
 
         modality_configs = ModalityConfigs(
-            modality=Modality.BEHAVIOR_VIDEOS,
-            source=(Path(self.service._source) / Modality.BEHAVIOR_VIDEOS.abbreviation).as_posix(),
+            modality="behavior-videos",
+            source=(Path(self.service._source) / "behavior-videos").as_posix(),
             job_settings={"key": "value"},  # needs mode to be json, otherwise parent class will raise an error
         )
 

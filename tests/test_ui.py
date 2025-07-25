@@ -2,11 +2,11 @@ import unittest
 from unittest.mock import MagicMock, create_autospec, patch
 
 from clabe.behavior_launcher import (
+    BehaviorCliArgs,
     BehaviorLauncher,
     BehaviorServicesFactoryManager,
     DefaultBehaviorPicker,
 )
-from clabe.launcher.cli import BaseCliArgs
 from clabe.ui import DefaultUIHelper
 from tests import suppress_stdout
 
@@ -19,7 +19,7 @@ class TestDefaultBehaviorPicker(unittest.TestCase):
             task_logic_schema_model=MagicMock(),
             session_schema_model=MagicMock(),
             services=self.services_factory_manager,
-            settings=BaseCliArgs(
+            settings=BehaviorCliArgs(
                 data_dir="/path/to/data",
                 temp_dir="/path/to/temp",
                 repository_dir=None,
