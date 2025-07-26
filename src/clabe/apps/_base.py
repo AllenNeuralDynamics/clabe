@@ -1,11 +1,19 @@
 import abc
 import logging
 import subprocess
-from typing import Optional, Self
+from typing import TYPE_CHECKING, Any, Callable, Optional, Self, TypeVar
 
 from ..services import IService
 
+if TYPE_CHECKING:
+    from ..launcher import BaseLauncher
+else:
+    BaseLauncher = Any
 logger = logging.getLogger(__name__)
+
+
+TLauncher = TypeVar("TLauncher", bound=BaseLauncher)
+TApp = TypeVar("TApp", bound="App")
 
 
 class App(IService, abc.ABC):
@@ -96,3 +104,17 @@ class App(IService, abc.ABC):
             ```
         """
         return self
+
+
+def make_run_app_hook(app: TApp, allow_std_error: bool = False) -> Callable[[TLauncher], TApp]:
+    def _run(launcher: TLauncher):
+        app.add_app_settings(launcher=launcher)
+        try:
+            app.run()
+            result = app.output_from_result(allow_stderr=allow_std_error)
+        except subprocess.CalledProcessError as e:
+            logger.critical(f"App {app.__class__.__name__} failed with error: {e}")
+            raise
+        return result
+
+    return _run

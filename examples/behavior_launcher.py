@@ -14,7 +14,6 @@ from typing_extensions import override
 from clabe import resource_monitor
 from clabe.apps import App
 from clabe.behavior_launcher import (
-    BehaviorCliArgs,
     BehaviorLauncher,
     BehaviorServicesFactoryManager,
     DefaultBehaviorPicker,
@@ -103,7 +102,7 @@ srv.attach_resource_monitor(
 
 def make_launcher():
     behavior_cli_args = CliApp.run(
-        BehaviorCliArgs,
+        BaseLauncherCliArgs,
         cli_args=["--temp-dir", "./local/.temp", "--allow-dirty", "--skip-hardware-validation", "--data-dir", "."],
     )
 

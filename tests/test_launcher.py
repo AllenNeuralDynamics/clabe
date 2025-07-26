@@ -5,7 +5,7 @@ from unittest.mock import create_autospec, patch
 from aind_behavior_services import AindBehaviorRigModel, AindBehaviorSessionModel, AindBehaviorTaskLogicModel
 
 from clabe.launcher import BaseLauncher
-from clabe.launcher.cli import BaseCliArgs
+from clabe.launcher.cli import BaseLauncherCliArgs
 from clabe.services import ServicesFactoryManager
 
 from .fixtures import MockPicker
@@ -36,7 +36,7 @@ class TestBaseLauncher(unittest.TestCase):
             session_schema_model=self.session_schema_model,
             task_logic_schema_model=self.task_logic_schema_model,
             picker=MockPicker(),
-            settings=BaseCliArgs(data_dir=self.data_dir, temp_dir=self.temp_dir),
+            settings=BaseLauncherCliArgs(data_dir=self.data_dir, temp_dir=self.temp_dir),
         )
 
     def test_init(self):

@@ -15,9 +15,6 @@ class MockPicker(PickerBase):
     def initialize(self) -> None:
         return
 
-    def finalize(self) -> None:
-        return
-
 
 class MockUiHelper(ui.UiHelper):
     def __init__(self):

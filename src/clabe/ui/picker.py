@@ -46,9 +46,6 @@ class PickerBase(abc.ABC, Generic[_L, _R, _S, _T]):
             def initialize(self):
                 pass
 
-            def finalize(self):
-                pass
-
         picker = MyPicker()
         picker.register_launcher(launcher)
         picker.initialize()
@@ -232,14 +229,5 @@ class PickerBase(abc.ABC, Generic[_L, _R, _S, _T]):
         Abstract method to initialize the picker.
 
         Subclasses should implement this method to perform any necessary setup operations.
-        """
-        ...
-
-    @abc.abstractmethod
-    def finalize(self) -> None:
-        """
-        Abstract method to finalize the picker.
-
-        Subclasses should implement this method to perform any necessary cleanup operations.
         """
         ...

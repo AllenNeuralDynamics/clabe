@@ -7,7 +7,6 @@ from aind_behavior_services.session import AindBehaviorSessionModel
 
 from clabe.apps._bonsai import BonsaiApp
 from clabe.behavior_launcher import (
-    BehaviorCliArgs,
     BehaviorLauncher,
     BehaviorServicesFactoryManager,
     BySubjectModifierManager,
@@ -16,7 +15,7 @@ from clabe.behavior_launcher import (
 )
 from clabe.data_mapper import DataMapper
 from clabe.data_transfer import DataTransfer
-from clabe.launcher.cli import BaseCliArgs
+from clabe.launcher.cli import BaseLauncherCliArgs
 from clabe.resource_monitor import ResourceMonitor
 
 
@@ -27,7 +26,7 @@ class TestBehaviorLauncher(unittest.TestCase):
         self.services_factory_manager.app = MagicMock()
         self.services_factory_manager.data_mapper = MagicMock()
         self.services_factory_manager.data_transfer = MagicMock()
-        self.args = BehaviorCliArgs(
+        self.args = BaseLauncherCliArgs(
             data_dir="/path/to/data",
             temp_dir="/path/to/temp",
             repository_dir=None,
@@ -35,7 +34,6 @@ class TestBehaviorLauncher(unittest.TestCase):
             skip_hardware_validation=False,
             debug_mode=False,
             group_by_subject_log=False,
-            validate_init=False,
         )
         self.launcher = BehaviorLauncher(
             rig_schema_model=MagicMock(),
@@ -128,7 +126,7 @@ class TestBehaviorServicesFactoryManager(unittest.TestCase):
 class TestBehaviorLauncherSaveTempModel(unittest.TestCase):
     def setUp(self):
         self.services_factory_manager = create_autospec(BehaviorServicesFactoryManager)
-        self.args = BaseCliArgs(
+        self.args = BaseLauncherCliArgs(
             data_dir="/path/to/data",
             temp_dir="/path/to/temp",
             repository_dir=None,
@@ -136,7 +134,6 @@ class TestBehaviorLauncherSaveTempModel(unittest.TestCase):
             skip_hardware_validation=False,
             debug_mode=False,
             group_by_subject_log=False,
-            validate_init=False,
         )
         self.launcher = BehaviorLauncher(
             rig_schema_model=MagicMock(),
