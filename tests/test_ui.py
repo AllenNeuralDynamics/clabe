@@ -23,7 +23,6 @@ class TestDefaultBehaviorPicker(unittest.TestCase):
                 allow_dirty=False,
                 skip_hardware_validation=False,
                 debug_mode=False,
-                group_by_subject_log=False,
             ),
             attached_logger=None,
         )

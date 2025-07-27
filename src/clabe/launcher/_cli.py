@@ -5,7 +5,6 @@ from typing import Optional, Tuple, Type
 from pydantic import Field
 from pydantic_settings import (
     BaseSettings,
-    CliExplicitFlag,
     CliImplicitFlag,
     PydanticBaseSettingsSource,
     YamlConfigSettingsSource,
@@ -29,7 +28,6 @@ class BaseLauncherCliArgs(ServiceSettings, cli_prog_name="clabe", cli_kebab_case
         task_logic_path (Optional[os.PathLike]): Path to the task logic schema. If None, will be prompted later.
         rig_path (Optional[os.PathLike]): Path to the rig schema. If None, will be prompted later.
         temp_dir (os.PathLike): Directory used for launcher temp files.
-        group_by_subject_log (CliExplicitFlag[bool]): Whether to group data logging by subject.
 
     Example:
         # Create CLI args from command line
@@ -71,9 +69,6 @@ class BaseLauncherCliArgs(ServiceSettings, cli_prog_name="clabe", cli_kebab_case
     )
     temp_dir: os.PathLike = Field(
         default=Path("local/.temp"), description="The directory used for the launcher temp files"
-    )
-    group_by_subject_log: CliExplicitFlag[bool] = Field(
-        default=True, description="Whether to group data logging by subject"
     )
 
     @classmethod

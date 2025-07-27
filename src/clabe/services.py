@@ -3,7 +3,7 @@ from __future__ import annotations
 import abc
 import logging
 import typing as t
-from typing import TYPE_CHECKING, Any, Dict, Type
+from typing import TYPE_CHECKING, Any, Callable, Dict, Type
 
 import pydantic_settings as ps
 
@@ -17,13 +17,16 @@ else:
 logger = logging.getLogger(__name__)
 
 
-class IService(abc.ABC):
+class Service(abc.ABC):
     """
     A base class for all services.
 
     This abstract base class defines the interface that all services should inherit from.
     It serves as a marker interface to identify service implementations across the system.
     """
+
+    def build_runner(self, *args, **kwargs) -> Callable[[BaseLauncher], Any]:
+        raise NotImplementedError("Subclasses must implement the build_runner method.")
 
 
 class ServiceSettings(ps.BaseSettings, abc.ABC):
@@ -54,10 +57,10 @@ class ServiceSettings(ps.BaseSettings, abc.ABC):
     _yml_section: t.ClassVar[t.Optional[str]] = None
 
     @classmethod
-    def __init_subclass__(cls, **kwargs):
-        super().__init_subclass__(**kwargs)
-        cls.model_config = ps.SettingsConfigDict(
-            yaml_file=KNOWN_CONFIG_FILES, yaml_config_section=cls._yml_section, extra="ignore"
+    def __init_subclass__(cls, *args, **kwargs):
+        super().__init_subclass__(*args, **kwargs)
+        cls.model_config.update(
+            ps.SettingsConfigDict(yaml_file=KNOWN_CONFIG_FILES, yaml_config_section=cls._yml_section, extra="ignore")
         )
 
     @classmethod

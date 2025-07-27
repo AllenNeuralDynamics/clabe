@@ -4,14 +4,14 @@ import abc
 import logging
 from typing import Generic, TypeVar
 
-from ..services import IService, ServiceSettings
+from ..services import Service, ServiceSettings
 
 logger = logging.getLogger(__name__)
 
 TSettings = TypeVar("TSettings", bound=ServiceSettings)
 
 
-class DataTransfer(IService, abc.ABC, Generic[TSettings]):
+class DataTransfer(Service, abc.ABC, Generic[TSettings]):
     """
     Abstract base class for data transfer services. All data transfer implementations
     must inherit from this class and implement its abstract methods.

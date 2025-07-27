@@ -4,7 +4,7 @@ import abc
 import logging
 from typing import Any, Generic, Optional, TypeVar
 
-from ..services import IService
+from ..services import Service
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +14,7 @@ T = TypeVar("T")
 TMapTo = TypeVar("TMapTo", bound=Any)
 
 
-class DataMapper(IService, abc.ABC, Generic[TMapTo]):
+class DataMapper(Service, abc.ABC, Generic[TMapTo]):
     """
     Abstract base class for data mappers.
 

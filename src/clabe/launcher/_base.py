@@ -6,7 +6,7 @@ import shutil
 import sys
 from abc import ABC
 from pathlib import Path
-from typing import Any, Generic, Optional, Self, Type, TypeVar, Union
+from typing import Any, Callable, Generic, List, Optional, Self, Type, TypeVar, Union, overload
 
 import pydantic
 from aind_behavior_services import (
@@ -88,7 +88,7 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
         self._logger = _logger
 
         # Create hook managers
-        self._hooks: HookManager[Self, Any] = HookManager()
+        self._hook_manager: HookManager[Self, Any] = HookManager()
 
         repository_dir = Path(self.settings.repository_dir) if self.settings.repository_dir is not None else None
         self.repository = GitRepository() if repository_dir is None else GitRepository(path=repository_dir)
@@ -130,7 +130,7 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
 
             logging_helper.close_file_handlers(logger)  # TODO
             self._copy_tmp_directory(self.session_directory / "Behavior" / "Logs")
-            self.hook_managers.run(self)
+            self.hook_manager.run(self)
 
             self.dispose()
 
@@ -140,7 +140,7 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
             return
 
     @property
-    def hook_managers(self) -> HookManager[Self, Any]:
+    def hook_manager(self) -> HookManager[Self, Any]:
         """
         Returns the hook managers for the launcher.
 
@@ -150,7 +150,26 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
         Returns:
             HookManagerCollection[Self, Any]: The hook managers for the launcher
         """
-        return self._hooks
+        return self._hook_manager
+
+    @overload
+    def register_hook(self, hook: Callable[[Self], Any]) -> Self: ...
+    @overload
+    def register_hook(self, hook: List[Callable[[Self], Any]]) -> Self: ...
+
+    def register_hook(self, hook: Callable[[Self], Any] | List[Callable[[Self], Any]]) -> Self:
+        """
+        Adds a hook to the launcher.
+
+        Args:
+            hook: The hook to add to the launcher
+        """
+        if isinstance(hook, list):
+            for h in hook:
+                self.hook_manager.register(h)
+        else:
+            self.hook_manager.register(hook)
+        return self
 
     @property
     def logger(self) -> logging.Logger:

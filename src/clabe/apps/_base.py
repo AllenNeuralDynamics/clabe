@@ -3,7 +3,7 @@ import logging
 import subprocess
 from typing import TYPE_CHECKING, Any, Callable, Optional, Self, TypeVar
 
-from ..services import IService
+from ..services import Service
 
 if TYPE_CHECKING:
     from ..launcher import BaseLauncher
@@ -12,11 +12,9 @@ else:
 logger = logging.getLogger(__name__)
 
 
-TLauncher = TypeVar("TLauncher", bound=BaseLauncher)
 TApp = TypeVar("TApp", bound="App")
 
-
-class App(IService, abc.ABC):
+class App(Service, abc.ABC):
     """
     Abstract base class representing an application that can be run and managed.
 
@@ -105,16 +103,15 @@ class App(IService, abc.ABC):
         """
         return self
 
+    def build_runner(self, allow_std_error: bool = False) -> Callable[[BaseLauncher], Self]:
+        def _run(launcher: BaseLauncher):
+            self.add_app_settings(launcher=launcher)
+            try:
+                self.run()
+                result = self.output_from_result(allow_stderr=allow_std_error)
+            except subprocess.CalledProcessError as e:
+                logger.critical(f"App {self.__class__.__name__} failed with error: {e}")
+                raise
+            return result
 
-def make_run_app_hook(app: TApp, allow_std_error: bool = False) -> Callable[[TLauncher], TApp]:
-    def _run(launcher: TLauncher):
-        app.add_app_settings(launcher=launcher)
-        try:
-            app.run()
-            result = app.output_from_result(allow_stderr=allow_std_error)
-        except subprocess.CalledProcessError as e:
-            logger.critical(f"App {app.__class__.__name__} failed with error: {e}")
-            raise
-        return result
-
-    return _run
+        return _run

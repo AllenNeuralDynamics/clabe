@@ -22,7 +22,7 @@ LIB_CONFIG = rf"local\AindBehavior.db\{TASK_NAME}"
 
 
 class RigModel(AindBehaviorRigModel):
-    rig_name: str = Field("TestRig", description="Rig name")
+    rig_name: str = Field(default="TestRig", description="Rig name")
     version: Literal["0.0.0"] = "0.0.0"
 
 
@@ -84,7 +84,7 @@ class EchoApp(App):
 
 DATA_DIR = Path(r"./local/data")
 app = EchoApp("hello world")
-resource_monitor = resource_monitor.ResourceMonitor(
+monitor = resource_monitor.ResourceMonitor(
     constrains=[
         resource_monitor.available_storage_constraint_factory(DATA_DIR, 2e11),
         resource_monitor.remote_dir_exists_constraint_factory(Path(r"C:/")),
@@ -97,14 +97,24 @@ def make_launcher():
         BaseLauncherCliArgs,
         cli_args=["--temp-dir", "./local/.temp", "--allow-dirty", "--skip-hardware-validation", "--data-dir", "."],
     )
-    picker = (DefaultBehaviorPicker(settings=DefaultBehaviorPickerSettings(config_library_dir=LIB_CONFIG)),)
-    picker()  # todo
-    return BaseLauncher(
+    picker = DefaultBehaviorPicker(settings=DefaultBehaviorPickerSettings(config_library_dir=LIB_CONFIG))
+    launcher = BaseLauncher(
         rig=RigModel,
         session=AindBehaviorSessionModel,
         task_logic=TaskLogicModel,
         settings=behavior_cli_args,
     )
+    launcher.register_hook(
+        [
+            picker.pick_session,
+            picker.pick_task_logic,
+            picker.pick_rig,
+        ]
+    )
+    launcher.register_hook(monitor.build_runner())
+    launcher.register_hook(app.build_runner(allow_std_error=True))
+
+    return launcher
 
 
 def create_fake_subjects():

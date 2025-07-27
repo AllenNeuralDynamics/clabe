@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Callable, List, Optional, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, List, Optional
 
-from ..services import IService
+from ..services import Service
 
 logger = logging.getLogger(__name__)
 
@@ -12,10 +12,9 @@ if TYPE_CHECKING:
     from ..launcher import BaseLauncher
 else:
     BaseLauncher = Any
-TLauncher = TypeVar("TLauncher", bound=BaseLauncher)
 
 
-class ResourceMonitor(IService):
+class ResourceMonitor(Service):
     """
     A service that monitors and validates resource constraints.
 
@@ -58,7 +57,7 @@ class ResourceMonitor(IService):
         """
         self.constraints = constrains or []
 
-    def validate(self, *args, **kwargs) -> bool:
+    def build_runner(self) -> Callable[[BaseLauncher], bool]:
         """
         Validates all constraints.
 
@@ -78,7 +77,15 @@ class ResourceMonitor(IService):
                 print("Resource requirements not met")
             ```
         """
-        return self.evaluate_constraints()
+
+        def _run(launcher: BaseLauncher) -> bool:
+            logger.debug("Evaluating resource monitor constraints.")
+            if result := not self.evaluate_constraints():
+                logger.critical("One or more resource monitor constraints failed.")
+                raise RuntimeError("Resource monitor constraints failed.")
+            return result
+
+        return _run
 
     def add_constraint(self, constraint: Constraint) -> None:
         """
@@ -260,14 +267,3 @@ class Constraint:
             return self.fail_msg_handler(*self.args, **self.kwargs)
         else:
             return f"Constraint {self.name} failed."
-
-
-def evaluate_resource_monitor_constraints(resource_monitor: ResourceMonitor) -> Callable[[TLauncher], bool]:
-    def _run(launcher: TLauncher):
-        logger.debug("Evaluating resource monitor constraints.")
-        if result := not resource_monitor.evaluate_constraints():
-            logger.critical("One or more resource monitor constraints failed.")
-            raise RuntimeError("Resource monitor constraints failed.")
-        return result
-
-    return _run

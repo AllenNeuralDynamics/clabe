@@ -155,6 +155,9 @@ class DefaultBehaviorPicker(ui.picker.PickerBase[TLauncher, TRig, TSession, TTas
         Raises:
             ValueError: If no rig configuration files are found or an invalid choice is made.
         """
+        if launcher.rig_schema is not None:
+            logger.info("Rig already set in launcher. Using existing rig.")
+            return launcher.rig_schema
         available_rigs = glob.glob(os.path.join(self.rig_dir, "*.json"))
         if len(available_rigs) == 0:
             logger.error("No rig config files found.")
@@ -186,6 +189,9 @@ class DefaultBehaviorPicker(ui.picker.PickerBase[TLauncher, TRig, TSession, TTas
         Returns:
             TSession: The created or selected session configuration.
         """
+        if launcher.session_schema is not None:
+            logger.info("Session already set in launcher. Using existing session.")
+            return launcher.session_schema
         experimenter = self.prompt_experimenter(strict=True)
         if launcher.subject is not None:
             logger.info("Subject provided via CLABE: %s", launcher.settings.subject)
@@ -226,6 +232,9 @@ class DefaultBehaviorPicker(ui.picker.PickerBase[TLauncher, TRig, TSession, TTas
         Raises:
             ValueError: If no valid task logic file is found.
         """
+        if launcher.task_logic_schema is not None:
+            logger.info("Task logic already set in launcher. Using existing task logic.")
+            return launcher.task_logic_schema
         task_logic: Optional[TTaskLogic]
         try:  # If the task logic is already set (e.g. from CLI), skip the prompt
             task_logic = launcher.task_logic_schema

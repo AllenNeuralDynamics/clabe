@@ -716,7 +716,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         aind_session_data_mapper: Callable[[], AindDataSchemaSessionDataMapper] | AindDataSchemaSessionDataMapper,
     ) -> Callable[[BaseLauncher], "WatchdogDataTransferService"]:
         def _from_launcher(
-            launcher: BaseLauncher, _settings: WatchdogSettings = settings
+            launcher: BaseLauncher, _settings: WatchdogSettings = settings, aind_session_data_mapper: Optional[Callable[[], AindDataSchemaSessionDataMapper]] = aind_session_data_mapper
         ) -> "WatchdogDataTransferService":
             if callable(aind_session_data_mapper):
                 aind_session_data_mapper = aind_session_data_mapper()
@@ -739,9 +739,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
                     "Session schema is not of the correct type (AindBehaviorSessionModel). Cannot create watchdog."
                 )
 
-            _settings.destination = Path(_settings.destination)
-            if launcher.group_by_subject_log:
-                _settings.destination = _settings.destination / launcher.session_schema.subject
+            _settings.destination = Path(_settings.destination) / launcher.session_schema.subject
             return cls(
                 source=launcher.session_directory,
                 settings=_settings,
