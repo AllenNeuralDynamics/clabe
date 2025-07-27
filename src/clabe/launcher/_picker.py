@@ -201,9 +201,7 @@ class DefaultBehaviorPicker(ui.picker.PickerBase[TLauncher, TRig, TSession, TTas
 
         return launcher.session_schema_model(
             experiment="",  # Will be set later
-            root_path=str(launcher.data_dir.resolve())
-            if not launcher.group_by_subject_log
-            else str(launcher.data_dir.resolve() / subject),
+            root_path=launcher.data_dir.resolve() / subject,
             subject=subject,
             notes=notes,
             experimenter=experimenter if experimenter is not None else [],

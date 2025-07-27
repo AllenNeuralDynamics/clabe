@@ -203,16 +203,6 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
         return self.settings.skip_hardware_validation
 
     @property
-    def group_by_subject_log(self) -> bool:
-        """
-        Returns whether data logging should be grouped by subject.
-
-        Returns:
-            bool: True if data logging should be grouped by subject
-        """
-        return self.settings.group_by_subject_log
-
-    @property
     def subject(self) -> Optional[str]:
         """
         Returns the current subject name.
