@@ -16,9 +16,9 @@ logger = logging.getLogger(__name__)
 VISUALIZERS_DIR = "VisualizerLayouts"
 
 if TYPE_CHECKING:
-    from ..behavior_launcher import BehaviorLauncher
+    from ..launcher import BaseLauncher
 else:
-    BehaviorLauncher = Any
+    BaseLauncher = Any
 
 
 class BonsaiApp(App):
@@ -301,7 +301,7 @@ class AindBehaviorServicesBonsaiApp(BonsaiApp):
     """
 
     @overload
-    def add_app_settings(self, *, launcher: Optional[BehaviorLauncher] = None, **kwargs) -> Self: ...
+    def add_app_settings(self, *, launcher: Optional[BaseLauncher] = None, **kwargs) -> Self: ...
 
     def add_app_settings(self, **kwargs) -> Self:
         """
@@ -326,7 +326,7 @@ class AindBehaviorServicesBonsaiApp(BonsaiApp):
             app.add_app_settings(launcher=my_launcher)
             ```
         """
-        launcher: BehaviorLauncher = kwargs.pop("launcher", None)
+        launcher: BaseLauncher = kwargs.pop("launcher", None)
         if launcher is None:
             raise ValueError("Missing required argument 'launcher'.")
 

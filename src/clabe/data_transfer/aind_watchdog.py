@@ -35,9 +35,9 @@ from ..services import ServiceSettings
 from ._base import DataTransfer
 
 if TYPE_CHECKING:
-    from ..behavior_launcher import BehaviorLauncher
+    from ..launcher import BaseLauncher
 else:
-    BehaviorLauncher = Any
+    BaseLauncher = Any
 
 logger = logging.getLogger(__name__)
 
@@ -713,20 +713,22 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
     def create_factory(
         cls,
         settings: WatchdogSettings,
-        aind_session_data_mapper_constructor: Optional[Callable[[], AindDataSchemaSessionDataMapper]],
-    ) -> Callable[[BehaviorLauncher], "WatchdogDataTransferService"]:
+        aind_session_data_mapper: Callable[[], AindDataSchemaSessionDataMapper] | AindDataSchemaSessionDataMapper,
+    ) -> Callable[[BaseLauncher], "WatchdogDataTransferService"]:
         def _from_launcher(
-            launcher: BehaviorLauncher, _settings: WatchdogSettings = settings
+            launcher: BaseLauncher, _settings: WatchdogSettings = settings
         ) -> "WatchdogDataTransferService":
-            if aind_session_data_mapper_constructor is not None:
-                aind_session_data_mapper = aind_session_data_mapper_constructor()
+            if callable(aind_session_data_mapper):
+                aind_session_data_mapper = aind_session_data_mapper()
+
+            if not isinstance(aind_session_data_mapper, AindDataSchemaSessionDataMapper):
+                raise ValueError(
+                    "Data mapper service is not of the correct type (AindDataSchemaSessionDataMapper). Cannot create watchdog."
+                )
             else:
                 if launcher.services_factory_manager.data_mapper is None:
                     raise ValueError("Data mapper service is not set and no callable provided. Cannot create watchdog.")
-                if not isinstance(launcher.services_factory_manager.data_mapper, AindDataSchemaSessionDataMapper):
-                    raise ValueError(
-                        "Data mapper service is not of the correct type (AindDataSchemaSessionDataMapper). Cannot create watchdog."
-                    )
+
                 aind_session_data_mapper = launcher.services_factory_manager.data_mapper
 
             if not aind_session_data_mapper.is_mapped():

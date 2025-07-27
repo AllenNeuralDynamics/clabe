@@ -1,28 +1,24 @@
 import unittest
-from unittest.mock import MagicMock, create_autospec, patch
+from pathlib import Path
+from typing import Any
+from unittest.mock import MagicMock, patch
 
-from clabe.behavior_launcher import (
-    BehaviorLauncher,
-    BehaviorServicesFactoryManager,
-    DefaultBehaviorPicker,
-    BaseLauncherCliArgs,
-)
-from clabe.behavior_launcher._launcher import DefaultBehaviorPickerSettings
+from clabe.launcher import BaseLauncher, BaseLauncherCliArgs, DefaultBehaviorPicker, DefaultBehaviorPickerSettings
 from clabe.ui import DefaultUIHelper
 from tests import suppress_stdout
+
+from .fixtures import mock_rig, mock_session, mock_task_logic
 
 
 class TestDefaultBehaviorPicker(unittest.TestCase):
     def setUp(self):
-        self.services_factory_manager = create_autospec(BehaviorServicesFactoryManager)
-        self.launcher = BehaviorLauncher(
-            rig_schema_model=MagicMock(),
-            task_logic_schema_model=MagicMock(),
-            session_schema_model=MagicMock(),
-            services=self.services_factory_manager,
+        self.launcher = BaseLauncher[Any, Any, Any](
+            rig=mock_rig,
+            task_logic=mock_task_logic,
+            session=mock_session,
             settings=BaseLauncherCliArgs(
-                data_dir="/path/to/data",
-                temp_dir="/path/to/temp",
+                data_dir=Path("/path/to/data"),
+                temp_dir=Path("/path/to/temp"),
                 repository_dir=None,
                 allow_dirty=False,
                 skip_hardware_validation=False,
@@ -30,12 +26,12 @@ class TestDefaultBehaviorPicker(unittest.TestCase):
                 group_by_subject_log=False,
             ),
             attached_logger=None,
-            picker=DefaultBehaviorPicker(
-                ui_helper=DefaultUIHelper(print_func=MagicMock(), input_func=input),
-                settings=DefaultBehaviorPickerSettings(config_library_dir="/path/to/config"),
-            ),
         )
-        self.picker = self.launcher.picker
+        self.picker = DefaultBehaviorPicker(
+            ui_helper=DefaultUIHelper(print_func=MagicMock(), input_func=input),
+            settings=DefaultBehaviorPickerSettings(config_library_dir=Path("/path/to/config")),
+        )
+        self.picker.initialize(launcher=self.launcher)
 
     @patch("builtins.input", side_effect=["John Doe"])
     def test_prompt_experimenter(self, mock_input):
@@ -44,16 +40,16 @@ class TestDefaultBehaviorPicker(unittest.TestCase):
         result = self.picker.prompt_experimenter()
         self.assertEqual(result, ["John", "Doe"])
 
-    @patch("clabe.behavior_launcher._launcher.model_from_json_file")
+    @patch("clabe.launcher._picker.model_from_json_file")
     @patch("glob.glob")
     def test_prompt_rig_input(self, mock_glob, mock_model_from_json_file):
         with suppress_stdout():
             mock_glob.return_value = ["/path/to/rig1.json"]
             mock_model_from_json_file.return_value = MagicMock()
-            rig = self.picker.pick_rig()
+            rig = self.picker.pick_rig(self.launcher)
             self.assertIsNotNone(rig)
 
-    @patch("clabe.behavior_launcher._launcher.model_from_json_file")
+    @patch("clabe.launcher._picker.model_from_json_file")
     @patch("glob.glob")
     @patch("os.path.isfile", return_value=True)
     @patch("builtins.input", return_value="1")
@@ -61,7 +57,7 @@ class TestDefaultBehaviorPicker(unittest.TestCase):
         with suppress_stdout():
             mock_glob.return_value = ["/path/to/task1.json"]
             mock_model_from_json_file.return_value = MagicMock()
-            task_logic = self.picker.pick_task_logic()
+            task_logic = self.picker.pick_task_logic(self.launcher)
             self.assertIsNotNone(task_logic)
 
 

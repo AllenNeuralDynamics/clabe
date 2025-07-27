@@ -1,249 +1,29 @@
 from __future__ import annotations
 
-import enum
 import glob
 import logging
 import os
-import subprocess
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, List, Optional, Self, Union
+from typing import Callable, List, Optional
 
 import pydantic
 from aind_behavior_services.utils import model_from_json_file
 from typing_extensions import override
 
-from .. import logging_helper, ui
-from ..launcher._base import BaseLauncher, TRig, TSession, TTaskLogic, BaseLauncherCliArgs
+from .. import ui
 from ..services import ServiceSettings
-from ._aind_auth import validate_aind_username
-from ._model_modifiers import BySubjectModifierManager
+from ..utils import ByAnimalFiles
+from ..utils.aind_auth import validate_aind_username
+from ._base import TLauncher, TRig, TSession, TTaskLogic
 
 logger = logging.getLogger(__name__)
-
-if TYPE_CHECKING:
-    from clabe.behavior_launcher._services import BehaviorServicesFactoryManager
-else:
-    BehaviorServicesFactoryManager = Any
-
-
-class BehaviorLauncher(BaseLauncher[TRig, TSession, TTaskLogic]):
-    """
-    A launcher for behavior experiments that manages services, experiment configuration, and
-    execution hooks.
-
-    This class extends the BaseLauncher to provide specific functionality for behavior experiments,
-    including service management, configuration handling, and experiment lifecycle hooks.
-
-    Attributes:
-        settings (BaseLauncherCliArgs): CLI arguments and configuration settings
-        services_factory_manager (BehaviorServicesFactoryManager): Manager for experiment services
-        _by_subject_modifiers_manager (BySubjectModifierManager): Manager for subject-specific modifications
-
-    Example:
-        ```python
-        # Create a behavior launcher with settings
-        settings = BaseLauncherCliArgs(...)
-        launcher = BehaviorLauncher(
-            settings=settings,
-            rig_schema_model=RigModelType,
-            session_schema_model=SessionModelType,
-            task_logic_schema_model=TaskLogicModelType,
-            picker=DefaultBehaviorPicker,
-        )
-        # Run the experiment
-        launcher.run()
-        ```
-    """
-
-    services_factory_manager: BehaviorServicesFactoryManager
-    _by_subject_modifiers_manager: BySubjectModifierManager[TRig, TSession, TTaskLogic]
-
-    def __init__(  # pylint: disable=useless-parent-delegation
-        self,
-        *,
-        settings: BaseLauncherCliArgs,
-        rig_schema_model,
-        session_schema_model,
-        task_logic_schema_model,
-        picker,
-        services=None,
-        attached_logger=None,
-        by_subject_modifiers_manager: Optional[BySubjectModifierManager[TRig, TSession, TTaskLogic]] = None,
-        **kwargs,
-    ):
-        """
-        Initialize the BehaviorLauncher.
-
-        Args:
-            settings (BaseLauncherCliArgs): CLI arguments and configuration settings
-            rig_schema_model: Model class for rig configuration
-            session_schema_model: Model class for session configuration
-            task_logic_schema_model: Model class for task logic configuration
-            picker: Configuration picker instance
-            services: Optional services configuration
-            attached_logger: Optional logger instance
-            by_subject_modifiers_manager: Optional manager for subject-specific modifications
-            **kwargs: Additional keyword arguments passed to parent
-        """
-        super().__init__(
-            settings=settings,
-            rig_schema_model=rig_schema_model,
-            session_schema_model=session_schema_model,
-            task_logic_schema_model=task_logic_schema_model,
-            picker=picker,
-            services=services,
-            attached_logger=attached_logger,
-            **kwargs,
-        )
-        self._by_subject_modifiers_manager = (
-            by_subject_modifiers_manager or BySubjectModifierManager[TRig, TSession, TTaskLogic]()
-        )
-
-    def _pre_run_hook(self, *args, **kwargs) -> Self:
-        """
-        Hook executed before the main run logic.
-
-        Performs initialization validation, sets experiment metadata, and applies
-        subject-specific modifications to schemas.
-
-        Args:
-            *args: Variable length argument list
-            **kwargs: Arbitrary keyword arguments
-
-        Returns:
-            Self: The current instance for method chaining.
-        """
-
-        self.session_schema.experiment = self.task_logic_schema.name
-        self.session_schema.experiment_version = self.task_logic_schema.version
-
-        super()._pre_run_hook(*args, **kwargs)
-
-        return self
-
-    @override
-    def _run_hook(self, *args, **kwargs) -> Self:
-        """
-        Hook executed during the main run logic.
-
-        Configures and runs the main experiment application, handling any
-        execution errors that may occur.
-
-        Args:
-            *args: Variable length argument list
-            **kwargs: Arbitrary keyword arguments
-
-        Returns:
-            Self: The current instance for method chaining.
-
-        Raises:
-            ValueError: If required schema instances are not set
-        """
-
-        if self._session_schema is None:
-            raise ValueError("Session schema instance not set.")
-        if self._task_logic_schema is None:
-            raise ValueError("Task logic schema instance not set.")
-        if self._rig_schema is None:
-            raise ValueError("Rig schema instance not set.")
-
-        super()._run_hook(*args, **kwargs)
-
-        self.services_factory_manager.app.add_app_settings(launcher=self)
-
-        try:
-            self.services_factory_manager.app.run()
-            _ = self.services_factory_manager.app.output_from_result(allow_stderr=True)
-        except subprocess.CalledProcessError as e:
-            logger.critical("Bonsai app failed to run. %s", e)
-            self._exit(-1)
-        return self
-
-    @override
-    def _post_run_hook(self, *args, **kwargs) -> Self:
-        """
-        Hook executed after the main run logic.
-
-        Handles experiment cleanup including finalizing the picker, data mapping,
-        log management, and data transfer.
-
-        Args:
-            *args: Variable length argument list
-            **kwargs: Arbitrary keyword arguments
-
-        Returns:
-            Self: The current instance for method chaining.
-        """
-        super()._post_run_hook(*args, **kwargs)
-
-        if (not self.settings.skip_data_mapping) and (self.services_factory_manager.data_mapper is not None):
-            try:
-                self.services_factory_manager.data_mapper.map()
-                logger.info("Mapping successful.")
-            except Exception as e:
-                logger.error("Data mapper service has failed: %s", e)
-
-        logging_helper.close_file_handlers(logger)
-        try:
-            self._copy_tmp_directory(self.session_directory / "Behavior" / "Logs")
-        except ValueError:
-            logger.error("Failed to copy temporary logs directory to session directory.")
-
-        if (not self.settings.skip_data_transfer) and (self.services_factory_manager.data_transfer is not None):
-            try:
-                if not self.services_factory_manager.data_transfer.validate():
-                    raise ValueError("Data transfer service failed validation.")
-                self.services_factory_manager.data_transfer.transfer()
-            except Exception as e:
-                logger.error("Data transfer service has failed: %s", e)
-
-        return self
-
-    def save_temp_model(self, model: Union[TRig, TSession, TTaskLogic], directory: Optional[os.PathLike]) -> str:
-        """
-        Saves a temporary JSON representation of a schema model.
-
-        Args:
-            model (Union[TRig, TSession, TTaskLogic]): The schema model to save.
-            directory (Optional[os.PathLike]): The directory to save the file in.
-
-        Returns:
-            str: The path to the saved file.
-        """
-        directory = Path(directory) if directory is not None else Path(self.temp_dir)
-        os.makedirs(directory, exist_ok=True)
-        fname = model.__class__.__name__ + ".json"
-        fpath = os.path.join(directory, fname)
-        with open(fpath, "w+", encoding="utf-8") as f:
-            f.write(model.model_dump_json(indent=3))
-        return fpath
-
-
-_BehaviorPickerAlias = ui.PickerBase[BehaviorLauncher[TRig, TSession, TTaskLogic], TRig, TSession, TTaskLogic]
-
-
-class ByAnimalFiles(enum.StrEnum):
-    """
-    Enum for file types associated with animals in the experiment.
-
-    Defines the standard file types that can be associated with individual
-    animals/subjects in behavior experiments.
-
-    Example:
-        ```python
-        # Use the task logic file type
-        filename = f"{ByAnimalFiles.TASK_LOGIC}.json"
-        ```
-    """
-
-    TASK_LOGIC = "task_logic"
 
 
 class DefaultBehaviorPickerSettings(ServiceSettings):
     config_library_dir: os.PathLike
 
 
-class DefaultBehaviorPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
+class DefaultBehaviorPicker(ui.picker.PickerBase[TLauncher, TRig, TSession, TTaskLogic]):
     """
     A picker class for selecting rig, session, and task logic configurations for behavior experiments.
 
@@ -281,7 +61,6 @@ class DefaultBehaviorPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
     @override
     def __init__(
         self,
-        launcher: Optional[BehaviorLauncher[TRig, TSession, TTaskLogic]] = None,
         *,
         settings: DefaultBehaviorPickerSettings,
         ui_helper: Optional[ui.DefaultUIHelper] = None,
@@ -298,7 +77,8 @@ class DefaultBehaviorPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
             experimenter_validator: Function to validate the experimenter's username. If None, no validation is performed
             **kwargs: Additional keyword arguments
         """
-        super().__init__(launcher, ui_helper=ui_helper, **kwargs)
+        super().__init__(ui_helper=ui_helper, **kwargs)
+        self._launcher: TLauncher
         self._settings = settings
         self._experimenter_validator = experimenter_validator
 
@@ -320,7 +100,7 @@ class DefaultBehaviorPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
         Returns:
             Path: The rig configuration directory.
         """
-        return Path(os.path.join(self.config_library_dir, self.RIG_SUFFIX, self.launcher.computer_name))
+        return Path(os.path.join(self.config_library_dir, self.RIG_SUFFIX, self._launcher.computer_name))
 
     @property
     def subject_dir(self) -> Path:
@@ -342,27 +122,27 @@ class DefaultBehaviorPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
         """
         return Path(os.path.join(self.config_library_dir, self.TASK_LOGIC_SUFFIX))
 
-    @override
-    def initialize(self) -> None:
+    def initialize(self, launcher: TLauncher) -> None:
         """
         Initializes the picker by creating required directories if needed.
         """
-        if self.launcher.settings.create_directories:
-            self._create_directories()
+        self._launcher = launcher
+        if self._launcher.settings.create_directories:
+            self._create_directories(launcher)
 
-    def _create_directories(self) -> None:
+    def _create_directories(self, launcher: TLauncher) -> None:
         """
         Creates the required directories for configuration files.
 
         Creates the configuration library directory and all required subdirectories
         for storing rig, task logic, and subject configurations.
         """
-        self.launcher.create_directory(self.config_library_dir)
-        self.launcher.create_directory(self.task_logic_dir)
-        self.launcher.create_directory(self.rig_dir)
-        self.launcher.create_directory(self.subject_dir)
+        launcher.create_directory(self.config_library_dir)
+        launcher.create_directory(self.task_logic_dir)
+        launcher.create_directory(self.rig_dir)
+        launcher.create_directory(self.subject_dir)
 
-    def pick_rig(self) -> TRig:
+    def pick_rig(self, launcher: TLauncher) -> TRig:
         """
         Prompts the user to select a rig configuration file.
 
@@ -381,14 +161,14 @@ class DefaultBehaviorPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
             raise ValueError("No rig config files found.")
         elif len(available_rigs) == 1:
             logger.info("Found a single rig config file. Using %s.", {available_rigs[0]})
-            return model_from_json_file(available_rigs[0], self.launcher.rig_schema_model)
+            return model_from_json_file(available_rigs[0], launcher.rig_schema_model)
         else:
             while True:
                 try:
                     path = self.ui_helper.prompt_pick_from_list(available_rigs, prompt="Choose a rig:")
                     if not isinstance(path, str):
                         raise ValueError("Invalid choice.")
-                    rig = model_from_json_file(path, self.launcher.rig_schema_model)
+                    rig = model_from_json_file(path, launcher.rig_schema_model)
                     logger.info("Using %s.", path)
                     return rig
                 except pydantic.ValidationError as e:
@@ -396,7 +176,7 @@ class DefaultBehaviorPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
                 except ValueError as e:
                     logger.info("Invalid choice. Try again. %s", e)
 
-    def pick_session(self) -> TSession:
+    def pick_session(self, launcher: TLauncher) -> TSession:
         """
         Prompts the user to select or create a session configuration.
 
@@ -407,33 +187,33 @@ class DefaultBehaviorPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
             TSession: The created or selected session configuration.
         """
         experimenter = self.prompt_experimenter(strict=True)
-        if self.launcher.subject is not None:
-            logger.info("Subject provided via CLABE: %s", self.launcher.settings.subject)
-            subject = self.launcher.subject
+        if launcher.subject is not None:
+            logger.info("Subject provided via CLABE: %s", launcher.settings.subject)
+            subject = launcher.subject
         else:
             subject = self.choose_subject(self.subject_dir)
-            self.launcher.subject = subject
+            launcher.subject = subject
             if not (self.subject_dir / subject).exists():
                 logger.info("Directory for subject %s does not exist. Creating a new one.", subject)
                 os.makedirs(self.subject_dir / subject)
 
         notes = self.ui_helper.prompt_text("Enter notes: ")
 
-        return self.launcher.session_schema_model(
+        return launcher.session_schema_model(
             experiment="",  # Will be set later
-            root_path=str(self.launcher.data_dir.resolve())
-            if not self.launcher.group_by_subject_log
-            else str(self.launcher.data_dir.resolve() / subject),
+            root_path=str(launcher.data_dir.resolve())
+            if not launcher.group_by_subject_log
+            else str(launcher.data_dir.resolve() / subject),
             subject=subject,
             notes=notes,
             experimenter=experimenter if experimenter is not None else [],
-            commit_hash=self.launcher.repository.head.commit.hexsha,
-            allow_dirty_repo=self.launcher.is_debug_mode or self.launcher.allow_dirty,
-            skip_hardware_validation=self.launcher.skip_hardware_validation,
+            commit_hash=launcher.repository.head.commit.hexsha,
+            allow_dirty_repo=launcher.is_debug_mode or launcher.allow_dirty,
+            skip_hardware_validation=launcher.skip_hardware_validation,
             experiment_version="",  # Will be set later
         )
 
-    def pick_task_logic(self) -> TTaskLogic:
+    def pick_task_logic(self, launcher: TLauncher) -> TTaskLogic:
         """
         Prompts the user to select or create a task logic configuration.
 
@@ -450,7 +230,7 @@ class DefaultBehaviorPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
         """
         task_logic: Optional[TTaskLogic]
         try:  # If the task logic is already set (e.g. from CLI), skip the prompt
-            task_logic = self.launcher.task_logic_schema
+            task_logic = launcher.task_logic_schema
             assert task_logic is not None
             return task_logic
         except ValueError:
@@ -458,16 +238,20 @@ class DefaultBehaviorPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
 
         # Else, we check inside the subject folder for an existing task file
         try:
-            f = self.subject_dir / self.launcher.session_schema.subject / (ByAnimalFiles.TASK_LOGIC.value + ".json")
+            f = self.subject_dir / launcher.session_schema.subject / (ByAnimalFiles.TASK_LOGIC.value + ".json")
             logger.info("Attempting to load task logic from subject folder: %s", f)
-            task_logic = model_from_json_file(f, self.launcher.task_logic_schema_model)
+            task_logic = model_from_json_file(f, launcher.task_logic_schema_model)
         except (ValueError, FileNotFoundError, pydantic.ValidationError) as e:
             logger.warning("Failed to find a valid task logic file. %s", e)
         else:
             logger.info("Found a valid task logic file in subject folder!")
             _is_manual = not self.ui_helper.prompt_yes_no_question("Would you like to use this task logic?")
             if not _is_manual:
-                return task_logic
+                if task_logic is not None:
+                    return task_logic
+                else:
+                    logger.error("No valid task logic file found in subject folder.")
+                    raise ValueError("No valid task logic file found.")
             else:
                 task_logic = None
 
@@ -483,7 +267,7 @@ class DefaultBehaviorPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
                     raise ValueError("Invalid choice.")
                 if not os.path.isfile(path):
                     raise FileNotFoundError(f"File not found: {path}")
-                task_logic = model_from_json_file(path, self.launcher.task_logic_schema_model)
+                task_logic = model_from_json_file(path, launcher.task_logic_schema_model)
                 logger.info("User entered: %s.", path)
             except pydantic.ValidationError as e:
                 logger.error("Failed to validate pydantic model. Try again. %s", e)
@@ -492,6 +276,9 @@ class DefaultBehaviorPicker(_BehaviorPickerAlias[TRig, TSession, TTaskLogic]):
         if task_logic is None:
             logger.error("No task logic file found.")
             raise ValueError("No task logic file found.")
+
+        launcher.session_schema.experiment = launcher.task_logic_schema.name
+        launcher.session_schema.experiment_version = launcher.task_logic_schema.version
         return task_logic
 
     def choose_subject(self, directory: str | os.PathLike) -> str:

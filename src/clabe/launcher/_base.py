@@ -6,7 +6,7 @@ import shutil
 import sys
 from abc import ABC
 from pathlib import Path
-from typing import Any, Generic, Optional, Self, Type, TypeVar
+from typing import Any, Generic, Optional, Self, Type, TypeVar, Union
 
 import pydantic
 from aind_behavior_services import (
@@ -14,13 +14,13 @@ from aind_behavior_services import (
     AindBehaviorSessionModel,
     AindBehaviorTaskLogicModel,
 )
-from aind_behavior_services.utils import format_datetime, model_from_json_file, utcnow
 
-from .. import __version__, logging_helper, ui
+from .. import __version__, logging_helper
 from ..git_manager import GitRepository
-from ..services import ServicesFactoryManager
-from ._hooks import HookManagerCollection
-from .cli import BaseLauncherCliArgs
+from ..ui import DefaultUIHelper, UiHelper
+from ..utils import abspath, format_datetime, model_from_json_file, utcnow
+from ._cli import BaseLauncherCliArgs
+from ._hook_manager import HookManager
 
 TRig = TypeVar("TRig", bound=AindBehaviorRigModel)
 TSession = TypeVar("TSession", bound=AindBehaviorSessionModel)
@@ -50,12 +50,11 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
         self,
         *,
         settings: BaseLauncherCliArgs,
-        rig_schema_model: Type[TRig],
-        session_schema_model: Type[TSession],
-        task_logic_schema_model: Type[TTaskLogic],
-        picker: ui.PickerBase[Self, TRig, TSession, TTaskLogic],
-        services: Optional[ServicesFactoryManager] = None,
+        rig: Type[TRig] | TRig,
+        session: Type[TSession] | TSession,
+        task_logic: Type[TTaskLogic] | TTaskLogic,
         attached_logger: Optional[logging.Logger] = None,
+        ui_helper: UiHelper = DefaultUIHelper(),
         **kwargs,
     ) -> None:
         """
@@ -71,8 +70,8 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
             attached_logger: An attached logger instance. Defaults to None
         """
         self._settings = settings
-
-        self.temp_dir = self.abspath(settings.temp_dir) / format_datetime(utcnow())
+        self.ui_helper = ui_helper
+        self.temp_dir = abspath(settings.temp_dir) / format_datetime(utcnow())
         self.temp_dir.mkdir(parents=True, exist_ok=True)
         self.computer_name = os.environ["COMPUTERNAME"]
 
@@ -89,10 +88,7 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
         self._logger = _logger
 
         # Create hook managers
-        self._hooks: HookManagerCollection[Self, Any] = HookManagerCollection.from_launcher(self)
-
-        # Solve services and git repository
-        self._bind_launcher_services(services)
+        self._hooks: HookManager[Self, Any] = HookManager()
 
         repository_dir = Path(self.settings.repository_dir) if self.settings.repository_dir is not None else None
         self.repository = GitRepository() if repository_dir is None else GitRepository(path=repository_dir)
@@ -100,29 +96,51 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
         os.chdir(self._cwd)
 
         # Schemas
-        self._rig_schema_model = rig_schema_model
-        self._session_schema_model = session_schema_model
-        self._task_logic_schema_model = task_logic_schema_model
-
-        # Schema instances
-        self._rig_schema: Optional[TRig] = None
-        self._session_schema: Optional[TSession] = None
-        self._task_logic_schema: Optional[TTaskLogic] = None
-        self._solve_schema_instances(
-            rig_path_path=self.settings.rig_path,
-            session_path=self.settings.session_path,
-            task_logic_path=self.settings.task_logic_path,
+        self._rig_schema_model, self._rig_schema = self._solve_schema_instances(rig, self.settings.rig_path)
+        self._session_schema_model, self._session_schema = self._solve_schema_instances(
+            session, self.settings.session_path
         )
-        self._subject: Optional[str] = self.settings.subject
+        self._task_logic_schema_model, self._task_logic_schema = self._solve_schema_instances(
+            task_logic, self.settings.task_logic_path
+        )
 
-        self._register_picker(picker)
-        self.picker.initialize()
+        self._subject: Optional[str] = self.settings.subject
 
         if self.settings.create_directories is True:
             self._create_directory_structure()
 
+    def main(self) -> None:
+        """
+        Main entry point for the launcher execution.
+
+        Orchestrates the complete launcher workflow including validation,
+        UI prompting, hook execution, and cleanup.
+
+        Example:
+            launcher = MyLauncher(...)
+            launcher.main()  # Starts the launcher workflow
+        """
+        try:
+            logger.info(self.make_header())
+            if self.is_debug_mode:
+                self._print_debug()
+
+            if not self.is_debug_mode:
+                self.validate()
+
+            logging_helper.close_file_handlers(logger)  # TODO
+            self._copy_tmp_directory(self.session_directory / "Behavior" / "Logs")
+            self.hook_managers.run(self)
+
+            self.dispose()
+
+        except KeyboardInterrupt:
+            logger.critical("User interrupted the process.")
+            self._exit(-1)
+            return
+
     @property
-    def hook_managers(self) -> HookManagerCollection[Self, Any]:
+    def hook_managers(self) -> HookManager[Self, Any]:
         """
         Returns the hook managers for the launcher.
 
@@ -194,30 +212,6 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
         """
         return self.settings.group_by_subject_log
 
-    def _register_picker(self, picker: ui.PickerBase[Self, TRig, TSession, TTaskLogic]) -> None:
-        """
-        Registers a picker for selecting schemas.
-
-        Associates a picker instance with the launcher and ensures it has
-        the necessary UI helper for user interactions.
-
-        Args:
-            picker: The picker instance to register
-
-        Raises:
-            ValueError: If the picker already has a launcher registered
-        """
-        if picker.has_launcher:
-            raise ValueError("Picker already has a launcher registered.")
-        picker.register_launcher(self)
-
-        if not picker.has_ui_helper:
-            picker.register_ui_helper(ui.DefaultUIHelper())
-
-        self._picker = picker
-
-        return
-
     @property
     def subject(self) -> Optional[str]:
         """
@@ -226,7 +220,7 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
         Returns:
             Optional[str]: The subject name or None if not set
         """
-        return self._subject
+        return self.settings.subject
 
     @subject.setter
     def subject(self, value: str) -> None:
@@ -239,9 +233,9 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
         Raises:
             ValueError: If subject is already set
         """
-        if self._subject is not None:
+        if self.settings.subject is not None:
             raise ValueError("Subject already set.")
-        self._subject = value
+        self.settings.subject = value
 
     @property
     def settings(self) -> BaseLauncherCliArgs:
@@ -347,31 +341,6 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
                 self.session_schema.session_name if self.session_schema.session_name is not None else ""
             )
 
-    @property
-    def services_factory_manager(self) -> ServicesFactoryManager:
-        """
-        Returns the services factory manager.
-
-        Returns:
-            ServicesFactoryManager: The services factory manager
-
-        Raises:
-            ValueError: If services instance is not set
-        """
-        if self._services_factory_manager is None:
-            raise ValueError("Services instance not set.")
-        return self._services_factory_manager
-
-    @property
-    def picker(self):
-        """
-        Returns the picker instance.
-
-        Returns:
-            The picker instance used for schema selection
-        """
-        return self._picker
-
     def make_header(self) -> str:
         """
         Creates a formatted header string for the launcher.
@@ -407,111 +376,6 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
 
         return _str
 
-    def main(self) -> None:
-        """
-        Main entry point for the launcher execution.
-
-        Orchestrates the complete launcher workflow including validation,
-        UI prompting, hook execution, and cleanup.
-
-        Example:
-            launcher = MyLauncher(...)
-            launcher.main()  # Starts the launcher workflow
-        """
-        try:
-            logger.info(self.make_header())
-            if self.is_debug_mode:
-                self._print_debug()
-
-            if not self.is_debug_mode:
-                self.validate()
-
-            self._ui_prompt()
-            self._run_hooks()
-            self.dispose()
-        except KeyboardInterrupt:
-            logger.critical("User interrupted the process.")
-            self._exit(-1)
-            return
-
-    def _ui_prompt(self) -> Self:
-        """
-        Prompts for user input to select schemas if not already set.
-
-        Uses the picker to collect session, task logic, and rig schemas
-        from user input if they haven't been pre-configured.
-
-        Returns:
-            Self: The launcher instance for method chaining
-        """
-        if self._session_schema is None:
-            self._session_schema = self.picker.pick_session()
-        if self._task_logic_schema is None:
-            self._task_logic_schema = self.picker.pick_task_logic()
-        if self._rig_schema is None:
-            self._rig_schema = self.picker.pick_rig()
-        return self
-
-    def _run_hooks(self) -> Self:
-        """
-        Executes the launcher lifecycle hooks in sequence.
-
-        Runs the pre-run, run, and post-run hooks in order, logging
-        completion of each phase.
-
-        Returns:
-            Self: The launcher instance for method chaining
-        """
-        self._pre_run_hook()
-        logger.info("Pre-run hook completed.")
-        self._run_hook()
-        logger.info("Run hook completed.")
-        self._post_run_hook()
-        logger.info("Post-run hook completed.")
-        return self
-
-    def _pre_run_hook(self, *args, **kwargs) -> Self:
-        """
-        Abstract method for pre-run logic. Must be implemented by subclasses.
-
-        This hook is executed before the main run logic and should contain
-        any preparation or validation logic needed before experiment execution.
-
-        Returns:
-            Self: The current instance for method chaining
-        """
-        logger.info("Pre-run hook started.")
-        self._hooks.get_hook_manager(self._pre_run_hook).run(self)
-        return self
-
-    def _run_hook(self, *args, **kwargs) -> Self:
-        """
-        Abstract method for main run logic. Must be implemented by subclasses.
-
-        This hook contains the core experiment execution logic and should
-        handle the primary workflow of the launcher.
-
-        Returns:
-            Self: The current instance for method chaining
-        """
-        logger.info("Run hook started.")
-        self._hooks.get_hook_manager(self._run_hook).run(self)
-        return self
-
-    def _post_run_hook(self, *args, **kwargs) -> Self:
-        """
-        Base method for post-run logic. Must be implemented by subclasses.
-
-        This hook is executed after the main run logic and should handle
-        cleanup, data processing, and finalization tasks.
-
-        Returns:
-            Self: The current instance for method chaining
-        """
-        logger.info("Post-run hook started.")
-        self._hooks.get_hook_manager(self._post_run_hook).run(self)
-        return self
-
     def _exit(self, code: int = 0, _force: bool = False) -> None:
         """
         Exits the launcher with the specified exit code.
@@ -527,7 +391,7 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
         if logger is not None:
             logging_helper.shutdown_logger(logger)
         if not _force:
-            self.picker.ui_helper.input("Press any key to exit...")
+            self.ui_helper.input("Press any key to exit...")
         sys.exit(code)
 
     def _print_debug(self) -> None:
@@ -577,7 +441,7 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
                     "Git repository is dirty. Discard changes before continuing unless you know what you are doing!"
                 )
                 if not self.allow_dirty:
-                    self.repository.try_prompt_full_reset(self.picker.ui_helper, force_reset=False)
+                    self.repository.try_prompt_full_reset(self.ui_helper, force_reset=False)
                     if self.repository.is_dirty_with_submodules():
                         logger.critical(
                             "Dirty repository not allowed. Exiting. Consider running with --allow-dirty flag."
@@ -605,19 +469,6 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
         logger.info("Disposing...")
         self._exit(0)
 
-    @classmethod
-    def abspath(cls, path: os.PathLike) -> Path:
-        """
-        Helper method that converts a path to an absolute path.
-
-        Args:
-            path: The path to convert
-
-        Returns:
-            Path: The absolute path
-        """
-        return Path(path).resolve()
-
     def _create_directory_structure(self) -> None:
         """
         Creates the required directory structure for the launcher.
@@ -644,7 +495,7 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
         Raises:
             OSError: If the directory creation fails
         """
-        if not os.path.exists(cls.abspath(directory)):
+        if not os.path.exists(abspath(directory)):
             logger.info("Creating  %s", directory)
             try:
                 os.makedirs(directory)
@@ -662,32 +513,11 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
         dst = Path(dst) / ".launcher"
         shutil.copytree(self.temp_dir, dst, dirs_exist_ok=True)
 
-    def _bind_launcher_services(
-        self, services_factory_manager: Optional[ServicesFactoryManager]
-    ) -> Optional[ServicesFactoryManager]:
-        """
-        Binds a ServicesFactoryManager instance to the launcher.
-
-        Associates a services factory manager with the launcher and registers
-        the launcher with the services manager for bidirectional reference.
-
-        Args:
-            services_factory_manager: The services factory manager to bind
-
-        Returns:
-            Optional[ServicesFactoryManager]: The bound services factory manager
-        """
-        self._services_factory_manager = services_factory_manager
-        if self._services_factory_manager is not None:
-            self._services_factory_manager.register_launcher(self)
-        return self._services_factory_manager
-
     def _solve_schema_instances(
         self,
-        rig_path_path: Optional[os.PathLike] = None,
-        session_path: Optional[os.PathLike] = None,
-        task_logic_path: Optional[os.PathLike] = None,
-    ) -> None:
+        cls_input: Type[TModel] | TModel,
+        path: Optional[os.PathLike],
+    ) -> tuple[Type[TModel], Optional[TModel]]:
         """
         Resolves and loads schema instances for the rig and task logic.
 
@@ -699,12 +529,31 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
             session_path: Path to the JSON file containing the session schema
             task_logic_path: Path to the JSON file containing the task logic schema
         """
-        if rig_path_path is not None:
-            logger.info("Loading rig schema from %s", self.settings.rig_path)
-            self._rig_schema = model_from_json_file(rig_path_path, self.rig_schema_model)
-        if session_path is not None:
-            logger.info("Loading session schema from %s", self.settings.session_path)
-            self._session_schema = model_from_json_file(session_path, self.session_schema_model)
-        if task_logic_path is not None:
-            logger.info("Loading task logic schema from %s", self._settings.task_logic_path)
-            self._task_logic_schema = model_from_json_file(task_logic_path, self.task_logic_schema_model)
+        _instance: Optional[TModel] = None
+        if not isinstance(cls_input, type):
+            return type(cls_input), cls_input
+        else:
+            _cls = cls_input
+        if path is not None:
+            logger.info("Loading schema from %s", path)
+            _instance = model_from_json_file(path, _cls)
+        return _cls, _instance
+
+    def save_temp_model(self, model: Union[TRig, TSession, TTaskLogic], directory: Optional[os.PathLike]) -> str:
+        """
+        Saves a temporary JSON representation of a schema model.
+
+        Args:
+            model (Union[TRig, TSession, TTaskLogic]): The schema model to save.
+            directory (Optional[os.PathLike]): The directory to save the file in.
+
+        Returns:
+            str: The path to the saved file.
+        """
+        directory = Path(directory) if directory is not None else Path(self.temp_dir)
+        os.makedirs(directory, exist_ok=True)
+        fname = model.__class__.__name__ + ".json"
+        fpath = os.path.join(directory, fname)
+        with open(fpath, "w+", encoding="utf-8") as f:
+            f.write(model.model_dump_json(indent=3))
+        return fpath

@@ -1,6 +1,7 @@
 import logging
 import unittest
 import warnings
+from pathlib import Path
 from shutil import _ntuple_diskusage
 from unittest.mock import MagicMock, patch
 
@@ -47,16 +48,16 @@ class TestResourceMonitor(unittest.TestCase):
 
     @patch("shutil.disk_usage")
     def test_available_storage_constraint_factory(self, mock_disk_usage):
-        mock_disk_usage.return_value = _ntuple_diskusage(total=500e9, used=100e9, free=400e9)
-        constraint = available_storage_constraint_factory(drive="C:\\", min_bytes=2e11)
+        mock_disk_usage.return_value = _ntuple_diskusage(total=int(500e9), used=int(100e9), free=int(400e9))
+        constraint = available_storage_constraint_factory(drive=Path("C:\\"), min_bytes=2e11)
         self.assertTrue(constraint())
-        constraint = available_storage_constraint_factory(drive="C:\\", min_bytes=2e13)
+        constraint = available_storage_constraint_factory(drive=Path("C:\\"), min_bytes=2e13)
         self.assertFalse(constraint())
 
     @patch("os.path.exists")
     def test_remote_dir_exists_constraint_factory(self, mock_exists):
         mock_exists.return_value = True
-        constraint = remote_dir_exists_constraint_factory(dir_path="/some/remote/dir")
+        constraint = remote_dir_exists_constraint_factory(dir_path=Path("/some/remote/dir"))
         self.assertTrue(constraint())
 
     def test_resource_monitor_service(self):
@@ -72,7 +73,6 @@ class TestResourceMonitor(unittest.TestCase):
             Constraint(name="test_constraint", constraint=lambda: False, fail_msg_handler=lambda: "Constraint failed.")
         )
 
-        resource_monitor.add_constraint(resource_monitor)
         self.assertFalse(resource_monitor.evaluate_constraints())
 
     def test_resource_monitor_service_constraint(self):

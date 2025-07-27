@@ -53,7 +53,7 @@ class PickerBase(abc.ABC, Generic[_L, _R, _S, _T]):
         ```
     """
 
-    def __init__(self, launcher: Optional[_L] = None, *, ui_helper: Optional[_UiHelperBase] = None, **kwargs) -> None:
+    def __init__(self, *, ui_helper: Optional[_UiHelperBase] = None, **kwargs) -> None:
         """
         Initializes the picker with an optional launcher and UI helper.
 
@@ -72,59 +72,7 @@ class PickerBase(abc.ABC, Generic[_L, _R, _S, _T]):
             picker = MyPicker(launcher=launcher, ui_helper=ui_helper)
             ```
         """
-        self._launcher = launcher
         self._ui_helper = ui_helper
-
-    def register_launcher(self, launcher: _L) -> Self:
-        """
-        Registers a launcher with the picker.
-
-        Associates a launcher instance with this picker for accessing experiment
-        configuration and state.
-
-        Args:
-            launcher: The launcher to register
-
-        Returns:
-            Self: The picker instance for method chaining
-
-        Raises:
-            ValueError: If a launcher is already registered
-
-        Example:
-            ```python
-            picker = MyPicker()
-            launcher = MyLauncher()
-
-            picker.register_launcher(launcher)
-            # Now picker can access launcher settings
-            settings = picker.launcher.settings
-            ```
-        """
-        if self._launcher is None:
-            self._launcher = launcher
-        else:
-            raise ValueError("Launcher is already registered")
-        return self
-
-    @property
-    def has_launcher(self) -> bool:
-        """
-        Checks if a launcher is registered.
-
-        Returns:
-            bool: True if a launcher is registered, False otherwise
-
-        Example:
-            ```python
-            picker = MyPicker()
-            print(picker.has_launcher)  # False
-
-            picker.register_launcher(launcher)
-            print(picker.has_launcher)  # True
-            ```
-        """
-        return self._launcher is not None
 
     def register_ui_helper(self, ui_helper: _UiHelperBase) -> Self:
         """
@@ -158,21 +106,6 @@ class PickerBase(abc.ABC, Generic[_L, _R, _S, _T]):
         return self._ui_helper is not None
 
     @property
-    def launcher(self) -> _L:
-        """
-        Retrieves the registered launcher.
-
-        Returns:
-            _L: The registered launcher
-
-        Raises:
-            ValueError: If no launcher is registered
-        """
-        if self._launcher is None:
-            raise ValueError("Launcher is not registered")
-        return self._launcher
-
-    @property
     def ui_helper(self) -> _UiHelperBase:
         """
         Retrieves the registered UI helper.
@@ -188,7 +121,7 @@ class PickerBase(abc.ABC, Generic[_L, _R, _S, _T]):
         return self._ui_helper
 
     @abc.abstractmethod
-    def pick_rig(self) -> _R:
+    def pick_rig(self, launcher: _L) -> _R:
         """
         Abstract method to pick a rig.
 
@@ -200,7 +133,7 @@ class PickerBase(abc.ABC, Generic[_L, _R, _S, _T]):
         ...
 
     @abc.abstractmethod
-    def pick_session(self) -> _S:
+    def pick_session(self, launcher: _L) -> _S:
         """
         Abstract method to pick a session.
 
@@ -212,7 +145,7 @@ class PickerBase(abc.ABC, Generic[_L, _R, _S, _T]):
         ...
 
     @abc.abstractmethod
-    def pick_task_logic(self) -> _T:
+    def pick_task_logic(self, launcher: _L) -> _T:
         """
         Abstract method to pick task logic.
 
@@ -220,14 +153,5 @@ class PickerBase(abc.ABC, Generic[_L, _R, _S, _T]):
 
         Returns:
             _T: The selected task logic
-        """
-        ...
-
-    @abc.abstractmethod
-    def initialize(self) -> None:
-        """
-        Abstract method to initialize the picker.
-
-        Subclasses should implement this method to perform any necessary setup operations.
         """
         ...

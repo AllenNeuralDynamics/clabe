@@ -1,6 +1,6 @@
 import os
 import unittest
-from datetime import time
+from datetime import datetime, time
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -51,7 +51,7 @@ class TestWatchdogDataTransferService(unittest.TestCase):
             name="test_manifest",
             modalities={"behavior": ["path/to/behavior"], "behavior-videos": ["path/to/behavior-videos"]},
             subject_id=1,
-            acquisition_datetime="2023-01-01T00:00:00",
+            acquisition_datetime=datetime(2023, 1, 1, 0, 0, 0),
             schemas=["path/to/schema"],
             destination="path/to/destination",
             mount="mount_path",
@@ -154,7 +154,7 @@ class TestWatchdogDataTransferService(unittest.TestCase):
         source = "mock_source_path"
         expected_files = [Path(source) / f"{file}.json" for file in CORE_FILES]
 
-        result = WatchdogDataTransferService._find_ads_schemas(source)
+        result = WatchdogDataTransferService._find_ads_schemas(Path(source))
         self.assertEqual(result, expected_files)
 
     @patch("clabe.data_transfer.aind_watchdog.Path.mkdir")

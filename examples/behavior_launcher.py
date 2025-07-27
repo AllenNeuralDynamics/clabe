@@ -13,12 +13,7 @@ from typing_extensions import override
 
 from clabe import resource_monitor
 from clabe.apps import App
-from clabe.behavior_launcher import (
-    BehaviorLauncher,
-    BehaviorServicesFactoryManager,
-    DefaultBehaviorPicker,
-    DefaultBehaviorPickerSettings,
-)
+from clabe.launcher import BaseLauncher, BaseLauncherCliArgs, DefaultBehaviorPicker, DefaultBehaviorPickerSettings
 
 logger = logging.getLogger(__name__)
 
@@ -88,15 +83,12 @@ class EchoApp(App):
 
 
 DATA_DIR = Path(r"./local/data")
-srv = BehaviorServicesFactoryManager()
-srv.attach_app(EchoApp("hello world"))
-srv.attach_resource_monitor(
-    resource_monitor.ResourceMonitor(
-        constrains=[
-            resource_monitor.available_storage_constraint_factory(DATA_DIR, 2e11),
-            resource_monitor.remote_dir_exists_constraint_factory(Path(r"C:/")),
-        ]
-    )
+app = EchoApp("hello world")
+resource_monitor = resource_monitor.ResourceMonitor(
+    constrains=[
+        resource_monitor.available_storage_constraint_factory(DATA_DIR, 2e11),
+        resource_monitor.remote_dir_exists_constraint_factory(Path(r"C:/")),
+    ]
 )
 
 
@@ -105,13 +97,12 @@ def make_launcher():
         BaseLauncherCliArgs,
         cli_args=["--temp-dir", "./local/.temp", "--allow-dirty", "--skip-hardware-validation", "--data-dir", "."],
     )
-
-    return BehaviorLauncher(
-        rig_schema_model=RigModel,
-        session_schema_model=AindBehaviorSessionModel,
-        task_logic_schema_model=TaskLogicModel,
-        picker=DefaultBehaviorPicker(settings=DefaultBehaviorPickerSettings(config_library_dir=LIB_CONFIG)),
-        services=srv,
+    picker = (DefaultBehaviorPicker(settings=DefaultBehaviorPickerSettings(config_library_dir=LIB_CONFIG)),)
+    picker()  # todo
+    return BaseLauncher(
+        rig=RigModel,
+        session=AindBehaviorSessionModel,
+        task_logic=TaskLogicModel,
         settings=behavior_cli_args,
     )
 
