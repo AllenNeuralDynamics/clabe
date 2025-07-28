@@ -1,9 +1,11 @@
+import datetime
 import logging
 import os
 import subprocess
 from pathlib import Path
-from typing import Literal, Optional, Self
+from typing import Callable, Dict, Literal, Optional, Self, Union
 
+import git
 from aind_behavior_services.rig import AindBehaviorRigModel
 from aind_behavior_services.session import AindBehaviorSessionModel
 from aind_behavior_services.task_logic import AindBehaviorTaskLogicModel
@@ -13,6 +15,7 @@ from typing_extensions import override
 
 from clabe import resource_monitor
 from clabe.apps import App
+from clabe.data_mapper import DataMapper
 from clabe.launcher import BaseLauncher, BaseLauncherCliArgs, DefaultBehaviorPicker, DefaultBehaviorPickerSettings
 
 logger = logging.getLogger(__name__)
@@ -21,6 +24,7 @@ TASK_NAME = "RandomTask"
 LIB_CONFIG = rf"local\AindBehavior.db\{TASK_NAME}"
 
 
+### Task-specific definitions
 class RigModel(AindBehaviorRigModel):
     rig_name: str = Field(default="TestRig", description="Rig name")
     version: Literal["0.0.0"] = "0.0.0"
@@ -29,6 +33,79 @@ class RigModel(AindBehaviorRigModel):
 class TaskLogicModel(AindBehaviorTaskLogicModel):
     version: Literal["0.0.0"] = "0.0.0"
     name: Literal[TASK_NAME] = TASK_NAME
+
+
+class MockAindDataSchemaSession:
+    def __init__(
+        self,
+        computer_name: Optional[str] = None,
+        repository: Optional[Union[os.PathLike, git.Repo]] = None,
+        task_name: Optional[str] = None,
+    ):
+        self.computer_name = computer_name
+        self.repository = repository
+        self.task_name = task_name
+
+    def __str__(self) -> str:
+        return f"MockAindDataSchemaSession(computer_name={self.computer_name}, repository={self.repository}, task_name={self.task_name})"
+
+
+class DemoAindDataSchemaSessionDataMapper(DataMapper[MockAindDataSchemaSession]):
+    def __init__(
+        self,
+        session_model: AindBehaviorSessionModel,
+        rig_model: RigModel,
+        task_logic_model: TaskLogicModel,
+        repository: Union[os.PathLike, git.Repo],
+        script_path: os.PathLike,
+        session_end_time: Optional[datetime.datetime] = None,
+        output_parameters: Optional[Dict] = None,
+    ):
+        super().__init__()
+        self.session_model = session_model
+        self.rig_model = rig_model
+        self.task_logic_model = task_logic_model
+        self.repository = repository
+        self.script_path = script_path
+        self.session_end_time = session_end_time
+        self.output_parameters = output_parameters
+        self._mapped: Optional[MockAindDataSchemaSession] = None
+
+    def map(self) -> MockAindDataSchemaSession:
+        self._mapped = MockAindDataSchemaSession(
+            computer_name=self.rig_model.computer_name, repository=self.repository, task_name=self.task_logic_model.name
+        )
+        print("#" * 50)
+        print("THIS IS MAPPED DATA!")
+        print("#" * 50)
+        print(self._mapped)
+        return self._mapped
+
+    @classmethod
+    def builder_runner(
+        cls,
+        script_path: os.PathLike,
+        session_end_time: Optional[datetime.datetime] = None,
+        output_parameters: Optional[Dict] = None,
+    ) -> Callable[[BaseLauncher], MockAindDataSchemaSession]:
+        def _run(launcher: BaseLauncher) -> MockAindDataSchemaSession:
+            logger.info("Running DemoAindDataSchemaSessionDataMapper...")
+            new = cls(
+                session_model=launcher.get_session(strict=True),
+                rig_model=launcher.get_rig(strict=True),
+                task_logic_model=launcher.get_task_logic(strict=True),
+                repository=launcher.repository,
+                script_path=script_path,
+                session_end_time=session_end_time or datetime.datetime.now(),
+                output_parameters=output_parameters,
+            )
+            logger.info("DemoAindDataSchemaSessionDataMapper completed.")
+            return new.map()
+
+        return _run
+
+
+### Mock App for tests
 
 
 class EchoApp(App):
@@ -82,21 +159,21 @@ class EchoApp(App):
         return self._result
 
 
-DATA_DIR = Path(r"./local/data")
-app = EchoApp("hello world")
-monitor = resource_monitor.ResourceMonitor(
-    constrains=[
-        resource_monitor.available_storage_constraint_factory(DATA_DIR, 2e11),
-        resource_monitor.remote_dir_exists_constraint_factory(Path(r"C:/")),
-    ]
-)
-
-
 def make_launcher():
     behavior_cli_args = CliApp.run(
         BaseLauncherCliArgs,
         cli_args=["--temp-dir", "./local/.temp", "--allow-dirty", "--skip-hardware-validation", "--data-dir", "."],
     )
+
+    DATA_DIR = Path(r"./local/data")
+
+    monitor = resource_monitor.ResourceMonitor(
+        constrains=[
+            resource_monitor.available_storage_constraint_factory(DATA_DIR, 2e11),
+            resource_monitor.remote_dir_exists_constraint_factory(Path(r"C:/")),
+        ]
+    )
+
     launcher = BaseLauncher(
         rig=RigModel,
         session=AindBehaviorSessionModel,
@@ -115,7 +192,8 @@ def make_launcher():
         ]
     )
     launcher.register_hook(monitor.build_runner())
-    launcher.register_hook(app.build_runner(allow_std_error=True))
+    launcher.register_hook(EchoApp("Hello World!").build_runner(allow_std_error=True))
+    launcher.register_hook(DemoAindDataSchemaSessionDataMapper.builder_runner(Path("./mock/script.py")))
 
     return launcher
 
