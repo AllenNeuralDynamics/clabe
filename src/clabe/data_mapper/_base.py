@@ -66,7 +66,6 @@ class DataMapper(Service, abc.ABC, Generic[TMapTo]):
         """
         pass
 
-    @abc.abstractmethod
     def is_mapped(self) -> bool:
         """
         Checks if the data has been successfully mapped.
@@ -77,10 +76,9 @@ class DataMapper(Service, abc.ABC, Generic[TMapTo]):
         Returns:
             bool: True if the data is mapped, False otherwise
         """
-        pass
+        return self._mapped is not None
 
     @property
-    @abc.abstractmethod
     def mapped(self) -> TMapTo:
         """
         Retrieves the mapped data object.
@@ -92,4 +90,7 @@ class DataMapper(Service, abc.ABC, Generic[TMapTo]):
         Returns:
             TMapTo: The mapped data object
         """
-        pass
+        if not self.is_mapped():
+            raise ValueError("Data not yet mapped")
+        assert self._mapped is not None, "Mapped data should not be None"
+        return self._mapped

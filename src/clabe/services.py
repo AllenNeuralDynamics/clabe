@@ -25,6 +25,9 @@ class Service(abc.ABC):
     It serves as a marker interface to identify service implementations across the system.
     """
 
+    def __init__(self, *args, **kwargs):
+        pass
+
     def build_runner(self, *args, **kwargs) -> Callable[[BaseLauncher], Any]:
         raise NotImplementedError("Subclasses must implement the build_runner method.")
 
