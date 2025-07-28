@@ -97,15 +97,18 @@ def make_launcher():
         BaseLauncherCliArgs,
         cli_args=["--temp-dir", "./local/.temp", "--allow-dirty", "--skip-hardware-validation", "--data-dir", "."],
     )
-    picker = DefaultBehaviorPicker(settings=DefaultBehaviorPickerSettings(config_library_dir=LIB_CONFIG))
     launcher = BaseLauncher(
         rig=RigModel,
         session=AindBehaviorSessionModel,
         task_logic=TaskLogicModel,
         settings=behavior_cli_args,
     )
+
+    picker = DefaultBehaviorPicker(settings=DefaultBehaviorPickerSettings(config_library_dir=LIB_CONFIG))
+
     launcher.register_hook(
         [
+            picker.initialize,
             picker.pick_session,
             picker.pick_task_logic,
             picker.pick_rig,

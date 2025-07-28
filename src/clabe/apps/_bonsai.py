@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Optional, Self
 
 from aind_behavior_services.utils import run_bonsai_process
-from typing_extensions import overload, override
+from typing_extensions import override
 
 from ..ui import DefaultUIHelper, UiHelper
 from ._base import App
@@ -300,10 +300,7 @@ class AindBehaviorServicesBonsaiApp(BonsaiApp):
         ```
     """
 
-    @overload
-    def add_app_settings(self, *, launcher: Optional[BaseLauncher] = None, **kwargs) -> Self: ...
-
-    def add_app_settings(self, **kwargs) -> Self:
+    def add_app_settings(self, *, launcher: Optional[BaseLauncher] = None, **kwargs) -> Self:
         """
         Adds AIND behavior-specific application settings to the Bonsai workflow.
 
@@ -326,19 +323,19 @@ class AindBehaviorServicesBonsaiApp(BonsaiApp):
             app.add_app_settings(launcher=my_launcher)
             ```
         """
-        launcher: BaseLauncher = kwargs.pop("launcher", None)
+
         if launcher is None:
             raise ValueError("Missing required argument 'launcher'.")
 
         settings = {
             "TaskLogicPath": os.path.abspath(
-                launcher.save_temp_model(model=launcher.task_logic_schema, directory=launcher.temp_dir)
+                launcher.save_temp_model(model=launcher.get_task_logic(strict=True), directory=launcher.temp_dir)
             ),
             "SessionPath": os.path.abspath(
-                launcher.save_temp_model(model=launcher.session_schema, directory=launcher.temp_dir)
+                launcher.save_temp_model(model=launcher.get_session(strict=True), directory=launcher.temp_dir)
             ),
             "RigPath": os.path.abspath(
-                launcher.save_temp_model(model=launcher.rig_schema, directory=launcher.temp_dir)
+                launcher.save_temp_model(model=launcher.get_rig(strict=True), directory=launcher.temp_dir)
             ),
         }
         return super().add_app_settings(**settings)

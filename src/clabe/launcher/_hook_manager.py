@@ -42,4 +42,5 @@ class HookManager(t.Generic[TInput, TOutput]):
             logger.warning("Callables have already been run. Skipping execution.")
             return
         for observer in self._observables:
+            logger.debug(f"Running observer: {observer.__name__} with value: {value}")
             observer(value)

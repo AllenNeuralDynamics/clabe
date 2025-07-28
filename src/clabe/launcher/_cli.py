@@ -58,15 +58,6 @@ class BaseLauncherCliArgs(ServiceSettings, cli_prog_name="clabe", cli_kebab_case
         default=False, description="Whether to skip hardware validation"
     )
     subject: Optional[str] = Field(default=None, description="The name of the subject. If None, will be prompted later")
-    task_logic_path: Optional[os.PathLike] = Field(
-        default=None, description="The path to the task logic schema instance. If None, will be prompted later"
-    )
-    rig_path: Optional[os.PathLike] = Field(
-        default=None, description="The path to the rig schema instance. If None, will be prompted later"
-    )
-    session_path: Optional[os.PathLike] = Field(
-        default=None, description="The path to the session schema instance. If None, will be prompted later"
-    )
     temp_dir: os.PathLike = Field(
         default=Path("local/.temp"), description="The directory used for the launcher temp files"
     )

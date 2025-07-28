@@ -6,7 +6,7 @@ import shutil
 import sys
 from abc import ABC
 from pathlib import Path
-from typing import Any, Callable, Generic, List, Optional, Self, Type, TypeVar, Union, overload
+from typing import Any, Callable, Generic, List, Optional, Self, Type, TypeVar, overload
 
 import pydantic
 from aind_behavior_services import (
@@ -14,11 +14,12 @@ from aind_behavior_services import (
     AindBehaviorSessionModel,
     AindBehaviorTaskLogicModel,
 )
+from typing_extensions import Literal
 
 from .. import __version__, logging_helper
 from ..git_manager import GitRepository
 from ..ui import DefaultUIHelper, UiHelper
-from ..utils import abspath, format_datetime, model_from_json_file, utcnow
+from ..utils import abspath, format_datetime, utcnow
 from ._cli import BaseLauncherCliArgs
 from ._hook_manager import HookManager
 
@@ -50,9 +51,9 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
         self,
         *,
         settings: BaseLauncherCliArgs,
-        rig: Type[TRig] | TRig,
-        session: Type[TSession] | TSession,
-        task_logic: Type[TTaskLogic] | TTaskLogic,
+        rig: TRig | Type[TRig],
+        session: TSession | Type[TSession],
+        task_logic: TTaskLogic | Type[TTaskLogic],
         attached_logger: Optional[logging.Logger] = None,
         ui_helper: UiHelper = DefaultUIHelper(),
         **kwargs,
@@ -96,15 +97,9 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
         os.chdir(self._cwd)
 
         # Schemas
-        self._rig_schema_model, self._rig_schema = self._solve_schema_instances(rig, self.settings.rig_path)
-        self._session_schema_model, self._session_schema = self._solve_schema_instances(
-            session, self.settings.session_path
-        )
-        self._task_logic_schema_model, self._task_logic_schema = self._solve_schema_instances(
-            task_logic, self.settings.task_logic_path
-        )
-
-        self._subject: Optional[str] = self.settings.subject
+        self._rig, self._rig_model = self._resolve_model(rig)
+        self._session, self._session_model = self._resolve_model(session)
+        self._task_logic, self._task_logic_model = self._resolve_model(task_logic)
 
         if self.settings.create_directories is True:
             self._create_directory_structure()
@@ -122,16 +117,15 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
         """
         try:
             logger.info(self.make_header())
-            if self.is_debug_mode:
+            if self.settings.debug_mode:
                 self._print_debug()
 
-            if not self.is_debug_mode:
+            if not self.settings.debug_mode:
                 self.validate()
 
-            logging_helper.close_file_handlers(logger)  # TODO
-            self._copy_tmp_directory(self.session_directory / "Behavior" / "Logs")
             self.hook_manager.run(self)
-
+            logging_helper.close_file_handlers(logger)  # TODO
+            self._copy_tmp_directory(self.session_directory / "Behavior" / "Logs")  # TODO
             self.dispose()
 
         except KeyboardInterrupt:
@@ -182,46 +176,6 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
         return self._logger
 
     @property
-    def data_dir(self) -> Path:
-        """
-        Returns the data directory path.
-
-        Returns:
-            Path: The data directory path
-        """
-        return Path(self.settings.data_dir)
-
-    @property
-    def is_debug_mode(self) -> bool:
-        """
-        Returns whether debug mode is enabled.
-
-        Returns:
-            bool: True if debug mode is enabled
-        """
-        return self.settings.debug_mode
-
-    @property
-    def allow_dirty(self) -> bool:
-        """
-        Returns whether dirty repository is allowed.
-
-        Returns:
-            bool: True if dirty repository is allowed
-        """
-        return self.settings.allow_dirty
-
-    @property
-    def skip_hardware_validation(self) -> bool:
-        """
-        Returns whether hardware validation should be skipped.
-
-        Returns:
-            bool: True if hardware validation should be skipped
-        """
-        return self.settings.skip_hardware_validation
-
-    @property
     def subject(self) -> Optional[str]:
         """
         Returns the current subject name.
@@ -257,8 +211,13 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
         return self._settings
 
     # Public properties / interfaces
-    @property
-    def rig_schema(self) -> TRig:
+    @overload
+    def get_rig(self) -> Optional[TRig]: ...
+    @overload
+    def get_rig(self, strict: Literal[False]) -> Optional[TRig]: ...
+    @overload
+    def get_rig(self, strict: Literal[True]) -> TRig: ...
+    def get_rig(self, strict: bool = False) -> Optional[TRig]:
         """
         Returns the rig schema instance.
 
@@ -268,69 +227,101 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
         Raises:
             ValueError: If rig schema instance is not set
         """
-        if self._rig_schema is None:
-            raise ValueError("Rig schema instance not set.")
-        return self._rig_schema
+        if self._rig is None and strict:
+            raise ValueError("Rig schema instance is not set.")
+        return self._rig
 
-    @property
-    def session_schema(self) -> TSession:
-        """
-        Returns the session schema instance.
+    def set_rig(self, rig: TRig, validate: bool = True) -> None:
+        if self._rig is not None:
+            raise ValueError("Rig already set.")
+        if validate:
+            if not isinstance(rig, self._rig_model):
+                raise ValueError("Invalid rig schema instance.")
+        self._rig = rig
+        self._rig_model = type(rig)
 
-        Returns:
-            TSession: The session schema instance
-
-        Raises:
-            ValueError: If session schema instance is not set
-        """
-        if self._session_schema is None:
-            raise ValueError("Session schema instance not set.")
-        return self._session_schema
-
-    @property
-    def task_logic_schema(self) -> TTaskLogic:
-        """
-        Returns the task logic schema instance.
-
-        Returns:
-            TTaskLogic: The task logic schema instance
-
-        Raises:
-            ValueError: If task logic schema instance is not set
-        """
-        if self._task_logic_schema is None:
-            raise ValueError("Task logic schema instance not set.")
-        return self._task_logic_schema
-
-    @property
-    def rig_schema_model(self) -> Type[TRig]:
+    def get_rig_model(self) -> Type[TRig]:
         """
         Returns the rig schema model class.
 
         Returns:
             Type[TRig]: The rig schema model class
         """
-        return self._rig_schema_model
+        return self._rig_model
 
-    @property
-    def session_schema_model(self) -> Type[TSession]:
+    @overload
+    def get_session(self) -> Optional[TSession]: ...
+    @overload
+    def get_session(self, strict: Literal[False]) -> Optional[TSession]: ...
+    @overload
+    def get_session(self, strict: Literal[True]) -> TSession: ...
+
+    def get_session(self, strict: bool = False) -> Optional[TSession]:
+        """
+        Returns the session schema instance.
+        Args:
+            strict: If True, raises ValueError if session schema is not set
+
+        Returns:
+            TSession: The session schema instance
+        """
+        if self._session is None and strict:
+            raise ValueError("Session schema instance is not set.")
+        return self._session
+
+    def set_session(self, session: TSession, validate: bool = True) -> None:
+        if self._session is not None:
+            raise ValueError("Session already set.")
+        if validate:
+            if not isinstance(session, self._session_model):
+                raise ValueError("Invalid session schema instance.")
+        self._session = session
+        self._session_model = type(session)
+
+    def get_session_model(self) -> Type[TSession]:
         """
         Returns the session schema model class.
 
         Returns:
             Type[TSession]: The session schema model class
         """
-        return self._session_schema_model
+        return self._session_model
 
-    @property
-    def task_logic_schema_model(self) -> Type[TTaskLogic]:
+    @overload
+    def get_task_logic(self) -> Optional[TTaskLogic]: ...
+    @overload
+    def get_task_logic(self, strict: Literal[False]) -> Optional[TTaskLogic]: ...
+    @overload
+    def get_task_logic(self, strict: Literal[True]) -> TTaskLogic: ...
+    def get_task_logic(self, strict: bool = False) -> Optional[TTaskLogic]:
+        """
+        Returns the task logic schema instance.
+        Args:
+            strict: If True, raises ValueError if task logic schema is not set
+        Returns:
+            TTaskLogic: The task logic schema instance
+        """
+        if self._task_logic is None and strict:
+            raise ValueError("Task logic schema instance is not set.")
+        return self._task_logic
+
+    def set_task_logic(self, task_logic: TTaskLogic, validate: bool = True) -> None:
+        if self._task_logic is not None:
+            raise ValueError("Task logic already set.")
+        if validate:
+            if not isinstance(task_logic, self._task_logic_model):
+                raise ValueError("Invalid task logic schema instance.")
+        self._task_logic = task_logic
+        self._task_logic_model = type(task_logic)
+
+    def get_task_logic_model(self) -> Type[TTaskLogic]:
         """
         Returns the task logic schema model class.
 
         Returns:
             Type[TTaskLogic]: The task logic schema model class
         """
-        return self._task_logic_schema_model
+        return self._task_logic_model
 
     @property
     def session_directory(self) -> Path:
@@ -343,12 +334,13 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
         Raises:
             ValueError: If session_name is not set in the session schema
         """
-        if self.session_schema.session_name is None:
+        session = self.get_session()
+        if session is None:
+            raise ValueError("Session schema is not set.")
+        if session.session_name is None:
             raise ValueError("session_schema.session_name is not set.")
         else:
-            return Path(self.session_schema.root_path) / (
-                self.session_schema.session_name if self.session_schema.session_name is not None else ""
-            )
+            return Path(session.root_path) / (session.session_name if session.session_name is not None else "")
 
     def make_header(self) -> str:
         """
@@ -377,9 +369,9 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
             "-------------------------------\n"
             f"{_HEADER}\n"
             f"CLABE Version: {__version__}\n"
-            f"TaskLogic ({self.task_logic_schema_model.__name__}) Schema Version: {self.task_logic_schema_model.model_construct().version}\n"
-            f"Rig ({self.rig_schema_model.__name__}) Schema Version: {self.rig_schema_model.model_construct().version}\n"
-            f"Session ({self.session_schema_model.__name__}) Schema Version: {self.session_schema_model.model_construct().version}\n"
+            f"TaskLogic ({self.get_task_logic_model().__name__}) Schema Version: {self.get_task_logic_model().model_construct().version}\n"
+            f"Rig ({self.get_rig_model().__name__}) Schema Version: {self.get_rig_model().model_construct().version}\n"
+            f"Session ({self.get_session_model().__name__}) Schema Version: {self.get_session_model().model_construct().version}\n"
             "-------------------------------"
         )
 
@@ -424,7 +416,7 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
             self._cwd,
             self.repository.working_dir,
             self.computer_name,
-            self.data_dir,
+            self.settings.data_dir,
             self.temp_dir,
             self.settings,
         )
@@ -448,16 +440,16 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
             if self.repository.is_dirty():
                 logger.warning(
                     "Git repository is dirty. Discard changes before continuing unless you know what you are doing!"
+                    "Uncommitted files: %s",
+                    self.repository.uncommitted_changes(),
                 )
-                if not self.allow_dirty:
+                if not self.settings.allow_dirty:
                     self.repository.try_prompt_full_reset(self.ui_helper, force_reset=False)
                     if self.repository.is_dirty_with_submodules():
                         logger.critical(
                             "Dirty repository not allowed. Exiting. Consider running with --allow-dirty flag."
                         )
                         self._exit(-1)
-                else:
-                    logger.info("Uncommitted files: %s", self.repository.uncommitted_changes())
 
         except Exception as e:
             logger.critical("Failed to validate dependencies. %s", e)
@@ -486,7 +478,7 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
         exiting with an error code if creation fails.
         """
         try:
-            self.create_directory(self.data_dir)
+            self.create_directory(self.settings.data_dir)
             self.create_directory(self.temp_dir)
 
         except OSError as e:
@@ -522,33 +514,7 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
         dst = Path(dst) / ".launcher"
         shutil.copytree(self.temp_dir, dst, dirs_exist_ok=True)
 
-    def _solve_schema_instances(
-        self,
-        cls_input: Type[TModel] | TModel,
-        path: Optional[os.PathLike],
-    ) -> tuple[Type[TModel], Optional[TModel]]:
-        """
-        Resolves and loads schema instances for the rig and task logic.
-
-        Loads schema definitions from JSON files and assigns them to the
-        corresponding attributes if file paths are provided.
-
-        Args:
-            rig_path_path: Path to the JSON file containing the rig schema
-            session_path: Path to the JSON file containing the session schema
-            task_logic_path: Path to the JSON file containing the task logic schema
-        """
-        _instance: Optional[TModel] = None
-        if not isinstance(cls_input, type):
-            return type(cls_input), cls_input
-        else:
-            _cls = cls_input
-        if path is not None:
-            logger.info("Loading schema from %s", path)
-            _instance = model_from_json_file(path, _cls)
-        return _cls, _instance
-
-    def save_temp_model(self, model: Union[TRig, TSession, TTaskLogic], directory: Optional[os.PathLike]) -> str:
+    def save_temp_model(self, model: pydantic.BaseModel, directory: Optional[os.PathLike]) -> str:
         """
         Saves a temporary JSON representation of a schema model.
 
@@ -566,3 +532,19 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
         with open(fpath, "w+", encoding="utf-8") as f:
             f.write(model.model_dump_json(indent=3))
         return fpath
+
+    @staticmethod
+    def _resolve_model(model: TModel | Type[TModel]) -> tuple[Optional[TModel], Type[TModel]]:
+        """
+        Resolves the model and its type.
+
+        Args:
+            model: The model instance or model class to resolve
+
+        Returns:
+            tuple[TModel, Type[TModel]]: The resolved model instance and its type
+        """
+        if isinstance(model, type):
+            return None, model
+        else:
+            return model, type(model)

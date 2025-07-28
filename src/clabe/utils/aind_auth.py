@@ -6,7 +6,6 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-
 if platform.system() == "Windows":
     import ldap3
     import ms_active_directory

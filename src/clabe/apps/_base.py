@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 TApp = TypeVar("TApp", bound="App")
 
+
 class App(Service, abc.ABC):
     """
     Abstract base class representing an application that can be run and managed.
