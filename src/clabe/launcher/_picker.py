@@ -249,6 +249,7 @@ class DefaultBehaviorPicker(_LauncherBoundPicker[TRig, TSession, TTaskLogic]):
         """
         if (task_logic := launcher.get_task_logic()) is not None:
             logger.info("Task logic already set in launcher. Using existing task logic.")
+            launcher.set_task_logic(task_logic)
             return task_logic
 
         # Else, we check inside the subject folder for an existing task file
@@ -266,6 +267,7 @@ class DefaultBehaviorPicker(_LauncherBoundPicker[TRig, TSession, TTaskLogic]):
             _is_manual = not self.ui_helper.prompt_yes_no_question("Would you like to use this task logic?")
             if not _is_manual:
                 if task_logic is not None:
+                    launcher.set_task_logic(task_logic)
                     return task_logic
                 else:
                     logger.error("No valid task logic file found in subject folder.")
@@ -297,6 +299,7 @@ class DefaultBehaviorPicker(_LauncherBoundPicker[TRig, TSession, TTaskLogic]):
 
         launcher.get_session(strict=True).experiment = task_logic.name
         launcher.get_session(strict=True).experiment_version = task_logic.version
+        launcher.set_task_logic(task_logic)
         return task_logic
 
     def choose_subject(self, directory: str | os.PathLike) -> str:

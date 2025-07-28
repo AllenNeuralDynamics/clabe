@@ -3,8 +3,6 @@ import unittest.mock
 from pathlib import Path
 from unittest.mock import patch
 
-from aind_behavior_services import AindBehaviorRigModel, AindBehaviorSessionModel, AindBehaviorTaskLogicModel
-
 from clabe.launcher import BaseLauncher
 from clabe.launcher._cli import BaseLauncherCliArgs
 
@@ -13,6 +11,7 @@ from .fixtures import MockPicker, mock_rig, mock_session, mock_task_logic
 
 class BaseLauncherMock(BaseLauncher):
     pass
+
 
 class TestBaseLauncher(unittest.TestCase):
     @patch("clabe.launcher.BaseLauncher.validate", return_value=True)
