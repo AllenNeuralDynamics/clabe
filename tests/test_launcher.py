@@ -12,15 +12,7 @@ from .fixtures import MockPicker, mock_rig, mock_session, mock_task_logic
 
 
 class BaseLauncherMock(BaseLauncher):
-    def _pre_run_hook(self, *args, **kwargs):
-        pass
-
-    def _run_hook(self, *args, **kwargs):
-        pass
-
-    def _post_run_hook(self, *args, **kwargs):
-        pass
-
+    pass
 
 class TestBaseLauncher(unittest.TestCase):
     @patch("clabe.launcher.BaseLauncher.validate", return_value=True)
