@@ -8,7 +8,7 @@ from aind_behavior_services import AindBehaviorRigModel, AindBehaviorSessionMode
 from clabe.launcher import BaseLauncher
 from clabe.launcher._cli import BaseLauncherCliArgs
 
-from .fixtures import MockPicker
+from .fixtures import MockPicker, mock_rig, mock_session, mock_task_logic
 
 
 class BaseLauncherMock(BaseLauncher):
@@ -25,9 +25,9 @@ class BaseLauncherMock(BaseLauncher):
 class TestBaseLauncher(unittest.TestCase):
     @patch("clabe.launcher.BaseLauncher.validate", return_value=True)
     def setUp(self, mock_validate):
-        self.rig_schema_model = type(AindBehaviorRigModel)
-        self.session_schema_model = type(AindBehaviorSessionModel)
-        self.task_logic_schema_model = type(AindBehaviorTaskLogicModel)
+        self.rig_schema_model = mock_rig
+        self.session_schema_model = mock_session
+        self.task_logic_schema_model = mock_task_logic
         self.data_dir = Path("/tmp/fake/data/dir")
         self.config_library_dir = Path("/tmp/fake/config/dir")
         self.temp_dir = Path("/tmp/fake/temp/dir")
@@ -40,11 +40,14 @@ class TestBaseLauncher(unittest.TestCase):
         )
 
     def test_init(self):
-        self.assertEqual(self.launcher.rig_schema_model, self.rig_schema_model)
-        self.assertEqual(self.launcher.session_schema_model, self.session_schema_model)
-        self.assertEqual(self.launcher.task_logic_schema_model, self.task_logic_schema_model)
-        self.assertEqual(self.launcher.data_dir.resolve(), self.data_dir.resolve())
-        self.assertTrue(self.launcher.temp_dir.exists())
+        self.assertEqual(self.launcher.get_rig(), self.rig_schema_model)
+        self.assertEqual(self.launcher.get_session(), self.session_schema_model)
+        self.assertEqual(self.launcher.get_task_logic(), self.task_logic_schema_model)
+        self.assertEqual(self.launcher.get_rig_model(), type(self.rig_schema_model))
+        self.assertEqual(self.launcher.get_session_model(), type(self.session_schema_model))
+        self.assertEqual(self.launcher.get_task_logic_model(), type(self.task_logic_schema_model))
+        self.assertEqual(Path(self.launcher.settings.data_dir).resolve(), self.data_dir.resolve())
+        self.assertTrue(Path(self.launcher.settings.temp_dir).exists())
 
     @patch("os.makedirs")
     @patch("os.path.exists", return_value=False)
