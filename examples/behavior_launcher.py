@@ -16,6 +16,7 @@ from typing_extensions import override
 from clabe import resource_monitor
 from clabe.apps import App
 from clabe.data_mapper import DataMapper
+from clabe.data_transfer.aind_watchdog import WatchdogDataTransferService, WatchdogSettings
 from clabe.launcher import BaseLauncher, BaseLauncherCliArgs, DefaultBehaviorPicker, DefaultBehaviorPickerSettings
 
 logger = logging.getLogger(__name__)
@@ -105,7 +106,16 @@ class DemoAindDataSchemaSessionDataMapper(DataMapper[MockAindDataSchemaSession])
         return _run
 
 
-### Mock App for tests
+class MockWatchdogService(WatchdogDataTransferService):
+    def transfer(self) -> None:
+        logger.info("MockWatchdogService: Transfer method called.")
+        logger.info("Validating watchdog service...")
+        self.validate()
+        logger.info("Watchdog service validated successfully.")
+        logger.info("MockWatchdogService: Data transfer completed successfully.")
+
+    def validate(self, *args, **kwargs) -> bool:
+        return True
 
 
 class EchoApp(App):
@@ -174,6 +184,11 @@ def make_launcher():
         ]
     )
 
+    watchdog_settings = WatchdogSettings(
+        destination=Path(r"./local/data"),
+        project_name="my_project",
+    )
+
     launcher = BaseLauncher(
         rig=RigModel,
         session=AindBehaviorSessionModel,
@@ -193,7 +208,10 @@ def make_launcher():
     )
     launcher.register_hook(monitor.build_runner())
     launcher.register_hook(EchoApp("Hello World!").build_runner(allow_std_error=True))
-    launcher.register_hook(DemoAindDataSchemaSessionDataMapper.builder_runner(Path("./mock/script.py")))
+    output = launcher.register_hook(DemoAindDataSchemaSessionDataMapper.builder_runner(Path("./mock/script.py")))
+    launcher.register_hook(
+        MockWatchdogService.builder_runner(settings=watchdog_settings, aind_session_data_mapper=output.result)
+    )
 
     return launcher
 

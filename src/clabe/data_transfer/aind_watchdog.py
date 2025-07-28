@@ -1,7 +1,5 @@
 import importlib.util
 
-from aind_behavior_services import AindBehaviorSessionModel
-
 if importlib.util.find_spec("aind_watchdog_service") is None:
     raise ImportError(
         "The 'aind_watchdog_service' package is required to use this module. \
@@ -710,46 +708,30 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         return self._ui_helper.prompt_yes_no_question("Would you like to generate a watchdog manifest (Y/N)?")
 
     @classmethod
-    def create_factory(
+    def builder_runner(
         cls,
         settings: WatchdogSettings,
         aind_session_data_mapper: Callable[[], AindDataSchemaSessionDataMapper] | AindDataSchemaSessionDataMapper,
-    ) -> Callable[[BaseLauncher], "WatchdogDataTransferService"]:
+    ) -> Callable[[BaseLauncher], None]:
         def _from_launcher(
             launcher: BaseLauncher,
-            _settings: WatchdogSettings = settings,
-            aind_session_data_mapper: Optional[
-                Callable[[], AindDataSchemaSessionDataMapper] | AindDataSchemaSessionDataMapper
-            ] = aind_session_data_mapper,
-        ) -> "WatchdogDataTransferService":
-            if callable(aind_session_data_mapper):
-                aind_session_data_mapper = aind_session_data_mapper()
+        ) -> None:
+            _aind_session_data_mapper = (
+                aind_session_data_mapper() if callable(aind_session_data_mapper) else aind_session_data_mapper
+            )
 
-            if not isinstance(aind_session_data_mapper, AindDataSchemaSessionDataMapper):
-                raise ValueError(
-                    "Data mapper service is not of the correct type (AindDataSchemaSessionDataMapper). Cannot create watchdog."
-                )
-            else:
-                # TODO
-                if launcher.services_factory_manager.data_mapper is None:
-                    raise ValueError("Data mapper service is not set and no callable provided. Cannot create watchdog.")
-
-                aind_session_data_mapper = launcher.services_factory_manager.data_mapper
-
-            if not aind_session_data_mapper.is_mapped():
+            if not _aind_session_data_mapper.is_mapped():
                 raise ValueError("Data mapper has not mapped yet. Cannot create watchdog.")
 
-            if not isinstance(launcher.get_session_model(), AindBehaviorSessionModel):
-                raise ValueError(
-                    "Session schema is not of the correct type (AindBehaviorSessionModel). Cannot create watchdog."
-                )
+            _settings = settings.model_copy(update={})
 
             _session = launcher.get_session(strict=True)
             _settings.destination = Path(_settings.destination) / _session.subject
-            return cls(
+            launcher.copy_logs()
+            cls(
                 source=launcher.session_directory,
                 settings=_settings,
                 session_name=_session.session_name,
-            ).with_aind_session_data_mapper(aind_session_data_mapper)
+            ).with_aind_session_data_mapper(_aind_session_data_mapper).transfer()
 
         return _from_launcher

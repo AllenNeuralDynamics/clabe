@@ -6,7 +6,7 @@ import shutil
 import sys
 from abc import ABC
 from pathlib import Path
-from typing import Any, Callable, Generic, List, Optional, Self, Type, TypeVar, overload
+from typing import Any, Callable, Generic, List, Optional, Self, Type, TypeVar, Union, overload
 
 import pydantic
 from aind_behavior_services import (
@@ -21,7 +21,7 @@ from ..git_manager import GitRepository
 from ..ui import DefaultUIHelper, UiHelper
 from ..utils import abspath, format_datetime, utcnow
 from ._cli import BaseLauncherCliArgs
-from ._hook_manager import HookManager
+from ._hook_manager import _HookManager, _Promise
 
 TRig = TypeVar("TRig", bound=AindBehaviorRigModel)
 TSession = TypeVar("TSession", bound=AindBehaviorSessionModel)
@@ -31,7 +31,7 @@ TModel = TypeVar("TModel", bound=pydantic.BaseModel)
 logger = logging.getLogger(__name__)
 
 TLauncher = TypeVar("TLauncher", bound="BaseLauncher")
-
+_TOutput = TypeVar("_TOutput")
 
 class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
     """
@@ -89,7 +89,7 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
         self._logger = _logger
 
         # Create hook managers
-        self._hook_manager: HookManager[Self, Any] = HookManager()
+        self._hook_manager: _HookManager[Self, Any] = _HookManager()
 
         repository_dir = Path(self.settings.repository_dir) if self.settings.repository_dir is not None else None
         self.repository = GitRepository() if repository_dir is None else GitRepository(path=repository_dir)
@@ -124,8 +124,7 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
                 self.validate()
 
             self.hook_manager.run(self)
-            logging_helper.close_file_handlers(logger)  # TODO
-            self._copy_tmp_directory(self.session_directory / "Behavior" / "Logs")  # TODO
+
             self.dispose()
 
         except KeyboardInterrupt:
@@ -133,8 +132,16 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
             self._exit(-1)
             return
 
+    def copy_logs(self) -> None:
+        """
+        Closes the file handlers of the launcher and copies the temporary data to the session directory.
+        This method is typically called at the end of the launcher by a hook that transfers data.
+        """
+        logging_helper.close_file_handlers(logger)
+        self._copy_tmp_directory(self.session_directory / "Behavior" / "Logs")
+
     @property
-    def hook_manager(self) -> HookManager[Self, Any]:
+    def hook_manager(self) -> _HookManager[Self, Any]:
         """
         Returns the hook managers for the launcher.
 
@@ -147,23 +154,29 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
         return self._hook_manager
 
     @overload
-    def register_hook(self, hook: Callable[[Self], Any]) -> Self: ...
+    def register_hook(self, hook: Callable[[Self], _TOutput]) -> _Promise[Self, _TOutput]: ...
     @overload
-    def register_hook(self, hook: List[Callable[[Self], Any]]) -> Self: ...
+    def register_hook(self, hook: List[Callable[[Self], _TOutput]]) -> List[_Promise[Self, _TOutput]]: ...
 
-    def register_hook(self, hook: Callable[[Self], Any] | List[Callable[[Self], Any]]) -> Self:
+    def register_hook(self, hook: Callable[[Self], _TOutput] | List[Callable[[Self], _TOutput]]) -> Union[_Promise[Self, _TOutput], List[_Promise[Self, _TOutput]]]:
         """
-        Adds a hook to the launcher.
+        Adds a hook to the launcher and returns a promise for its result.
 
         Args:
-            hook: The hook to add to the launcher
+            hook: The hook or list of hooks to add to the launcher
+
+        Returns:
+            Promise or list of Promises that can be used to access hook results
         """
         if isinstance(hook, list):
+            promises = []
             for h in hook:
-                self.hook_manager.register(h)
+                promise = self.hook_manager.register(h)
+                promises.append(promise)
+            return promises
         else:
-            self.hook_manager.register(hook)
-        return self
+            promise = self.hook_manager.register(hook)
+            return promise
 
     @property
     def logger(self) -> logging.Logger:

@@ -1,6 +1,5 @@
 from ._base import BaseLauncher, TModel, TRig, TSession, TTaskLogic
 from ._cli import BaseLauncherCliArgs
-from ._hook_manager import HookManager
 from ._picker import DefaultBehaviorPicker, DefaultBehaviorPickerSettings
 
 __all__ = [
@@ -10,7 +9,6 @@ __all__ = [
     "TSession",
     "TTaskLogic",
     "BaseLauncherCliArgs",
-    "HookManager",
     "DefaultBehaviorPicker",
     "DefaultBehaviorPickerSettings",
 ]
