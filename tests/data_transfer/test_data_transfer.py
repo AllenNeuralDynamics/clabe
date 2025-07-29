@@ -17,7 +17,7 @@ from clabe.data_transfer.aind_watchdog import (
 )
 from clabe.data_transfer.robocopy import RobocopyService, RobocopySettings
 
-from .fixtures import MockUiHelper
+from ..fixtures import MockUiHelper
 
 
 class TestWatchdogDataTransferService(unittest.TestCase):

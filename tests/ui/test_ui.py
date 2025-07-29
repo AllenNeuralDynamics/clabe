@@ -7,14 +7,14 @@ from clabe.launcher import BaseLauncher, BaseLauncherCliArgs, DefaultBehaviorPic
 from clabe.ui import DefaultUIHelper
 from tests import suppress_stdout
 
-from .fixtures import mock_rig, mock_session, mock_task_logic
+from ..fixtures import mock_rig, mock_session, mock_task_logic
 
 
 class TestDefaultBehaviorPicker(unittest.TestCase):
     def setUp(self):
         self.launcher = BaseLauncher[Any, Any, Any](
             rig=mock_rig,
-            task_logic=mock_task_logic,
+            task_logic=None,
             session=mock_session,
             settings=BaseLauncherCliArgs(
                 data_dir=Path("/path/to/data"),
@@ -52,11 +52,14 @@ class TestDefaultBehaviorPicker(unittest.TestCase):
     @patch("glob.glob")
     @patch("os.path.isfile", return_value=True)
     @patch("builtins.input", return_value="1")
-    def test_prompt_task_logic_input(self, mock_input, mock_is_file, mock_glob, mock_model_from_json_file):
+    @patch("clabe.launcher._base.BaseLauncher.set_task_logic")
+    def test_prompt_task_logic_input(self, mock_set_task_logic, mock_input, mock_is_file, mock_glob, mock_model_from_json_file):
         with suppress_stdout():
             mock_glob.return_value = ["/path/to/task1.json"]
-            mock_model_from_json_file.return_value = MagicMock()
+            mock_task_logic_instance = MagicMock()
+            mock_model_from_json_file.return_value = mock_task_logic_instance
             task_logic = self.picker.pick_task_logic(self.launcher)
+            mock_set_task_logic.assert_called_once_with(mock_task_logic_instance)
             self.assertIsNotNone(task_logic)
 
 

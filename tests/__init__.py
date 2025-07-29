@@ -64,4 +64,4 @@ class SubmoduleManager:
         root_repo.git.submodule("update", "--init", "--recursive")
 
 
-SubmoduleManager.initialize_submodules()
+

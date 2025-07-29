@@ -178,7 +178,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         self._source = source
 
         self._aind_session_data_mapper: Optional[AindDataSchemaSessionDataMapper] = None
-        self._upload_job_configs = []
+        self._upload_job_configs: List[_JobConfigs] = []
 
         _default_exe = os.environ.get("WATCHDOG_EXE", None)
         _default_config = os.environ.get("WATCHDOG_CONFIG", None)
@@ -443,7 +443,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
             processor_full_name=processor_full_name,
             project_name=self._settings.project_name,
             schedule_time=self._settings.schedule_time,
-            platform=getattr(self._settings.platform, "abbreviation"),
+            platform=self._settings.platform,
             capsule_id=self._settings.capsule_id,
             s3_bucket=self._settings.s3_bucket,
             script=self._settings.script if self._settings.script else {},
@@ -454,13 +454,13 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         )
 
         # TODO
-        _manifest_config = self.add_transfer_service_args(_manifest_config, jobs=self.upload_job_configs)
+        _manifest_config = self.add_transfer_service_args(_manifest_config, jobs=self._upload_job_configs)
         return _manifest_config
 
     def add_transfer_service_args(
         self,
         manifest_config: ManifestConfig,
-        jobs=Optional[List[_JobConfigs]],
+        jobs: List[_JobConfigs] = [],
         submit_job_request_kwargs: Optional[dict] = None,
     ) -> ManifestConfig:
         """
@@ -486,7 +486,8 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         job_settings = job_settings.model_copy(update=(submit_job_request_kwargs or {}))
         manifest_config.transfer_service_args = job_settings
 
-        if (jobs is None) or (len(jobs) == 0):
+        if jobs is None:
+            jobs = []
             return manifest_config
 
         def _normalize_callable(job: _JobConfigs) -> ModalityConfigs:
@@ -633,9 +634,9 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
             raise ValueError("ManifestConfig or WatchConfig config is not set.")
 
         path = (Path(path) if path else Path(watch_config.flag_dir) / f"manifest_{manifest_config.name}.yaml").resolve()
-        if "manifest" not in path.name:
+        if not path.name.startswith("manifest_"):
             logger.info("Prefix manifest_ not found in file name. Appending it.")
-            path = path.with_name(f"manifest_{path.name}.yaml")
+            path = path.with_name(f"manifest_{path.stem}{path.suffix}")
 
         if make_dir and not path.parent.exists():
             path.parent.mkdir(parents=True, exist_ok=True)

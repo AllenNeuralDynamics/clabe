@@ -9,7 +9,7 @@ from clabe.data_mapper.helpers import (
     snapshot_bonsai_environment,
     snapshot_python_environment,
 )
-from tests import TESTS_ASSETS
+from .. import TESTS_ASSETS
 
 
 class MockModel(BaseModel):

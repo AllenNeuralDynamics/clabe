@@ -5,7 +5,7 @@ from aind_behavior_curriculum import Metrics, TrainerState
 from semver import Version
 
 from clabe.apps import PythonScriptApp
-from tests import TESTS_ASSETS, SubmoduleManager
+from .. import TESTS_ASSETS, SubmoduleManager
 
 SubmoduleManager.initialize_submodules()
 

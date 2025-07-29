@@ -50,6 +50,9 @@ dev = [
     "ruff",
     "codespell",
     "coverage",
+    'pytest',
+    'pytest-cov',
+    'interrogate',
     "aind-clabe[aind-services]",
 ]
 
@@ -90,6 +93,9 @@ ignore-words-list = "nd, assertIn"
 [tool.coverage.run]
 omit = ["*__init__*"]
 source = ["clabe", "tests"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests/"]
 
 [tool.coverage.report]
 exclude_lines = [
