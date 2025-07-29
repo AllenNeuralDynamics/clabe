@@ -108,6 +108,7 @@ class _SafeYamlSettingsSource(ps.YamlConfigSettingsSource):
     """
     A safe YAML settings source that does not raise an error if the YAML configuration section is not found.
     """
+
     def __init__(
         self,
         settings_cls: type[ps.BaseSettings],

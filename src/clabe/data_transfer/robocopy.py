@@ -28,6 +28,7 @@ class RobocopySettings(ServiceSettings):
         overwrite (bool): Whether to overwrite existing files.
         force_dir (bool): Whether to create the destination directory if it does not exist.
     """
+
     _yml_section: ClassVar[str] = "robocopy"
 
     destination: PathLike

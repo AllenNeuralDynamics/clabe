@@ -14,7 +14,7 @@ import os
 import subprocess
 from os import PathLike
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, ClassVar, Dict, List, Optional, Union, Self
+from typing import TYPE_CHECKING, Any, Callable, ClassVar, Dict, List, Optional, Union
 
 import aind_watchdog_service.models
 import pydantic
@@ -62,6 +62,7 @@ class WatchdogSettings(ServiceSettings):
         extra_identifying_info (Optional[dict]): Extra identifying information for the data transfer.
         upload_job_configs (Optional[Any]): Upload job configurations.
     """
+
     _yml_section: ClassVar[Optional[str]] = "watchdog"
 
     destination: PathLike
@@ -739,6 +740,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         Returns:
             A factory for WatchdogDataTransferService.
         """
+
         def _from_launcher(
             launcher: BaseLauncher,
         ) -> "WatchdogDataTransferService":
@@ -763,4 +765,3 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
             return service
 
         return _from_launcher
-

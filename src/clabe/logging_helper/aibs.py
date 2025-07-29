@@ -38,6 +38,7 @@ class AibsLogServerHandlerSettings(ServiceSettings):
         port (int): The port of the log server.
         level (int): The logging level.
     """
+
     _yml_section: ClassVar[str] = "aibs_log_server_handler"
 
     rig_id: str = pydantic.Field(default_factory=lambda: _getenv("aibs_rig_id"))

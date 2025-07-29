@@ -28,6 +28,7 @@ class DefaultBehaviorPickerSettings(ServiceSettings):
     Attributes:
         config_library_dir: The directory where configuration files are stored.
     """
+
     config_library_dir: os.PathLike
 
 

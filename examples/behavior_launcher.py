@@ -3,7 +3,7 @@ import logging
 import os
 import subprocess
 from pathlib import Path
-from typing import Callable, Dict, Literal, Optional, Self, Union, cast
+from typing import Callable, Dict, Literal, Optional, Self, Union
 
 import git
 from aind_behavior_services.rig import AindBehaviorRigModel
@@ -203,7 +203,7 @@ def make_launcher():
     )
 
     picker = DefaultBehaviorPicker(settings=DefaultBehaviorPickerSettings(config_library_dir=LIB_CONFIG))
-    from clabe.data_transfer.aind_watchdog import AindDataSchemaSessionDataMapper
+
     launcher.register_hook(
         [
             picker.initialize,
@@ -215,9 +215,12 @@ def make_launcher():
     launcher.register_hook(monitor.build_runner())
     launcher.register_hook(EchoApp("Hello World!").build_runner(allow_std_error=True))
     output = launcher.register_hook(DemoAindDataSchemaSessionDataMapper.builder_runner(Path("./mock/script.py")))
-    launcher.register_hook(MockWatchdogService.build_runner(settings=watchdog_settings, aind_session_data_mapper=output.result))
+    launcher.register_hook(
+        MockWatchdogService.build_runner(settings=watchdog_settings, aind_session_data_mapper=output.result)
+    )
 
     return launcher
+
 
 def create_fake_subjects():
     subjects = ["00000", "123456"]

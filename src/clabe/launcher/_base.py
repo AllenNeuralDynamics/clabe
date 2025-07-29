@@ -20,8 +20,8 @@ from .. import __version__, logging_helper
 from ..git_manager import GitRepository
 from ..ui import DefaultUIHelper, UiHelper
 from ..utils import abspath, format_datetime, utcnow
+from ._callable_manager import _CallableManager, _Promise
 from ._cli import BaseLauncherCliArgs
-from ._hook_manager import _HookManager, _Promise
 
 TRig = TypeVar("TRig", bound=AindBehaviorRigModel)
 TSession = TypeVar("TSession", bound=AindBehaviorSessionModel)
@@ -33,10 +33,11 @@ logger = logging.getLogger(__name__)
 TLauncher = TypeVar("TLauncher", bound="BaseLauncher")
 _TOutput = TypeVar("_TOutput")
 
+
 class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
     """
     Abstract base class for experiment launchers. Provides common functionality
-    for managing configuration files, directories, and execution hooks.
+    for managing configuration files, directories, and registered callables.
 
     This class serves as the foundation for all launcher implementations, providing
     schema management, directory handling, validation, and lifecycle management.
@@ -88,8 +89,8 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
 
         self._logger = _logger
 
-        # Create hook managers
-        self._hook_manager: _HookManager[Self, Any] = _HookManager()
+        # Create callable managers
+        self._callable_manager: _CallableManager[Self, Any] = _CallableManager()
 
         repository_dir = Path(self.settings.repository_dir) if self.settings.repository_dir is not None else None
         self.repository = GitRepository() if repository_dir is None else GitRepository(path=repository_dir)
@@ -109,7 +110,7 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
         Main entry point for the launcher execution.
 
         Orchestrates the complete launcher workflow including validation,
-        UI prompting, hook execution, and cleanup.
+        UI prompting, callable execution, and cleanup.
 
         Example:
             launcher = MyLauncher(...)
@@ -123,7 +124,7 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
             if not self.settings.debug_mode:
                 self.validate()
 
-            self.hook_manager.run(self)
+            self.callable_manager.run(self)
 
             self.dispose()
 
@@ -135,47 +136,46 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
     def copy_logs(self) -> None:
         """
         Closes the file handlers of the launcher and copies the temporary data to the session directory.
-        This method is typically called at the end of the launcher by a hook that transfers data.
+        This method is typically called at the end of the launcher by a registered callable that transfers data.
         """
         logging_helper.close_file_handlers(logger)
         self._copy_tmp_directory(self.session_directory / "Behavior" / "Logs")
 
     @property
-    def hook_manager(self) -> _HookManager[Self, Any]:
+    def callable_manager(self) -> _CallableManager[Self, Any]:
         """
-        Returns the hook managers for the launcher.
-
-        Provides access to the pre-run, run, and post-run hook managers
-        for managing lifecycle hooks.
+        Returns the callable managers for the launcher.
 
         Returns:
-            HookManagerCollection[Self, Any]: The hook managers for the launcher
+            _CallableManager[Self, Any]: The callable managers for the launcher
         """
-        return self._hook_manager
+        return self._callable_manager
 
     @overload
-    def register_hook(self, hook: Callable[[Self], _TOutput]) -> _Promise[Self, _TOutput]: ...
+    def register_callable(self, callable: Callable[[Self], _TOutput]) -> _Promise[Self, _TOutput]: ...
     @overload
-    def register_hook(self, hook: List[Callable[[Self], _TOutput]]) -> List[_Promise[Self, _TOutput]]: ...
+    def register_callable(self, callable: List[Callable[[Self], _TOutput]]) -> List[_Promise[Self, _TOutput]]: ...
 
-    def register_hook(self, hook: Callable[[Self], _TOutput] | List[Callable[[Self], _TOutput]]) -> Union[_Promise[Self, _TOutput], List[_Promise[Self, _TOutput]]]:
+    def register_callable(
+        self, callable: Callable[[Self], _TOutput] | List[Callable[[Self], _TOutput]]
+    ) -> Union[_Promise[Self, _TOutput], List[_Promise[Self, _TOutput]]]:
         """
-        Adds a hook to the launcher and returns a promise for its result.
+        Adds a callable to the launcher and returns a promise for its result.
 
         Args:
-            hook: The hook or list of hooks to add to the launcher
+            callable: The callable or list of callables to add to the launcher
 
         Returns:
-            Promise or list of Promises that can be used to access hook results
+            Promise or list of Promises that can be used to access callable results
         """
-        if isinstance(hook, list):
+        if isinstance(callable, list):
             promises = []
-            for h in hook:
-                promise = self.hook_manager.register(h)
+            for h in callable:
+                promise = self._callable_manager.register(h)
                 promises.append(promise)
             return promises
         else:
-            promise = self.hook_manager.register(hook)
+            promise = self._callable_manager.register(callable)
             return promise
 
     @property
