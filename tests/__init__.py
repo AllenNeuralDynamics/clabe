@@ -62,6 +62,3 @@ class SubmoduleManager:
     def _initialize_submodules() -> None:
         root_repo = git.Repo(REPO_ROOT)
         root_repo.git.submodule("update", "--init", "--recursive")
-
-
-

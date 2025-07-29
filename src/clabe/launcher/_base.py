@@ -136,7 +136,7 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
     def copy_logs(self) -> None:
         """
         Closes the file handlers of the launcher and copies the temporary data to the session directory.
-        
+
         This method is typically called at the end of the launcher by a registered callable that transfers data.
         """
         logging_helper.close_file_handlers(logger)

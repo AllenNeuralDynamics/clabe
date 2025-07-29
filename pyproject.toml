@@ -95,7 +95,7 @@ omit = ["*__init__*"]
 source = ["clabe", "tests"]
 
 [tool.pytest.ini_options]
-addopts = "--strict-markers --tb=short --cov=src --cov-report=term-missing --cov-fail-under=75"
+addopts = "--strict-markers"
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]

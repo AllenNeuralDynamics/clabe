@@ -1,4 +1,3 @@
-import unittest
 from pathlib import Path
 from typing import Dict, List, Optional
 from unittest.mock import patch
@@ -9,6 +8,7 @@ from clabe.data_mapper.helpers import (
     snapshot_bonsai_environment,
     snapshot_python_environment,
 )
+
 from .. import TESTS_ASSETS
 
 
@@ -21,7 +21,7 @@ class MockModel(BaseModel):
     sub_model: Optional["MockModel"] = None
 
 
-class TestHelpers(unittest.TestCase):
+class TestHelpers:
     @patch("importlib.metadata.distributions")
     def test_snapshot_python_environment(self, mock_distributions):
         mock_distributions.return_value = [
@@ -30,15 +30,13 @@ class TestHelpers(unittest.TestCase):
         ]
         expected_result = {"package1": "1.0.0", "package2": "2.0.0"}
         result = snapshot_python_environment()
-        self.assertEqual(result, expected_result)
+        assert result == expected_result
 
     def test_snapshot_bonsai_environment_from_mock(self):
         out = snapshot_bonsai_environment(config_file=Path(TESTS_ASSETS) / "bonsai.config")
-        self.assertEqual(
-            out,
-            {"Bonsai": "2.8.5", "Bonsai.Core": "2.8.5", "Bonsai.Design": "2.8.5", "Bonsai.Design.Visualizers": "2.8.0"},
-        )
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert out == {
+            "Bonsai": "2.8.5",
+            "Bonsai.Core": "2.8.5",
+            "Bonsai.Design": "2.8.5",
+            "Bonsai.Design.Visualizers": "2.8.0",
+        }
