@@ -64,12 +64,12 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
 
         Args:
             settings: The settings for the launcher
-            rig_schema_model: The model class for the rig schema
-            session_schema_model: The model class for the session schema
-            task_logic_schema_model: The model class for the task logic schema
-            picker: The picker instance for selecting schemas
-            services: The services factory manager. Defaults to None
+            rig: The rig schema model instance or class
+            session: The session schema model instance or class
+            task_logic: The task logic schema model instance or class
             attached_logger: An attached logger instance. Defaults to None
+            ui_helper: The UI helper for user interactions. Defaults to DefaultUIHelper
+            **kwargs: Additional keyword arguments
         """
         self._settings = settings
         self.ui_helper = ui_helper
@@ -136,6 +136,7 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
     def copy_logs(self) -> None:
         """
         Closes the file handlers of the launcher and copies the temporary data to the session directory.
+        
         This method is typically called at the end of the launcher by a registered callable that transfers data.
         """
         logging_helper.close_file_handlers(logger)

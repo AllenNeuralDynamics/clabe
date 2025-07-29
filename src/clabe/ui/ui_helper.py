@@ -30,6 +30,9 @@ class _UiHelperBase(abc.ABC):
     def print(self, message: str) -> None:
         """
         Prints a message using the configured print function.
+
+        Args:
+            message: The message to print
         """
         ...
 
@@ -37,6 +40,12 @@ class _UiHelperBase(abc.ABC):
     def input(self, prompt: str) -> str:
         """
         Prompts the user for input using the configured input function.
+
+        Args:
+            prompt: The prompt message to display
+
+        Returns:
+            str: The user input received from the input function
         """
         ...
 
@@ -78,7 +87,7 @@ class _UiHelperBase(abc.ABC):
             helper = DefaultUIHelper()
             if helper.prompt_yes_no_question("Save changes?"):
                 save_file()
-
+            ```
         """
 
     @abc.abstractmethod

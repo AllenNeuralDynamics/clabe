@@ -127,6 +127,9 @@ class PickerBase(abc.ABC, Generic[_L, _R, _S, _T]):
 
         Subclasses must implement this method to provide rig selection functionality.
 
+        Args:
+            launcher: The launcher instance
+
         Returns:
             _R: The selected rig
         """
@@ -138,6 +141,9 @@ class PickerBase(abc.ABC, Generic[_L, _R, _S, _T]):
         Abstract method to pick a session.
 
         Subclasses must implement this method to provide session selection/creation functionality.
+
+        Args:
+            launcher: The launcher instance
 
         Returns:
             _S: The selected session

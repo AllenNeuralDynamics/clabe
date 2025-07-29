@@ -93,6 +93,9 @@ class App(Service, abc.ABC):
 
         Returns:
             subprocess.CompletedProcess: The result of the application's execution.
+
+        Raises:
+            RuntimeError: If the application has not been run yet.
         """
 
     def add_app_settings(self, **kwargs) -> Self:
