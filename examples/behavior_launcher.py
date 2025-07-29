@@ -204,7 +204,7 @@ def make_launcher():
 
     picker = DefaultBehaviorPicker(settings=DefaultBehaviorPickerSettings(config_library_dir=LIB_CONFIG))
 
-    launcher.register_hook(
+    launcher.register_callable(
         [
             picker.initialize,
             picker.pick_session,
@@ -212,11 +212,11 @@ def make_launcher():
             picker.pick_rig,
         ]
     )
-    launcher.register_hook(monitor.build_runner())
-    launcher.register_hook(EchoApp("Hello World!").build_runner(allow_std_error=True))
-    output = launcher.register_hook(DemoAindDataSchemaSessionDataMapper.builder_runner(Path("./mock/script.py")))
-    launcher.register_hook(
-        MockWatchdogService.build_runner(settings=watchdog_settings, aind_session_data_mapper=output.result)
+    launcher.register_callable(monitor.build_runner())
+    launcher.register_callable(EchoApp("Hello World!").build_runner(allow_std_error=True))
+    output = launcher.register_callable(DemoAindDataSchemaSessionDataMapper.builder_runner(Path("./mock/script.py")))
+    launcher.register_callable(
+        MockWatchdogService.build_runner(settings=watchdog_settings, aind_session_data_mapper=lambda: output.result)
     )
 
     return launcher

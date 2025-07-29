@@ -2,8 +2,6 @@ import logging
 import typing as t
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 
-from git import Optional
-
 if TYPE_CHECKING:
     from ._base import BaseLauncher
 else:
