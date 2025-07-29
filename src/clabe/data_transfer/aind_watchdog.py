@@ -332,7 +332,6 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         Args:
             watched_directory: Directory to monitor for changes
             manifest_complete_directory: Directory for completed manifests
-            webhook_url: Optional webhook URL for notifications
             create_dir: Whether to create the directories if they don't exist
 
         Returns:

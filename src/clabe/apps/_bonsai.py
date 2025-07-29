@@ -71,6 +71,7 @@ class BonsaiApp(App):
             timeout (Optional[float]): Timeout for the Bonsai process. Defaults to None.
             print_cmd (bool): Whether to print the command being executed. Defaults to False.
             ui_helper (Optional[UiHelper]): UI helper instance. Defaults to DefaultUIHelper.
+            **kwargs: Additional keyword arguments.
 
         Example:
             ```python

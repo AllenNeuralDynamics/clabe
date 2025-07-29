@@ -34,7 +34,7 @@ class App(Service, abc.ABC):
         result() -> subprocess.CompletedProcess:
             Retrieves the result of the application's execution.
             Must be implemented by subclasses.
-        add_app_settings(*args, **kwargs) -> Self:
+        add_app_settings(**kwargs) -> Self:
             Adds or updates application settings. Can be overridden by subclasses
             to provide specific behavior for managing application settings.
 
@@ -46,10 +46,10 @@ class App(Service, abc.ABC):
         ```python
         # Implement a custom app
         class MyApp(App):
-            def run(self): return subprocess.run(["echo", "hello"])
-            def output_from_result(self, allow_stderr): return self
+            def run(self) -> subprocess.CompletedProcess: return subprocess.run(["echo", "hello"])
+            def output_from_result(self, allow_stderr: Optional[bool]) -> Self: return self
             @property
-            def result(self): return self._result
+            def result(self) -> subprocess.CompletedProcess: return self._result
 
         app = MyApp()
         app.run()

@@ -34,31 +34,31 @@ class PickerBase(abc.ABC, Generic[_L, _R, _S, _T]):
     Example:
         ```python
         class MyPicker(PickerBase):
-            def pick_rig(self):
-                return MyRigModel(name="test_rig")
+            def pick_rig(self, launcher: _L) -> _R:
+                # Implementation specific rig picking logic
+                return launcher.get_rig_model()()
 
-            def pick_session(self):
-                return MySessionModel(subject="test_subject")
+            def pick_session(self, launcher: _L) -> _S:
+                # Implementation specific session picking logic
+                return launcher.get_session_model()()
 
-            def pick_task_logic(self):
-                return MyTaskLogicModel(name="test_task")
-
-            def initialize(self):
-                pass
+            def pick_task_logic(self, launcher: _L) -> _T:
+                # Implementation specific task logic picking logic
+                return launcher.get_task_logic_model()()
 
         picker = MyPicker()
-        picker.register_launcher(launcher)
-        picker.initialize()
-        rig = picker.pick_rig()
+        # Assuming 'launcher' is an instance of BaseLauncher
+        rig = picker.pick_rig(launcher)
+        session = picker.pick_session(launcher)
+        task_logic = picker.pick_task_logic(launcher)
         ```
     """
 
     def __init__(self, *, ui_helper: Optional[_UiHelperBase] = None, **kwargs) -> None:
         """
-        Initializes the picker with an optional launcher and UI helper.
+        Initializes the picker with an optional UI helper.
 
         Args:
-            launcher: The launcher instance
             ui_helper: The UI helper instance
 
         Example:
@@ -150,6 +150,9 @@ class PickerBase(abc.ABC, Generic[_L, _R, _S, _T]):
         Abstract method to pick task logic.
 
         Subclasses must implement this method to provide task logic selection functionality.
+
+        Args:
+            launcher: The launcher instance.
 
         Returns:
             _T: The selected task logic

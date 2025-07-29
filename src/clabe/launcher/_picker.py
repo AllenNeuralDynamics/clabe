@@ -85,7 +85,6 @@ class DefaultBehaviorPicker(_LauncherBoundPicker[TRig, TSession, TTaskLogic]):
         Initializes the DefaultBehaviorPicker.
 
         Args:
-            launcher: The launcher instance associated with the picker
             settings: Settings containing configuration including config_library_dir
             ui_helper: Helper for user interface interactions
             experimenter_validator: Function to validate the experimenter's username. If None, no validation is performed

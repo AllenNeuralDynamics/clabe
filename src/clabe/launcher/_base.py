@@ -234,11 +234,11 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
         """
         Returns the rig schema instance.
 
-        Returns:
-            TRig: The rig schema instance
+        Args:
+            strict: If True, raises ValueError if rig schema is not set
 
-        Raises:
-            ValueError: If rig schema instance is not set
+        Returns:
+            Optional[TRig]: The rig schema instance
         """
         if self._rig is None and strict:
             raise ValueError("Rig schema instance is not set.")
