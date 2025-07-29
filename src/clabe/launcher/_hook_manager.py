@@ -1,6 +1,6 @@
 import logging
 import typing as t
-from typing import TYPE_CHECKING, Any, Callable, Dict
+from typing import TYPE_CHECKING, Any, Callable, Dict, TypeVar, Generic
 import logging
 import typing as t
 from typing import Any, Optional
@@ -19,6 +19,7 @@ TLauncher = t.TypeVar("TLauncher", bound=BaseLauncher)
 
 
 class _UnsetType:
+    """A singleton class to represent an unset value."""
     __slots__ = ()
     _instance = None
 
@@ -51,7 +52,7 @@ class _Promise(t.Generic[TInput, TOutput]):
         Returns:
             The result of the hook function execution
         """
-        if not self.has_result():
+        if self.has_result():
             assert not isinstance(self._result, _UnsetType)
             return self._result
         self._result = self._fn(value)
@@ -87,6 +88,13 @@ class _Promise(t.Generic[TInput, TOutput]):
         return f"Promise(func={self._fn.__name__}, status={status})"
 
 class _HookManager(t.Generic[TInput, TOutput]):
+    """
+    Manages a collection of hooks and their lazy evaluation.
+
+    This class allows registering callables (hooks), which are wrapped in `_Promise`
+    objects. It ensures that each hook is executed at most once and provides a
+    mechanism to retrieve their results.
+    """
     def __init__(self):
         self._hook_promises: Dict[Callable[[TInput], TOutput], _Promise[TInput, TOutput]] = {}
         self._has_run: bool = False
@@ -137,3 +145,20 @@ class _HookManager(t.Generic[TInput, TOutput]):
             raise KeyError(f"Callable {callable_fn.__name__} not found in registered promises")
         return self._hook_promises[callable_fn].result
 
+
+TInput = TypeVar("TInput")
+TOutput = TypeVar("TOutput")
+def defer(fn: Callable[[TInput], TOutput]) -> Callable[[TInput], _Promise[TInput, TOutput]]:
+    """
+    Decorator to defer the execution of a callable until its result is needed.
+    
+    Args:
+        callable: The callable to defer
+        
+    Returns:
+        A function that returns a _Promise object
+    """
+    def wrapper(value: TInput) -> _Promise[TInput, TOutput]:
+        return fn(value)
+
+    return wrapper

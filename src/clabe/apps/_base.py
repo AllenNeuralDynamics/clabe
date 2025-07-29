@@ -19,6 +19,9 @@ class App(Service, abc.ABC):
     """
     Abstract base class representing an application that can be run and managed.
 
+    This class defines the interface for applications that can be executed and managed by the launcher.
+    Subclasses must implement the abstract methods to define the specific behavior of the application.
+
     Attributes:
         None
 
@@ -58,6 +61,8 @@ class App(Service, abc.ABC):
         """
         Executes the application.
 
+        This method should contain the logic to run the application and return the result of the execution.
+
         Returns:
             subprocess.CompletedProcess: The result of the application's execution.
         """
@@ -67,6 +72,8 @@ class App(Service, abc.ABC):
     def output_from_result(self, allow_stderr: Optional[bool]) -> Self:
         """
         Processes and returns the output from the application's result.
+
+        This method should process the result of the application's execution and return the output.
 
         Args:
             allow_stderr (Optional[bool]): Whether to allow stderr in the output.
@@ -82,6 +89,8 @@ class App(Service, abc.ABC):
         """
         Retrieves the result of the application's execution.
 
+        This property should return the result of the application's execution.
+
         Returns:
             subprocess.CompletedProcess: The result of the application's execution.
         """
@@ -89,6 +98,8 @@ class App(Service, abc.ABC):
     def add_app_settings(self, **kwargs) -> Self:
         """
         Adds or updates application settings.
+
+        This method can be overridden by subclasses to provide specific behavior for managing application settings.
 
         Args:
             **kwargs: Keyword arguments for application settings.
@@ -105,6 +116,18 @@ class App(Service, abc.ABC):
         return self
 
     def build_runner(self, allow_std_error: bool = False) -> Callable[[BaseLauncher], Self]:
+        """
+        Builds a runner function for the application.
+
+        This method returns a callable that can be executed by the launcher to run the application.
+
+        Args:
+            allow_std_error (bool): Whether to allow stderr in the output. Defaults to False.
+
+        Returns:
+            Callable[[BaseLauncher], Self]: A callable that takes a launcher instance and returns the application instance.
+        """
+
         def _run(launcher: BaseLauncher):
             self.add_app_settings(launcher=launcher)
             try:

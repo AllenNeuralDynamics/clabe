@@ -245,6 +245,13 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
         return self._rig
 
     def set_rig(self, rig: TRig, validate: bool = True) -> None:
+        """
+        Sets the rig schema instance.
+
+        Args:
+            rig: The rig schema instance to set.
+            validate: Whether to validate the rig schema instance.
+        """
         if self._rig is not None:
             raise ValueError("Rig already set.")
         if validate:
@@ -283,6 +290,13 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
         return self._session
 
     def set_session(self, session: TSession, validate: bool = True) -> None:
+        """
+        Sets the session schema instance.
+
+        Args:
+            session: The session schema instance to set.
+            validate: Whether to validate the session schema instance.
+        """
         if self._session is not None:
             raise ValueError("Session already set.")
         if validate:
@@ -319,6 +333,13 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
         return self._task_logic
 
     def set_task_logic(self, task_logic: TTaskLogic, validate: bool = True) -> None:
+        """
+        Sets the task logic schema instance.
+
+        Args:
+            task_logic: The task logic schema instance to set.
+            validate: Whether to validate the task logic schema instance.
+        """
         if self._task_logic is not None:
             raise ValueError("Task logic already set.")
         if validate:

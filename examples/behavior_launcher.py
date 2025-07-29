@@ -3,7 +3,7 @@ import logging
 import os
 import subprocess
 from pathlib import Path
-from typing import Callable, Dict, Literal, Optional, Self, Union
+from typing import Callable, Dict, Literal, Optional, Self, Union, cast
 
 import git
 from aind_behavior_services.rig import AindBehaviorRigModel
@@ -88,8 +88,8 @@ class DemoAindDataSchemaSessionDataMapper(DataMapper[MockAindDataSchemaSession])
         script_path: os.PathLike,
         session_end_time: Optional[datetime.datetime] = None,
         output_parameters: Optional[Dict] = None,
-    ) -> Callable[[BaseLauncher], MockAindDataSchemaSession]:
-        def _run(launcher: BaseLauncher) -> MockAindDataSchemaSession:
+    ) -> Callable[[BaseLauncher], Self]:
+        def _run(launcher: BaseLauncher) -> Self:
             logger.info("Running DemoAindDataSchemaSessionDataMapper...")
             new = cls(
                 session_model=launcher.get_session(strict=True),
@@ -101,12 +101,18 @@ class DemoAindDataSchemaSessionDataMapper(DataMapper[MockAindDataSchemaSession])
                 output_parameters=output_parameters,
             )
             logger.info("DemoAindDataSchemaSessionDataMapper completed.")
-            return new.map()
+            new.map()
+            return new
 
         return _run
 
 
 class MockWatchdogService(WatchdogDataTransferService):
+    def __init__(self, *args, **kwargs):
+        os.environ["WATCHDOG_EXE"] = "mock_executable"
+        os.environ["WATCHDOG_CONFIG"] = "mock_config"
+        super().__init__(*args, **kwargs)
+
     def transfer(self) -> None:
         logger.info("MockWatchdogService: Transfer method called.")
         logger.info("Validating watchdog service...")
@@ -197,7 +203,7 @@ def make_launcher():
     )
 
     picker = DefaultBehaviorPicker(settings=DefaultBehaviorPickerSettings(config_library_dir=LIB_CONFIG))
-
+    from clabe.data_transfer.aind_watchdog import AindDataSchemaSessionDataMapper
     launcher.register_hook(
         [
             picker.initialize,
@@ -209,12 +215,9 @@ def make_launcher():
     launcher.register_hook(monitor.build_runner())
     launcher.register_hook(EchoApp("Hello World!").build_runner(allow_std_error=True))
     output = launcher.register_hook(DemoAindDataSchemaSessionDataMapper.builder_runner(Path("./mock/script.py")))
-    launcher.register_hook(
-        MockWatchdogService.builder_runner(settings=watchdog_settings, aind_session_data_mapper=output.result)
-    )
+    launcher.register_hook(MockWatchdogService.build_runner(settings=watchdog_settings, aind_session_data_mapper=output.result))
 
     return launcher
-
 
 def create_fake_subjects():
     subjects = ["00000", "123456"]

@@ -14,7 +14,7 @@ import os
 import subprocess
 from os import PathLike
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, ClassVar, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, ClassVar, Dict, List, Optional, Union, Self
 
 import aind_watchdog_service.models
 import pydantic
@@ -44,6 +44,24 @@ _JobConfigs = Union[ModalityConfigs, Callable[["WatchdogDataTransferService"], U
 
 
 class WatchdogSettings(ServiceSettings):
+    """
+    Settings for the WatchdogDataTransferService.
+
+    Attributes:
+        destination (PathLike): The destination path for the data transfer.
+        schedule_time (Optional[datetime.time]): The time to schedule the data transfer.
+        project_name (str): The name of the project.
+        platform (Platform): The platform of the project.
+        capsule_id (Optional[str]): The capsule ID for the data transfer.
+        script (Optional[Dict[str, List[str]]]): A dictionary of scripts to run.
+        s3_bucket (BucketType): The S3 bucket to transfer the data to.
+        mount (Optional[str]): The mount point for the data transfer.
+        force_cloud_sync (bool): Whether to force a cloud sync.
+        transfer_endpoint (str): The endpoint for the data transfer service.
+        delete_modalities_source_after_success (bool): Whether to delete the source data after a successful transfer.
+        extra_identifying_info (Optional[dict]): Extra identifying information for the data transfer.
+        upload_job_configs (Optional[Any]): Upload job configurations.
+    """
     _yml_section: ClassVar[Optional[str]] = "watchdog"
 
     destination: PathLike
@@ -202,8 +220,6 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         Raises:
             ValueError: If the provided value is not a valid data mapper
         """
-        if not isinstance(value, AindDataSchemaSessionDataMapper):
-            raise ValueError("Data mapper must be an instance of AindDataSchemaSessionDataMapper.")
         self._aind_session_data_mapper = value
         return self
 
@@ -708,14 +724,24 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         return self._ui_helper.prompt_yes_no_question("Would you like to generate a watchdog manifest (Y/N)?")
 
     @classmethod
-    def builder_runner(
+    def build_runner(
         cls,
         settings: WatchdogSettings,
         aind_session_data_mapper: Callable[[], AindDataSchemaSessionDataMapper] | AindDataSchemaSessionDataMapper,
-    ) -> Callable[[BaseLauncher], None]:
+    ) -> Callable[[BaseLauncher], "WatchdogDataTransferService"]:
+        """
+        A factory method for creating the watchdog service.
+
+        Args:
+            settings: The watchdog settings.
+            aind_session_data_mapper: The aind session data mapper.
+
+        Returns:
+            A factory for WatchdogDataTransferService.
+        """
         def _from_launcher(
             launcher: BaseLauncher,
-        ) -> None:
+        ) -> "WatchdogDataTransferService":
             _aind_session_data_mapper = (
                 aind_session_data_mapper() if callable(aind_session_data_mapper) else aind_session_data_mapper
             )
@@ -728,10 +754,13 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
             _session = launcher.get_session(strict=True)
             _settings.destination = Path(_settings.destination) / _session.subject
             launcher.copy_logs()
-            cls(
+            service = cls(
                 source=launcher.session_directory,
                 settings=_settings,
                 session_name=_session.session_name,
-            ).with_aind_session_data_mapper(_aind_session_data_mapper).transfer()
+            ).with_aind_session_data_mapper(_aind_session_data_mapper)
+            service.transfer()
+            return service
 
         return _from_launcher
+

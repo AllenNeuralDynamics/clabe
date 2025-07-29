@@ -89,6 +89,9 @@ class DataMapper(Service, abc.ABC, Generic[TMapTo]):
 
         Returns:
             TMapTo: The mapped data object
+
+        Raises:
+            ValueError: If the data has not been mapped yet.
         """
         if not self.is_mapped():
             raise ValueError("Data not yet mapped")

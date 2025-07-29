@@ -59,23 +59,10 @@ class ResourceMonitor(Service):
 
     def build_runner(self) -> Callable[[BaseLauncher], bool]:
         """
-        Validates all constraints.
-
-        Evaluates all registered constraints to determine if system resources
-        meet the requirements.
+        Builds a runner function that evaluates all constraints.
 
         Returns:
-            bool: True if all constraints are satisfied, False otherwise
-
-        Example:
-            ```python
-            monitor = ResourceMonitor([storage_constraint, memory_constraint])
-
-            if monitor.validate():
-                start_experiment()
-            else:
-                print("Resource requirements not met")
-            ```
+            A callable that takes a launcher instance and returns True if all constraints are satisfied, False otherwise.
         """
 
         def _run(launcher: BaseLauncher) -> bool:

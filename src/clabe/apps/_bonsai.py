@@ -265,7 +265,6 @@ class BonsaiApp(App):
         if len(proc.stderr) > 0:
             logger.error("%s full stderr dump: \n%s", process_name, proc.stderr)
 
-    @override
     def prompt_input(self, *args, **kwargs):
         """
         Prompts the user for input if required.

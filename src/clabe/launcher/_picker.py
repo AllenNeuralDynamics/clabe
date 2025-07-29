@@ -22,6 +22,12 @@ logger = logging.getLogger(__name__)
 
 
 class DefaultBehaviorPickerSettings(ServiceSettings):
+    """
+    Settings for the default behavior picker.
+
+    Attributes:
+        config_library_dir: The directory where configuration files are stored.
+    """
     config_library_dir: os.PathLike
 
 

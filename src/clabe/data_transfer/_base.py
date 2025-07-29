@@ -73,4 +73,5 @@ class DataTransfer(Service, abc.ABC, Generic[TSettings]):
 
     @property
     def settings(self) -> TSettings:
+        """Returns the settings for the data transfer service."""
         return self._settings
