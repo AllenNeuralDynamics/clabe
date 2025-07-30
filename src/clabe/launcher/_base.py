@@ -153,9 +153,30 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
         return self._callable_manager
 
     @overload
-    def register_callable(self, callable: Callable[[Self], _TOutput]) -> _Promise[Self, _TOutput]: ...
+    def register_callable(self, callable: Callable[[Self], _TOutput]) -> _Promise[Self, _TOutput]:
+        """
+        Adds a single callable to the launcher and returns a promise for its result.
+
+        Args:
+            callable: The callable to add to the launcher
+
+        Returns:
+            _Promise[Self, _TOutput]: A promise that can be used to access the callable result
+        """
+        ...
+
     @overload
-    def register_callable(self, callable: List[Callable[[Self], _TOutput]]) -> List[_Promise[Self, _TOutput]]: ...
+    def register_callable(self, callable: List[Callable[[Self], _TOutput]]) -> List[_Promise[Self, _TOutput]]:
+        """
+        Adds a list of callables to the launcher and returns promises for their results.
+
+        Args:
+            callable: The list of callables to add to the launcher
+
+        Returns:
+            List[_Promise[Self, _TOutput]]: A list of promises that can be used to access callable results
+        """
+        ...
 
     def register_callable(
         self, callable: Callable[[Self], _TOutput] | List[Callable[[Self], _TOutput]]
@@ -226,11 +247,44 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
 
     # Public properties / interfaces
     @overload
-    def get_rig(self) -> Optional[TRig]: ...
+    def get_rig(self) -> Optional[TRig]:
+        """
+        Returns the rig schema instance.
+
+        Returns:
+            Optional[TRig]: The rig schema instance or None if not set
+        """
+        ...
+
     @overload
-    def get_rig(self, strict: Literal[False]) -> Optional[TRig]: ...
+    def get_rig(self, strict: Literal[False]) -> Optional[TRig]:
+        """
+        Returns the rig schema instance.
+
+        Args:
+            strict: When False, returns None if rig schema is not set
+
+        Returns:
+            Optional[TRig]: The rig schema instance or None if not set
+        """
+        ...
+
     @overload
-    def get_rig(self, strict: Literal[True]) -> TRig: ...
+    def get_rig(self, strict: Literal[True]) -> TRig:
+        """
+        Returns the rig schema instance.
+
+        Args:
+            strict: When True, raises ValueError if rig schema is not set
+
+        Returns:
+            TRig: The rig schema instance
+
+        Raises:
+            ValueError: If rig schema is not set
+        """
+        ...
+
     def get_rig(self, strict: bool = False) -> Optional[TRig]:
         """
         Returns the rig schema instance.
@@ -271,11 +325,43 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
         return self._rig_model
 
     @overload
-    def get_session(self) -> Optional[TSession]: ...
+    def get_session(self) -> Optional[TSession]:
+        """
+        Returns the session schema instance.
+
+        Returns:
+            Optional[TSession]: The session schema instance or None if not set
+        """
+        ...
+
     @overload
-    def get_session(self, strict: Literal[False]) -> Optional[TSession]: ...
+    def get_session(self, strict: Literal[False]) -> Optional[TSession]:
+        """
+        Returns the session schema instance.
+
+        Args:
+            strict: When False, returns None if session schema is not set
+
+        Returns:
+            Optional[TSession]: The session schema instance or None if not set
+        """
+        ...
+
     @overload
-    def get_session(self, strict: Literal[True]) -> TSession: ...
+    def get_session(self, strict: Literal[True]) -> TSession:
+        """
+        Returns the session schema instance.
+
+        Args:
+            strict: When True, raises ValueError if session schema is not set
+
+        Returns:
+            TSession: The session schema instance
+
+        Raises:
+            ValueError: If session schema is not set
+        """
+        ...
 
     def get_session(self, strict: bool = False) -> Optional[TSession]:
         """
@@ -316,11 +402,44 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
         return self._session_model
 
     @overload
-    def get_task_logic(self) -> Optional[TTaskLogic]: ...
+    def get_task_logic(self) -> Optional[TTaskLogic]:
+        """
+        Returns the task logic schema instance.
+
+        Returns:
+            Optional[TTaskLogic]: The task logic schema instance or None if not set
+        """
+        ...
+
     @overload
-    def get_task_logic(self, strict: Literal[False]) -> Optional[TTaskLogic]: ...
+    def get_task_logic(self, strict: Literal[False]) -> Optional[TTaskLogic]:
+        """
+        Returns the task logic schema instance.
+
+        Args:
+            strict: When False, returns None if task logic schema is not set
+
+        Returns:
+            Optional[TTaskLogic]: The task logic schema instance or None if not set
+        """
+        ...
+
     @overload
-    def get_task_logic(self, strict: Literal[True]) -> TTaskLogic: ...
+    def get_task_logic(self, strict: Literal[True]) -> TTaskLogic:
+        """
+        Returns the task logic schema instance.
+
+        Args:
+            strict: When True, raises ValueError if task logic schema is not set
+
+        Returns:
+            TTaskLogic: The task logic schema instance
+
+        Raises:
+            ValueError: If task logic schema is not set
+        """
+        ...
+
     def get_task_logic(self, strict: bool = False) -> Optional[TTaskLogic]:
         """
         Returns the task logic schema instance.

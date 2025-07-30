@@ -491,6 +491,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
             return manifest_config
 
         def _normalize_callable(job: _JobConfigs) -> ModalityConfigs:
+            """Internal function to normalize job configurations"""
             if callable(job):
                 return job(self)
             return job
@@ -744,6 +745,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         def _from_launcher(
             launcher: BaseLauncher,
         ) -> "WatchdogDataTransferService":
+            """Inner callable to create the service from a launcher"""
             _aind_session_data_mapper = (
                 aind_session_data_mapper() if callable(aind_session_data_mapper) else aind_session_data_mapper
             )

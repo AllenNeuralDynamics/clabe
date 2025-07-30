@@ -132,6 +132,7 @@ class App(Service, abc.ABC):
         """
 
         def _run(launcher: BaseLauncher):
+            """Internal wrapper function"""
             self.add_app_settings(launcher=launcher)
             try:
                 self.run()
