@@ -18,6 +18,7 @@ TLogger = TypeVar("TLogger", bound=logging.Logger)
 
 
 def _getenv(key: str) -> str:
+    """Gets an environment variable, raising a ValueError if it is not set."""
     value = os.getenv(key, None)
     if value is None:
         raise ValueError(f"Environment variable '{key}' is not set.")
@@ -25,6 +26,19 @@ def _getenv(key: str) -> str:
 
 
 class AibsLogServerHandlerSettings(ServiceSettings):
+    """
+    Settings for the AIBS log server handler.
+
+    Attributes:
+        rig_id (str): The ID of the rig.
+        comp_id (str): The ID of the computer.
+        project_name (str): The name of the project.
+        version (str): The version of the project.
+        host (str): The hostname of the log server.
+        port (int): The port of the log server.
+        level (int): The logging level.
+    """
+
     _yml_section: ClassVar[str] = "aibs_log_server_handler"
 
     rig_id: str = pydantic.Field(default_factory=lambda: _getenv("aibs_rig_id"))

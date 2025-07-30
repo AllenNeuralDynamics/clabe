@@ -1,16 +1,26 @@
 import abc
 import logging
 import subprocess
-from typing import Optional, Self
+from typing import TYPE_CHECKING, Any, Callable, Optional, Self, TypeVar
 
-from ..services import IService
+from ..services import Service
 
+if TYPE_CHECKING:
+    from ..launcher import BaseLauncher
+else:
+    BaseLauncher = Any
 logger = logging.getLogger(__name__)
 
 
-class App(IService, abc.ABC):
+TApp = TypeVar("TApp", bound="App")
+
+
+class App(Service, abc.ABC):
     """
     Abstract base class representing an application that can be run and managed.
+
+    This class defines the interface for applications that can be executed and managed by the launcher.
+    Subclasses must implement the abstract methods to define the specific behavior of the application.
 
     Attributes:
         None
@@ -24,7 +34,7 @@ class App(IService, abc.ABC):
         result() -> subprocess.CompletedProcess:
             Retrieves the result of the application's execution.
             Must be implemented by subclasses.
-        add_app_settings(*args, **kwargs) -> Self:
+        add_app_settings(**kwargs) -> Self:
             Adds or updates application settings. Can be overridden by subclasses
             to provide specific behavior for managing application settings.
 
@@ -36,10 +46,10 @@ class App(IService, abc.ABC):
         ```python
         # Implement a custom app
         class MyApp(App):
-            def run(self): return subprocess.run(["echo", "hello"])
-            def output_from_result(self, allow_stderr): return self
+            def run(self) -> subprocess.CompletedProcess: return subprocess.run(["echo", "hello"])
+            def output_from_result(self, allow_stderr: Optional[bool]) -> Self: return self
             @property
-            def result(self): return self._result
+            def result(self) -> subprocess.CompletedProcess: return self._result
 
         app = MyApp()
         app.run()
@@ -51,6 +61,8 @@ class App(IService, abc.ABC):
         """
         Executes the application.
 
+        This method should contain the logic to run the application and return the result of the execution.
+
         Returns:
             subprocess.CompletedProcess: The result of the application's execution.
         """
@@ -60,6 +72,8 @@ class App(IService, abc.ABC):
     def output_from_result(self, allow_stderr: Optional[bool]) -> Self:
         """
         Processes and returns the output from the application's result.
+
+        This method should process the result of the application's execution and return the output.
 
         Args:
             allow_stderr (Optional[bool]): Whether to allow stderr in the output.
@@ -75,13 +89,20 @@ class App(IService, abc.ABC):
         """
         Retrieves the result of the application's execution.
 
+        This property should return the result of the application's execution.
+
         Returns:
             subprocess.CompletedProcess: The result of the application's execution.
+
+        Raises:
+            RuntimeError: If the application has not been run yet.
         """
 
     def add_app_settings(self, **kwargs) -> Self:
         """
         Adds or updates application settings.
+
+        This method can be overridden by subclasses to provide specific behavior for managing application settings.
 
         Args:
             **kwargs: Keyword arguments for application settings.
@@ -96,3 +117,29 @@ class App(IService, abc.ABC):
             ```
         """
         return self
+
+    def build_runner(self, allow_std_error: bool = False) -> Callable[[BaseLauncher], Self]:
+        """
+        Builds a runner function for the application.
+
+        This method returns a callable that can be executed by the launcher to run the application.
+
+        Args:
+            allow_std_error (bool): Whether to allow stderr in the output. Defaults to False.
+
+        Returns:
+            Callable[[BaseLauncher], Self]: A callable that takes a launcher instance and returns the application instance.
+        """
+
+        def _run(launcher: BaseLauncher):
+            """Internal wrapper function"""
+            self.add_app_settings(launcher=launcher)
+            try:
+                self.run()
+                result = self.output_from_result(allow_stderr=allow_std_error)
+            except subprocess.CalledProcessError as e:
+                logger.critical(f"App {self.__class__.__name__} failed with error: {e}")
+                raise
+            return result
+
+        return _run

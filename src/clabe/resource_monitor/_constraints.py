@@ -24,6 +24,8 @@ def available_storage_constraint_factory(drive: os.PathLike = Path(r"C:\\"), min
 
     Example:
         ```python
+        # Check for default 200GB free space on C: drive
+        default_storage_constraint = available_storage_constraint_factory()
 
         # Check for 1TB free space on D: drive
         large_storage_constraint = available_storage_constraint_factory(
@@ -62,7 +64,7 @@ def remote_dir_exists_constraint_factory(dir_path: os.PathLike) -> Constraint:
     Returns:
         Constraint: A constraint object for directory existence validation
 
-        Example:
+    Example:
         ```python
         # Check if network share exists
         network_constraint = remote_dir_exists_constraint_factory(

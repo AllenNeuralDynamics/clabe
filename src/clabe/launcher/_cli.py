@@ -5,7 +5,6 @@ from typing import Optional, Tuple, Type
 from pydantic import Field
 from pydantic_settings import (
     BaseSettings,
-    CliExplicitFlag,
     CliImplicitFlag,
     PydanticBaseSettingsSource,
     YamlConfigSettingsSource,
@@ -14,7 +13,7 @@ from pydantic_settings import (
 from ..services import ServiceSettings
 
 
-class BaseCliArgs(ServiceSettings, cli_prog_name="clabe", cli_kebab_case=True):
+class BaseLauncherCliArgs(ServiceSettings, cli_prog_name="clabe", cli_kebab_case=True):
     """
     Base class for CLI arguments using Pydantic for validation and configuration.
 
@@ -28,16 +27,14 @@ class BaseCliArgs(ServiceSettings, cli_prog_name="clabe", cli_kebab_case=True):
         subject (Optional[str]): The name of the subject. If None, will be prompted later.
         task_logic_path (Optional[os.PathLike]): Path to the task logic schema. If None, will be prompted later.
         rig_path (Optional[os.PathLike]): Path to the rig schema. If None, will be prompted later.
-        validate_init (CliExplicitFlag[bool]): Whether to validate the launcher state during initialization.
         temp_dir (os.PathLike): Directory used for launcher temp files.
-        group_by_subject_log (CliExplicitFlag[bool]): Whether to group data logging by subject.
 
     Example:
         # Create CLI args from command line
-        args = BaseCliArgs()
+        args = BaseLauncherCliArgs()
 
         # Create with specific values
-        args = BaseCliArgs(
+        args = BaseLauncherCliArgs(
             data_dir="/path/to/data",
             debug_mode=True,
             subject="mouse_001"
@@ -61,23 +58,8 @@ class BaseCliArgs(ServiceSettings, cli_prog_name="clabe", cli_kebab_case=True):
         default=False, description="Whether to skip hardware validation"
     )
     subject: Optional[str] = Field(default=None, description="The name of the subject. If None, will be prompted later")
-    task_logic_path: Optional[os.PathLike] = Field(
-        default=None, description="The path to the task logic schema instance. If None, will be prompted later"
-    )
-    rig_path: Optional[os.PathLike] = Field(
-        default=None, description="The path to the rig schema instance. If None, will be prompted later"
-    )
-    session_path: Optional[os.PathLike] = Field(
-        default=None, description="The path to the session schema instance. If None, will be prompted later"
-    )
-    validate_init: CliExplicitFlag[bool] = Field(
-        default=True, description="Whether to validate the launcher state during initialization"
-    )
     temp_dir: os.PathLike = Field(
         default=Path("local/.temp"), description="The directory used for the launcher temp files"
-    )
-    group_by_subject_log: CliExplicitFlag[bool] = Field(
-        default=True, description="Whether to group data logging by subject"
     )
 
     @classmethod
@@ -108,14 +90,14 @@ class BaseCliArgs(ServiceSettings, cli_prog_name="clabe", cli_kebab_case=True):
 
         Example:
             # This method is automatically called by Pydantic
-            # when creating a BaseCliArgs instance. Settings are loaded
+            # when creating a BaseLauncherCliArgs instance. Settings are loaded
             # in this priority order:
             # 1. init_settings (constructor arguments)
             # 2. YAML config files
             # 3. Environment variables
             # 4. .env files
             # 5. File secrets
-            args = BaseCliArgs(data_dir="/override/path")  # init_settings
+            args = BaseLauncherCliArgs(data_dir="/override/path")  # init_settings
         """
         return (
             init_settings,

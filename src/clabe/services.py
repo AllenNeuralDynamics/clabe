@@ -3,11 +3,11 @@ from __future__ import annotations
 import abc
 import logging
 import typing as t
-from typing import TYPE_CHECKING, Any, Callable, Dict, Generic, Iterable, List, Optional, Self, Type, TypeVar, overload
+from typing import TYPE_CHECKING, Any, Callable, Dict, Type
 
 import pydantic_settings as ps
 
-from .constants import KNOWN_CONFIG_FILES
+from .utils import KNOWN_CONFIG_FILES
 
 if TYPE_CHECKING:
     from .launcher import BaseLauncher
@@ -17,7 +17,7 @@ else:
 logger = logging.getLogger(__name__)
 
 
-class IService(abc.ABC):
+class Service(abc.ABC):
     """
     A base class for all services.
 
@@ -25,357 +25,17 @@ class IService(abc.ABC):
     It serves as a marker interface to identify service implementations across the system.
     """
 
+    def __init__(self, *args, **kwargs):
+        """Initializes the service."""
+        pass
 
-TService = TypeVar("TService", bound=IService)
-
-TLauncher = TypeVar("TLauncher", bound="BaseLauncher")
-
-
-class ServiceFactory(Generic[TService, TLauncher]):
-    """
-    A factory class for defer the creation of service instances.
-
-    This class allows for lazy instantiation of services, supporting both direct service
-    instances and factory functions that create services with launcher context.
-
-    Attributes:
-        _service_factory (Optional[Callable]): A callable that creates a service instance
-        _service (Optional[TService]): An instance of the service once created
-    """
-
-    @overload
-    def __init__(self, service_or_factory: TService) -> None:
+    def build_runner(self, *args, **kwargs) -> Callable[[BaseLauncher], Any]:
         """
-        Initializes the factory with a service instance.
+        Builds a runner function for the service.
 
-        Args:
-            service_or_factory: A pre-instantiated service instance
+        Subclasses must implement this method to return a callable that can be executed by the launcher.
         """
-
-    @overload
-    def __init__(self, service_or_factory: Callable[[TLauncher], TService]) -> None:
-        """
-        Initializes the factory with a callable that creates a service instance.
-
-        Args:
-            service_or_factory: A callable that takes a launcher and returns a service
-        """
-
-    def __init__(self, service_or_factory: Callable[[TLauncher], TService] | TService) -> None:
-        """
-        Initializes the factory with either a service instance or a callable.
-
-        Args:
-            service_or_factory: A service instance or a callable that creates a service
-
-        Raises:
-            ValueError: If the argument is neither a service nor a service factory
-
-        Example:
-            ```python
-            # Using a service instance
-            service = MyService()
-            factory = ServiceFactory(service)
-
-            # Using a factory function
-            def create_service(launcher):
-                return MyService(launcher.config)
-            factory = ServiceFactory(create_service)
-        """
-        self._service_factory: Optional[Callable[[TLauncher], TService]] = None
-        self._service: Optional[TService] = None
-        if callable(service_or_factory):
-            self._service_factory = service_or_factory
-            self._service = None
-        elif isinstance(service_or_factory, IService):
-            self._service = service_or_factory
-            self._service_factory = None
-        else:
-            raise ValueError("service_or_factory must be either a service or a service factory")
-
-    def build(self, launcher: TLauncher, *args, **kwargs) -> TService:
-        """
-        Builds/instantiates the service instance.
-
-        If the service hasn't been created yet and a factory function is available,
-        it calls the factory with the launcher to create the service instance.
-
-        Args:
-            launcher: The launcher instance to pass to the service factory
-            *args: Additional positional arguments
-            **kwargs: Additional keyword arguments
-
-        Returns:
-            The service instance
-
-        Raises:
-            ValueError: If no service factory is set and no service instance exists
-
-        Example:
-            ```python
-            factory = ServiceFactory(create_service)
-            launcher = MyLauncher(...)
-            service = factory.build(launcher)  # Creates the service
-            ```
-        """
-        if self._service is None:
-            if self._service_factory is None:
-                raise ValueError("Service factory is not set")
-            else:
-                self._service = self._service_factory(launcher, *args, **kwargs)
-        return self._service
-
-    @property
-    def service(self) -> Optional[TService]:
-        """
-        Returns the service instance if it has been created.
-
-        Returns:
-            The service instance or None if not yet created
-
-        Example:
-            ```python
-            factory = ServiceFactory(create_service)
-            print(factory.service)  # None (not built yet)
-            service = factory.build(launcher)
-            print(factory.service)  # The created service instance
-            ```
-        """
-        return self._service
-
-
-class ServicesFactoryManager(Generic[TLauncher]):
-    """
-    A manager class for handling multiple service factories.
-
-    This class manages a collection of service factories, providing methods to register,
-    retrieve, and manage service instances with proper launcher context.
-
-    Attributes:
-        _launcher_reference (Optional[TLauncher]): A reference to the launcher instance
-        _services (Dict[str, ServiceFactory]): A dictionary of service factories by name
-    """
-
-    def __init__(
-        self,
-        launcher: Optional[TLauncher] = None,
-        **kwargs,
-    ) -> None:
-        """
-        Initializes the manager with an optional launcher.
-
-        Args:
-            launcher: An optional launcher instance to register
-            **kwargs: Additional keyword arguments (unused)
-
-        Example:
-            ```python
-            # Create without launcher
-            manager = ServicesFactoryManager()
-
-            # Create with launcher
-            launcher = MyLauncher(...)
-            manager = ServicesFactoryManager(launcher=launcher)
-            ```
-        """
-        self._launcher_reference = launcher
-        self._services: Dict[str, ServiceFactory] = {}
-
-    def __getitem__(self, name: str) -> IService:
-        """
-        Retrieves a service by name using dictionary-style access.
-
-        Args:
-            name: The name of the service to retrieve
-
-        Returns:
-            The service instance
-
-        Raises:
-            KeyError: If the service name is not found
-
-        Example:
-            ```python
-            manager = ServicesFactoryManager(launcher)
-            manager.attach_service_factory("my_service", MyService())
-            service = manager["my_service"]  # Dictionary-style access
-            ```
-        """
-        return self._services[name].build(self.launcher)
-
-    def try_get_service(self, name: str) -> Optional[IService]:
-        """
-        Tries to retrieve a service by name without raising exceptions.
-
-        Args:
-            name: The name of the service to retrieve
-
-        Returns:
-            The service instance or None if not found
-
-        Example:
-            ```python
-            manager = ServicesFactoryManager(launcher)
-            service = manager.try_get_service("my_service")
-            if service is not None:
-                print("Service found")
-            else:
-                print("Service not found")
-            ```
-        """
-        srv = self._services.get(name, None)
-        return srv.build(self.launcher) if srv is not None else None
-
-    def attach_service_factory(
-        self, name: str, service_factory: ServiceFactory | Callable[[TLauncher], TService] | TService
-    ) -> Self:
-        """
-        Attaches a service factory to the manager.
-
-        Registers a service factory, callable, or service instance with the manager
-        under the specified name.
-
-        Args:
-            name: The name to register the service under
-            service_factory: The service factory, callable, or service instance
-
-        Returns:
-            The manager instance for method chaining
-
-        Raises:
-            IndexError: If a service with the same name is already registered
-            ValueError: If the service_factory is not a valid type
-
-        Example:
-            ```python
-            manager = ServicesFactoryManager(launcher)
-
-            # Attach a service instance
-            manager.attach_service_factory("my_service", MyService())
-
-            # Attach a factory function
-            manager.attach_service_factory("other_service", lambda l: OtherService(l))
-            ```
-        """
-        if name in self._services:
-            raise IndexError(f"Service with name {name} is already registered")
-        _service_factory: ServiceFactory
-        if isinstance(service_factory, ServiceFactory):
-            _service_factory = service_factory
-        elif callable(service_factory) | isinstance(service_factory, IService):
-            _service_factory = ServiceFactory(service_factory)
-        else:
-            raise ValueError("service_factory must be either a service or a service factory")
-        self._services[name] = _service_factory
-        return self
-
-    def detach_service_factory(self, name: str) -> Self:
-        """
-        Detaches a service factory from the manager.
-
-        Removes a previously registered service factory from the manager.
-
-        Args:
-            name: The name of the service to remove
-
-        Returns:
-            The manager instance for method chaining
-
-        Raises:
-            IndexError: If no service with the specified name is registered
-        """
-        if name in self._services:
-            self._services.pop(name)
-        else:
-            raise IndexError(f"Service with name {name} is not registered")
-        return self
-
-    def register_launcher(self, launcher: TLauncher) -> Self:
-        """
-        Registers a launcher with the manager.
-
-        Associates a launcher instance with the manager, which will be passed
-        to service factories when creating service instances.
-
-        Args:
-            launcher: The launcher instance to register
-
-        Returns:
-            The manager instance for method chaining
-
-        Raises:
-            ValueError: If a launcher is already registered
-        """
-        if self._launcher_reference is None:
-            self._launcher_reference = launcher
-        else:
-            raise ValueError("Launcher is already registered")
-        return self
-
-    @property
-    def launcher(self) -> TLauncher:
-        """
-        Returns the registered launcher.
-
-        Returns:
-            The launcher instance
-
-        Raises:
-            ValueError: If no launcher is registered
-        """
-        if self._launcher_reference is None:
-            raise ValueError("Launcher is not registered")
-        return self._launcher_reference
-
-    @property
-    def services(self) -> Iterable[IService]:
-        """
-        Returns all services managed by the manager.
-
-        Creates and yields all service instances from the registered factories.
-
-        Returns:
-            An iterable of service instances
-        """
-        yield from (service.build(self.launcher) for service in self._services.values())
-
-    def get_services_of_type(self, service_type: Type[TService]) -> Iterable[TService]:
-        """
-        Retrieves all services of a specific type.
-
-        Filters and returns only the services that are instances of the specified type.
-
-        Args:
-            service_type: The type of services to retrieve
-
-        Returns:
-            An iterable of services of the specified type
-
-        Example:
-            ```python
-            manager = ServicesFactoryManager(launcher)
-            manager.attach_service_factory("db", DatabaseService())
-            manager.attach_service_factory("cache", CacheService())
-
-            db_services = list(manager.get_services_of_type(DatabaseService))
-            print(f"Found {len(db_services)} database services")
-            ```
-        """
-        yield from (service for service in self.services if isinstance(service, service_type))
-
-    def map(self, delegate: Callable[[IService], Any]) -> List[Any]:
-        """
-        Applies a delegate function to all services.
-
-        Executes the provided function on each service instance and collects the results.
-
-        Args:
-            delegate: A callable to apply to each service
-
-        Returns:
-            A list of results from the delegate function
-        """
-        return [delegate(service) for service in self.services]
+        return lambda launcher: None
 
 
 class ServiceSettings(ps.BaseSettings, abc.ABC):
@@ -406,10 +66,11 @@ class ServiceSettings(ps.BaseSettings, abc.ABC):
     _yml_section: t.ClassVar[t.Optional[str]] = None
 
     @classmethod
-    def __init_subclass__(cls, **kwargs):
-        super().__init_subclass__(**kwargs)
-        cls.model_config = ps.SettingsConfigDict(
-            yaml_file=KNOWN_CONFIG_FILES, yaml_config_section=cls._yml_section, extra="ignore"
+    def __init_subclass__(cls, *args, **kwargs):
+        """Initializes the subclass and sets up the YAML configuration."""
+        super().__init_subclass__(*args, **kwargs)
+        cls.model_config.update(
+            ps.SettingsConfigDict(yaml_file=KNOWN_CONFIG_FILES, yaml_config_section=cls._yml_section, extra="ignore")
         )
 
     @classmethod
@@ -421,6 +82,19 @@ class ServiceSettings(ps.BaseSettings, abc.ABC):
         dotenv_settings: ps.PydanticBaseSettingsSource,
         file_secret_settings: ps.PydanticBaseSettingsSource,
     ) -> t.Tuple[ps.PydanticBaseSettingsSource, ...]:
+        """
+        Customizes the settings sources to include the safe YAML settings source.
+
+        Args:
+            settings_cls: The settings class.
+            init_settings: The initial settings source.
+            env_settings: The environment settings source.
+            dotenv_settings: The dotenv settings source.
+            file_secret_settings: The file secret settings source.
+
+        Returns:
+            A tuple of settings sources.
+        """
         return (
             init_settings,
             _SafeYamlSettingsSource(settings_cls),
@@ -431,6 +105,10 @@ class ServiceSettings(ps.BaseSettings, abc.ABC):
 
 
 class _SafeYamlSettingsSource(ps.YamlConfigSettingsSource):
+    """
+    A safe YAML settings source that does not raise an error if the YAML configuration section is not found.
+    """
+
     def __init__(
         self,
         settings_cls: type[ps.BaseSettings],
@@ -438,6 +116,15 @@ class _SafeYamlSettingsSource(ps.YamlConfigSettingsSource):
         yaml_file_encoding: str | None = None,
         yaml_config_section: str | None = None,
     ):
+        """
+        Initializes the safe YAML settings source.
+
+        Args:
+            settings_cls: The settings class.
+            yaml_file: The YAML file path.
+            yaml_file_encoding: The YAML file encoding.
+            yaml_config_section: The YAML configuration section.
+        """
         try:
             # pydantic-settings will raise an error if a yaml_config_section is passed but is not found in the yaml file
             # We override this behavior to allow us to have a behavior as if the file did not exist in the first place
@@ -448,6 +135,12 @@ class _SafeYamlSettingsSource(ps.YamlConfigSettingsSource):
             super().__init__(settings_cls, yaml_file, yaml_file_encoding, None)
 
     def __call__(self) -> Dict[str, Any]:
+        """
+        Calls the settings source and returns the settings dictionary.
+
+        Returns:
+            A dictionary of settings.
+        """
         try:
             return super().__call__()
         except KeyError:

@@ -17,6 +17,18 @@ _HAS_ROBOCOPY = shutil.which("robocopy") is not None
 
 
 class RobocopySettings(ServiceSettings):
+    """
+    Settings for the RobocopyService.
+
+    Attributes:
+        destination (PathLike): The destination path for the data transfer.
+        log (Optional[PathLike]): The path to the log file.
+        extra_args (str): Extra arguments to pass to Robocopy.
+        delete_src (bool): Whether to delete the source files after copying.
+        overwrite (bool): Whether to overwrite existing files.
+        force_dir (bool): Whether to create the destination directory if it does not exist.
+    """
+
     _yml_section: ClassVar[str] = "robocopy"
 
     destination: PathLike

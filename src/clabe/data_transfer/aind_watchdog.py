@@ -1,7 +1,5 @@
 import importlib.util
 
-from aind_behavior_services import AindBehaviorSessionModel
-
 if importlib.util.find_spec("aind_watchdog_service") is None:
     raise ImportError(
         "The 'aind_watchdog_service' package is required to use this module. \
@@ -35,9 +33,9 @@ from ..services import ServiceSettings
 from ._base import DataTransfer
 
 if TYPE_CHECKING:
-    from ..behavior_launcher import BehaviorLauncher
+    from ..launcher import BaseLauncher
 else:
-    BehaviorLauncher = Any
+    BaseLauncher = Any
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +44,25 @@ _JobConfigs = Union[ModalityConfigs, Callable[["WatchdogDataTransferService"], U
 
 
 class WatchdogSettings(ServiceSettings):
+    """
+    Settings for the WatchdogDataTransferService.
+
+    Attributes:
+        destination (PathLike): The destination path for the data transfer.
+        schedule_time (Optional[datetime.time]): The time to schedule the data transfer.
+        project_name (str): The name of the project.
+        platform (Platform): The platform of the project.
+        capsule_id (Optional[str]): The capsule ID for the data transfer.
+        script (Optional[Dict[str, List[str]]]): A dictionary of scripts to run.
+        s3_bucket (BucketType): The S3 bucket to transfer the data to.
+        mount (Optional[str]): The mount point for the data transfer.
+        force_cloud_sync (bool): Whether to force a cloud sync.
+        transfer_endpoint (str): The endpoint for the data transfer service.
+        delete_modalities_source_after_success (bool): Whether to delete the source data after a successful transfer.
+        extra_identifying_info (Optional[dict]): Extra identifying information for the data transfer.
+        upload_job_configs (Optional[Any]): Upload job configurations.
+    """
+
     _yml_section: ClassVar[Optional[str]] = "watchdog"
 
     destination: PathLike
@@ -161,7 +178,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         self._source = source
 
         self._aind_session_data_mapper: Optional[AindDataSchemaSessionDataMapper] = None
-        self._upload_job_configs = []
+        self._upload_job_configs: List[_JobConfigs] = []
 
         _default_exe = os.environ.get("WATCHDOG_EXE", None)
         _default_config = os.environ.get("WATCHDOG_CONFIG", None)
@@ -204,8 +221,6 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         Raises:
             ValueError: If the provided value is not a valid data mapper
         """
-        if not isinstance(value, AindDataSchemaSessionDataMapper):
-            raise ValueError("Data mapper must be an instance of AindDataSchemaSessionDataMapper.")
         self._aind_session_data_mapper = value
         return self
 
@@ -244,6 +259,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
             if self._watch_config is None:
                 raise ValueError("Watchdog config is not set.")
 
+            assert self._manifest_config.name is not None, "Manifest config name must be set."
             _manifest_path = self.dump_manifest_config(
                 path=Path(self._watch_config.flag_dir) / self._manifest_config.name
             )
@@ -305,7 +321,6 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
     def create_watch_config(
         watched_directory: os.PathLike,
         manifest_complete_directory: os.PathLike,
-        webhook_url: Optional[str] = None,
         create_dir: bool = True,
     ) -> WatchConfig:
         """
@@ -317,7 +332,6 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         Args:
             watched_directory: Directory to monitor for changes
             manifest_complete_directory: Directory for completed manifests
-            webhook_url: Optional webhook URL for notifications
             create_dir: Whether to create the directories if they don't exist
 
         Returns:
@@ -349,7 +363,6 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         return WatchConfig(
             flag_dir=str(watched_directory),
             manifest_complete=str(manifest_complete_directory),
-            webhook_url=webhook_url,
         )
 
     def is_valid_project_name(self) -> bool:
@@ -430,7 +443,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
             processor_full_name=processor_full_name,
             project_name=self._settings.project_name,
             schedule_time=self._settings.schedule_time,
-            platform=getattr(self._settings.platform, "abbreviation"),
+            platform=self._settings.platform,
             capsule_id=self._settings.capsule_id,
             s3_bucket=self._settings.s3_bucket,
             script=self._settings.script if self._settings.script else {},
@@ -440,13 +453,14 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
             extra_identifying_info=self._settings.extra_identifying_info,
         )
 
-        _manifest_config = self.add_transfer_service_args(_manifest_config, jobs=self.upload_job_configs)
+        # TODO
+        _manifest_config = self.add_transfer_service_args(_manifest_config, jobs=self._upload_job_configs)
         return _manifest_config
 
     def add_transfer_service_args(
         self,
         manifest_config: ManifestConfig,
-        jobs=Optional[List[_JobConfigs]],
+        jobs: List[_JobConfigs] = [],
         submit_job_request_kwargs: Optional[dict] = None,
     ) -> ManifestConfig:
         """
@@ -472,10 +486,12 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         job_settings = job_settings.model_copy(update=(submit_job_request_kwargs or {}))
         manifest_config.transfer_service_args = job_settings
 
-        if (jobs is None) or (len(jobs) == 0):
+        if jobs is None:
+            jobs = []
             return manifest_config
 
         def _normalize_callable(job: _JobConfigs) -> ModalityConfigs:
+            """Internal function to normalize job configurations"""
             if callable(job):
                 return job(self)
             return job
@@ -619,9 +635,9 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
             raise ValueError("ManifestConfig or WatchConfig config is not set.")
 
         path = (Path(path) if path else Path(watch_config.flag_dir) / f"manifest_{manifest_config.name}.yaml").resolve()
-        if "manifest" not in path.name:
+        if not path.name.startswith("manifest_"):
             logger.info("Prefix manifest_ not found in file name. Appending it.")
-            path = path.with_name(f"manifest_{path.name}.yaml")
+            path = path.with_name(f"manifest_{path.stem}{path.suffix}")
 
         if make_dir and not path.parent.exists():
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -710,40 +726,44 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         return self._ui_helper.prompt_yes_no_question("Would you like to generate a watchdog manifest (Y/N)?")
 
     @classmethod
-    def create_factory(
+    def build_runner(
         cls,
         settings: WatchdogSettings,
-        aind_session_data_mapper_constructor: Optional[Callable[[], AindDataSchemaSessionDataMapper]],
-    ) -> Callable[[BehaviorLauncher], "WatchdogDataTransferService"]:
-        def _from_launcher(
-            launcher: BehaviorLauncher, _settings: WatchdogSettings = settings
-        ) -> "WatchdogDataTransferService":
-            if aind_session_data_mapper_constructor is not None:
-                aind_session_data_mapper = aind_session_data_mapper_constructor()
-            else:
-                if launcher.services_factory_manager.data_mapper is None:
-                    raise ValueError("Data mapper service is not set and no callable provided. Cannot create watchdog.")
-                if not isinstance(launcher.services_factory_manager.data_mapper, AindDataSchemaSessionDataMapper):
-                    raise ValueError(
-                        "Data mapper service is not of the correct type (AindDataSchemaSessionDataMapper). Cannot create watchdog."
-                    )
-                aind_session_data_mapper = launcher.services_factory_manager.data_mapper
+        aind_session_data_mapper: Callable[[], AindDataSchemaSessionDataMapper] | AindDataSchemaSessionDataMapper,
+    ) -> Callable[[BaseLauncher], "WatchdogDataTransferService"]:
+        """
+        A factory method for creating the watchdog service.
 
-            if not aind_session_data_mapper.is_mapped():
+        Args:
+            settings: The watchdog settings.
+            aind_session_data_mapper: The aind session data mapper.
+
+        Returns:
+            A factory for WatchdogDataTransferService.
+        """
+
+        def _from_launcher(
+            launcher: BaseLauncher,
+        ) -> "WatchdogDataTransferService":
+            """Inner callable to create the service from a launcher"""
+            _aind_session_data_mapper = (
+                aind_session_data_mapper() if callable(aind_session_data_mapper) else aind_session_data_mapper
+            )
+
+            if not _aind_session_data_mapper.is_mapped():
                 raise ValueError("Data mapper has not mapped yet. Cannot create watchdog.")
 
-            if not isinstance(launcher.session_schema, AindBehaviorSessionModel):
-                raise ValueError(
-                    "Session schema is not of the correct type (AindBehaviorSessionModel). Cannot create watchdog."
-                )
+            _settings = settings.model_copy(update={})
 
-            _settings.destination = Path(_settings.destination)
-            if launcher.group_by_subject_log:
-                _settings.destination = _settings.destination / launcher.session_schema.subject
-            return cls(
+            _session = launcher.get_session(strict=True)
+            _settings.destination = Path(_settings.destination) / _session.subject
+            launcher.copy_logs()
+            service = cls(
                 source=launcher.session_directory,
                 settings=_settings,
-                session_name=launcher.session_schema.session_name,
-            ).with_aind_session_data_mapper(aind_session_data_mapper)
+                session_name=_session.session_name,
+            ).with_aind_session_data_mapper(_aind_session_data_mapper)
+            service.transfer()
+            return service
 
         return _from_launcher

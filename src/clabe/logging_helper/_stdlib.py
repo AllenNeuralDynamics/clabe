@@ -147,6 +147,9 @@ def shutdown_logger(logger: TLogger) -> TLogger:
 
     Args:
         logger: The logger to shut down
+
+    Returns:
+        TLogger: The logger with closed file handlers
     """
     close_file_handlers(logger)
     logging.shutdown()
