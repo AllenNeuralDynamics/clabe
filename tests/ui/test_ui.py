@@ -11,20 +11,23 @@ from tests import suppress_stdout
 
 @pytest.fixture
 def launcher(mock_rig, mock_session, mock_task_logic):
-    return BaseLauncher[Any, Any, Any](
-        rig=mock_rig,
-        task_logic=None,
-        session=mock_session,
-        settings=BaseLauncherCliArgs(
-            data_dir=Path("/path/to/data"),
-            temp_dir=Path("/path/to/temp"),
-            repository_dir=None,
-            allow_dirty=False,
-            skip_hardware_validation=False,
-            debug_mode=False,
-        ),
-        attached_logger=None,
-    )
+    with patch("clabe.launcher._base.GitRepository") as mock_git:
+        mock_git.return_value.working_dir = Path("/path/to/data")
+        with patch("os.chdir"):
+            return BaseLauncher[Any, Any, Any](
+                rig=mock_rig,
+                task_logic=None,
+                session=mock_session,
+                settings=BaseLauncherCliArgs(
+                    data_dir=Path("/path/to/data"),
+                    temp_dir=Path("/path/to/temp"),
+                    repository_dir=None,
+                    allow_dirty=False,
+                    skip_hardware_validation=False,
+                    debug_mode=False,
+                ),
+                attached_logger=None,
+            )
 
 
 @pytest.fixture
