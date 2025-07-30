@@ -90,12 +90,8 @@ pydocstyle = { convention = "google" }
 skip = '.git,*.pdf,*.svg,./bonsai,*.bonsai,./docs/_build,uv.lock'
 ignore-words-list = "nd, assertIn"
 
-[tool.coverage.run]
-omit = ["*__init__*"]
-source = ["clabe", "tests"]
-
 [tool.pytest.ini_options]
-addopts = "--strict-markers"
+addopts = "--strict-markers --tb=short --cov=src --cov-report=term-missing --cov-fail-under=70"
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
@@ -109,3 +105,10 @@ exclude_lines = [
     "pragma: no cover"
 ]
 fail_under = 75
+
+[tool.interrogate]
+ignore-init-method = true
+ignore-magic = true
+ignore_module = true
+fail-under = 100
+exclude = ["__init__.py", "tests", "docs", "build", "setup.py", "examples", "site"]
