@@ -110,6 +110,8 @@ class DefaultBehaviorPicker(
         Returns:
             Path: The rig configuration directory.
         """
+        if self._launcher is None:
+            raise ValueError("Launcher is not initialized. Call initialize(launcher) first.")
         return Path(os.path.join(self.config_library_dir, self.RIG_SUFFIX, self._launcher.computer_name))
 
     @property

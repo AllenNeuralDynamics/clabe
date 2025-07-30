@@ -7,32 +7,6 @@ from aind_behavior_services import AindBehaviorRigModel, AindBehaviorSessionMode
 from clabe import ui
 from clabe.launcher import BaseLauncher
 from clabe.launcher._cli import BaseLauncherCliArgs
-from clabe.ui.picker import PickerBase
-
-
-class MockPicker(PickerBase):
-    def __init__(self):
-        self._pick_rig = Mock()
-        self._pick_session = Mock()
-        self._pick_task_logic = Mock()
-        self._initialize = Mock()
-
-    def pick_rig(self, launcher):
-        return self._pick_rig(launcher)
-
-    def pick_session(self, launcher):
-        return self._pick_session(launcher)
-
-    def pick_task_logic(self, launcher):
-        return self._pick_task_logic(launcher)
-
-    def initialize(self) -> None:
-        return self._initialize()
-
-
-@pytest.fixture
-def mock_picker():
-    return MockPicker()
 
 
 class MockUiHelper(ui.UiHelper):
