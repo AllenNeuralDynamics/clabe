@@ -29,7 +29,7 @@ class RobocopySettings(ServiceSettings):
         force_dir (bool): Whether to create the destination directory if it does not exist.
     """
 
-    _yml_section: ClassVar[str] = "robocopy"
+    __yml_section__: ClassVar[str] = "robocopy"
 
     destination: PathLike
     log: Optional[PathLike] = None

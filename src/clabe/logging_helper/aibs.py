@@ -39,7 +39,7 @@ class AibsLogServerHandlerSettings(ServiceSettings):
         level (int): The logging level.
     """
 
-    _yml_section: ClassVar[str] = "aibs_log_server_handler"
+    __yml_section__: ClassVar[str] = "aibs_log_server_handler"
 
     rig_id: str = pydantic.Field(default_factory=lambda: _getenv("aibs_rig_id"))
     comp_id: str = pydantic.Field(default_factory=lambda: _getenv("aibs_comp_id"))
