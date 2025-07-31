@@ -8,9 +8,9 @@ import pydantic
 from ..services import ServiceSettings
 
 if TYPE_CHECKING:
-    from ..launcher import BaseLauncher
+    from ..launcher import Launcher
 
-    TLauncher = TypeVar("TLauncher", bound="BaseLauncher")
+    TLauncher = TypeVar("TLauncher", bound="Launcher")
 else:
     TLauncher = TypeVar("TLauncher")
 
@@ -191,7 +191,7 @@ def attach_to_launcher(launcher: TLauncher, settings: AibsLogServerHandlerSettin
     Examples:
         ```python
         import logging
-        from clabe.launcher import BaseLauncher
+        from clabe.launcher import Launcher
         from clabe.logging_helper.aibs import attach_to_launcher, AibsLogServerHandlerSettings
 
         # Initialize the launcher

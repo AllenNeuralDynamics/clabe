@@ -16,7 +16,7 @@ from clabe import resource_monitor
 from clabe.apps import App
 from clabe.data_mapper import DataMapper
 from clabe.data_transfer.aind_watchdog import WatchdogDataTransferService, WatchdogSettings
-from clabe.launcher import BaseLauncher, BaseLauncherCliArgs, DefaultBehaviorPicker, DefaultBehaviorPickerSettings
+from clabe.launcher import Launcher, LauncherCliArgs, DefaultBehaviorPicker, DefaultBehaviorPickerSettings
 
 logger = logging.getLogger(__name__)
 
@@ -87,8 +87,8 @@ class DemoAindDataSchemaSessionDataMapper(DataMapper[MockAindDataSchemaSession])
         script_path: os.PathLike,
         session_end_time: Optional[datetime.datetime] = None,
         output_parameters: Optional[Dict] = None,
-    ) -> Callable[[BaseLauncher], Self]:
-        def _run(launcher: BaseLauncher) -> Self:
+    ) -> Callable[[Launcher], Self]:
+        def _run(launcher: Launcher) -> Self:
             logger.info("Running DemoAindDataSchemaSessionDataMapper...")
             new = cls(
                 session_model=launcher.get_session(strict=True),
@@ -175,7 +175,7 @@ class EchoApp(App):
 
 def make_launcher():
     behavior_cli_args = CliApp.run(
-        BaseLauncherCliArgs,
+        LauncherCliArgs,
         cli_args=["--temp-dir", "./local/.temp", "--allow-dirty", "--skip-hardware-validation", "--data-dir", "."],
     )
 
@@ -193,7 +193,7 @@ def make_launcher():
         project_name="my_project",
     )
 
-    launcher = BaseLauncher(
+    launcher = Launcher(
         rig=RigModel,
         session=AindBehaviorSessionModel,
         task_logic=TaskLogicModel,

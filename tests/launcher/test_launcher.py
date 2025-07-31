@@ -2,8 +2,8 @@ import logging
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from clabe.launcher import BaseLauncher
-from clabe.launcher._cli import BaseLauncherCliArgs
+from clabe.launcher import Launcher
+from clabe.launcher._cli import LauncherCliArgs
 
 
 def test_base_launcher_init_basic(
@@ -12,7 +12,7 @@ def test_base_launcher_init_basic(
     mock_session,
     mock_task_logic,
 ):
-    """Test basic initialization of BaseLauncher."""
+    """Test basic initialization of Launcher."""
     assert mock_base_launcher.get_rig() == mock_rig
     assert mock_base_launcher.get_session() == mock_session
     assert mock_base_launcher.get_task_logic() == mock_task_logic
@@ -28,7 +28,7 @@ def test_base_launcher_with_attached_logger(
     """Test launcher initialization with attached logger."""
     with patch("clabe.logging_helper.add_file_handler") as mock_add_file_handler:
         mock_attached_logger = MagicMock()
-        launcher = BaseLauncher(
+        launcher = Launcher(
             rig=mock_rig,
             session=mock_session,
             task_logic=mock_task_logic,
@@ -42,7 +42,7 @@ def test_base_launcher_with_attached_logger(
 
 def test_base_launcher_debug_mode(mock_rig, mock_session, mock_task_logic, mock_ui_helper, tmp_path: Path):
     """Test launcher initialization with debug mode enabled."""
-    launcher_args_debug = BaseLauncherCliArgs(
+    launcher_args_debug = LauncherCliArgs(
         data_dir=tmp_path / "data",
         temp_dir=tmp_path / "temp",
         debug_mode=True,
@@ -53,7 +53,7 @@ def test_base_launcher_debug_mode(mock_rig, mock_session, mock_task_logic, mock_
         with patch("clabe.logging_helper.add_file_handler") as mock_add_file_handler:
             mock_logger = MagicMock()
             mock_add_file_handler.return_value = mock_logger
-            BaseLauncher(
+            Launcher(
                 rig=mock_rig,
                 session=mock_session,
                 task_logic=mock_task_logic,
@@ -65,7 +65,7 @@ def test_base_launcher_debug_mode(mock_rig, mock_session, mock_task_logic, mock_
 
 def test_base_launcher_create_directories(mock_rig, mock_session, mock_task_logic, mock_ui_helper, tmp_path: Path):
     """Test launcher initialization with create_directories option."""
-    launcher_args_create_dirs = BaseLauncherCliArgs(
+    launcher_args_create_dirs = LauncherCliArgs(
         data_dir=tmp_path / "data",
         temp_dir=tmp_path / "temp",
         create_directories=True,
@@ -78,8 +78,8 @@ def test_base_launcher_create_directories(mock_rig, mock_session, mock_task_logi
     ):
         log_mod.return_value = MagicMock()
         mock_git.return_value.working_dir = launcher_args_create_dirs.data_dir
-        with patch("clabe.launcher.BaseLauncher._create_directory_structure") as mock_create_dirs:
-            BaseLauncher(
+        with patch("clabe.launcher.Launcher._create_directory_structure") as mock_create_dirs:
+            Launcher(
                 rig=mock_rig,
                 session=mock_session,
                 task_logic=mock_task_logic,
@@ -93,13 +93,13 @@ def test_base_launcher_create_directories(mock_rig, mock_session, mock_task_logi
 def test_create_directory():
     with patch("os.makedirs") as mock_makedirs, patch("os.path.exists", return_value=False):
         directory = Path("/tmp/fake/directory")
-        BaseLauncher.create_directory(directory)
+        Launcher.create_directory(directory)
         mock_makedirs.assert_called_once_with(directory)
 
 
 def test_create_directory_structure(mock_rig, mock_session, mock_task_logic, mock_ui_helper, tmp_path: Path):
     """Test that _create_directory_structure calls create_directory for data_dir and temp_dir."""
-    launcher_args = BaseLauncherCliArgs(
+    launcher_args = LauncherCliArgs(
         data_dir=tmp_path / "data",
         temp_dir=tmp_path / "temp",
         create_directories=True,
@@ -112,9 +112,9 @@ def test_create_directory_structure(mock_rig, mock_session, mock_task_logic, moc
     ):
         mock_git.return_value.working_dir = launcher_args.data_dir
         log_mod.return_value = MagicMock()
-        with patch("clabe.launcher.BaseLauncher.create_directory") as mock_create_directory:
+        with patch("clabe.launcher.Launcher.create_directory") as mock_create_directory:
             launcher_args.create_directories = True
-            launcher = BaseLauncher(
+            launcher = Launcher(
                 rig=mock_rig,
                 session=mock_session,
                 task_logic=mock_task_logic,

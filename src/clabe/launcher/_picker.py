@@ -33,7 +33,7 @@ class DefaultBehaviorPickerSettings(ServiceSettings):
 
 
 class DefaultBehaviorPicker(
-    ui.PickerBase[launcher.BaseLauncher[TRig, TSession, TTaskLogic], TRig, TSession, TTaskLogic]
+    ui.PickerBase[launcher.Launcher[TRig, TSession, TTaskLogic], TRig, TSession, TTaskLogic]
 ):
     """
     A picker class for selecting rig, session, and task logic configurations for behavior experiments.
@@ -88,7 +88,7 @@ class DefaultBehaviorPicker(
             **kwargs: Additional keyword arguments
         """
         super().__init__(ui_helper=ui_helper, **kwargs)
-        self._launcher: launcher.BaseLauncher[TRig, TSession, TTaskLogic]
+        self._launcher: launcher.Launcher[TRig, TSession, TTaskLogic]
         self._settings = settings
         self._experimenter_validator = experimenter_validator
 
@@ -134,7 +134,7 @@ class DefaultBehaviorPicker(
         """
         return Path(os.path.join(self.config_library_dir, self.TASK_LOGIC_SUFFIX))
 
-    def initialize(self, launcher: launcher.BaseLauncher[TRig, TSession, TTaskLogic]) -> None:
+    def initialize(self, launcher: launcher.Launcher[TRig, TSession, TTaskLogic]) -> None:
         """
         Initializes the picker by creating required directories if needed.
         """
@@ -143,7 +143,7 @@ class DefaultBehaviorPicker(
         if self._launcher.settings.create_directories:
             self._create_directories(launcher)
 
-    def _create_directories(self, launcher: launcher.BaseLauncher[TRig, TSession, TTaskLogic]) -> None:
+    def _create_directories(self, launcher: launcher.Launcher[TRig, TSession, TTaskLogic]) -> None:
         """
         Creates the required directories for configuration files.
 
@@ -155,7 +155,7 @@ class DefaultBehaviorPicker(
         launcher.create_directory(self.rig_dir)
         launcher.create_directory(self.subject_dir)
 
-    def pick_rig(self, launcher: launcher.BaseLauncher[TRig, TSession, TTaskLogic]) -> TRig:
+    def pick_rig(self, launcher: launcher.Launcher[TRig, TSession, TTaskLogic]) -> TRig:
         """
         Prompts the user to select a rig configuration file.
 
@@ -196,7 +196,7 @@ class DefaultBehaviorPicker(
                 except ValueError as e:
                     logger.info("Invalid choice. Try again. %s", e)
 
-    def pick_session(self, launcher: launcher.BaseLauncher[TRig, TSession, TTaskLogic]) -> TSession:
+    def pick_session(self, launcher: launcher.Launcher[TRig, TSession, TTaskLogic]) -> TSession:
         """
         Prompts the user to select or create a session configuration.
 
@@ -237,7 +237,7 @@ class DefaultBehaviorPicker(
         launcher.set_session(session)
         return session
 
-    def pick_task_logic(self, launcher: launcher.BaseLauncher[TRig, TSession, TTaskLogic]) -> TTaskLogic:
+    def pick_task_logic(self, launcher: launcher.Launcher[TRig, TSession, TTaskLogic]) -> TTaskLogic:
         """
         Prompts the user to select or create a task logic configuration.
 

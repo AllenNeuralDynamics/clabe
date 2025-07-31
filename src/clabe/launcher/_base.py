@@ -21,7 +21,7 @@ from ..git_manager import GitRepository
 from ..ui import DefaultUIHelper, UiHelper
 from ..utils import abspath, format_datetime, utcnow
 from ._callable_manager import _CallableManager, _Promise
-from ._cli import BaseLauncherCliArgs
+from ._cli import LauncherCliArgs
 
 TRig = TypeVar("TRig", bound=AindBehaviorRigModel)
 TSession = TypeVar("TSession", bound=AindBehaviorSessionModel)
@@ -30,11 +30,11 @@ TModel = TypeVar("TModel", bound=pydantic.BaseModel)
 
 logger = logging.getLogger(__name__)
 
-TLauncher = TypeVar("TLauncher", bound="BaseLauncher")
+TLauncher = TypeVar("TLauncher", bound="Launcher")
 _TOutput = TypeVar("_TOutput")
 
 
-class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
+class Launcher(ABC, Generic[TRig, TSession, TTaskLogic]):
     """
     Abstract base class for experiment launchers. Provides common functionality
     for managing configuration files, directories, and registered callables.
@@ -51,7 +51,7 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
     def __init__(
         self,
         *,
-        settings: BaseLauncherCliArgs,
+        settings: LauncherCliArgs,
         rig: TRig | Type[TRig],
         session: TSession | Type[TSession],
         task_logic: TTaskLogic | Type[TTaskLogic],
@@ -60,7 +60,7 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
         **kwargs,
     ) -> None:
         """
-        Initializes the BaseLauncher instance.
+        Initializes the Launcher instance.
 
         Args:
             settings: The settings for the launcher
@@ -236,12 +236,12 @@ class BaseLauncher(ABC, Generic[TRig, TSession, TTaskLogic]):
         self.settings.subject = value
 
     @property
-    def settings(self) -> BaseLauncherCliArgs:
+    def settings(self) -> LauncherCliArgs:
         """
         Returns the launcher settings.
 
         Returns:
-            BaseLauncherCliArgs: The launcher settings
+            LauncherCliArgs: The launcher settings
         """
         return self._settings
 
