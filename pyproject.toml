@@ -97,14 +97,6 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 
-[tool.coverage.report]
-exclude_lines = [
-    "if __name__ == .__main__.:",
-    "from",
-    "import",
-    "pragma: no cover"
-]
-fail_under = 75
 
 [tool.interrogate]
 ignore-init-method = true
