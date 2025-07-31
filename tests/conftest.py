@@ -5,8 +5,8 @@ import pytest
 from aind_behavior_services import AindBehaviorRigModel, AindBehaviorSessionModel, AindBehaviorTaskLogicModel
 
 from clabe import ui
-from clabe.launcher import BaseLauncher
-from clabe.launcher._cli import BaseLauncherCliArgs
+from clabe.launcher import Launcher
+from clabe.launcher._cli import LauncherCliArgs
 
 
 class MockUiHelper(ui.UiHelper):
@@ -61,7 +61,7 @@ def mock_task_logic():
 
 @pytest.fixture
 def mock_base_launcher(mock_rig, mock_session, mock_task_logic, mock_ui_helper, tmp_path: Path):
-    launcher_args = BaseLauncherCliArgs(
+    launcher_args = LauncherCliArgs(
         data_dir=tmp_path / "data",
         temp_dir=tmp_path / "temp",
         create_directories=True,
@@ -75,12 +75,12 @@ def mock_base_launcher(mock_rig, mock_session, mock_task_logic, mock_ui_helper, 
         patch("os.chdir"),
         patch("pathlib.Path.mkdir"),
         patch("clabe.logging_helper.add_file_handler"),
-        patch("clabe.launcher.BaseLauncher._create_directory_structure"),
-        patch("clabe.launcher.BaseLauncher.validate", return_value=True),
+        patch("clabe.launcher.Launcher._create_directory_structure"),
+        patch("clabe.launcher.Launcher.validate", return_value=True),
         patch("os.environ", {"COMPUTERNAME": "TEST_COMPUTER"}),
     ):
         mock_git.return_value.working_dir = launcher_args.data_dir
-        launcher = BaseLauncher(
+        launcher = Launcher(
             rig=mock_rig,
             session=mock_session,
             task_logic=mock_task_logic,

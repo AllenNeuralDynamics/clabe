@@ -16,9 +16,9 @@ logger = logging.getLogger(__name__)
 VISUALIZERS_DIR = "VisualizerLayouts"
 
 if TYPE_CHECKING:
-    from ..launcher import BaseLauncher
+    from ..launcher import Launcher
 else:
-    BaseLauncher = Any
+    Launcher = Any
 
 
 class BonsaiApp(App):
@@ -300,7 +300,7 @@ class AindBehaviorServicesBonsaiApp(BonsaiApp):
         ```
     """
 
-    def add_app_settings(self, *, launcher: Optional[BaseLauncher] = None, **kwargs) -> Self:
+    def add_app_settings(self, *, launcher: Optional[Launcher] = None, **kwargs) -> Self:
         """
         Adds AIND behavior-specific application settings to the Bonsai workflow.
 

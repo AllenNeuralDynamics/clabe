@@ -6,9 +6,9 @@ from typing import TYPE_CHECKING, Any, Callable, Optional, Self, TypeVar
 from ..services import Service
 
 if TYPE_CHECKING:
-    from ..launcher import BaseLauncher
+    from ..launcher import Launcher
 else:
-    BaseLauncher = Any
+    Launcher = Any
 logger = logging.getLogger(__name__)
 
 
@@ -118,7 +118,7 @@ class App(Service, abc.ABC):
         """
         return self
 
-    def build_runner(self, allow_std_error: bool = False) -> Callable[[BaseLauncher], Self]:
+    def build_runner(self, allow_std_error: bool = False) -> Callable[[Launcher], Self]:
         """
         Builds a runner function for the application.
 
@@ -128,10 +128,10 @@ class App(Service, abc.ABC):
             allow_std_error (bool): Whether to allow stderr in the output. Defaults to False.
 
         Returns:
-            Callable[[BaseLauncher], Self]: A callable that takes a launcher instance and returns the application instance.
+            Callable[[Launcher], Self]: A callable that takes a launcher instance and returns the application instance.
         """
 
-        def _run(launcher: BaseLauncher):
+        def _run(launcher: Launcher):
             """Internal wrapper function"""
             self.add_app_settings(launcher=launcher)
             try:

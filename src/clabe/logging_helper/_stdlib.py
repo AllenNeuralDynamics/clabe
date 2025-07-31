@@ -9,9 +9,9 @@ import rich.logging
 import rich.style
 
 if TYPE_CHECKING:
-    from ..launcher import BaseLauncher
+    from ..launcher import Launcher
 
-    TLauncher = TypeVar("TLauncher", bound="BaseLauncher")
+    TLauncher = TypeVar("TLauncher", bound="Launcher")
 else:
     TLauncher = TypeVar("TLauncher")
 

@@ -8,11 +8,11 @@ from aind_behavior_services.task_logic import AindBehaviorTaskLogicModel
 from .ui_helper import _UiHelperBase
 
 if TYPE_CHECKING:
-    from ..launcher import BaseLauncher
+    from ..launcher import Launcher
 else:
-    BaseLauncher = "BaseLauncher"
+    Launcher = "Launcher"
 
-_L = TypeVar("_L", bound=BaseLauncher)
+_L = TypeVar("_L", bound=Launcher)
 _R = TypeVar("_R", bound=AindBehaviorRigModel)
 _S = TypeVar("_S", bound=AindBehaviorSessionModel)
 _T = TypeVar("_T", bound=AindBehaviorTaskLogicModel)
@@ -47,7 +47,7 @@ class PickerBase(abc.ABC, Generic[_L, _R, _S, _T]):
                 return launcher.get_task_logic_model()()
 
         picker = MyPicker()
-        # Assuming 'launcher' is an instance of BaseLauncher
+        # Assuming 'launcher' is an instance of Launcher
         rig = picker.pick_rig(launcher)
         session = picker.pick_session(launcher)
         task_logic = picker.pick_task_logic(launcher)

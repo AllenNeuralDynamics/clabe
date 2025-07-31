@@ -10,9 +10,9 @@ import pydantic_settings as ps
 from .utils import KNOWN_CONFIG_FILES
 
 if TYPE_CHECKING:
-    from .launcher import BaseLauncher
+    from .launcher import Launcher
 else:
-    BaseLauncher = Any
+    Launcher = Any
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ class Service(abc.ABC):
         """Initializes the service."""
         pass
 
-    def build_runner(self, *args, **kwargs) -> Callable[[BaseLauncher], Any]:
+    def build_runner(self, *args, **kwargs) -> Callable[[Launcher], Any]:
         """
         Builds a runner function for the service.
 

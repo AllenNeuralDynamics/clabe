@@ -505,11 +505,11 @@ class TestWatchdogDataTransferService:
             service.dump_manifest_config()
 
     @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.transfer")
-    @patch("clabe.data_transfer.aind_watchdog.BaseLauncher")
+    @patch("clabe.data_transfer.aind_watchdog.Launcher")
     def test_build_runner_callable_aind_session_data_mapper(
-        self, MockBaseLauncher, mock_transfer, service: WatchdogDataTransferService, settings
+        self, MockLauncher, mock_transfer, service: WatchdogDataTransferService, settings
     ):
-        mock_launcher = MockBaseLauncher()
+        mock_launcher = MockLauncher()
         mock_launcher.get_session.return_value = MagicMock(subject="test_subject", session_name="test_session")
         mock_launcher.session_directory = Path("launcher_session_dir")
 
@@ -531,11 +531,11 @@ class TestWatchdogDataTransferService:
         assert service._session_name == "test_session"
 
     @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.transfer")
-    @patch("clabe.data_transfer.aind_watchdog.BaseLauncher")
+    @patch("clabe.data_transfer.aind_watchdog.Launcher")
     def test_build_runner_instance_aind_session_data_mapper(
-        self, MockBaseLauncher, mock_transfer, service: WatchdogDataTransferService, settings
+        self, MockLauncher, mock_transfer, service: WatchdogDataTransferService, settings
     ):
-        mock_launcher = MockBaseLauncher()
+        mock_launcher = MockLauncher()
         mock_launcher.get_session.return_value = MagicMock(subject="test_subject", session_name="test_session")
         mock_launcher.session_directory = Path("launcher_session_dir")
 
@@ -552,9 +552,9 @@ class TestWatchdogDataTransferService:
         assert service._session_name == "test_session"
 
     @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.transfer")
-    @patch("clabe.data_transfer.aind_watchdog.BaseLauncher")
-    def test_build_runner_data_mapper_not_mapped(self, MockBaseLauncher, mock_transfer, settings):
-        mock_launcher = MockBaseLauncher()
+    @patch("clabe.data_transfer.aind_watchdog.Launcher")
+    def test_build_runner_data_mapper_not_mapped(self, MockLauncher, mock_transfer, settings):
+        mock_launcher = MockLauncher()
         mock_launcher.get_session.return_value = MagicMock(subject="test_subject", session_name="test_session")
         mock_launcher.session_directory = Path("launcher_session_dir")
 

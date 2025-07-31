@@ -3,15 +3,15 @@ import typing as t
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 
 if TYPE_CHECKING:
-    from ._base import BaseLauncher
+    from ._base import Launcher
 else:
-    BaseLauncher = Any
+    Launcher = Any
 
 logger = logging.getLogger(__name__)
 
 TInput = t.TypeVar("TInput")
 TOutput = t.TypeVar("TOutput")
-TLauncher = t.TypeVar("TLauncher", bound=BaseLauncher)
+TLauncher = t.TypeVar("TLauncher", bound=Launcher)
 
 
 class _UnsetType:

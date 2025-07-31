@@ -34,9 +34,9 @@ from ..services import ServiceSettings
 from ._base import DataTransfer
 
 if TYPE_CHECKING:
-    from ..launcher import BaseLauncher
+    from ..launcher import Launcher
 else:
-    BaseLauncher = Any
+    Launcher = Any
 
 logger = logging.getLogger(__name__)
 
@@ -730,9 +730,8 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
     def build_runner(
         cls,
         settings: WatchdogSettings,
-        aind_session_data_mapper: _Promise[BaseLauncher, AindDataSchemaSessionDataMapper]
-        | AindDataSchemaSessionDataMapper,
-    ) -> Callable[[BaseLauncher], "WatchdogDataTransferService"]:
+        aind_session_data_mapper: _Promise[Launcher, AindDataSchemaSessionDataMapper] | AindDataSchemaSessionDataMapper,
+    ) -> Callable[[Launcher], "WatchdogDataTransferService"]:
         """
         A factory method for creating the watchdog service.
 
@@ -745,7 +744,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         """
 
         def _from_launcher(
-            launcher: BaseLauncher,
+            launcher: Launcher,
         ) -> "WatchdogDataTransferService":
             """Inner callable to create the service from a launcher"""
             _aind_session_data_mapper = (

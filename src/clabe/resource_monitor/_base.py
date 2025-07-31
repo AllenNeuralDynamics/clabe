@@ -9,9 +9,9 @@ from ..services import Service
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from ..launcher import BaseLauncher
+    from ..launcher import Launcher
 else:
-    BaseLauncher = Any
+    Launcher = Any
 
 
 class ResourceMonitor(Service):
@@ -57,7 +57,7 @@ class ResourceMonitor(Service):
         """
         self.constraints = constrains or []
 
-    def build_runner(self) -> Callable[[BaseLauncher], bool]:
+    def build_runner(self) -> Callable[[Launcher], bool]:
         """
         Builds a runner function that evaluates all constraints.
 
@@ -65,7 +65,7 @@ class ResourceMonitor(Service):
             A callable that takes a launcher instance and returns True if all constraints are satisfied, False otherwise.
         """
 
-        def _run(launcher: BaseLauncher) -> bool:
+        def _run(launcher: Launcher) -> bool:
             """Inner function to run the resource monitor given a launcher instance."""
             logger.debug("Evaluating resource monitor constraints.")
             if result := not self.evaluate_constraints():

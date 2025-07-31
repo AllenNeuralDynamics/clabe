@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from clabe.launcher import BaseLauncher, BaseLauncherCliArgs, DefaultBehaviorPicker, DefaultBehaviorPickerSettings
+from clabe.launcher import DefaultBehaviorPicker, DefaultBehaviorPickerSettings, Launcher, LauncherCliArgs
 from clabe.ui import DefaultUIHelper
 from tests import suppress_stdout
 
@@ -14,11 +14,11 @@ def launcher(mock_rig, mock_session, mock_task_logic):
     with patch("clabe.launcher._base.GitRepository") as mock_git:
         mock_git.return_value.working_dir = Path("/path/to/data")
         with patch("os.chdir"):
-            return BaseLauncher[Any, Any, Any](
+            return Launcher[Any, Any, Any](
                 rig=mock_rig,
                 task_logic=None,
                 session=mock_session,
-                settings=BaseLauncherCliArgs(
+                settings=LauncherCliArgs(
                     data_dir=Path("/path/to/data"),
                     temp_dir=Path("/path/to/temp"),
                     repository_dir=None,
@@ -61,7 +61,7 @@ class TestDefaultBehaviorPicker:
     @patch("glob.glob")
     @patch("os.path.isfile", return_value=True)
     @patch("builtins.input", return_value="1")
-    @patch("clabe.launcher._base.BaseLauncher.set_task_logic")
+    @patch("clabe.launcher._base.Launcher.set_task_logic")
     def test_prompt_task_logic_input(
         self, mock_set_task_logic, mock_input, mock_is_file, mock_glob, mock_model_from_json_file, picker, launcher
     ):

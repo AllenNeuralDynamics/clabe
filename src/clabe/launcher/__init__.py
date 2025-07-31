@@ -1,14 +1,14 @@
-from ._base import BaseLauncher, TModel, TRig, TSession, TTaskLogic
-from ._cli import BaseLauncherCliArgs
+from ._base import Launcher, TModel, TRig, TSession, TTaskLogic
+from ._cli import LauncherCliArgs
 from ._picker import DefaultBehaviorPicker, DefaultBehaviorPickerSettings
 
 __all__ = [
-    "BaseLauncher",
+    "Launcher",
     "TModel",
     "TRig",
     "TSession",
     "TTaskLogic",
-    "BaseLauncherCliArgs",
+    "LauncherCliArgs",
     "DefaultBehaviorPicker",
     "DefaultBehaviorPickerSettings",
 ]
