@@ -64,7 +64,7 @@ class WatchdogSettings(ServiceSettings):
         upload_job_configs (Optional[Any]): Upload job configurations.
     """
 
-    _yml_section: ClassVar[Optional[str]] = "watchdog"
+    __yml_section__: ClassVar[Optional[str]] = "watchdog"
 
     destination: PathLike
     schedule_time: Optional[datetime.time] = datetime.time(hour=20)

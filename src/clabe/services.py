@@ -46,13 +46,13 @@ class ServiceSettings(ps.BaseSettings, abc.ABC):
     files defined in KNOWN_CONFIG_FILES.
 
     Attributes:
-        _yml_section: Optional class variable to override the config section name
+        __yml_section__: Optional class variable to override the config section name
 
     Example:
         ```python
         # Define a settings class
         class MyServiceSettings(ServiceSettings):
-            _yml_section: ClassVar[str] = "my_service"
+            __yml_section__: ClassVar[str] = "my_service"
 
             host: str = "localhost"
             port: int = 8080
@@ -63,14 +63,14 @@ class ServiceSettings(ps.BaseSettings, abc.ABC):
         ```
     """
 
-    _yml_section: t.ClassVar[t.Optional[str]] = None
+    __yml_section__: t.ClassVar[t.Optional[str]] = None
 
     @classmethod
     def __init_subclass__(cls, *args, **kwargs):
         """Initializes the subclass and sets up the YAML configuration."""
         super().__init_subclass__(*args, **kwargs)
         cls.model_config.update(
-            ps.SettingsConfigDict(yaml_file=KNOWN_CONFIG_FILES, yaml_config_section=cls._yml_section, extra="ignore")
+            ps.SettingsConfigDict(yaml_file=KNOWN_CONFIG_FILES, yaml_config_section=cls.__yml_section__, extra="ignore")
         )
 
     @classmethod

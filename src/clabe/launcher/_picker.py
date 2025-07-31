@@ -4,7 +4,7 @@ import glob
 import logging
 import os
 from pathlib import Path
-from typing import Callable, List, Optional
+from typing import Callable, ClassVar, List, Optional
 
 import pydantic
 from aind_behavior_services.utils import model_from_json_file
@@ -28,6 +28,8 @@ class DefaultBehaviorPickerSettings(ServiceSettings):
     Attributes:
         config_library_dir: The directory where configuration files are stored.
     """
+
+    __yml_section__: ClassVar[Optional[str]] = "default_behavior_picker"
 
     config_library_dir: os.PathLike
 
