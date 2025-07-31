@@ -56,10 +56,12 @@ class BonsaiAppSettings(ServiceSettings):
     @pydantic.field_validator("workflow", "executable", mode="after", check_fields=True)
     @classmethod
     def _resolve_path(cls, value: os.PathLike) -> os.PathLike:
+        """Resolves the path to an absolute path."""
         return Path(value).resolve()
 
     @pydantic.model_validator(mode="after")
     def _set_start_flag(self) -> Self:
+        """Ensures that the start flag is set correctly based on the editor mode"""
         self.is_start_flag = self.is_start_flag if not self.is_editor_mode else True
         return self
 
