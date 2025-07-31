@@ -16,7 +16,7 @@ from clabe import resource_monitor
 from clabe.apps import App
 from clabe.data_mapper import DataMapper
 from clabe.data_transfer.aind_watchdog import WatchdogDataTransferService, WatchdogSettings
-from clabe.launcher import Launcher, LauncherCliArgs, DefaultBehaviorPicker, DefaultBehaviorPickerSettings
+from clabe.launcher import DefaultBehaviorPicker, DefaultBehaviorPickerSettings, Launcher, LauncherCliArgs
 
 logger = logging.getLogger(__name__)
 

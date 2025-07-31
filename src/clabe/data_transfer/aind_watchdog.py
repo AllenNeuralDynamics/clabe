@@ -730,8 +730,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
     def build_runner(
         cls,
         settings: WatchdogSettings,
-        aind_session_data_mapper: _Promise[Launcher, AindDataSchemaSessionDataMapper]
-        | AindDataSchemaSessionDataMapper,
+        aind_session_data_mapper: _Promise[Launcher, AindDataSchemaSessionDataMapper] | AindDataSchemaSessionDataMapper,
     ) -> Callable[[Launcher], "WatchdogDataTransferService"]:
         """
         A factory method for creating the watchdog service.

@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from clabe.launcher import Launcher, LauncherCliArgs, DefaultBehaviorPicker, DefaultBehaviorPickerSettings
+from clabe.launcher import DefaultBehaviorPicker, DefaultBehaviorPickerSettings, Launcher, LauncherCliArgs
 from clabe.ui import DefaultUIHelper
 from tests import suppress_stdout
 

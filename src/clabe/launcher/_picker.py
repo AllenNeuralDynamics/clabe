@@ -32,9 +32,7 @@ class DefaultBehaviorPickerSettings(ServiceSettings):
     config_library_dir: os.PathLike
 
 
-class DefaultBehaviorPicker(
-    ui.PickerBase[launcher.Launcher[TRig, TSession, TTaskLogic], TRig, TSession, TTaskLogic]
-):
+class DefaultBehaviorPicker(ui.PickerBase[launcher.Launcher[TRig, TSession, TTaskLogic], TRig, TSession, TTaskLogic]):
     """
     A picker class for selecting rig, session, and task logic configurations for behavior experiments.
 
