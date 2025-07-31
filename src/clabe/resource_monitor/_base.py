@@ -2,14 +2,19 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Callable, List, Optional
+from typing import TYPE_CHECKING, Any, Callable, List, Optional
 
-from ..services import IService
+from ..services import Service
 
 logger = logging.getLogger(__name__)
 
+if TYPE_CHECKING:
+    from ..launcher import BaseLauncher
+else:
+    BaseLauncher = Any
 
-class ResourceMonitor(IService):
+
+class ResourceMonitor(Service):
     """
     A service that monitors and validates resource constraints.
 
@@ -52,27 +57,23 @@ class ResourceMonitor(IService):
         """
         self.constraints = constrains or []
 
-    def validate(self, *args, **kwargs) -> bool:
+    def build_runner(self) -> Callable[[BaseLauncher], bool]:
         """
-        Validates all constraints.
-
-        Evaluates all registered constraints to determine if system resources
-        meet the requirements.
+        Builds a runner function that evaluates all constraints.
 
         Returns:
-            bool: True if all constraints are satisfied, False otherwise
-
-        Example:
-            ```python
-            monitor = ResourceMonitor([storage_constraint, memory_constraint])
-
-            if monitor.validate():
-                start_experiment()
-            else:
-                print("Resource requirements not met")
-            ```
+            A callable that takes a launcher instance and returns True if all constraints are satisfied, False otherwise.
         """
-        return self.evaluate_constraints()
+
+        def _run(launcher: BaseLauncher) -> bool:
+            """Inner function to run the resource monitor given a launcher instance."""
+            logger.debug("Evaluating resource monitor constraints.")
+            if result := not self.evaluate_constraints():
+                logger.critical("One or more resource monitor constraints failed.")
+                raise RuntimeError("Resource monitor constraints failed.")
+            return result
+
+        return _run
 
     def add_constraint(self, constraint: Constraint) -> None:
         """

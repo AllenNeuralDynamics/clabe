@@ -26,77 +26,28 @@ class _UiHelperBase(abc.ABC):
         _input (_InputFunc): Function used for receiving input from the user
     """
 
-    _print: _PrintFunc
-    _input: _InputFunc
-
-    def __init__(
-        self, *args, print_func: Optional[_PrintFunc] = None, input_func: Optional[_PrintFunc] = None, **kwargs
-    ):
-        """
-        Initializes the UI helper with optional custom print and input functions.
-
-        Args:
-            print_func: Custom function for printing messages
-            input_func: Custom function for receiving input
-
-        Example:
-            ```python
-            # Default UI helper
-            helper = DefaultUIHelper()
-
-            # Custom print/input functions
-            def custom_print(msg):
-                logging.info(f"UI: {msg}")
-
-            def custom_input(prompt):
-                return input(f"[CUSTOM] {prompt}")
-
-            helper = DefaultUIHelper(
-                print_func=custom_print,
-                input_func=custom_input
-            )
-            ```
-        """
-        self._print = print_func if print_func is not None else _DEFAULT_PRINT_FUNC
-        self._input = input_func if input_func is not None else _DEFAULT_INPUT_FUNC
-
-    def print(self, message: str) -> Any:
+    @abc.abstractmethod
+    def print(self, message: str) -> None:
         """
         Prints a message using the configured print function.
 
         Args:
             message: The message to print
-
-        Returns:
-            Any: The result of the print function
-
-        Example:
-            ```python
-            helper = DefaultUIHelper()
-            helper.print("Hello, world!")
-            helper.print("Status: Processing...")
-            ```
         """
-        return self._print(message)
+        ...
 
+    @abc.abstractmethod
     def input(self, prompt: str) -> str:
         """
         Prompts the user for input using the configured input function.
 
         Args:
-            prompt: The prompt message
+            prompt: The prompt message to display
 
         Returns:
-            str: The user input
-
-        Example:
-            ```python
-            helper = DefaultUIHelper()
-            name = helper.input("Enter your name: ")
-            password = helper.input("Enter password: ")
-            ```
+            str: The user input received from the input function
         """
-        return self._input(prompt)
+        ...
 
     @abc.abstractmethod
     def prompt_pick_from_list(self, value: List[str], prompt: str, **kwargs) -> Optional[str]:
@@ -136,7 +87,7 @@ class _UiHelperBase(abc.ABC):
             helper = DefaultUIHelper()
             if helper.prompt_yes_no_question("Save changes?"):
                 save_file()
-
+            ```
         """
 
     @abc.abstractmethod
@@ -208,6 +159,43 @@ class DefaultUIHelper(_UiHelperBase):
         ```
     """
 
+    def __init__(
+        self, print_func: _PrintFunc = _DEFAULT_PRINT_FUNC, input_func: _InputFunc = _DEFAULT_INPUT_FUNC
+    ) -> None:
+        """
+        Initializes the DefaultUIHelper with custom print and input functions.
+
+        Args:
+            print_func: Custom function for printing messages
+            input_func: Custom function for receiving user input
+        """
+        self._print = print_func
+        self._input = input_func
+
+    def print(self, message: str) -> None:
+        """
+        Prints a message using the configured print function.
+
+        Args:
+            message: The message to print
+
+        Returns:
+            Any: The result of the print function (usually None)
+        """
+        return self._print(message)
+
+    def input(self, prompt: str) -> str:
+        """
+        Prompts the user for input using the configured input function.
+
+        Args:
+            prompt: The prompt message to display
+
+        Returns:
+            str: The user input received from the input function
+        """
+        return self._input(prompt)
+
     def prompt_pick_from_list(
         self, value: List[str], prompt: str, allow_0_as_none: bool = True, **kwargs
     ) -> Optional[str]:
@@ -254,7 +242,7 @@ class DefaultUIHelper(_UiHelperBase):
                         raise ValueError
                 return value[choice - 1]
             except ValueError as e:
-                logger.error("Invalid choice. Try again. %s", e)
+                logger.info("Invalid choice. Try again. %s", e)
 
     def prompt_yes_no_question(self, prompt: str) -> bool:
         """

@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Optional, Self
 
 from aind_behavior_services.utils import run_bonsai_process
-from typing_extensions import overload, override
+from typing_extensions import override
 
 from ..ui import DefaultUIHelper, UiHelper
 from ._base import App
@@ -16,9 +16,9 @@ logger = logging.getLogger(__name__)
 VISUALIZERS_DIR = "VisualizerLayouts"
 
 if TYPE_CHECKING:
-    from ..behavior_launcher import BehaviorLauncher
+    from ..launcher import BaseLauncher
 else:
-    BehaviorLauncher = Any
+    BaseLauncher = Any
 
 
 class BonsaiApp(App):
@@ -71,6 +71,7 @@ class BonsaiApp(App):
             timeout (Optional[float]): Timeout for the Bonsai process. Defaults to None.
             print_cmd (bool): Whether to print the command being executed. Defaults to False.
             ui_helper (Optional[UiHelper]): UI helper instance. Defaults to DefaultUIHelper.
+            **kwargs: Additional keyword arguments.
 
         Example:
             ```python
@@ -248,7 +249,7 @@ class BonsaiApp(App):
                 picked = picked if picked else ""
                 has_pick = True
             except ValueError as e:
-                logger.error("Invalid choice. Try again. %s", e)
+                logger.info("Invalid choice. Try again. %s", e)
         self.layout = Path(picked) if picked else None
         return self.layout
 
@@ -265,7 +266,6 @@ class BonsaiApp(App):
         if len(proc.stderr) > 0:
             logger.error("%s full stderr dump: \n%s", process_name, proc.stderr)
 
-    @override
     def prompt_input(self, *args, **kwargs):
         """
         Prompts the user for input if required.
@@ -300,10 +300,7 @@ class AindBehaviorServicesBonsaiApp(BonsaiApp):
         ```
     """
 
-    @overload
-    def add_app_settings(self, *, launcher: Optional[BehaviorLauncher] = None, **kwargs) -> Self: ...
-
-    def add_app_settings(self, **kwargs) -> Self:
+    def add_app_settings(self, *, launcher: Optional[BaseLauncher] = None, **kwargs) -> Self:
         """
         Adds AIND behavior-specific application settings to the Bonsai workflow.
 
@@ -326,19 +323,19 @@ class AindBehaviorServicesBonsaiApp(BonsaiApp):
             app.add_app_settings(launcher=my_launcher)
             ```
         """
-        launcher: BehaviorLauncher = kwargs.pop("launcher", None)
+
         if launcher is None:
             raise ValueError("Missing required argument 'launcher'.")
 
         settings = {
             "TaskLogicPath": os.path.abspath(
-                launcher.save_temp_model(model=launcher.task_logic_schema, directory=launcher.temp_dir)
+                launcher.save_temp_model(model=launcher.get_task_logic(strict=True), directory=launcher.temp_dir)
             ),
             "SessionPath": os.path.abspath(
-                launcher.save_temp_model(model=launcher.session_schema, directory=launcher.temp_dir)
+                launcher.save_temp_model(model=launcher.get_session(strict=True), directory=launcher.temp_dir)
             ),
             "RigPath": os.path.abspath(
-                launcher.save_temp_model(model=launcher.rig_schema, directory=launcher.temp_dir)
+                launcher.save_temp_model(model=launcher.get_rig(strict=True), directory=launcher.temp_dir)
             ),
         }
         return super().add_app_settings(**settings)

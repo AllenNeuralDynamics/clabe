@@ -14,7 +14,7 @@ import os
 import subprocess
 from os import PathLike
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, ClassVar, Dict, List, Optional, Union
 
 import aind_watchdog_service.models
 import pydantic
@@ -22,19 +22,20 @@ import requests
 import yaml
 from aind_data_schema.core.metadata import CORE_FILES
 from aind_data_schema.core.session import Session as AdsSession
-from aind_data_schema_models.platforms import Platform
-from aind_watchdog_service.models.manifest_config import (
-    BucketType,
-    ManifestConfig,
-    ModalityConfigs,
-)
+from aind_watchdog_service.models.manifest_config import BucketType, ManifestConfig, ModalityConfigs, Platform
 from aind_watchdog_service.models.watch_config import WatchConfig
 from pydantic import BaseModel
 from requests.exceptions import HTTPError
 
 from .. import ui
 from ..data_mapper.aind_data_schema import AindDataSchemaSessionDataMapper
+from ..services import ServiceSettings
 from ._base import DataTransfer
+
+if TYPE_CHECKING:
+    from ..launcher import BaseLauncher
+else:
+    BaseLauncher = Any
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +43,44 @@ logger = logging.getLogger(__name__)
 _JobConfigs = Union[ModalityConfigs, Callable[["WatchdogDataTransferService"], Union[ModalityConfigs]]]
 
 
-class WatchdogDataTransferService(DataTransfer):
+class WatchdogSettings(ServiceSettings):
+    """
+    Settings for the WatchdogDataTransferService.
+
+    Attributes:
+        destination (PathLike): The destination path for the data transfer.
+        schedule_time (Optional[datetime.time]): The time to schedule the data transfer.
+        project_name (str): The name of the project.
+        platform (Platform): The platform of the project.
+        capsule_id (Optional[str]): The capsule ID for the data transfer.
+        script (Optional[Dict[str, List[str]]]): A dictionary of scripts to run.
+        s3_bucket (BucketType): The S3 bucket to transfer the data to.
+        mount (Optional[str]): The mount point for the data transfer.
+        force_cloud_sync (bool): Whether to force a cloud sync.
+        transfer_endpoint (str): The endpoint for the data transfer service.
+        delete_modalities_source_after_success (bool): Whether to delete the source data after a successful transfer.
+        extra_identifying_info (Optional[dict]): Extra identifying information for the data transfer.
+        upload_job_configs (Optional[Any]): Upload job configurations.
+    """
+
+    _yml_section: ClassVar[Optional[str]] = "watchdog"
+
+    destination: PathLike
+    schedule_time: Optional[datetime.time] = datetime.time(hour=20)
+    project_name: str
+    platform: Platform = "behavior"
+    capsule_id: Optional[str] = None
+    script: Optional[Dict[str, List[str]]] = None
+    s3_bucket: BucketType = BucketType.PRIVATE
+    mount: Optional[str] = None
+    force_cloud_sync: bool = True
+    transfer_endpoint: str = "http://aind-data-transfer-service/api/v1/submit_jobs"
+    delete_modalities_source_after_success: bool = False
+    extra_identifying_info: Optional[dict] = None
+    upload_job_configs: Optional[Any] = None
+
+
+class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
     """
     A data transfer service that uses the aind-watchdog-service to monitor and transfer
     data based on manifest configurations.
@@ -52,34 +90,38 @@ class WatchdogDataTransferService(DataTransfer):
     proper metadata handling and validation.
 
     Attributes:
-        source (PathLike): Source directory to monitor
-        destination (PathLike): Destination directory for transfers
-        project_name (Optional[str]): Name of the project for organization
-        schedule_time (Optional[datetime.time]): Time to schedule transfers
-        platform (Platform): Platform associated with the data
-        Various other configuration attributes for transfer customization
+        _source (PathLike): Source directory to monitor
+        _settings (WatchdogSettings): Service settings containing destination and configuration
+        _aind_session_data_mapper (Optional[AindDataSchemaSessionDataMapper]): Mapper for session data
+        _ui_helper (ui.UiHelper): UI helper for user prompts
+        Various configuration attributes accessible via settings
 
     Example:
         ```python
         # Basic watchdog service setup:
+        settings = WatchdogSettings(
+            destination="//server/data/session_001",
+            project_name="my_project"
+        )
         service = WatchdogDataTransferService(
             source="C:/data/session_001",
-            destination="//server/data/session_001",
-            project_name="my_project", # Make sure it validates
-            platform=Platform.BEHAVIOR
+            settings=settings
         )
 
         # Full configuration with session mapper:
-        session_mapper = MySessionMapper(session_data)
-        service = WatchdogDataTransferService(
-            source="C:/data/session_001",
+        settings = WatchdogSettings(
             destination="//server/data/session_001",
-            aind_session_data_mapper=session_mapper,
             project_name="behavior_study",
             schedule_time=datetime.time(hour=22, minute=30),
             platform=Platform.BEHAVIOR,
             force_cloud_sync=True
         )
+        session_mapper = MySessionMapper(session_data)
+        service = WatchdogDataTransferService(
+            source="C:/data/session_001",
+            settings=settings
+        )
+        service = service.with_aind_session_data_mapper(session_mapper)
         if service.validate():
             service.transfer()
         ```
@@ -88,22 +130,10 @@ class WatchdogDataTransferService(DataTransfer):
     def __init__(
         self,
         source: PathLike,
-        destination: PathLike,
-        aind_session_data_mapper: Optional[AindDataSchemaSessionDataMapper] = None,
-        schedule_time: Optional[datetime.time] = datetime.time(hour=20),
-        project_name: Optional[str] = None,
-        platform: Platform = getattr(Platform, "BEHAVIOR"),
-        capsule_id: Optional[str] = None,
-        script: Optional[Dict[str, List[str]]] = None,
-        s3_bucket: BucketType = BucketType.PRIVATE,
-        mount: Optional[str] = None,
-        force_cloud_sync: bool = True,
-        transfer_endpoint: str = "http://aind-data-transfer-service/api/v1/submit_jobs",
-        delete_modalities_source_after_success: bool = False,
-        extra_identifying_info: Optional[dict] = None,
+        settings: WatchdogSettings,
+        *,
         validate: bool = True,
         session_name: Optional[str] = None,
-        upload_job_configs: Optional[List[_JobConfigs]] = None,
         ui_helper: Optional[ui.UiHelper] = None,
     ) -> None:
         """
@@ -111,37 +141,25 @@ class WatchdogDataTransferService(DataTransfer):
 
         Args:
             source: The source directory or file to monitor
-            destination: The destination directory or file
-            aind_session_data_mapper: Mapper for session data to AIND schema
-            schedule_time: Time to schedule the transfer
-            project_name: Name of the project
-            platform: Platform associated with the data
-            capsule_id: Capsule ID for the session
-            script: Optional scripts to execute during transfer
-            s3_bucket: S3 bucket type for cloud storage
-            mount: Mount point for the destination
-            force_cloud_sync: Whether to force synchronization with the cloud
-            transfer_endpoint: Endpoint for the transfer service
-            delete_modalities_source_after_success: Whether to delete source modalities after success
+            settings: WatchdogSettings containing destination and configuration options
             validate: Whether to validate the project name
             session_name: Name of the session
-            upload_job_configs: List of job configurations for the transfer
             ui_helper: UI helper for user prompts
 
         Example:
             ```python
             # Basic initialization:
-
-            service = WatchdogDataTransferService(
-                source="C:/data/session_001",
+            settings = WatchdogSettings(
                 destination="//server/archive/session_001",
                 project_name="behavior_project"
             )
-
-            $ Advanced configuration:
-
             service = WatchdogDataTransferService(
                 source="C:/data/session_001",
+                settings=settings
+            )
+
+            # Advanced configuration:
+            settings = WatchdogSettings(
                 destination="//server/archive/session_001",
                 project_name="behavior_project",
                 schedule_time=datetime.time(hour=23),
@@ -150,24 +168,17 @@ class WatchdogDataTransferService(DataTransfer):
                 delete_modalities_source_after_success=True,
                 extra_identifying_info={"experiment_type": "foraging"}
             )
+            service = WatchdogDataTransferService(
+                source="C:/data/session_001",
+                settings=settings
+            )
             ```
         """
-        self.source = source
-        self.destination = destination
-        self.project_name = project_name
-        self.schedule_time = schedule_time
-        self.platform = platform
-        self.capsule_id = capsule_id
-        self.script = script
-        self.s3_bucket = s3_bucket
-        self.mount = mount
-        self.force_cloud_sync = force_cloud_sync
-        self.transfer_endpoint = transfer_endpoint
-        self.delete_modalities_source_after_success = delete_modalities_source_after_success
-        self.extra_identifying_info = extra_identifying_info
-        self._aind_session_data_mapper = aind_session_data_mapper
-        self._session_name = session_name
-        self.upload_job_configs = upload_job_configs or []
+        self._settings = settings
+        self._source = source
+
+        self._aind_session_data_mapper: Optional[AindDataSchemaSessionDataMapper] = None
+        self._upload_job_configs: List[_JobConfigs] = []
 
         _default_exe = os.environ.get("WATCHDOG_EXE", None)
         _default_config = os.environ.get("WATCHDOG_CONFIG", None)
@@ -181,8 +192,9 @@ class WatchdogDataTransferService(DataTransfer):
         self._watch_config: Optional[WatchConfig] = None
         self._manifest_config: Optional[ManifestConfig] = None
 
-        self.validate_project_name = validate
+        self._validate_project_name = validate
         self._ui_helper = ui_helper or ui.DefaultUIHelper()
+        self._session_name = session_name
 
     @property
     def aind_session_data_mapper(self) -> AindDataSchemaSessionDataMapper:
@@ -199,10 +211,9 @@ class WatchdogDataTransferService(DataTransfer):
             raise ValueError("Data mapper is not set.")
         return self._aind_session_data_mapper
 
-    @aind_session_data_mapper.setter
-    def aind_session_data_mapper(self, value: AindDataSchemaSessionDataMapper) -> None:
+    def with_aind_session_data_mapper(self, value: AindDataSchemaSessionDataMapper) -> "WatchdogDataTransferService":
         """
-        Sets the session data mapper.
+        Sets the aind-data-schema session data mapper.
 
         Args:
             value: The data mapper to set
@@ -210,9 +221,8 @@ class WatchdogDataTransferService(DataTransfer):
         Raises:
             ValueError: If the provided value is not a valid data mapper
         """
-        if not isinstance(value, AindDataSchemaSessionDataMapper):
-            raise ValueError("Data mapper must be an instance of AindDataSchemaSessionDataMapper.")
         self._aind_session_data_mapper = value
+        return self
 
     def transfer(self) -> None:
         """
@@ -249,6 +259,7 @@ class WatchdogDataTransferService(DataTransfer):
             if self._watch_config is None:
                 raise ValueError("Watchdog config is not set.")
 
+            assert self._manifest_config.name is not None, "Manifest config name must be set."
             _manifest_path = self.dump_manifest_config(
                 path=Path(self._watch_config.flag_dir) / self._manifest_config.name
             )
@@ -310,7 +321,6 @@ class WatchdogDataTransferService(DataTransfer):
     def create_watch_config(
         watched_directory: os.PathLike,
         manifest_complete_directory: os.PathLike,
-        webhook_url: Optional[str] = None,
         create_dir: bool = True,
     ) -> WatchConfig:
         """
@@ -322,7 +332,6 @@ class WatchdogDataTransferService(DataTransfer):
         Args:
             watched_directory: Directory to monitor for changes
             manifest_complete_directory: Directory for completed manifests
-            webhook_url: Optional webhook URL for notifications
             create_dir: Whether to create the directories if they don't exist
 
         Returns:
@@ -354,7 +363,6 @@ class WatchdogDataTransferService(DataTransfer):
         return WatchConfig(
             flag_dir=str(watched_directory),
             manifest_complete=str(manifest_complete_directory),
-            webhook_url=webhook_url,
         )
 
     def is_valid_project_name(self) -> bool:
@@ -368,7 +376,7 @@ class WatchdogDataTransferService(DataTransfer):
             True if the project name is valid, False otherwise
         """
         project_names = self._get_project_names()
-        return self.project_name in project_names
+        return self._settings.project_name in project_names
 
     def create_manifest_config_from_ads_session(
         self,
@@ -411,13 +419,13 @@ class WatchdogDataTransferService(DataTransfer):
         """
         processor_full_name = ",".join(ads_session.experimenter_full_name) or os.environ.get("USERNAME", "unknown")
 
-        destination = Path(self.destination).resolve()
-        source = Path(self.source).resolve()
+        destination = Path(self._settings.destination).resolve()
+        source = Path(self._source).resolve()
 
-        if self.validate_project_name:
+        if self._validate_project_name:
             project_names = self._get_project_names()
-            if self.project_name not in project_names:
-                raise ValueError(f"Project name {self.project_name} not found in {project_names}")
+            if self._settings.project_name not in project_names:
+                raise ValueError(f"Project name {self._settings.project_name} not found in {project_names}")
 
         ads_schemas = self._find_ads_schemas(source) if ads_schemas is None else ads_schemas
 
@@ -431,26 +439,28 @@ class WatchdogDataTransferService(DataTransfer):
             acquisition_datetime=ads_session.session_start_time,
             schemas=[str(value) for value in ads_schemas],
             destination=str(destination.resolve()),
-            mount=self.mount,
+            mount=self._settings.mount,
             processor_full_name=processor_full_name,
-            project_name=self.project_name,
-            schedule_time=self.schedule_time,
-            platform=getattr(self.platform, "abbreviation"),
-            capsule_id=self.capsule_id,
-            s3_bucket=self.s3_bucket,
-            script=self.script if self.script else {},
-            force_cloud_sync=self.force_cloud_sync,
-            transfer_endpoint=self.transfer_endpoint,
-            delete_modalities_source_after_success=self.delete_modalities_source_after_success,
-            extra_identifying_info=self.extra_identifying_info,
+            project_name=self._settings.project_name,
+            schedule_time=self._settings.schedule_time,
+            platform=self._settings.platform,
+            capsule_id=self._settings.capsule_id,
+            s3_bucket=self._settings.s3_bucket,
+            script=self._settings.script if self._settings.script else {},
+            force_cloud_sync=self._settings.force_cloud_sync,
+            transfer_endpoint=self._settings.transfer_endpoint,
+            delete_modalities_source_after_success=self._settings.delete_modalities_source_after_success,
+            extra_identifying_info=self._settings.extra_identifying_info,
         )
-        _manifest_config = self.add_transfer_service_args(_manifest_config, jobs=self.upload_job_configs)
+
+        # TODO
+        _manifest_config = self.add_transfer_service_args(_manifest_config, jobs=self._upload_job_configs)
         return _manifest_config
 
     def add_transfer_service_args(
         self,
-        manifest_config: ManifestConfig = None,
-        jobs=Optional[List[_JobConfigs]],
+        manifest_config: ManifestConfig,
+        jobs: List[_JobConfigs] = [],
         submit_job_request_kwargs: Optional[dict] = None,
     ) -> ManifestConfig:
         """
@@ -476,10 +486,12 @@ class WatchdogDataTransferService(DataTransfer):
         job_settings = job_settings.model_copy(update=(submit_job_request_kwargs or {}))
         manifest_config.transfer_service_args = job_settings
 
-        if (jobs is None) or (len(jobs) == 0):
+        if jobs is None:
+            jobs = []
             return manifest_config
 
         def _normalize_callable(job: _JobConfigs) -> ModalityConfigs:
+            """Internal function to normalize job configurations"""
             if callable(job):
                 return job(self)
             return job
@@ -560,7 +572,11 @@ class WatchdogDataTransferService(DataTransfer):
         Example:
             ```python
             # Check service status:
-            service = WatchdogDataTransferService(source="C:/data", destination="//server/data")
+            settings = WatchdogSettings(
+                destination="//server/data",
+                project_name="my_project"
+            )
+            service = WatchdogDataTransferService(source="C:/data", settings=settings)
             if service.is_running():
                 print("Watchdog service is active")
             else:
@@ -619,9 +635,9 @@ class WatchdogDataTransferService(DataTransfer):
             raise ValueError("ManifestConfig or WatchConfig config is not set.")
 
         path = (Path(path) if path else Path(watch_config.flag_dir) / f"manifest_{manifest_config.name}.yaml").resolve()
-        if "manifest" not in path.name:
+        if not path.name.startswith("manifest_"):
             logger.info("Prefix manifest_ not found in file name. Appending it.")
-            path = path.with_name(f"manifest_{path.name}.yaml")
+            path = path.with_name(f"manifest_{path.stem}{path.suffix}")
 
         if make_dir and not path.parent.exists():
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -695,7 +711,11 @@ class WatchdogDataTransferService(DataTransfer):
         Example:
             ```python
             # Interactive manifest generation:
-            service = WatchdogDataTransferService(source="C:/data", destination="//server/data")
+            settings = WatchdogSettings(
+                destination="//server/data",
+                project_name="my_project"
+            )
+            service = WatchdogDataTransferService(source="C:/data", settings=settings)
             if service.prompt_input():
                 service.transfer()
                 print("Manifest generation confirmed")
@@ -704,3 +724,46 @@ class WatchdogDataTransferService(DataTransfer):
             ```
         """
         return self._ui_helper.prompt_yes_no_question("Would you like to generate a watchdog manifest (Y/N)?")
+
+    @classmethod
+    def build_runner(
+        cls,
+        settings: WatchdogSettings,
+        aind_session_data_mapper: Callable[[], AindDataSchemaSessionDataMapper] | AindDataSchemaSessionDataMapper,
+    ) -> Callable[[BaseLauncher], "WatchdogDataTransferService"]:
+        """
+        A factory method for creating the watchdog service.
+
+        Args:
+            settings: The watchdog settings.
+            aind_session_data_mapper: The aind session data mapper.
+
+        Returns:
+            A factory for WatchdogDataTransferService.
+        """
+
+        def _from_launcher(
+            launcher: BaseLauncher,
+        ) -> "WatchdogDataTransferService":
+            """Inner callable to create the service from a launcher"""
+            _aind_session_data_mapper = (
+                aind_session_data_mapper() if callable(aind_session_data_mapper) else aind_session_data_mapper
+            )
+
+            if not _aind_session_data_mapper.is_mapped():
+                raise ValueError("Data mapper has not mapped yet. Cannot create watchdog.")
+
+            _settings = settings.model_copy(update={})
+
+            _session = launcher.get_session(strict=True)
+            _settings.destination = Path(_settings.destination) / _session.subject
+            launcher.copy_logs()
+            service = cls(
+                source=launcher.session_directory,
+                settings=_settings,
+                session_name=_session.session_name,
+            ).with_aind_session_data_mapper(_aind_session_data_mapper)
+            service.transfer()
+            return service
+
+        return _from_launcher

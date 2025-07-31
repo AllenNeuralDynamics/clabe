@@ -4,7 +4,7 @@ import abc
 import logging
 from typing import Any, Generic, Optional, TypeVar
 
-from ..services import IService
+from ..services import Service
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +14,7 @@ T = TypeVar("T")
 TMapTo = TypeVar("TMapTo", bound=Any)
 
 
-class DataMapper(IService, abc.ABC, Generic[TMapTo]):
+class DataMapper(Service, abc.ABC, Generic[TMapTo]):
     """
     Abstract base class for data mappers.
 
@@ -66,7 +66,6 @@ class DataMapper(IService, abc.ABC, Generic[TMapTo]):
         """
         pass
 
-    @abc.abstractmethod
     def is_mapped(self) -> bool:
         """
         Checks if the data has been successfully mapped.
@@ -77,10 +76,9 @@ class DataMapper(IService, abc.ABC, Generic[TMapTo]):
         Returns:
             bool: True if the data is mapped, False otherwise
         """
-        pass
+        return self._mapped is not None
 
     @property
-    @abc.abstractmethod
     def mapped(self) -> TMapTo:
         """
         Retrieves the mapped data object.
@@ -91,5 +89,11 @@ class DataMapper(IService, abc.ABC, Generic[TMapTo]):
 
         Returns:
             TMapTo: The mapped data object
+
+        Raises:
+            ValueError: If the data has not been mapped yet.
         """
-        pass
+        if not self.is_mapped():
+            raise ValueError("Data not yet mapped")
+        assert self._mapped is not None, "Mapped data should not be None"
+        return self._mapped

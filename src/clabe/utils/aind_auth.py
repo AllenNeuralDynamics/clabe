@@ -6,7 +6,6 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-
 if platform.system() == "Windows":
     import ldap3
     import ms_active_directory
@@ -44,6 +43,7 @@ if platform.system() == "Windows":
         """
 
         def _helper(username: str, domain: str, domain_username: Optional[str]) -> bool:
+            """A function submitted to a thread pool to validate the username."""
             if domain_username is None:
                 domain_username = getpass.getuser()
 

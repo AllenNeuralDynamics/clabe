@@ -30,25 +30,25 @@ class PythonScriptApp(App):
         _additional_arguments (str): Additional arguments to pass to the script.
         _result (Optional[subprocess.CompletedProcess]): The result of the executed script.
     Methods:
-        __init__(script, additional_arguments, project_directory, optional_toml_dependencies, append_python_exe, timeout):
+        __init__(script: str, additional_arguments: str, project_directory: os.PathLike, optional_toml_dependencies: Optional[list[str]], append_python_exe: bool, timeout: Optional[float]):
             Initializes the PythonScriptApp with the specified parameters.
         result:
             Property that retrieves the result of the executed script. Raises an error if the script has not been run.
-        run():
+        run() -> subprocess.CompletedProcess:
             Executes the Python script within the managed environment. Creates a virtual environment if one does not exist.
-        output_from_result(allow_stderr):
+        output_from_result(allow_stderr: Optional[bool]) -> Self:
             Processes the output of the executed script. Logs stdout and stderr, and optionally raises an error if stderr is present.
-        _log_process_std_output(process_name, proc):
+        _log_process_std_output(process_name: str, proc: subprocess.CompletedProcess) -> None:
             Logs the stdout and stderr of a completed process.
-        _has_venv():
+        _has_venv() -> bool:
             Checks if a virtual environment exists in the project directory.
-        create_environment(run_kwargs):
+        create_environment(run_kwargs: Optional[dict[str, Any]]) -> subprocess.CompletedProcess:
             Creates a Python virtual environment using the `uv` tool.
-        _add_uv_project_directory():
+        _add_uv_project_directory() -> str:
             Constructs the `--directory` argument for the `uv` command.
-        _add_uv_optional_toml_dependencies():
+        _add_uv_optional_toml_dependencies() -> str:
             Constructs the `--extra` arguments for the `uv` command based on optional TOML dependencies.
-        _validate_uv():
+        _validate_uv() -> bool:
             Validates the presence of the `uv` executable. Raises an error if it is not installed.
     Example:
         ```python
@@ -132,7 +132,7 @@ class PythonScriptApp(App):
         logger.info("Starting python script %s...", self._script)
 
         if not self._has_venv():
-            logging.warning("Python environment not found. Creating one...")
+            logger.warning("Python environment not found. Creating one...")
             self.create_environment()
 
         _script = f"{self._script} {self._additional_arguments}"
@@ -273,7 +273,7 @@ class PythonScriptApp(App):
             RuntimeError: If `uv` is not installed.
         """
         if not _HAS_UV:
-            logging.error("uv executable not detected.")
+            logger.error("uv executable not detected.")
             raise RuntimeError(
                 "uv is not installed in this computer. Please install uv. see https://docs.astral.sh/uv/getting-started/installation/"
             )

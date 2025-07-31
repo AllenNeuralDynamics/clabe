@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import abc
 import logging
+from typing import Generic, TypeVar
 
-from ..services import IService
+from ..services import Service, ServiceSettings
 
 logger = logging.getLogger(__name__)
 
+TSettings = TypeVar("TSettings", bound=ServiceSettings)
 
-class DataTransfer(IService, abc.ABC):
+
+class DataTransfer(Service, abc.ABC, Generic[TSettings]):
     """
     Abstract base class for data transfer services. All data transfer implementations
     must inherit from this class and implement its abstract methods.
@@ -19,22 +22,26 @@ class DataTransfer(IService, abc.ABC):
 
     Example:
         ```python
-        # Implementing a custom data transfer service:
-        class MyTransferService(DataTransfer):
-            def __init__(self, source, destination):
+        # Implementing a custom data transfer service with settings:
+        class MyTransferSettings(ServiceSettings):
+            destination: str
+
+        class MyTransferService(DataTransfer[MyTransferSettings]):
+            def __init__(self, source: str, settings: MyTransferSettings):
                 self.source = source
-                self.destination = destination
+                self._settings = settings
 
             def transfer(self) -> None:
                 # Implementation specific transfer logic
-                print(f"Transferring from {self.source} to {self.destination}")
+                print(f"Transferring from {self.source} to {self._settings.destination}")
 
             def validate(self) -> bool:
                 # Implementation specific validation
                 return Path(self.source).exists()
 
         # Using the custom service:
-        service = MyTransferService("C:/data", "D:/backup")
+        settings = MyTransferSettings(destination="D:/backup")
+        service = MyTransferService("C:/data", settings)
         if service.validate():
             service.transfer()
         ```
@@ -61,3 +68,10 @@ class DataTransfer(IService, abc.ABC):
         Returns:
             True if the service is valid and ready for use, False otherwise
         """
+
+    _settings: TSettings
+
+    @property
+    def settings(self) -> TSettings:
+        """Returns the settings for the data transfer service."""
+        return self._settings
