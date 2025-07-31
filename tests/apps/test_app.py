@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from clabe.apps import BonsaiApp, PythonScriptApp
+from clabe.apps import BonsaiApp, BonsaiAppSettings, PythonScriptApp
 
 
 @pytest.fixture
@@ -12,7 +12,8 @@ def bonsai_app(mock_ui_helper) -> BonsaiApp:
     """BonsaiApp fixture."""
     workflow = Path("test_workflow.bonsai")
     executable = Path("bonsai/bonsai.exe")
-    app = BonsaiApp(workflow=workflow, executable=executable, ui_helper=mock_ui_helper)
+    settings = BonsaiAppSettings(executable=executable, workflow=workflow)
+    app = BonsaiApp(settings=settings, ui_helper=mock_ui_helper)
     return app
 
 
