@@ -29,6 +29,7 @@ from requests.exceptions import HTTPError
 
 from .. import ui
 from ..data_mapper.aind_data_schema import AindDataSchemaSessionDataMapper
+from ..launcher._callable_manager import _Promise
 from ..services import ServiceSettings
 from ._base import DataTransfer
 
@@ -729,7 +730,8 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
     def build_runner(
         cls,
         settings: WatchdogSettings,
-        aind_session_data_mapper: Callable[[], AindDataSchemaSessionDataMapper] | AindDataSchemaSessionDataMapper,
+        aind_session_data_mapper: _Promise[BaseLauncher, AindDataSchemaSessionDataMapper]
+        | AindDataSchemaSessionDataMapper,
     ) -> Callable[[BaseLauncher], "WatchdogDataTransferService"]:
         """
         A factory method for creating the watchdog service.
@@ -747,13 +749,15 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         ) -> "WatchdogDataTransferService":
             """Inner callable to create the service from a launcher"""
             _aind_session_data_mapper = (
-                aind_session_data_mapper() if callable(aind_session_data_mapper) else aind_session_data_mapper
+                aind_session_data_mapper.result
+                if isinstance(aind_session_data_mapper, _Promise)
+                else aind_session_data_mapper
             )
 
             if not _aind_session_data_mapper.is_mapped():
                 raise ValueError("Data mapper has not mapped yet. Cannot create watchdog.")
 
-            _settings = settings.model_copy(update={})
+            _settings = settings.model_copy()
 
             _session = launcher.get_session(strict=True)
             _settings.destination = Path(_settings.destination) / _session.subject

@@ -15,6 +15,7 @@ from clabe.data_transfer.aind_watchdog import (
     WatchdogDataTransferService,
     WatchdogSettings,
 )
+from clabe.launcher._callable_manager import _Promise
 
 
 @pytest.fixture
@@ -512,12 +513,15 @@ class TestWatchdogDataTransferService:
         mock_launcher.get_session.return_value = MagicMock(subject="test_subject", session_name="test_session")
         mock_launcher.session_directory = Path("launcher_session_dir")
 
-        def mock_aind_mapper_factory():
+        def mock_aind_mapper_factory(value) -> AindDataSchemaSessionDataMapper:
             mapper = MagicMock(spec=AindDataSchemaSessionDataMapper)
             mapper.is_mapped.return_value = True
             return mapper
 
-        runner = WatchdogDataTransferService.build_runner(settings, mock_aind_mapper_factory)
+        mock_promise = _Promise(mock_aind_mapper_factory)
+        mock_promise.invoke(None)
+
+        runner = WatchdogDataTransferService.build_runner(settings, mock_promise)
         service = runner(mock_launcher)
 
         assert isinstance(service, WatchdogDataTransferService)

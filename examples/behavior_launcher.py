@@ -11,7 +11,6 @@ from aind_behavior_services.session import AindBehaviorSessionModel
 from aind_behavior_services.task_logic import AindBehaviorTaskLogicModel
 from pydantic import Field
 from pydantic_settings import CliApp
-from typing_extensions import override
 
 from clabe import resource_monitor
 from clabe.apps import App
@@ -129,7 +128,6 @@ class EchoApp(App):
         self._value = value
         self._result = None
 
-    @override
     def run(self) -> subprocess.CompletedProcess:
         logger.info("Running EchoApp...")
         command = ["cmd", "/c", "echo", self._value]
@@ -216,7 +214,7 @@ def make_launcher():
     launcher.register_callable(EchoApp("Hello World!").build_runner(allow_std_error=True))
     output = launcher.register_callable(DemoAindDataSchemaSessionDataMapper.builder_runner(Path("./mock/script.py")))
     launcher.register_callable(
-        MockWatchdogService.build_runner(settings=watchdog_settings, aind_session_data_mapper=lambda: output.result)
+        MockWatchdogService.build_runner(settings=watchdog_settings, aind_session_data_mapper=output)
     )
 
     return launcher
