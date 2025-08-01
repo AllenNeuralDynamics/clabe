@@ -4,7 +4,6 @@ import logging
 import os
 import shutil
 import sys
-from abc import ABC
 from pathlib import Path
 from typing import Any, Callable, Generic, List, Optional, Self, Type, TypeVar, Union, overload
 
@@ -23,18 +22,20 @@ from ..utils import abspath, format_datetime, utcnow
 from ._callable_manager import _CallableManager, _Promise
 from ._cli import LauncherCliArgs
 
+logger = logging.getLogger(__name__)
+
+
 TRig = TypeVar("TRig", bound=AindBehaviorRigModel)
 TSession = TypeVar("TSession", bound=AindBehaviorSessionModel)
 TTaskLogic = TypeVar("TTaskLogic", bound=AindBehaviorTaskLogicModel)
 TModel = TypeVar("TModel", bound=pydantic.BaseModel)
 
-logger = logging.getLogger(__name__)
 
 TLauncher = TypeVar("TLauncher", bound="Launcher")
 _TOutput = TypeVar("_TOutput")
 
 
-class Launcher(ABC, Generic[TRig, TSession, TTaskLogic]):
+class Launcher(Generic[TRig, TSession, TTaskLogic]):
     """
     Abstract base class for experiment launchers. Provides common functionality
     for managing configuration files, directories, and registered callables.
