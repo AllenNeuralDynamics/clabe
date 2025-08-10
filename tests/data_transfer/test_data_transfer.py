@@ -1,16 +1,18 @@
 import os
+import subprocess
 from datetime import datetime, time
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-from aind_data_schema.core.metadata import CORE_FILES
-from aind_watchdog_service.models.manifest_config import BucketType
+from aind_data_schema.core.session import Session as AdsSession
+from aind_data_transfer_service.models.core import Task
+from requests.exceptions import HTTPError
 
 from clabe.data_mapper.aind_data_schema import AindDataSchemaSessionDataMapper
 from clabe.data_transfer.aind_watchdog import (
+    CORE_FILES,
     ManifestConfig,
-    ModalityConfigs,
     WatchConfig,
     WatchdogDataTransferService,
     WatchdogSettings,
@@ -24,8 +26,30 @@ def source():
 
 
 @pytest.fixture
-def aind_data_mapper():
-    return MagicMock(spec=AindDataSchemaSessionDataMapper)
+def ads_session():
+    """Mock AdsSession for testing create_manifest_config_from_ads_session method."""
+    mock_session = MagicMock(spec=AdsSession)
+    mock_session.experimenter_full_name = ["John Doe", "Jane Smith"]
+    mock_session.subject_id = "12345"
+    mock_session.session_start_time = datetime(2023, 1, 1, 10, 0, 0)
+
+    # Mock data streams with modalities
+    mock_modality = MagicMock()
+    mock_modality.abbreviation = "behavior"
+
+    mock_data_stream = MagicMock()
+    mock_session.data_streams = [mock_data_stream]
+    mock_session.data_streams[0].stream_modalities = [mock_modality]
+
+    return mock_session
+
+
+@pytest.fixture
+def aind_data_mapper(ads_session):
+    mapper = MagicMock(spec=AindDataSchemaSessionDataMapper)
+    mapper.is_mapped.return_value = True
+    mapper.mapped = ads_session
+    return mapper
 
 
 @pytest.fixture
@@ -37,10 +61,10 @@ def settings():
         platform="behavior",
         capsule_id="capsule_id",
         script={"script_key": ["script_value"]},
-        s3_bucket=BucketType.PRIVATE,
+        s3_bucket="private",
         mount="mount_path",
         force_cloud_sync=True,
-        transfer_endpoint="http://aind-data-transfer-service/api/v1/submit_jobs",
+        transfer_endpoint="http://aind-data-transfer-service/api/v2/submit_jobs",
     )
 
 
@@ -54,6 +78,7 @@ def watchdog_service(mock_ui_helper, source, settings):
         settings=settings,
         validate=False,
         ui_helper=mock_ui_helper,
+        session_name="test_session",
     )
 
     service._manifest_config = ManifestConfig(
@@ -69,10 +94,10 @@ def watchdog_service(mock_ui_helper, source, settings):
         schedule_time=settings.schedule_time,
         platform="behavior",
         capsule_id="capsule_id",
-        s3_bucket=BucketType.PRIVATE,
+        s3_bucket="private",
         script={"script_key": ["script_value"]},
         force_cloud_sync=True,
-        transfer_endpoint="http://aind-data-transfer-service/api/v1/submit_jobs",
+        transfer_endpoint="http://aind-data-transfer-service/api/v2/submit_jobs",
     )
 
     service._watch_config = WatchConfig(
@@ -80,7 +105,13 @@ def watchdog_service(mock_ui_helper, source, settings):
         manifest_complete="manifest_complete",
     )
 
-    return service
+    yield service
+
+    # Cleanup
+    if "WATCHDOG_EXE" in os.environ:
+        del os.environ["WATCHDOG_EXE"]
+    if "WATCHDOG_CONFIG" in os.environ:
+        del os.environ["WATCHDOG_CONFIG"]
 
 
 class TestWatchdogDataTransferService:
@@ -141,7 +172,7 @@ class TestWatchdogDataTransferService:
             flag_dir="mock_flag_dir", manifest_complete="manifest_complete_dir"
         ).model_dump()
         with patch.object(Path, "exists", return_value=True):
-            assert watchdog_service.validate(create_config=False)
+            assert watchdog_service.validate()
 
     @patch(
         "clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.is_running",
@@ -152,9 +183,25 @@ class TestWatchdogDataTransferService:
             with pytest.raises(FileNotFoundError):
                 watchdog_service.validate()
 
+    def test_aind_session_data_mapper_get(self, watchdog_service, aind_data_mapper):
+        watchdog_service.with_aind_session_data_mapper(aind_data_mapper)
+        assert watchdog_service.aind_session_data_mapper == aind_data_mapper
+
+    def test_aind_session_data_mapper_get_not_set(self, watchdog_service):
+        watchdog_service._aind_session_data_mapper = None
+        with pytest.raises(ValueError):
+            _ = watchdog_service.aind_session_data_mapper
+
+    def test_with_aind_session_data_mapper(self, watchdog_service, aind_data_mapper):
+        returned_service = watchdog_service.with_aind_session_data_mapper(aind_data_mapper)
+        assert watchdog_service._aind_session_data_mapper == aind_data_mapper
+        assert returned_service == watchdog_service
+
     def test_missing_env_variables(self, source, settings, aind_data_mapper):
-        del os.environ["WATCHDOG_EXE"]
-        del os.environ["WATCHDOG_CONFIG"]
+        if "WATCHDOG_EXE" in os.environ:
+            del os.environ["WATCHDOG_EXE"]
+        if "WATCHDOG_CONFIG" in os.environ:
+            del os.environ["WATCHDOG_CONFIG"]
         with pytest.raises(ValueError):
             WatchdogDataTransferService(
                 source,
@@ -207,56 +254,226 @@ class TestWatchdogDataTransferService:
         with pytest.raises(ValueError):
             watchdog_service.dump_manifest_config()
 
-    def test_add_transfer_service_args_from_factory(self, watchdog_service):
-        def modality_configs_factory(watchdog_service: WatchdogDataTransferService):
-            return ModalityConfigs(
-                modality="behavior-videos",
-                source=(Path(watchdog_service._source) / "behavior-videos").as_posix(),
-                compress_raw_data=True,
-                job_settings={"key": "value"},
-            )
+    def test_from_settings_transfer_args(
+        self, watchdog_service: WatchdogDataTransferService, settings: WatchdogSettings
+    ):
+        settings.upload_tasks = {
+            "myTask": Task(job_settings={"input_source": "not_interpolated"}),
+            "nestedTask": {"nestedTask": Task(job_settings={"input_source": "not_interpolated_nested"})},
+            "myTaskInterpolated": Task(job_settings={"input_source": "interpolated/path/{{ destination }}"}),
+            "nestedTaskInterpolated": {
+                "nestedTask": Task(job_settings={"input_source": "interpolated/path/{{ destination }}/nested"})
+            },
+        }
+        settings.job_type = "not_default"
 
-        _manifest_config = watchdog_service.add_transfer_service_args(
-            watchdog_service._manifest_config, jobs=[modality_configs_factory]
+        manifest = watchdog_service._manifest_config
+        new_watchdog_manifest = watchdog_service._make_transfer_args(
+            manifest,
+            add_default_tasks=True,
+            extra_tasks=settings.upload_tasks or {},
+            job_type=settings.job_type,
         )
 
-        for job in _manifest_config.transfer_service_args.upload_jobs:
-            assert job == _manifest_config.transfer_service_args.upload_jobs[-1]
-
-    def test_add_transfer_service_args_from_instance(self, watchdog_service):
-        modality_configs = ModalityConfigs(
-            modality="behavior-videos",
-            source=(Path(watchdog_service._source) / "behavior-videos").as_posix(),
-            compress_raw_data=True,
-            job_settings={"key": "value"},  # needs mode to be json, otherwise parent class will raise an error
+        transfer_service_args = new_watchdog_manifest.transfer_service_args
+        assert transfer_service_args is not None, "Transfer service args are not set"
+        tasks = transfer_service_args.upload_jobs[0].tasks
+        assert transfer_service_args.upload_jobs[0].job_type == "not_default"
+        assert "modality_transformation_settings" in tasks
+        assert "gather_preliminary_metadata" in tasks
+        assert all(task in tasks for task in ["myTask", "nestedTask", "myTaskInterpolated", "nestedTaskInterpolated"])
+        assert (
+            Path(tasks["myTaskInterpolated"].job_settings["input_source"]).resolve()
+            == Path(f"interpolated/path/{WatchdogDataTransferService._remote_destination_root(manifest)}").resolve()
+        )
+        assert (
+            Path(tasks["nestedTaskInterpolated"]["nestedTask"].job_settings["input_source"]).resolve()
+            == Path(
+                f"interpolated/path/{WatchdogDataTransferService._remote_destination_root(manifest)}/nested"
+            ).resolve()
         )
 
-        _manifest_config = watchdog_service.add_transfer_service_args(
-            watchdog_service._manifest_config, jobs=[modality_configs]
+    def test_make_transfer_args(self, watchdog_service: WatchdogDataTransferService):
+        manifest = watchdog_service._manifest_config
+        extra_tasks = {
+            "myTask": Task(job_settings={"input_source": "not_interpolated"}),
+            "nestedTask": {"nestedTask": Task(job_settings={"input_source": "not_interpolated_nested"})},
+            "myTaskInterpolated": Task(job_settings={"input_source": "interpolated/path/{{ destination }}"}),
+            "nestedTaskInterpolated": {
+                "nestedTask": Task(job_settings={"input_source": "interpolated/path/{{ destination }}/nested"})
+            },
+        }
+        assert manifest is not None, "Manifest config is not set"
+        new_watchdog_manifest = watchdog_service._make_transfer_args(
+            manifest, add_default_tasks=True, extra_tasks=extra_tasks, job_type="not_default"
+        )
+        transfer_service_args = new_watchdog_manifest.transfer_service_args
+        assert transfer_service_args is not None, "Transfer service args are not set"
+        tasks = transfer_service_args.upload_jobs[0].tasks
+        assert transfer_service_args.upload_jobs[0].job_type == "not_default"
+        assert "modality_transformation_settings" in tasks
+        assert "gather_preliminary_metadata" in tasks
+        assert all(task in tasks for task in ["myTask", "nestedTask", "myTaskInterpolated", "nestedTaskInterpolated"])
+        assert (
+            Path(tasks["myTaskInterpolated"].job_settings["input_source"]).resolve()
+            == Path(f"interpolated/path/{WatchdogDataTransferService._remote_destination_root(manifest)}").resolve()
+        )
+        assert (
+            Path(tasks["nestedTaskInterpolated"]["nestedTask"].job_settings["input_source"]).resolve()
+            == Path(
+                f"interpolated/path/{WatchdogDataTransferService._remote_destination_root(manifest)}/nested"
+            ).resolve()
         )
 
-        for job in _manifest_config.transfer_service_args.upload_jobs:
-            assert job == _manifest_config.transfer_service_args.upload_jobs[-1]
+    @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.is_running", return_value=False)
+    @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.force_restart", return_value=None)
+    @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.dump_manifest_config")
+    def test_transfer_service_not_running_restart_success(
+        self,
+        mock_dump_manifest_config,
+        mock_force_restart,
+        mock_is_running,
+        watchdog_service,
+        aind_data_mapper,
+    ):
+        mock_is_running.side_effect = [False, True]  # First call returns False, second returns True
+        watchdog_service.with_aind_session_data_mapper(aind_data_mapper)
+        watchdog_service.transfer()
+        mock_force_restart.assert_called_once_with(kill_if_running=False)
+        mock_dump_manifest_config.assert_called_once()
 
-    def test_add_transfer_service_args_fail_on_duplicate_modality(self, watchdog_service):
-        def modality_configs_factory(watchdog_service: WatchdogDataTransferService):
-            return ModalityConfigs(
-                modality="behavior-videos",
-                source=(Path(watchdog_service._source) / "behavior-videos").as_posix(),
-                compress_raw_data=True,
-                job_settings={"key": "value"},
-            )
+    @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.is_running", return_value=False)
+    @patch(
+        "clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.force_restart",
+        side_effect=subprocess.CalledProcessError(1, "cmd"),
+    )
+    def test_transfer_service_not_running_restart_fail(
+        self, mock_force_restart, mock_is_running, watchdog_service, aind_data_mapper
+    ):
+        watchdog_service.with_aind_session_data_mapper(aind_data_mapper)
+        with pytest.raises(RuntimeError):
+            watchdog_service.transfer()
+        mock_force_restart.assert_called_once_with(kill_if_running=False)
 
-        modality_configs = ModalityConfigs(
-            modality="behavior-videos",
-            source=(Path(watchdog_service._source) / "behavior-videos").as_posix(),
-            job_settings={"key": "value"},  # needs mode to be json, otherwise parent class will raise an error
-        )
-
+    @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.is_running", return_value=True)
+    @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.dump_manifest_config")
+    def test_transfer_watch_config_none(
+        self,
+        mock_dump_manifest_config,
+        mock_is_running,
+        watchdog_service,
+        aind_data_mapper,
+    ):
+        watchdog_service._watch_config = None
+        watchdog_service.with_aind_session_data_mapper(aind_data_mapper)
         with pytest.raises(ValueError):
-            _ = watchdog_service.add_transfer_service_args(
-                watchdog_service._manifest_config, jobs=[modality_configs_factory, modality_configs]
-            )
+            watchdog_service.transfer()
+        mock_dump_manifest_config.assert_not_called()
+
+    @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.is_running", return_value=True)
+    @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.dump_manifest_config")
+    def test_transfer_success(
+        self,
+        mock_dump_manifest_config,
+        mock_is_running,
+        watchdog_service,
+        aind_data_mapper,
+    ):
+        watchdog_service.with_aind_session_data_mapper(aind_data_mapper)
+        watchdog_service.transfer()
+        mock_dump_manifest_config.assert_called_once()
+
+    @patch("clabe.data_transfer.aind_watchdog.Path.exists", return_value=False)
+    def test_validate_executable_not_found(self, mock_exists, watchdog_service):
+        with pytest.raises(FileNotFoundError):
+            watchdog_service.validate()
+
+    @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.is_running", return_value=False)
+    @patch("clabe.data_transfer.aind_watchdog.Path.exists", return_value=True)
+    @patch(
+        "clabe.data_transfer.aind_watchdog.WatchdogDataTransferService._read_yaml",
+        return_value={"flag_dir": "mock_flag_dir", "manifest_complete": "mock_manifest_complete"},
+    )
+    def test_validate_service_not_running(self, mock_read_yaml, mock_exists, mock_is_running, watchdog_service):
+        assert not watchdog_service.validate()
+
+    @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.is_valid_project_name", return_value=False)
+    @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.is_running", return_value=True)
+    @patch("clabe.data_transfer.aind_watchdog.Path.exists", return_value=True)
+    @patch(
+        "clabe.data_transfer.aind_watchdog.WatchdogDataTransferService._read_yaml",
+        return_value={"flag_dir": "mock_flag_dir", "manifest_complete": "mock_manifest_complete"},
+    )
+    def test_validate_invalid_project_name(
+        self,
+        mock_read_yaml,
+        mock_exists,
+        mock_is_running,
+        mock_is_valid_project_name,
+        watchdog_service,
+    ):
+        assert not watchdog_service.validate()
+
+    @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.is_valid_project_name", side_effect=HTTPError)
+    @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.is_running", return_value=True)
+    @patch("clabe.data_transfer.aind_watchdog.Path.exists", return_value=True)
+    @patch(
+        "clabe.data_transfer.aind_watchdog.WatchdogDataTransferService._read_yaml",
+        return_value={"flag_dir": "mock_flag_dir", "manifest_complete": "mock_manifest_complete"},
+    )
+    def test_validate_http_error(
+        self,
+        mock_read_yaml,
+        mock_exists,
+        mock_is_running,
+        mock_is_valid_project_name,
+        watchdog_service,
+    ):
+        with pytest.raises(HTTPError):
+            watchdog_service.validate()
+
+    @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.is_valid_project_name", return_value=True)
+    @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.is_running", return_value=True)
+    @patch("clabe.data_transfer.aind_watchdog.Path.exists", return_value=True)
+    @patch(
+        "clabe.data_transfer.aind_watchdog.WatchdogDataTransferService._read_yaml",
+        return_value={"flag_dir": "mock_flag_dir", "manifest_complete": "mock_manifest_complete"},
+    )
+    def test_validate_success_extended(
+        self,
+        mock_read_yaml,
+        mock_exists,
+        mock_is_running,
+        mock_is_valid_project_name,
+        watchdog_service,
+    ):
+        assert watchdog_service.validate()
+
+    @patch(
+        "clabe.data_transfer.aind_watchdog.WatchdogDataTransferService._get_project_names",
+        return_value=["test_project"],
+    )
+    def test_is_valid_project_name_valid(self, mock_get_project_names, watchdog_service):
+        assert watchdog_service.is_valid_project_name()
+
+    @patch(
+        "clabe.data_transfer.aind_watchdog.WatchdogDataTransferService._get_project_names",
+        return_value=["other_project"],
+    )
+    def test_is_valid_project_name_invalid(self, mock_get_project_names, watchdog_service):
+        assert not watchdog_service.is_valid_project_name()
+
+    @patch(
+        "clabe.data_transfer.aind_watchdog.WatchdogDataTransferService._get_project_names",
+        return_value=["other_project"],
+    )
+    @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService._find_ads_schemas", return_value=[])
+    def test_create_manifest_config_from_ads_session_invalid_project_name(
+        self, mock_find_ads_schemas, mock_get_project_names, watchdog_service, aind_data_mapper
+    ):
+        watchdog_service._validate_project_name = True
+        with pytest.raises(ValueError):
+            watchdog_service._create_manifest_config_from_ads_session(aind_data_mapper.mapped)
 
 
 @pytest.fixture

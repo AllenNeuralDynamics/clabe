@@ -37,13 +37,14 @@ Changelog = "https://github.com/AllenNeuralDynamics/clabe/releases"
 
 [project.optional-dependencies]
 aind-services = [
-    "aind-watchdog-service",
     "aind-data-schema<2",
     "ms-active-directory",
     "aind-data-transfer-service",
     "cryptography",
     "winkerberos; sys_platform == 'win32'",
     "ldap3; sys_platform == 'win32'",
+    "requests",
+    "pyyaml",
 ]
 
 dev = [
