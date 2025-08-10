@@ -13,14 +13,15 @@ import logging
 import os
 import subprocess
 from os import PathLike
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any, Callable, ClassVar, Dict, List, Optional, Union
 
+import aind_data_transfer_service.models.core
 import pydantic
 import requests
 import yaml
 from aind_data_schema.core.metadata import CORE_FILES
-from pydantic import BaseModel
+from pydantic import BaseModel, SerializeAsAny, TypeAdapter
 from requests.exceptions import HTTPError
 
 from .. import ui
@@ -46,9 +47,9 @@ else:
 
 logger = logging.getLogger(__name__)
 
-ModalityConfigs = Any  # TODO
-
-_JobConfigs = Union[ModalityConfigs, Callable[["WatchdogDataTransferService"], Union[ModalityConfigs]]]
+TransferServiceTask = Dict[
+    str, Union[aind_data_transfer_service.models.core.Task, Dict[str, aind_data_transfer_service.models.core.Task]]
+]
 
 
 class WatchdogSettings(ServiceSettings):
@@ -68,7 +69,8 @@ class WatchdogSettings(ServiceSettings):
         transfer_endpoint (str): The endpoint for the data transfer service.
         delete_modalities_source_after_success (bool): Whether to delete the source data after a successful transfer.
         extra_identifying_info (Optional[dict]): Extra identifying information for the data transfer.
-        upload_job_configs (Optional[Any]): Upload job configurations.
+        upload_tasks (Optional[Any]): Upload job configurations. Use the placeholder "{{ destination }}" to later reference the destination path.
+        job_config (str): Job configuration name.
     """
 
     __yml_section__: ClassVar[Optional[str]] = "watchdog"
@@ -85,7 +87,8 @@ class WatchdogSettings(ServiceSettings):
     transfer_endpoint: str = DEFAULT_TRANSFER_ENDPOINT
     delete_modalities_source_after_success: bool = False
     extra_identifying_info: Optional[dict] = None
-    upload_job_configs: Optional[Any] = None
+    upload_tasks: Optional[SerializeAsAny[TransferServiceTask]] = None
+    job_type: str = "default"
 
 
 class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
@@ -186,7 +189,6 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         self._source = source
 
         self._aind_session_data_mapper: Optional[AindDataSchemaSessionDataMapper] = None
-        self._upload_job_configs: List[_JobConfigs] = []
 
         _default_exe = os.environ.get("WATCHDOG_EXE", None)
         _default_config = os.environ.get("WATCHDOG_CONFIG", None)
@@ -403,65 +405,87 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
             extra_identifying_info=self._settings.extra_identifying_info,
         )
 
-        # TODO
-        _manifest_config = self.add_transfer_service_args(_manifest_config, jobs=self._upload_job_configs)
+        _manifest_config = self.make_transfer_args(
+            _manifest_config,
+            add_default_tasks=True,
+            extra_tasks=self._settings.upload_tasks or {},
+            job_type=self._settings.job_type,
+        )
         return _manifest_config
 
-    def add_transfer_service_args(
-        self,
-        manifest_config: ManifestConfig,
-        jobs: List[_JobConfigs] = [],
-        submit_job_request_kwargs: Optional[dict] = None,
-    ) -> ManifestConfig:
-        """
-        Adds transfer service arguments to the manifest configuration.
+    @staticmethod
+    def _remote_destination_root(manifest: ManifestConfig) -> Path:
+        assert manifest.destination is not None, "Manifest destination must be set."
+        assert manifest.name is not None, "Manifest name must be set."
+        return Path(manifest.destination) / manifest.name
 
-        Configures job-specific parameters for different modalities and
-        integrates them into the manifest configuration.
+    @classmethod
+    def make_transfer_args(
+        cls,
+        manifest: ManifestConfig,
+        *,
+        job_type: str = "default",
+        add_default_tasks: bool = True,
+        extra_tasks: TransferServiceTask,
+    ) -> ManifestConfig:
+        tasks = {}
+
+        if add_default_tasks:
+            tasks["modality_transformation_settings"] = {
+                modality: aind_data_transfer_service.models.core.Task(
+                    job_settings={"input_source": str(PurePosixPath(cls._remote_destination_root(manifest) / modality))}
+                )
+                for modality in manifest.modalities.keys()
+            }
+
+            tasks["gather_preliminary_metadata"] = aind_data_transfer_service.models.core.Task(
+                job_settings={"metadata_dir": str(PurePosixPath(cls._remote_destination_root(manifest) / "metadata"))}
+            )
+
+        extra_tasks = cls._interpolate_from_manifest(
+            extra_tasks,
+            str(PurePosixPath(cls._remote_destination_root(manifest))),
+            "{{ destination }}",
+        )
+
+        tasks.update(extra_tasks)
+
+        upload_job_configs_v2 = aind_data_transfer_service.models.core.UploadJobConfigsV2(
+            job_type=job_type,
+            project_name=manifest.project_name,
+            platform=aind_data_transfer_service.models.core.Platform.from_abbreviation(manifest.platform),
+            modalities=[
+                aind_data_transfer_service.models.core.Modality.from_abbreviation(m) for m in manifest.modalities.keys()
+            ],
+            subject_id=str(manifest.subject_id),
+            acq_datetime=manifest.acquisition_datetime.strftime("%Y-%m-%d %H:%M:%S"),
+            tasks=tasks,
+            s3_bucket=manifest.s3_bucket,
+            acquisition_datetime=manifest.acquisition_datetime,
+        )
+
+        submit_request_v2 = aind_data_transfer_service.models.core.SubmitJobRequestV2(
+            upload_jobs=[upload_job_configs_v2],
+        )
+        manifest.transfer_service_args = submit_request_v2
+        return manifest
+
+    @staticmethod
+    def _interpolate_from_manifest(
+        tasks: TransferServiceTask | dict, value: str, placeholder: str
+    ) -> TransferServiceTask:
+        """
+        Interpolates values from the manifest into the upload job configuration.
 
         Args:
-            manifest_config: The manifest configuration to update
-            jobs: List of job configurations
-            submit_job_request_kwargs: Additional arguments for the job request
-
-        Returns:
-            The updated ManifestConfig object
+            upload_job_configs: The upload job configuration to update
+            destination: The destination path to use for interpolation
+            placeholder: The placeholder string to replace
         """
-        # TODO (bruno-f-cruz)
-        # The following code is super hacky and should be refactored once the transfer service
-        # has a more composable API. Currently, the idea is to only allow one job per modality
-
-        # we use the aind-watchdog-service library to create the default transfer service args for us
-        return manifest_config  # TODO
-        job_settings = aind_watchdog_service.models.make_standard_transfer_args(manifest_config)
-        job_settings = job_settings.model_copy(update=(submit_job_request_kwargs or {}))
-        manifest_config.transfer_service_args = job_settings
-
-        if jobs is None:
-            jobs = []
-            return manifest_config
-
-        def _normalize_callable(job: _JobConfigs) -> ModalityConfigs:
-            """Internal function to normalize job configurations"""
-            if callable(job):
-                return job(self)
-            return job
-
-        modality_configs = [_normalize_callable(job) for job in jobs]
-
-        if len(set([m.modality for m in modality_configs])) < len(modality_configs):
-            raise ValueError("Duplicate modality configurations found. Aborting.")
-
-        for modified in modality_configs:
-            for overridable in manifest_config.transfer_service_args.upload_jobs[0].modalities:
-                if modified.modality == overridable.modality:
-                    # We need to let the watchdog api handle this or we are screwed...
-                    modified.source = overridable.source
-                    manifest_config.transfer_service_args.upload_jobs[0].modalities.remove(overridable)
-                    manifest_config.transfer_service_args.upload_jobs[0].modalities.append(modified)
-                    break
-
-        return manifest_config
+        _adapter = TypeAdapter(TransferServiceTask)
+        literal = _adapter.dump_json(tasks, serialize_as_any=True)
+        updated_literal = literal.decode("utf-8").replace(placeholder, value)
+        return _adapter.validate_json(updated_literal)
 
     @staticmethod
     def _find_ads_schemas(source: PathLike) -> List[PathLike]:

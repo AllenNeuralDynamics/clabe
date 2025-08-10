@@ -6,13 +6,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from aind_data_schema.core.session import Session as AdsSession
+from aind_data_transfer_service.models.core import Task
 from requests.exceptions import HTTPError
 
 from clabe.data_mapper.aind_data_schema import AindDataSchemaSessionDataMapper
 from clabe.data_transfer.aind_watchdog import (
     CORE_FILES,
     ManifestConfig,
-    ModalityConfigs,
     WatchConfig,
     WatchdogDataTransferService,
     WatchdogSettings,
@@ -240,56 +240,76 @@ class TestWatchdogDataTransferService:
         with pytest.raises(ValueError):
             watchdog_service.dump_manifest_config()
 
-    def test_add_transfer_service_args_from_factory(self, watchdog_service):
-        def modality_configs_factory(watchdog_service: WatchdogDataTransferService):
-            return ModalityConfigs(
-                modality="behavior-videos",
-                source=(Path(watchdog_service._source) / "behavior-videos").as_posix(),
-                compress_raw_data=True,
-                job_settings={"key": "value"},
-            )
+    def test_from_settings_transfer_args(
+        self, watchdog_service: WatchdogDataTransferService, settings: WatchdogSettings
+    ):
+        settings.upload_tasks = {
+            "myTask": Task(job_settings={"input_source": "not_interpolated"}),
+            "nestedTask": {"nestedTask": Task(job_settings={"input_source": "not_interpolated_nested"})},
+            "myTaskInterpolated": Task(job_settings={"input_source": "interpolated/path/{{ destination }}"}),
+            "nestedTaskInterpolated": {
+                "nestedTask": Task(job_settings={"input_source": "interpolated/path/{{ destination }}/nested"})
+            },
+        }
+        settings.job_type = "not_default"
 
-        _manifest_config = watchdog_service.add_transfer_service_args(
-            watchdog_service._manifest_config, jobs=[modality_configs_factory]
+        manifest = watchdog_service._manifest_config
+        new_watchdog_manifest = watchdog_service.make_transfer_args(
+            manifest,
+            add_default_tasks=True,
+            extra_tasks=settings.upload_tasks or {},
+            job_type=settings.job_type,
         )
 
-        for job in _manifest_config.transfer_service_args.upload_jobs:
-            assert job == _manifest_config.transfer_service_args.upload_jobs[-1]
-
-    def test_add_transfer_service_args_from_instance(self, watchdog_service):
-        modality_configs = ModalityConfigs(
-            modality="behavior-videos",
-            source=(Path(watchdog_service._source) / "behavior-videos").as_posix(),
-            compress_raw_data=True,
-            job_settings={"key": "value"},  # needs mode to be json, otherwise parent class will raise an error
+        transfer_service_args = new_watchdog_manifest.transfer_service_args
+        assert transfer_service_args is not None, "Transfer service args are not set"
+        tasks = transfer_service_args.upload_jobs[0].tasks
+        assert transfer_service_args.upload_jobs[0].job_type == "not_default"
+        assert "modality_transformation_settings" in tasks
+        assert "gather_preliminary_metadata" in tasks
+        assert all(task in tasks for task in ["myTask", "nestedTask", "myTaskInterpolated", "nestedTaskInterpolated"])
+        assert (
+            Path(tasks["myTaskInterpolated"].job_settings["input_source"]).resolve()
+            == Path(f"interpolated/path/{WatchdogDataTransferService._remote_destination_root(manifest)}").resolve()
+        )
+        assert (
+            Path(tasks["nestedTaskInterpolated"]["nestedTask"].job_settings["input_source"]).resolve()
+            == Path(
+                f"interpolated/path/{WatchdogDataTransferService._remote_destination_root(manifest)}/nested"
+            ).resolve()
         )
 
-        _manifest_config = watchdog_service.add_transfer_service_args(
-            watchdog_service._manifest_config, jobs=[modality_configs]
+    def test_make_transfer_args(self, watchdog_service: WatchdogDataTransferService):
+        manifest = watchdog_service._manifest_config
+        extra_tasks = {
+            "myTask": Task(job_settings={"input_source": "not_interpolated"}),
+            "nestedTask": {"nestedTask": Task(job_settings={"input_source": "not_interpolated_nested"})},
+            "myTaskInterpolated": Task(job_settings={"input_source": "interpolated/path/{{ destination }}"}),
+            "nestedTaskInterpolated": {
+                "nestedTask": Task(job_settings={"input_source": "interpolated/path/{{ destination }}/nested"})
+            },
+        }
+        assert manifest is not None, "Manifest config is not set"
+        new_watchdog_manifest = watchdog_service.make_transfer_args(
+            manifest, add_default_tasks=True, extra_tasks=extra_tasks, job_type="not_default"
         )
-
-        for job in _manifest_config.transfer_service_args.upload_jobs:
-            assert job == _manifest_config.transfer_service_args.upload_jobs[-1]
-
-    def test_add_transfer_service_args_fail_on_duplicate_modality(self, watchdog_service):
-        def modality_configs_factory(watchdog_service: WatchdogDataTransferService):
-            return ModalityConfigs(
-                modality="behavior-videos",
-                source=(Path(watchdog_service._source) / "behavior-videos").as_posix(),
-                compress_raw_data=True,
-                job_settings={"key": "value"},
-            )
-
-        modality_configs = ModalityConfigs(
-            modality="behavior-videos",
-            source=(Path(watchdog_service._source) / "behavior-videos").as_posix(),
-            job_settings={"key": "value"},  # needs mode to be json, otherwise parent class will raise an error
+        transfer_service_args = new_watchdog_manifest.transfer_service_args
+        assert transfer_service_args is not None, "Transfer service args are not set"
+        tasks = transfer_service_args.upload_jobs[0].tasks
+        assert transfer_service_args.upload_jobs[0].job_type == "not_default"
+        assert "modality_transformation_settings" in tasks
+        assert "gather_preliminary_metadata" in tasks
+        assert all(task in tasks for task in ["myTask", "nestedTask", "myTaskInterpolated", "nestedTaskInterpolated"])
+        assert (
+            Path(tasks["myTaskInterpolated"].job_settings["input_source"]).resolve()
+            == Path(f"interpolated/path/{WatchdogDataTransferService._remote_destination_root(manifest)}").resolve()
         )
-
-        with pytest.raises(ValueError):
-            _ = watchdog_service.add_transfer_service_args(
-                watchdog_service._manifest_config, jobs=[modality_configs_factory, modality_configs]
-            )
+        assert (
+            Path(tasks["nestedTaskInterpolated"]["nestedTask"].job_settings["input_source"]).resolve()
+            == Path(
+                f"interpolated/path/{WatchdogDataTransferService._remote_destination_root(manifest)}/nested"
+            ).resolve()
+        )
 
     @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.is_running", return_value=False)
     @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.force_restart", return_value=None)
