@@ -415,6 +415,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
 
     @staticmethod
     def _remote_destination_root(manifest: ManifestConfig) -> Path:
+        """Determines the remote destination root path for the manifest."""
         assert manifest.destination is not None, "Manifest destination must be set."
         assert manifest.name is not None, "Manifest name must be set."
         return Path(manifest.destination) / manifest.name
@@ -428,6 +429,8 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         add_default_tasks: bool = True,
         extra_tasks: TransferServiceTask,
     ) -> ManifestConfig:
+        """Appends extra tasks to a manifest configuration. Additionally appends default
+        metadata and modality transformation tasks if requested."""
         tasks = {}
 
         if add_default_tasks:

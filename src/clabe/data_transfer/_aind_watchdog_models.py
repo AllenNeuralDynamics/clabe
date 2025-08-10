@@ -110,6 +110,8 @@ class ManifestConfig(BaseModel, extra="ignore"):
 
 
 class ChecksumConfig(BaseModel, extra="ignore"):
+    """Configuration for checksum generation"""
+
     max_retries: int = 3
     chunk_size: int = 1024 * 1024
     file_size_threshold: int = 10 * 1024 * 1024
