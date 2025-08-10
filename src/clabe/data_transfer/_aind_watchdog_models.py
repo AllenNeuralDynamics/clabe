@@ -11,6 +11,7 @@ import logging
 import pathlib
 from typing import Annotated, Dict, List, Literal, Optional, Self, TypeAlias, Union
 
+from aind_data_schema_models.data_name_patterns import build_data_name
 from aind_data_transfer_service.models.core import SubmitJobRequestV2
 from pydantic import AfterValidator, BaseModel, Field, SerializeAsAny, model_validator
 
@@ -95,6 +96,16 @@ class ManifestConfig(BaseModel, extra="ignore"):
         """Validate capsule and mount"""
         if (self.capsule_id is None) ^ (self.mount is None):
             raise ValueError("Both capsule and mount must be provided, or must both be None")
+        return self
+
+    @model_validator(mode="after")  # TODO remove this once SciComp allows it...
+    def set_name(self) -> Self:
+        """Construct name"""
+        if self.name is None:
+            self.name = build_data_name(
+                f"{self.platform}_{self.subject_id}",
+                self.acquisition_datetime,
+            )
         return self
 
 
