@@ -261,7 +261,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
             if not self.aind_session_data_mapper.is_mapped():
                 raise ValueError("Data mapper has not been mapped yet.")
 
-            self._manifest_config = self.create_manifest_config_from_ads_session(
+            self._manifest_config = self._create_manifest_config_from_ads_session(
                 ads_session=self.aind_session_data_mapper.mapped,
                 session_name=self._session_name,
             )
@@ -330,7 +330,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         project_names = self._get_project_names()
         return self._settings.project_name in project_names
 
-    def create_manifest_config_from_ads_session(
+    def _create_manifest_config_from_ads_session(
         self,
         ads_session: AdsSession,
         ads_schemas: Optional[List[os.PathLike]] = None,
@@ -405,7 +405,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
             extra_identifying_info=self._settings.extra_identifying_info,
         )
 
-        _manifest_config = self.make_transfer_args(
+        _manifest_config = self._make_transfer_args(
             _manifest_config,
             add_default_tasks=True,
             extra_tasks=self._settings.upload_tasks or {},
@@ -420,7 +420,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         return Path(manifest.destination) / manifest.name
 
     @classmethod
-    def make_transfer_args(
+    def _make_transfer_args(
         cls,
         manifest: ManifestConfig,
         *,

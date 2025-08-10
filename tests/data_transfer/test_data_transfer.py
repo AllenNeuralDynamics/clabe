@@ -26,15 +26,29 @@ def source():
 
 
 @pytest.fixture
-def aind_data_mapper():
+def ads_session():
+    """Mock AdsSession for testing create_manifest_config_from_ads_session method."""
+    mock_session = MagicMock(spec=AdsSession)
+    mock_session.experimenter_full_name = ["John Doe", "Jane Smith"]
+    mock_session.subject_id = "12345"
+    mock_session.session_start_time = datetime(2023, 1, 1, 10, 0, 0)
+
+    # Mock data streams with modalities
+    mock_modality = MagicMock()
+    mock_modality.abbreviation = "behavior"
+
+    mock_data_stream = MagicMock()
+    mock_session.data_streams = [mock_data_stream]
+    mock_session.data_streams[0].stream_modalities = [mock_modality]
+
+    return mock_session
+
+
+@pytest.fixture
+def aind_data_mapper(ads_session):
     mapper = MagicMock(spec=AindDataSchemaSessionDataMapper)
     mapper.is_mapped.return_value = True
-    mapper.mapped = MagicMock(spec=AdsSession)
-    mapper.mapped.experimenter_full_name = ["John Doe"]
-    mapper.mapped.subject_id = "12345"
-    mapper.mapped.session_start_time = datetime(2023, 1, 1, 10, 0, 0)
-    mapper.mapped.data_streams = [MagicMock()]
-    mapper.mapped.data_streams[0].stream_modalities = [MagicMock(abbreviation="behavior")]
+    mapper.mapped = ads_session
     return mapper
 
 
@@ -254,7 +268,7 @@ class TestWatchdogDataTransferService:
         settings.job_type = "not_default"
 
         manifest = watchdog_service._manifest_config
-        new_watchdog_manifest = watchdog_service.make_transfer_args(
+        new_watchdog_manifest = watchdog_service._make_transfer_args(
             manifest,
             add_default_tasks=True,
             extra_tasks=settings.upload_tasks or {},
@@ -290,7 +304,7 @@ class TestWatchdogDataTransferService:
             },
         }
         assert manifest is not None, "Manifest config is not set"
-        new_watchdog_manifest = watchdog_service.make_transfer_args(
+        new_watchdog_manifest = watchdog_service._make_transfer_args(
             manifest, add_default_tasks=True, extra_tasks=extra_tasks, job_type="not_default"
         )
         transfer_service_args = new_watchdog_manifest.transfer_service_args
@@ -459,7 +473,7 @@ class TestWatchdogDataTransferService:
     ):
         watchdog_service._validate_project_name = True
         with pytest.raises(ValueError):
-            watchdog_service.create_manifest_config_from_ads_session(aind_data_mapper.mapped)
+            watchdog_service._create_manifest_config_from_ads_session(aind_data_mapper.mapped)
 
 
 @pytest.fixture
