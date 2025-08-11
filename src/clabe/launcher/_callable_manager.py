@@ -1,3 +1,4 @@
+import functools
 import logging
 import typing as t
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
@@ -9,9 +10,10 @@ else:
 
 logger = logging.getLogger(__name__)
 
-TInput = t.TypeVar("TInput")
-TOutput = t.TypeVar("TOutput")
 TLauncher = t.TypeVar("TLauncher", bound=Launcher)
+
+P = t.ParamSpec("P")
+R = t.TypeVar("R")
 
 
 class _UnsetType:
@@ -29,7 +31,7 @@ class _UnsetType:
 _UNSET = _UnsetType()
 
 
-class _Promise(t.Generic[TInput, TOutput]):
+class _Promise(t.Generic[P, R]):
     """
     A promise-like object that stores a callable and lazily evaluates its result.
 
@@ -37,11 +39,11 @@ class _Promise(t.Generic[TInput, TOutput]):
     later through the .result property, enabling dependency chains between callables.
     """
 
-    def __init__(self, callable: t.Callable[[TInput], TOutput]):
+    def __init__(self, callable: t.Callable[P, R]):
         self._fn = callable
-        self._result: TOutput | _UnsetType = _UNSET
+        self._result: R | _UnsetType = _UNSET
 
-    def invoke(self, value: TInput) -> TOutput:
+    def invoke(self, *args: P.args, **kwargs: P.kwargs) -> R:
         """
         Execute the callable with the given value and store the result.
 
@@ -54,11 +56,11 @@ class _Promise(t.Generic[TInput, TOutput]):
         if self.has_result():
             assert not isinstance(self._result, _UnsetType)
             return self._result
-        self._result = self._fn(value)
+        self._result = self._fn(*args, **kwargs)
         return self._result
 
     @property
-    def result(self) -> TOutput:
+    def result(self) -> R:
         """
         Lazily evaluate and return the result of the callable.
 
@@ -78,7 +80,7 @@ class _Promise(t.Generic[TInput, TOutput]):
         return self._result is not _UNSET
 
     @property
-    def callable(self) -> t.Callable[[Any], TOutput]:
+    def callable(self) -> t.Callable[P, R]:
         """Get the underlying callable."""
         return self._fn
 
@@ -87,7 +89,7 @@ class _Promise(t.Generic[TInput, TOutput]):
         return f"Promise(func={self._fn.__name__}, status={status})"
 
 
-class _CallableManager(t.Generic[TInput, TOutput]):
+class _CallableManager(t.Generic[P, R]):
     """
     Manages a collection of callables and their lazy evaluation.
 
@@ -97,20 +99,20 @@ class _CallableManager(t.Generic[TInput, TOutput]):
     """
 
     def __init__(self):
-        self._callable_promises: Dict[Callable[[TInput], TOutput], _Promise[TInput, TOutput]] = {}
+        self._callable_promises: Dict[Callable[P, R], _Promise[P, R]] = {}
         self._has_run: bool = False
 
     def has_run(self) -> bool:
         """Check if callables have been run."""
         return self._has_run
 
-    def register(self, callable: Callable[[TInput], TOutput]) -> _Promise[TInput, TOutput]:
+    def register(self, callable: Callable[P, R]) -> _Promise[P, R]:
         """Register a new callable and return its _Promise."""
         promise = _Promise(callable)
         self._callable_promises[callable] = promise
         return promise
 
-    def unregister(self, callable_fn: Callable[[TInput], TOutput]) -> Optional[_Promise[TInput, TOutput]]:
+    def unregister(self, callable_fn: Callable[P, R]) -> Optional[_Promise[P, R]]:
         """Remove a registered callable."""
         return self._callable_promises.pop(callable_fn, None)
 
@@ -118,18 +120,18 @@ class _CallableManager(t.Generic[TInput, TOutput]):
         """Clear all registered callables."""
         self._callable_promises.clear()
 
-    def run(self, value: TInput) -> None:
+    def run(self, *args: P.args, **kwargs: P.kwargs) -> None:
         """Run all registered callables"""
         if self._has_run:
-            logger.warning("Callable have already been run. Skipping execution.")
+            logger.warning("Callables have already been run. Skipping execution.")
             return
 
         for callable_fn, promise in self._callable_promises.items():
-            promise.invoke(value)
+            promise.invoke(*args, **kwargs)
 
         self._has_run = True
 
-    def get_result(self, callable_fn: Callable[[TInput], TOutput]) -> TOutput:
+    def get_result(self, callable_fn: Callable[P, R]) -> R:
         """
         Get the result of a registered callable.
 
@@ -143,5 +145,36 @@ class _CallableManager(t.Generic[TInput, TOutput]):
             KeyError: If the callable is not found in registered promises
         """
         if callable_fn not in self._callable_promises:
-            raise KeyError(f"Callable {callable_fn.__name__} not found in registered promises")
+            fn_name = getattr(callable_fn, "__name__", repr(callable_fn))
+            raise KeyError(f"Callable {fn_name} not found in registered promises")
         return self._callable_promises[callable_fn].result
+
+
+def ignore_errors(
+    exception_types: t.Union[t.Type[BaseException], t.Tuple[t.Type[BaseException], ...]] = Exception,
+    default_return: t.Any = None,
+) -> t.Callable[[t.Callable[P, R]], t.Callable[P, Optional[R]]]:
+    """
+    A decorator that implements try-catch for the wrapped function.
+
+    Args:
+        exception_types: Exception type(s) to catch (default: Exception)
+        default_return: Value to return if exception is caught (default: None)
+
+    Returns:
+        The decorated function with exception handling
+    """
+
+    def decorator(func: t.Callable) -> t.Callable:
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            try:
+                return func(*args, **kwargs)
+            except exception_types as e:
+                fn_name = getattr(func, "__name__", repr(func))
+                logger.warning(f"Exception in {fn_name}: {e}")
+                return default_return
+
+        return wrapper
+
+    return decorator
