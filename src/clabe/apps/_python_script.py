@@ -5,7 +5,7 @@ import os
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Any, Optional, Self
+from typing import TYPE_CHECKING, Any, Optional, Self
 
 from typing_extensions import override
 
@@ -14,6 +14,11 @@ from ._base import App
 logger = logging.getLogger(__name__)
 
 _HAS_UV = shutil.which("uv") is not None
+
+if TYPE_CHECKING:
+    from ..launcher import Launcher
+else:
+    Launcher = Any
 
 
 class PythonScriptApp(App):
@@ -66,6 +71,7 @@ class PythonScriptApp(App):
         script: str,
         additional_arguments: str = "",
         project_directory: os.PathLike = Path("."),
+        extra_uv_arguments: str = "",
         optional_toml_dependencies: Optional[list[str]] = None,
         append_python_exe: bool = False,
         timeout: Optional[float] = None,
@@ -77,6 +83,7 @@ class PythonScriptApp(App):
             script (str): The Python script to be executed.
             additional_arguments (str): Additional arguments to pass to the script.
             project_directory (os.PathLike): The directory where the project resides.
+            extra_uv_arguments (str): Extra arguments to pass to the `uv` command.
             optional_toml_dependencies (Optional[list[str]]): Additional TOML dependencies to include.
             append_python_exe (bool): Whether to append the Python executable to the command.
             timeout (Optional[float]): Timeout for the script execution.
@@ -100,8 +107,14 @@ class PythonScriptApp(App):
         self._optional_toml_dependencies = optional_toml_dependencies if optional_toml_dependencies else []
         self._append_python_exe = append_python_exe
         self._additional_arguments = additional_arguments
+        self._extra_uv_arguments = extra_uv_arguments
 
         self._result: Optional[subprocess.CompletedProcess] = None
+
+    @override
+    def add_app_settings(self, **kwargs) -> Self:
+        self._additional_arguments = " ".join([self._additional_arguments] + [f"--{k} {v}" for k, v in kwargs.items()])
+        return self
 
     @property
     def result(self) -> subprocess.CompletedProcess:
@@ -137,7 +150,7 @@ class PythonScriptApp(App):
 
         _script = f"{self._script} {self._additional_arguments}"
         _python_exe = "python" if self._append_python_exe else ""
-        command = f"uv run {_python_exe} {_script} {self._add_uv_optional_toml_dependencies()}"
+        command = f"uv run {self._extra_uv_arguments} {self._add_uv_optional_toml_dependencies()} {self._add_uv_project_directory()} {_python_exe} {_script}"
 
         try:
             proc = subprocess.run(
@@ -157,7 +170,7 @@ class PythonScriptApp(App):
         return proc
 
     @override
-    def output_from_result(self, allow_stderr: Optional[bool] = True) -> Self:
+    def output_from_result(self, *, allow_stderr: Optional[bool] = True) -> Self:
         """
         Processes the output of the executed script.
 
@@ -182,7 +195,8 @@ class PythonScriptApp(App):
                 raise subprocess.CalledProcessError(1, proc.args)
         return self
 
-    def _log_process_std_output(self, process_name: str, proc: subprocess.CompletedProcess) -> None:
+    @staticmethod
+    def _log_process_std_output(process_name: str, proc: subprocess.CompletedProcess) -> None:
         """
         Logs the stdout and stderr of a completed process.
 
