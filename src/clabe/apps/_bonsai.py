@@ -3,7 +3,7 @@ import logging
 import os
 import subprocess
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar, Dict, Optional, Self
+from typing import TYPE_CHECKING, Any, Callable, ClassVar, Dict, Optional, Self
 
 import pydantic
 from aind_behavior_services.utils import run_bonsai_process
@@ -199,7 +199,7 @@ class BonsaiApp(App):
         return proc
 
     @override
-    def output_from_result(self, allow_stderr: Optional[bool]) -> Self:
+    def output_from_result(self, *, allow_stderr: Optional[bool]) -> Self:
         """
         Processes the output from the Bonsai process result.
 
@@ -293,6 +293,16 @@ class BonsaiApp(App):
             r = self.prompt_visualizer_layout_input(layout_dir if layout_dir else self.settings.layout_dir)
             self.settings.layout = Path(r) if r else None
         return self
+
+    def build_runner(self, allow_std_error: bool = False) -> Callable[[Launcher], Self]:
+        super_method = super().build_runner
+
+        def _run(launcher: Launcher):
+            """Internal wrapper function"""
+            self.add_app_settings(launcher=launcher)
+            return super_method(allow_std_error=allow_std_error)(launcher)
+
+        return _run
 
 
 class AindBehaviorServicesBonsaiApp(BonsaiApp):

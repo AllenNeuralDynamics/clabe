@@ -69,7 +69,7 @@ class App(Service, abc.ABC):
         ...
 
     @abc.abstractmethod
-    def output_from_result(self, allow_stderr: Optional[bool]) -> Self:
+    def output_from_result(self, *, allow_stderr: Optional[bool]) -> Self:
         """
         Processes and returns the output from the application's result.
 
@@ -133,7 +133,6 @@ class App(Service, abc.ABC):
 
         def _run(launcher: Launcher):
             """Internal wrapper function"""
-            self.add_app_settings(launcher=launcher)
             try:
                 self.run()
                 result = self.output_from_result(allow_stderr=allow_std_error)
