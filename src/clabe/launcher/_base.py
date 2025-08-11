@@ -669,7 +669,7 @@ class Launcher(Generic[TRig, TSession, TTaskLogic]):
         dst = Path(dst) / ".launcher"
         shutil.copytree(self.temp_dir, dst, dirs_exist_ok=True)
 
-    def save_temp_model(self, model: pydantic.BaseModel, directory: Optional[os.PathLike]) -> str:
+    def save_temp_model(self, model: pydantic.BaseModel, directory: Optional[os.PathLike] = None) -> str:
         """
         Saves a temporary JSON representation of a schema model.
 
