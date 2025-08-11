@@ -1,8 +1,9 @@
+import logging
 import re
 
 import pytest
 
-from clabe.launcher._callable_manager import _CallableManager, _Promise, _UnsetType
+from clabe.launcher._callable_manager import _CallableManager, _Promise, _UnsetType, ignore_errors
 
 
 class TestCallableManager:
@@ -125,3 +126,159 @@ class TestCallableManager:
         assert repr(promise) == "Promise(func=test_func_for_repr, status=pending)"
         promise.invoke(1)
         assert repr(promise) == "Promise(func=test_func_for_repr, status=executed)"
+
+
+class TestIgnoreErrorsDecorator:
+    def test_ignore_errors_default_behavior(self, caplog):
+        """Test that the decorator catches exceptions and returns None by default."""
+
+        @ignore_errors()
+        def failing_function():
+            raise ValueError("Test error")
+
+        with caplog.at_level(logging.WARNING):
+            result = failing_function()
+
+        assert result is None
+        assert "Exception in failing_function: Test error" in caplog.text
+
+    def test_ignore_errors_custom_default_return(self, caplog):
+        """Test that the decorator returns a custom default value."""
+
+        @ignore_errors(default_return="error occurred")
+        def failing_function():
+            raise RuntimeError("Test error")
+
+        with caplog.at_level(logging.WARNING):
+            result = failing_function()
+
+        assert result == "error occurred"
+        assert "Exception in failing_function: Test error" in caplog.text
+
+    def test_ignore_errors_specific_exception_type(self, caplog):
+        """Test that the decorator only catches specified exception types."""
+
+        @ignore_errors(exception_types=ValueError, default_return="caught ValueError")
+        def function_with_value_error():
+            raise ValueError("This will be caught")
+
+        @ignore_errors(exception_types=ValueError, default_return="caught ValueError")
+        def function_with_runtime_error():
+            raise RuntimeError("This will not be caught")
+
+        # Should catch ValueError
+        with caplog.at_level(logging.WARNING):
+            result1 = function_with_value_error()
+
+        assert result1 == "caught ValueError"
+        assert "Exception in function_with_value_error: This will be caught" in caplog.text
+
+        # Should not catch RuntimeError
+        with pytest.raises(RuntimeError, match="This will not be caught"):
+            function_with_runtime_error()
+
+    def test_ignore_errors_multiple_exception_types(self, caplog):
+        """Test that the decorator catches multiple exception types."""
+
+        @ignore_errors(exception_types=(ValueError, TypeError), default_return="caught exception")
+        def function_with_value_error():
+            raise ValueError("ValueError")
+
+        @ignore_errors(exception_types=(ValueError, TypeError), default_return="caught exception")
+        def function_with_type_error():
+            raise TypeError("TypeError")
+
+        @ignore_errors(exception_types=(ValueError, TypeError), default_return="caught exception")
+        def function_with_runtime_error():
+            raise RuntimeError("RuntimeError")
+
+        # Should catch ValueError
+        with caplog.at_level(logging.WARNING):
+            result1 = function_with_value_error()
+        assert result1 == "caught exception"
+
+        # Should catch TypeError
+        with caplog.at_level(logging.WARNING):
+            result2 = function_with_type_error()
+        assert result2 == "caught exception"
+
+        # Should not catch RuntimeError
+        with pytest.raises(RuntimeError, match="RuntimeError"):
+            function_with_runtime_error()
+
+    def test_ignore_errors_successful_execution(self):
+        """Test that the decorator doesn't interfere with successful function execution."""
+
+        @ignore_errors()
+        def successful_function(x, y):
+            return x + y
+
+        result = successful_function(2, 3)
+        assert result == 5
+
+    def test_ignore_errors_preserves_function_metadata(self):
+        """Test that the decorator preserves function metadata using functools.wraps."""
+
+        @ignore_errors()
+        def documented_function():
+            """This is a test function."""
+            return "success"
+
+        assert hasattr(documented_function, "__name__")
+        assert hasattr(documented_function, "__doc__")
+        # Note: The actual name and doc may be wrapped, but they should exist
+
+    def test_ignore_errors_with_arguments_and_kwargs(self, caplog):
+        """Test that the decorator works with functions that have arguments."""
+
+        @ignore_errors(default_return="default")
+        def function_with_args(a, b, c=None, d="default"):
+            if a == "fail":
+                raise ValueError("Intentional failure")
+            return f"a={a}, b={b}, c={c}, d={d}"
+
+        # Test successful execution with args and kwargs
+        result1 = function_with_args("success", "test", c="custom", d="modified")
+        assert result1 == "a=success, b=test, c=custom, d=modified"
+
+        # Test exception handling with args and kwargs
+        with caplog.at_level(logging.WARNING):
+            result2 = function_with_args("fail", "test", c="custom")
+
+        assert result2 == "default"
+        assert "Exception in function_with_args: Intentional failure" in caplog.text
+
+    def test_ignore_errors_nested_exceptions(self, caplog):
+        """Test that the decorator handles nested function calls properly."""
+
+        @ignore_errors(default_return="outer_default")
+        def outer_function():
+            return inner_function()
+
+        @ignore_errors(default_return="inner_default")
+        def inner_function():
+            raise ValueError("Inner error")
+
+        with caplog.at_level(logging.WARNING):
+            result = outer_function()
+
+        # The inner function should catch its own exception and return "inner_default"
+        # The outer function should succeed and return the inner function's result
+        assert result == "inner_default"
+        assert "Exception in inner_function: Inner error" in caplog.text
+
+    def test_ignore_errors_lambda_function(self, caplog):
+        """Test that the decorator works with lambda functions."""
+        failing_lambda = ignore_errors(default_return="lambda_failed")(lambda x: x / 0 if x == 0 else x * 2)
+
+        # Test successful execution
+        result1 = failing_lambda(5)
+        assert result1 == 10
+
+        # Test exception handling
+        with caplog.at_level(logging.WARNING):
+            result2 = failing_lambda(0)
+
+        assert result2 == "lambda_failed"
+        # Lambda functions have a generic name
+        assert "Exception in <lambda>: division by zero" in caplog.text

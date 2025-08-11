@@ -16,7 +16,13 @@ from clabe import resource_monitor
 from clabe.apps import App
 from clabe.data_mapper import DataMapper
 from clabe.data_transfer.aind_watchdog import WatchdogDataTransferService, WatchdogSettings
-from clabe.launcher import DefaultBehaviorPicker, DefaultBehaviorPickerSettings, Launcher, LauncherCliArgs
+from clabe.launcher import (
+    DefaultBehaviorPicker,
+    DefaultBehaviorPickerSettings,
+    Launcher,
+    LauncherCliArgs,
+    ignore_errors,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -217,6 +223,11 @@ def make_launcher():
         MockWatchdogService.build_runner(settings=watchdog_settings, aind_session_data_mapper=output)
     )
 
+    def raises_error(x: Launcher) -> int:
+        raise ValueError("This is a test error.")
+        return 42
+
+    launcher.register_callable(ignore_errors(default_return="bla")(raises_error))
     return launcher
 
 
