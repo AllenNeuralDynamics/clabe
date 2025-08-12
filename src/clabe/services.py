@@ -1,41 +1,24 @@
-from __future__ import annotations
-
 import abc
 import logging
 import typing as t
-from typing import TYPE_CHECKING, Any, Callable, Dict, Type
 
 import pydantic_settings as ps
 
 from .utils import KNOWN_CONFIG_FILES
 
-if TYPE_CHECKING:
+if t.TYPE_CHECKING:
     from .launcher import Launcher
 else:
-    Launcher = Any
+    Launcher = t.Any
 
 logger = logging.getLogger(__name__)
 
 
 class Service(abc.ABC):
-    """
-    A base class for all services.
+    """Abstract base class for all services in the application.
+    This may be needed in the future to ensure a common interface"""
 
-    This abstract base class defines the interface that all services should inherit from.
-    It serves as a marker interface to identify service implementations across the system.
-    """
-
-    def __init__(self, *args, **kwargs):
-        """Initializes the service."""
-        pass
-
-    def build_runner(self, *args, **kwargs) -> Callable[[Launcher], Any]:
-        """
-        Builds a runner function for the service.
-
-        Subclasses must implement this method to return a callable that can be executed by the launcher.
-        """
-        return lambda launcher: None
+    ...
 
 
 class ServiceSettings(ps.BaseSettings, abc.ABC):
@@ -76,7 +59,7 @@ class ServiceSettings(ps.BaseSettings, abc.ABC):
     @classmethod
     def settings_customise_sources(
         cls,
-        settings_cls: Type[ps.BaseSettings],
+        settings_cls: t.Type[ps.BaseSettings],
         init_settings: ps.PydanticBaseSettingsSource,
         env_settings: ps.PydanticBaseSettingsSource,
         dotenv_settings: ps.PydanticBaseSettingsSource,
@@ -134,7 +117,7 @@ class _SafeYamlSettingsSource(ps.YamlConfigSettingsSource):
             settings_cls.model_config.update({"yaml_config_section": None})
             super().__init__(settings_cls, yaml_file, yaml_file_encoding, None)
 
-    def __call__(self) -> Dict[str, Any]:
+    def __call__(self) -> t.Dict[str, t.Any]:
         """
         Calls the settings source and returns the settings dictionary.
 
