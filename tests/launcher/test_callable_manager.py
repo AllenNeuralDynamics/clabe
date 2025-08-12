@@ -118,14 +118,10 @@ class TestCallableManager:
         unset2 = _UnsetType()
         assert unset1 is unset2
 
-    def test_promise_repr(self):
-        def test_func_for_repr(x):
-            return x
-
-        promise = Promise(test_func_for_repr)
-        assert repr(promise) == "Promise(func=test_func_for_repr, status=pending)"
-        promise.invoke(1)
-        assert repr(promise) == "Promise(func=test_func_for_repr, status=executed)"
+    def test_promise_result_consistency(self):
+        promise = Promise.from_value(1)
+        promise.invoke(0, 2, 3, 4)
+        assert promise.result == 1
 
 
 class TestIgnoreErrorsDecorator:
