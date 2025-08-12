@@ -1,5 +1,5 @@
 from ._base import Launcher, TModel, TRig, TSession, TTaskLogic
-from ._callable_manager import ignore_errors
+from ._callable_manager import ignore_errors, Promise
 from ._cli import LauncherCliArgs
 from ._picker import DefaultBehaviorPicker, DefaultBehaviorPickerSettings
 
@@ -13,4 +13,5 @@ __all__ = [
     "DefaultBehaviorPicker",
     "DefaultBehaviorPickerSettings",
     "ignore_errors",
+    "Promise",
 ]
