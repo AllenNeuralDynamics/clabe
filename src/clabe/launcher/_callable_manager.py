@@ -14,6 +14,7 @@ TLauncher = t.TypeVar("TLauncher", bound=Launcher)
 
 P = t.ParamSpec("P")
 R = t.TypeVar("R")
+_T = t.TypeVar("_T")
 
 
 class _UnsetType:
@@ -31,7 +32,7 @@ class _UnsetType:
 _UNSET = _UnsetType()
 
 
-class _Promise(t.Generic[P, R]):
+class Promise(t.Generic[P, R]):
     """
     A promise-like object that stores a callable and lazily evaluates its result.
 
@@ -88,6 +89,21 @@ class _Promise(t.Generic[P, R]):
         status = "executed" if self.has_result() else "pending"
         return f"Promise(func={self._fn.__name__}, status={status})"
 
+    @classmethod
+    def from_value(cls, value: _T) -> "Promise[t.Any, _T]":
+        """Create a Promise from a resolved value."""
+
+        # P is unconstrained here since we don't care about the input types
+        # as a result we will just use Any for the hinting.Any
+        # We will also use a new TypeVar just in case someone uses this method
+        # from an instance.
+        def _any_input(*args: t.Any, **kwargs: t.Any):
+            return value
+
+        promise = Promise[t.Any, _T](_any_input)
+        promise._result = value
+        return promise
+
 
 class _CallableManager(t.Generic[P, R]):
     """
@@ -99,20 +115,20 @@ class _CallableManager(t.Generic[P, R]):
     """
 
     def __init__(self):
-        self._callable_promises: Dict[Callable[P, R], _Promise[P, R]] = {}
+        self._callable_promises: Dict[Callable[P, R], Promise[P, R]] = {}
         self._has_run: bool = False
 
     def has_run(self) -> bool:
         """Check if callables have been run."""
         return self._has_run
 
-    def register(self, callable: Callable[P, R]) -> _Promise[P, R]:
+    def register(self, callable: Callable[P, R]) -> Promise[P, R]:
         """Register a new callable and return its _Promise."""
-        promise = _Promise(callable)
+        promise = Promise(callable)
         self._callable_promises[callable] = promise
         return promise
 
-    def unregister(self, callable_fn: Callable[P, R]) -> Optional[_Promise[P, R]]:
+    def unregister(self, callable_fn: Callable[P, R]) -> Optional[Promise[P, R]]:
         """Remove a registered callable."""
         return self._callable_promises.pop(callable_fn, None)
 

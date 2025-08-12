@@ -3,7 +3,7 @@ import re
 
 import pytest
 
-from clabe.launcher._callable_manager import _CallableManager, _Promise, _UnsetType, ignore_errors
+from clabe.launcher._callable_manager import Promise, _CallableManager, _UnsetType, ignore_errors
 
 
 class TestCallableManager:
@@ -93,7 +93,7 @@ class TestCallableManager:
         def test_func(x):
             return x * 2
 
-        promise = _Promise(test_func)
+        promise = Promise(test_func)
         assert not promise.has_result()
 
         result = promise.invoke(5)
@@ -109,7 +109,7 @@ class TestCallableManager:
         def test_func(x):
             return x * 2
 
-        promise = _Promise(test_func)
+        promise = Promise(test_func)
         with pytest.raises(RuntimeError, match=re.escape("Callable has not been executed yet. Call invoke() first.")):
             promise.result
 
@@ -122,7 +122,7 @@ class TestCallableManager:
         def test_func_for_repr(x):
             return x
 
-        promise = _Promise(test_func_for_repr)
+        promise = Promise(test_func_for_repr)
         assert repr(promise) == "Promise(func=test_func_for_repr, status=pending)"
         promise.invoke(1)
         assert repr(promise) == "Promise(func=test_func_for_repr, status=executed)"

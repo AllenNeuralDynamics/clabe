@@ -19,7 +19,7 @@ from .. import __version__, logging_helper
 from ..git_manager import GitRepository
 from ..ui import DefaultUIHelper, UiHelper
 from ..utils import abspath, format_datetime, utcnow
-from ._callable_manager import _CallableManager, _Promise
+from ._callable_manager import Promise, _CallableManager
 from ._cli import LauncherCliArgs
 
 logger = logging.getLogger(__name__)
@@ -91,7 +91,7 @@ class Launcher(Generic[TRig, TSession, TTaskLogic]):
         self._logger = _logger
 
         # Create callable managers
-        self._callable_manager: _CallableManager[Self, Any] = _CallableManager()
+        self._callable_manager: _CallableManager[[Self], Any] = _CallableManager()
 
         repository_dir = Path(self.settings.repository_dir) if self.settings.repository_dir is not None else None
         self.repository = GitRepository() if repository_dir is None else GitRepository(path=repository_dir)
@@ -144,7 +144,7 @@ class Launcher(Generic[TRig, TSession, TTaskLogic]):
         self._copy_tmp_directory(self.session_directory / "Behavior" / "Logs")
 
     @property
-    def callable_manager(self) -> _CallableManager[Self, Any]:
+    def callable_manager(self) -> _CallableManager[[Self], Any]:
         """
         Returns the callable managers for the launcher.
 
@@ -154,7 +154,7 @@ class Launcher(Generic[TRig, TSession, TTaskLogic]):
         return self._callable_manager
 
     @overload
-    def register_callable(self, callable: Callable[[Self], _TOutput]) -> _Promise[Self, _TOutput]:
+    def register_callable(self, callable: Callable[[Self], _TOutput]) -> Promise[[Self], _TOutput]:
         """
         Adds a single callable to the launcher and returns a promise for its result.
 
@@ -167,7 +167,7 @@ class Launcher(Generic[TRig, TSession, TTaskLogic]):
         ...
 
     @overload
-    def register_callable(self, callable: List[Callable[[Self], _TOutput]]) -> List[_Promise[Self, _TOutput]]:
+    def register_callable(self, callable: List[Callable[[Self], _TOutput]]) -> List[Promise[[Self], _TOutput]]:
         """
         Adds a list of callables to the launcher and returns promises for their results.
 
@@ -181,7 +181,7 @@ class Launcher(Generic[TRig, TSession, TTaskLogic]):
 
     def register_callable(
         self, callable: Callable[[Self], _TOutput] | List[Callable[[Self], _TOutput]]
-    ) -> Union[_Promise[Self, _TOutput], List[_Promise[Self, _TOutput]]]:
+    ) -> Union[Promise[[Self], _TOutput], List[Promise[[Self], _TOutput]]]:
         """
         Adds a callable to the launcher and returns a promise for its result.
 

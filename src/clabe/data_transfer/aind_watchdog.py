@@ -26,7 +26,7 @@ from requests.exceptions import HTTPError
 
 from .. import ui
 from ..data_mapper.aind_data_schema import AindDataSchemaSessionDataMapper
-from ..launcher._callable_manager import _Promise
+from ..launcher._callable_manager import Promise
 from ..services import ServiceSettings
 from ._aind_watchdog_models import (
     DEFAULT_TRANSFER_ENDPOINT,
@@ -705,7 +705,8 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
     def build_runner(
         cls,
         settings: WatchdogSettings,
-        aind_session_data_mapper: _Promise[Launcher, AindDataSchemaSessionDataMapper] | AindDataSchemaSessionDataMapper,
+        aind_session_data_mapper: Promise[[Launcher], AindDataSchemaSessionDataMapper]
+        | AindDataSchemaSessionDataMapper,
     ) -> Callable[[Launcher], "WatchdogDataTransferService"]:
         """
         A factory method for creating the watchdog service.
@@ -724,7 +725,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
             """Inner callable to create the service from a launcher"""
             _aind_session_data_mapper = (
                 aind_session_data_mapper.result
-                if isinstance(aind_session_data_mapper, _Promise)
+                if isinstance(aind_session_data_mapper, Promise)
                 else aind_session_data_mapper
             )
 

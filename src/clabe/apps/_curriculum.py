@@ -8,7 +8,7 @@ import aind_behavior_curriculum.trainer
 import pydantic
 
 from ..launcher import Launcher
-from ..launcher._callable_manager import _Promise
+from ..launcher._callable_manager import Promise
 from ..services import ServiceSettings
 from ._base import App
 from ._python_script import PythonScriptApp
@@ -229,7 +229,7 @@ class CurriculumApp(App):
     def build_runner(
         cls,
         settings: CurriculumSettings,
-        input_trainer_state: _Promise[P, aind_behavior_curriculum.trainer.TrainerState],
+        input_trainer_state: Promise[P, aind_behavior_curriculum.trainer.TrainerState],
         *,
         allow_std_error: bool = False,
     ) -> t.Callable[[Launcher], CurriculumSuggestion]:
