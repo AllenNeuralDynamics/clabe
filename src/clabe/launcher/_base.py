@@ -19,7 +19,7 @@ from .. import __version__, logging_helper
 from ..git_manager import GitRepository
 from ..ui import DefaultUIHelper, UiHelper
 from ..utils import abspath, format_datetime, utcnow
-from ._callable_manager import _CallableManager, _Promise
+from ._callable_manager import Promise, _CallableManager
 from ._cli import LauncherCliArgs
 
 logger = logging.getLogger(__name__)
@@ -91,7 +91,7 @@ class Launcher(Generic[TRig, TSession, TTaskLogic]):
         self._logger = _logger
 
         # Create callable managers
-        self._callable_manager: _CallableManager[Self, Any] = _CallableManager()
+        self._callable_manager: _CallableManager[[Self], Any] = _CallableManager()
 
         repository_dir = Path(self.settings.repository_dir) if self.settings.repository_dir is not None else None
         self.repository = GitRepository() if repository_dir is None else GitRepository(path=repository_dir)
@@ -130,7 +130,7 @@ class Launcher(Generic[TRig, TSession, TTaskLogic]):
             self.dispose()
 
         except KeyboardInterrupt:
-            logger.critical("User interrupted the process.")
+            logger.error("User interrupted the process.")
             self._exit(-1)
             return
 
@@ -144,7 +144,7 @@ class Launcher(Generic[TRig, TSession, TTaskLogic]):
         self._copy_tmp_directory(self.session_directory / "Behavior" / "Logs")
 
     @property
-    def callable_manager(self) -> _CallableManager[Self, Any]:
+    def callable_manager(self) -> _CallableManager[[Self], Any]:
         """
         Returns the callable managers for the launcher.
 
@@ -154,7 +154,7 @@ class Launcher(Generic[TRig, TSession, TTaskLogic]):
         return self._callable_manager
 
     @overload
-    def register_callable(self, callable: Callable[[Self], _TOutput]) -> _Promise[Self, _TOutput]:
+    def register_callable(self, callable: Callable[[Self], _TOutput]) -> Promise[[Self], _TOutput]:
         """
         Adds a single callable to the launcher and returns a promise for its result.
 
@@ -167,7 +167,7 @@ class Launcher(Generic[TRig, TSession, TTaskLogic]):
         ...
 
     @overload
-    def register_callable(self, callable: List[Callable[[Self], _TOutput]]) -> List[_Promise[Self, _TOutput]]:
+    def register_callable(self, callable: List[Callable[[Self], _TOutput]]) -> List[Promise[[Self], _TOutput]]:
         """
         Adds a list of callables to the launcher and returns promises for their results.
 
@@ -181,7 +181,7 @@ class Launcher(Generic[TRig, TSession, TTaskLogic]):
 
     def register_callable(
         self, callable: Callable[[Self], _TOutput] | List[Callable[[Self], _TOutput]]
-    ) -> Union[_Promise[Self, _TOutput], List[_Promise[Self, _TOutput]]]:
+    ) -> Union[Promise[[Self], _TOutput], List[Promise[[Self], _TOutput]]]:
         """
         Adds a callable to the launcher and returns a promise for its result.
 
@@ -601,13 +601,11 @@ class Launcher(Generic[TRig, TSession, TTaskLogic]):
                 if not self.settings.allow_dirty:
                     self.repository.try_prompt_full_reset(self.ui_helper, force_reset=False)
                     if self.repository.is_dirty_with_submodules():
-                        logger.critical(
-                            "Dirty repository not allowed. Exiting. Consider running with --allow-dirty flag."
-                        )
+                        logger.error("Dirty repository not allowed. Exiting. Consider running with --allow-dirty flag.")
                         self._exit(-1)
 
         except Exception as e:
-            logger.critical("Failed to validate dependencies. %s", e)
+            logger.error("Failed to validate dependencies. %s", e)
             self._exit(-1)
             raise e
 
@@ -637,7 +635,7 @@ class Launcher(Generic[TRig, TSession, TTaskLogic]):
             self.create_directory(self.temp_dir)
 
         except OSError as e:
-            logger.critical("Failed to create directory structure: %s", e)
+            logger.error("Failed to create directory structure: %s", e)
             self._exit(-1)
 
     @classmethod
@@ -669,7 +667,7 @@ class Launcher(Generic[TRig, TSession, TTaskLogic]):
         dst = Path(dst) / ".launcher"
         shutil.copytree(self.temp_dir, dst, dirs_exist_ok=True)
 
-    def save_temp_model(self, model: pydantic.BaseModel, directory: Optional[os.PathLike]) -> str:
+    def save_temp_model(self, model: pydantic.BaseModel, directory: Optional[os.PathLike] = None) -> str:
         """
         Saves a temporary JSON representation of a schema model.
 

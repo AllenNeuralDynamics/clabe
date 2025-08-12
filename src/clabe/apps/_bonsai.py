@@ -3,7 +3,7 @@ import logging
 import os
 import subprocess
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar, Dict, Optional, Self
+from typing import TYPE_CHECKING, Any, Callable, ClassVar, Dict, Optional, Self
 
 import pydantic
 from aind_behavior_services.utils import run_bonsai_process
@@ -199,7 +199,7 @@ class BonsaiApp(App):
         return proc
 
     @override
-    def output_from_result(self, allow_stderr: Optional[bool]) -> Self:
+    def output_from_result(self, *, allow_stderr: Optional[bool]) -> Self:
         """
         Processes the output from the Bonsai process result.
 
@@ -293,6 +293,32 @@ class BonsaiApp(App):
             r = self.prompt_visualizer_layout_input(layout_dir if layout_dir else self.settings.layout_dir)
             self.settings.layout = Path(r) if r else None
         return self
+
+    def build_runner(self, allow_std_error: bool = False) -> Callable[[Launcher], Self]:
+        """
+        Builds a runner function for the application.
+
+        This method returns a callable that can be executed by the launcher to run the application.
+
+        Args:
+            allow_std_error (bool): Whether to allow stderr in the output. Defaults to False.
+
+        Returns:
+            Callable[[Launcher], Self]: A callable that takes a launcher instance and returns the application instance.
+        """
+
+        def _run(launcher: Launcher):
+            """Internal wrapper function"""
+            try:
+                self.add_app_settings(launcher=launcher)
+                self.run()
+                result = self.output_from_result(allow_stderr=allow_std_error)
+            except subprocess.CalledProcessError as e:
+                logger.error(f"App {self.__class__.__name__} failed with error: {e}")
+                raise
+            return result
+
+        return _run
 
 
 class AindBehaviorServicesBonsaiApp(BonsaiApp):

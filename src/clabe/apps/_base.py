@@ -69,7 +69,7 @@ class App(Service, abc.ABC):
         ...
 
     @abc.abstractmethod
-    def output_from_result(self, allow_stderr: Optional[bool]) -> Self:
+    def output_from_result(self, *, allow_stderr: Optional[bool]) -> Self:
         """
         Processes and returns the output from the application's result.
 
@@ -118,28 +118,7 @@ class App(Service, abc.ABC):
         """
         return self
 
-    def build_runner(self, allow_std_error: bool = False) -> Callable[[Launcher], Self]:
-        """
-        Builds a runner function for the application.
-
-        This method returns a callable that can be executed by the launcher to run the application.
-
-        Args:
-            allow_std_error (bool): Whether to allow stderr in the output. Defaults to False.
-
-        Returns:
-            Callable[[Launcher], Self]: A callable that takes a launcher instance and returns the application instance.
-        """
-
-        def _run(launcher: Launcher):
-            """Internal wrapper function"""
-            self.add_app_settings(launcher=launcher)
-            try:
-                self.run()
-                result = self.output_from_result(allow_stderr=allow_std_error)
-            except subprocess.CalledProcessError as e:
-                logger.critical(f"App {self.__class__.__name__} failed with error: {e}")
-                raise
-            return result
-
-        return _run
+    @abc.abstractmethod
+    def build_runner(self, *args, **kwargs) -> Callable[[Launcher], Any]:
+        """Builds a runner for the application. Expected to be implemented by subclasses."""
+        pass

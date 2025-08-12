@@ -69,7 +69,7 @@ class ResourceMonitor(Service):
             """Inner function to run the resource monitor given a launcher instance."""
             logger.debug("Evaluating resource monitor constraints.")
             if result := not self.evaluate_constraints():
-                logger.critical("One or more resource monitor constraints failed.")
+                logger.error("One or more resource monitor constraints failed.")
                 raise RuntimeError("Resource monitor constraints failed.")
             return result
 
