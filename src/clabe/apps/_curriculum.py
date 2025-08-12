@@ -225,10 +225,8 @@ class CurriculumApp(App):
         """
         return self._python_script_app.result
 
-    @classmethod
     def build_runner(
-        cls,
-        settings: CurriculumSettings,
+        self,
         input_trainer_state: Promise[P, aind_behavior_curriculum.trainer.TrainerState],
         *,
         allow_std_error: bool = False,
@@ -263,21 +261,15 @@ class CurriculumApp(App):
         """
 
         def _run(launcher: Launcher) -> CurriculumSuggestion:
-            data_directory = launcher.session_directory
-            input_path = launcher.save_temp_model(input_trainer_state.result)
-
-            _settings = settings.model_copy(
-                update={"input_trainer_state": Path(input_path), "data_directory": Path(data_directory)}
-            )
-            app = cls(settings=_settings)
-
+            self._settings.data_directory = launcher.session_directory
+            self._settings.input_trainer_state = Path(launcher.save_temp_model(input_trainer_state.result))
             try:
-                app.run()
-                app.output_from_result(allow_stderr=allow_std_error)
+                self.run()
+                self.output_from_result(allow_stderr=allow_std_error)
             except subprocess.CalledProcessError as e:
-                logger.error("App %s failed with error: %s", app.__class__.__name__, e)
+                logger.error("App %s failed with error: %s", self.__class__.__name__, e)
                 raise
-            return app.get_suggestion()
+            return self.get_suggestion()
 
         return _run
 
