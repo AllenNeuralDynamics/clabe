@@ -120,4 +120,5 @@ class App(Service, abc.ABC):
 
     @abc.abstractmethod
     def build_runner(self, *args, **kwargs) -> Callable[[Launcher], Any]:
+        """Builds a runner for the application. Expected to be implemented by subclasses."""
         pass
