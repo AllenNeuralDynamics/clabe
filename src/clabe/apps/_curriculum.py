@@ -225,8 +225,10 @@ class CurriculumApp(App):
         """
         return self._python_script_app.result
 
+    @classmethod
     def build_runner(
-        self,
+        cls,
+        settings: CurriculumSettings,
         input_trainer_state: _Promise[P, aind_behavior_curriculum.trainer.TrainerState],
         *,
         allow_std_error: bool = False,
@@ -255,7 +257,7 @@ class CurriculumApp(App):
             ```python
             # Register curriculum with launcher
             trainer_state_promise = launcher.register_callable(get_trainer_state)
-            curriculum_runner = app.build_runner(trainer_state_promise)
+            curriculum_runner = CurriculumApp.build_runner(trainer_state_promise, settings)
             launcher.register_callable(curriculum_runner)
             ```
         """
@@ -263,15 +265,19 @@ class CurriculumApp(App):
         def _run(launcher: Launcher) -> CurriculumSuggestion:
             data_directory = launcher.session_directory
             input_path = launcher.save_temp_model(input_trainer_state.result)
-            self._settings.input_trainer_state = Path(input_path)
-            self._settings.data_directory = Path(data_directory)
+
+            _settings = settings.model_copy(
+                update={"input_trainer_state": Path(input_path), "data_directory": Path(data_directory)}
+            )
+            app = cls(settings=_settings)
+
             try:
-                self.run()
-                self.output_from_result(allow_stderr=allow_std_error)
+                app.run()
+                app.output_from_result(allow_stderr=allow_std_error)
             except subprocess.CalledProcessError as e:
-                logger.error("App %s failed with error: %s", self.__class__.__name__, e)
+                logger.error("App %s failed with error: %s", app.__class__.__name__, e)
                 raise
-            return self.get_suggestion()
+            return app.get_suggestion()
 
         return _run
 
