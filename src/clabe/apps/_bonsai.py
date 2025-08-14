@@ -241,7 +241,7 @@ class BonsaiApp(App):
             directory (Optional[os.PathLike]): Directory containing visualizer layouts.
 
         Returns:
-            Optional[str | os.PathLike]: The selected layout file path.
+            Optional[str | os.PathLike]: The selected layout file path, or None if no layout is selected.
         """
         if directory is None:
             directory = self.settings.layout_dir
@@ -250,6 +250,11 @@ class BonsaiApp(App):
 
         layout_schemas_path = directory if directory is not None else self.settings.layout_dir
         available_layouts = glob.glob(os.path.join(str(layout_schemas_path), "*.bonsai.layout"))
+
+        if len(available_layouts) == 0:
+            logger.warning("No visualizer layouts found.")
+            return None
+
         picked: Optional[str | os.PathLike] = None
         has_pick = False
         while has_pick is False:
@@ -261,8 +266,8 @@ class BonsaiApp(App):
                 has_pick = True
             except ValueError as e:
                 logger.info("Invalid choice. Try again. %s", e)
-        self.settings.layout = Path(picked) if picked else None
-        return self.settings.layout
+
+        return Path(picked) if picked else None
 
     def _log_process_std_output(self, process_name: str, proc: subprocess.CompletedProcess) -> None:
         """
