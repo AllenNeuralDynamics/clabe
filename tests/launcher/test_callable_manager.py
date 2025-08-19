@@ -3,7 +3,7 @@ import re
 
 import pytest
 
-from clabe.launcher._callable_manager import Promise, _CallableManager, _UnsetType, ignore_errors
+from clabe.launcher._callable_manager import Promise, _CallableManager, _UnsetType, ignore_errors, run_if
 
 
 class TestCallableManager:
@@ -278,3 +278,49 @@ class TestIgnoreErrorsDecorator:
         assert result2 == "lambda_failed"
         # Lambda functions have a generic name
         assert "Exception in <lambda>: division by zero" in caplog.text
+
+
+class TestRunIfDecorator:
+    def test_run_if_runs_when_predicate_true(self):
+        def always_true(*args, **kwargs):
+            return True
+
+        @run_if(always_true)
+        def my_func(x):
+            return x * 2
+
+        assert my_func(3) == 6
+
+    def test_run_if_returns_none_when_predicate_false(self):
+        def always_false(*args, **kwargs):
+            return False
+
+        @run_if(always_false)
+        def my_func(x):
+            return x * 2
+
+        assert my_func(3) is None
+
+    def test_run_if_predicate_depends_on_args(self):
+        def is_positive(x):
+            return x > 0
+
+        @run_if(is_positive)
+        def square(x):
+            return x * x
+
+        assert square(2) == 4
+        assert square(-1) is None
+
+    def test_run_if_preserves_function_metadata(self):
+        def always_true(*args, **kwargs):
+            return True
+
+        @run_if(always_true)
+        def documented_func(x):
+            """This function squares its input."""
+            return x * x
+
+        assert hasattr(documented_func, "__name__")
+        assert hasattr(documented_func, "__doc__")
+        assert documented_func.__doc__ == "This function squares its input."
