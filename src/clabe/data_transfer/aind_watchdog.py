@@ -14,7 +14,7 @@ import os
 import subprocess
 from os import PathLike
 from pathlib import Path, PurePosixPath
-from typing import TYPE_CHECKING, Any, Callable, ClassVar, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, ClassVar, Dict, Generic, List, Optional, TypeVar, Union
 
 import aind_data_transfer_service.models.core
 import pydantic
@@ -25,7 +25,6 @@ from pydantic import BaseModel, SerializeAsAny, TypeAdapter
 from requests.exceptions import HTTPError
 
 from .. import ui
-from ..data_mapper.aind_data_schema import AindDataSchemaSessionDataMapper
 from ..launcher._callable_manager import Promise
 from ..services import ServiceSettings
 from ._aind_watchdog_models import (
@@ -40,16 +39,19 @@ from ._base import DataTransfer
 if TYPE_CHECKING:
     from aind_data_schema.core.session import Session as AdsSession
 
+    from ..data_mapper.aind_data_schema import AindDataSchemaSessionDataMapper
     from ..launcher import Launcher
 else:
     Launcher = Any
     AdsSession = Any
+    AindDataSchemaSessionDataMapper = Any
 
 logger = logging.getLogger(__name__)
 
 TransferServiceTask = Dict[
     str, Union[aind_data_transfer_service.models.core.Task, Dict[str, aind_data_transfer_service.models.core.Task]]
 ]
+TSessionMapper = TypeVar("TSessionMapper", bound=AindDataSchemaSessionDataMapper)
 
 
 class WatchdogSettings(ServiceSettings):
@@ -91,7 +93,7 @@ class WatchdogSettings(ServiceSettings):
     job_type: str = "default"
 
 
-class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
+class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessionMapper]):
     """
     A data transfer service that uses the aind-watchdog-service to monitor and transfer
     data based on manifest configurations.
@@ -103,7 +105,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
     Attributes:
         _source (PathLike): Source directory to monitor
         _settings (WatchdogSettings): Service settings containing destination and configuration
-        _aind_session_data_mapper (Optional[AindDataSchemaSessionDataMapper]): Mapper for session data
+        _aind_session_data_mapper (Optional[_TSessionMapper]): Mapper for session data
         _ui_helper (ui.UiHelper): UI helper for user prompts
         Various configuration attributes accessible via settings
 
@@ -188,7 +190,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         self._settings = settings
         self._source = source
 
-        self._aind_session_data_mapper: Optional[AindDataSchemaSessionDataMapper] = None
+        self._aind_session_data_mapper: Optional[TSessionMapper] = None
 
         _default_exe = os.environ.get("WATCHDOG_EXE", None)
         _default_config = os.environ.get("WATCHDOG_CONFIG", None)
@@ -207,7 +209,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         self._session_name = session_name
 
     @property
-    def aind_session_data_mapper(self) -> AindDataSchemaSessionDataMapper:
+    def aind_session_data_mapper(self) -> TSessionMapper:
         """
         Gets the aind-data-schema session data mapper.
 
@@ -221,7 +223,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
             raise ValueError("Data mapper is not set.")
         return self._aind_session_data_mapper
 
-    def with_aind_session_data_mapper(self, value: AindDataSchemaSessionDataMapper) -> "WatchdogDataTransferService":
+    def with_aind_session_data_mapper(self, value: TSessionMapper) -> "WatchdogDataTransferService[TSessionMapper]":
         """
         Sets the aind-data-schema session data mapper.
 
@@ -705,9 +707,8 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
     def build_runner(
         cls,
         settings: WatchdogSettings,
-        aind_session_data_mapper: Promise[[Launcher], AindDataSchemaSessionDataMapper]
-        | AindDataSchemaSessionDataMapper,
-    ) -> Callable[[Launcher], "WatchdogDataTransferService"]:
+        aind_session_data_mapper: Promise[[Launcher], TSessionMapper] | TSessionMapper,
+    ) -> Callable[[Launcher], "WatchdogDataTransferService[TSessionMapper]"]:
         """
         A factory method for creating the watchdog service.
 
