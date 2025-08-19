@@ -4,7 +4,7 @@ import glob
 import logging
 import os
 from pathlib import Path
-from typing import Callable, ClassVar, List, Optional
+from typing import Callable, ClassVar, Generic, List, Optional, Self
 
 import pydantic
 from aind_behavior_curriculum import TrainerState
@@ -35,7 +35,7 @@ class DefaultBehaviorPickerSettings(ServiceSettings):
     config_library_dir: os.PathLike
 
 
-class DefaultBehaviorPicker(ui.PickerBase[launcher.Launcher[TRig, TSession, TTaskLogic], TRig, TSession, TTaskLogic]):
+class DefaultBehaviorPicker(Generic[TRig, TSession, TTaskLogic]):
     """
     A picker class for selecting rig, session, and task logic configurations for behavior experiments.
 
@@ -75,7 +75,7 @@ class DefaultBehaviorPicker(ui.PickerBase[launcher.Launcher[TRig, TSession, TTas
         self,
         *,
         settings: DefaultBehaviorPickerSettings,
-        ui_helper: Optional[ui.DefaultUIHelper] = None,
+        ui_helper: Optional[ui.UiHelper] = None,
         experimenter_validator: Optional[Callable[[str], bool]] = validate_aind_username,
         **kwargs,
     ):
@@ -88,11 +88,57 @@ class DefaultBehaviorPicker(ui.PickerBase[launcher.Launcher[TRig, TSession, TTas
             experimenter_validator: Function to validate the experimenter's username. If None, no validation is performed
             **kwargs: Additional keyword arguments
         """
-        super().__init__(ui_helper=ui_helper, **kwargs)
+        self._ui_helper = ui_helper
         self._launcher: launcher.Launcher[TRig, TSession, TTaskLogic]
         self._settings = settings
         self._experimenter_validator = experimenter_validator
         self._trainer_state: Optional[TrainerState] = None
+
+    def register_ui_helper(self, ui_helper: ui.UiHelper) -> Self:
+        """
+        Registers a UI helper with the picker.
+
+        Associates a UI helper instance with this picker for user interactions.
+
+        Args:
+            ui_helper: The UI helper to register
+
+        Returns:
+            Self: The picker instance for method chaining
+
+        Raises:
+            ValueError: If a UI helper is already registered
+        """
+        if self._ui_helper is None:
+            self._ui_helper = ui_helper
+        else:
+            raise ValueError("UI Helper is already registered")
+        return self
+
+    @property
+    def has_ui_helper(self) -> bool:
+        """
+        Checks if a UI helper is registered.
+
+        Returns:
+            bool: True if a UI helper is registered, False otherwise
+        """
+        return self._ui_helper is not None
+
+    @property
+    def ui_helper(self) -> ui.UiHelper:
+        """
+        Retrieves the registered UI helper.
+
+        Returns:
+            DefaultUIHelper: The registered UI helper
+
+        Raises:
+            ValueError: If no UI helper is registered
+        """
+        if self._ui_helper is None:
+            raise ValueError("UI Helper is not registered")
+        return self._ui_helper
 
     @property
     def trainer_state(self) -> TrainerState:
