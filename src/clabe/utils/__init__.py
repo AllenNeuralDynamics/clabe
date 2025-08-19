@@ -50,3 +50,4 @@ class ByAnimalFiles(enum.StrEnum):
     """
 
     TASK_LOGIC = "task_logic"
+    TRAINER_STATE = "trainer_state"
