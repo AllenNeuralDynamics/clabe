@@ -4,9 +4,10 @@ import glob
 import logging
 import os
 from pathlib import Path
-from typing import Callable, ClassVar, List, Optional
+from typing import Callable, ClassVar, Generic, List, Optional, Self
 
 import pydantic
+from aind_behavior_curriculum import TrainerState
 from aind_behavior_services.utils import model_from_json_file
 from typing_extensions import override
 
@@ -34,7 +35,7 @@ class DefaultBehaviorPickerSettings(ServiceSettings):
     config_library_dir: os.PathLike
 
 
-class DefaultBehaviorPicker(ui.PickerBase[launcher.Launcher[TRig, TSession, TTaskLogic], TRig, TSession, TTaskLogic]):
+class DefaultBehaviorPicker(Generic[TRig, TSession, TTaskLogic]):
     """
     A picker class for selecting rig, session, and task logic configurations for behavior experiments.
 
@@ -74,7 +75,7 @@ class DefaultBehaviorPicker(ui.PickerBase[launcher.Launcher[TRig, TSession, TTas
         self,
         *,
         settings: DefaultBehaviorPickerSettings,
-        ui_helper: Optional[ui.DefaultUIHelper] = None,
+        ui_helper: Optional[ui.UiHelper] = None,
         experimenter_validator: Optional[Callable[[str], bool]] = validate_aind_username,
         **kwargs,
     ):
@@ -87,10 +88,72 @@ class DefaultBehaviorPicker(ui.PickerBase[launcher.Launcher[TRig, TSession, TTas
             experimenter_validator: Function to validate the experimenter's username. If None, no validation is performed
             **kwargs: Additional keyword arguments
         """
-        super().__init__(ui_helper=ui_helper, **kwargs)
+        self._ui_helper = ui_helper
         self._launcher: launcher.Launcher[TRig, TSession, TTaskLogic]
         self._settings = settings
         self._experimenter_validator = experimenter_validator
+        self._trainer_state: Optional[TrainerState] = None
+
+    def register_ui_helper(self, ui_helper: ui.UiHelper) -> Self:
+        """
+        Registers a UI helper with the picker.
+
+        Associates a UI helper instance with this picker for user interactions.
+
+        Args:
+            ui_helper: The UI helper to register
+
+        Returns:
+            Self: The picker instance for method chaining
+
+        Raises:
+            ValueError: If a UI helper is already registered
+        """
+        if self._ui_helper is None:
+            self._ui_helper = ui_helper
+        else:
+            raise ValueError("UI Helper is already registered")
+        return self
+
+    @property
+    def has_ui_helper(self) -> bool:
+        """
+        Checks if a UI helper is registered.
+
+        Returns:
+            bool: True if a UI helper is registered, False otherwise
+        """
+        return self._ui_helper is not None
+
+    @property
+    def ui_helper(self) -> ui.UiHelper:
+        """
+        Retrieves the registered UI helper.
+
+        Returns:
+            DefaultUIHelper: The registered UI helper
+
+        Raises:
+            ValueError: If no UI helper is registered
+        """
+        if self._ui_helper is None:
+            raise ValueError("UI Helper is not registered")
+        return self._ui_helper
+
+    @property
+    def trainer_state(self) -> TrainerState:
+        """
+        Returns the current trainer state.
+
+        Returns:
+            TrainerState: The current trainer state.
+
+        Raises:
+            ValueError: If the trainer state is not set.
+        """
+        if self._trainer_state is None:
+            raise ValueError("Trainer state not set.")
+        return self._trainer_state
 
     @property
     def config_library_dir(self) -> Path:
@@ -254,7 +317,7 @@ class DefaultBehaviorPicker(ui.PickerBase[launcher.Launcher[TRig, TSession, TTas
         """
         if (task_logic := launcher.get_task_logic()) is not None:
             logger.info("Task logic already set in launcher. Using existing task logic.")
-            launcher.set_task_logic(task_logic)
+            self._sync_session_metadata(launcher)
             return task_logic
 
         # Else, we check inside the subject folder for an existing task file
@@ -302,10 +365,58 @@ class DefaultBehaviorPicker(ui.PickerBase[launcher.Launcher[TRig, TSession, TTas
             logger.error("No task logic file found.")
             raise ValueError("No task logic file found.")
 
-        launcher.get_session(strict=True).experiment = task_logic.name
-        launcher.get_session(strict=True).experiment_version = task_logic.version
         launcher.set_task_logic(task_logic)
+        self._sync_session_metadata(launcher)
         return task_logic
+
+    def _sync_session_metadata(self, launcher: launcher.Launcher[TRig, TSession, TTaskLogic]) -> None:
+        """Syncs metadata across session, task_logic and rig models"""
+        task_logic = launcher.get_task_logic(strict=True)
+        session = launcher.get_session(strict=True)
+        session.experiment = task_logic.name
+        session.experiment_version = task_logic.version
+
+    def pick_trainer_state(self, launcher: launcher.Launcher[TRig, TSession, TTaskLogic]) -> TrainerState:
+        """
+        Prompts the user to select or create a trainer state configuration.
+
+        Attempts to load trainer state in the following order:
+        1. If task_logic already exists in launcher, will return an empty TrainerState
+        2. From subject-specific folder
+
+        It will launcher.set_task_logic if the deserialized TrainerState is valid.
+
+        Returns:
+            TrainerState: The deserialized TrainerState object.
+
+        Raises:
+            ValueError: If no valid task logic file is found.
+        """
+        if (launcher.get_task_logic()) is not None:
+            logger.info("Task logic already set in launcher. Cannot inject a trainer state.")
+            self._trainer_state = TrainerState(curriculum=None, stage=None, is_on_curriculum=False)
+        else:
+            try:
+                if launcher.subject is None:
+                    logger.error("No subject set in launcher. Cannot load trainer state.")
+                    raise ValueError("No subject set in launcher.")
+                f = self.subject_dir / launcher.subject / (ByAnimalFiles.TRAINER_STATE.value + ".json")
+                logger.info("Attempting to load trainer state from subject folder: %s", f)
+                trainer_state = model_from_json_file(f, TrainerState)
+                if trainer_state.stage is None:
+                    raise ValueError("Trainer state stage is None, cannot use this trainer state.")
+            except (ValueError, FileNotFoundError, pydantic.ValidationError) as e:
+                logger.error("Failed to find a valid task logic file. %s", e)
+                raise e
+            else:
+                self._trainer_state = trainer_state
+                launcher.set_task_logic(trainer_state.stage.task)
+
+        if not self._trainer_state.is_on_curriculum:
+            logging.warning("Deserialized TrainerState is NOT on curriculum.")
+
+        self._sync_session_metadata(launcher)
+        return self.trainer_state
 
     def choose_subject(self, directory: str | os.PathLike) -> str:
         """

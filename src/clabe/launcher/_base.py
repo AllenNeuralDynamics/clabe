@@ -300,21 +300,17 @@ class Launcher(Generic[TRig, TSession, TTaskLogic]):
             raise ValueError("Rig schema instance is not set.")
         return self._rig
 
-    def set_rig(self, rig: TRig, validate: bool = True) -> None:
+    def set_rig(self, rig: TRig) -> None:
         """
         Sets the rig schema instance.
 
         Args:
             rig: The rig schema instance to set.
-            validate: Whether to validate the rig schema instance.
         """
         if self._rig is not None:
             raise ValueError("Rig already set.")
-        if validate:
-            if not isinstance(rig, self._rig_model):
-                raise ValueError("Invalid rig schema instance.")
-        self._rig = rig
-        self._rig_model = type(rig)
+        rig = self._rig_model.model_validate_json(rig.model_dump_json())
+        self._rig, self._rig_model = self._resolve_model(rig)
 
     def get_rig_model(self) -> Type[TRig]:
         """
@@ -377,21 +373,17 @@ class Launcher(Generic[TRig, TSession, TTaskLogic]):
             raise ValueError("Session schema instance is not set.")
         return self._session
 
-    def set_session(self, session: TSession, validate: bool = True) -> None:
+    def set_session(self, session: TSession) -> None:
         """
         Sets the session schema instance.
 
         Args:
             session: The session schema instance to set.
-            validate: Whether to validate the session schema instance.
         """
         if self._session is not None:
             raise ValueError("Session already set.")
-        if validate:
-            if not isinstance(session, self._session_model):
-                raise ValueError("Invalid session schema instance.")
-        self._session = session
-        self._session_model = type(session)
+        self._session = self._session_model.model_validate_json(session.model_dump_json())
+        self._session, self._session_model = self._resolve_model(self._session)
 
     def get_session_model(self) -> Type[TSession]:
         """
@@ -453,21 +445,19 @@ class Launcher(Generic[TRig, TSession, TTaskLogic]):
             raise ValueError("Task logic schema instance is not set.")
         return self._task_logic
 
-    def set_task_logic(self, task_logic: TTaskLogic, validate: bool = True) -> None:
+    def set_task_logic(self, task_logic: TTaskLogic) -> None:
         """
         Sets the task logic schema instance.
+        Before setting the task logic, it validates the input by forcing
+        a round-trip (de)serialization.
 
         Args:
             task_logic: The task logic schema instance to set.
-            validate: Whether to validate the task logic schema instance.
         """
         if self._task_logic is not None:
             raise ValueError("Task logic already set.")
-        if validate:
-            if not isinstance(task_logic, self._task_logic_model):
-                raise ValueError("Invalid task logic schema instance.")
-        self._task_logic = task_logic
-        self._task_logic_model = type(task_logic)
+        task_logic = self._task_logic_model.model_validate_json(task_logic.model_dump_json())
+        self._task_logic, self._task_logic_model = self._resolve_model(task_logic)
 
     def get_task_logic_model(self) -> Type[TTaskLogic]:
         """
