@@ -3,9 +3,10 @@ import logging
 import os
 import subprocess
 from pathlib import Path
-from typing import Callable, Dict, Literal, Optional, Self, Union
+from typing import Any, Callable, Dict, Literal, Optional, Self, Union
 
 import git
+from aind_behavior_curriculum import Stage, TrainerState
 from aind_behavior_services.rig import AindBehaviorRigModel
 from aind_behavior_services.session import AindBehaviorSessionModel
 from aind_behavior_services.task_logic import AindBehaviorTaskLogicModel
@@ -39,6 +40,13 @@ class RigModel(AindBehaviorRigModel):
 class TaskLogicModel(AindBehaviorTaskLogicModel):
     version: Literal["0.0.0"] = "0.0.0"
     name: Literal[TASK_NAME] = TASK_NAME
+
+
+mock_trainer_state = TrainerState[Any](
+    curriculum=None,
+    is_on_curriculum=False,
+    stage=Stage(name="TestStage", task=TaskLogicModel(name=TASK_NAME, task_parameters={"foo": "bar"})),
+)
 
 
 class MockAindDataSchemaSession:
@@ -178,6 +186,9 @@ class EchoApp(App):
             raise RuntimeError("The app has not been run yet.")
         return self._result
 
+    def build_runner(self, *args, **kwargs) -> Callable[[Launcher], Any]:
+        return lambda launcher: self.run()
+
 
 def make_launcher():
     behavior_cli_args = CliApp.run(
@@ -212,7 +223,7 @@ def make_launcher():
         [
             picker.initialize,
             picker.pick_session,
-            picker.pick_task_logic,
+            picker.pick_trainer_state,
             picker.pick_rig,
         ]
     )
@@ -237,6 +248,8 @@ def create_fake_subjects():
         os.makedirs(f"{LIB_CONFIG}/Subjects/{subject}", exist_ok=True)
         with open(f"{LIB_CONFIG}/Subjects/{subject}/task_logic.json", "w", encoding="utf-8") as f:
             f.write(TaskLogicModel(task_parameters={"subject": subject}).model_dump_json(indent=2))
+        with open(f"{LIB_CONFIG}/Subjects/{subject}/trainer_state.json", "w", encoding="utf-8") as f:
+            f.write(mock_trainer_state.model_dump_json(indent=2))
 
 
 def create_fake_rig():
