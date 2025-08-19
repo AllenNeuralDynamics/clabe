@@ -142,6 +142,15 @@ class DefaultBehaviorPicker(Generic[TRig, TSession, TTaskLogic]):
 
     @property
     def trainer_state(self) -> TrainerState:
+        """
+        Returns the current trainer state.
+
+        Returns:
+            TrainerState: The current trainer state.
+
+        Raises:
+            ValueError: If the trainer state is not set.
+        """
         if self._trainer_state is None:
             raise ValueError("Trainer state not set.")
         return self._trainer_state
@@ -361,6 +370,7 @@ class DefaultBehaviorPicker(Generic[TRig, TSession, TTaskLogic]):
         return task_logic
 
     def _sync_session_metadata(self, launcher: launcher.Launcher[TRig, TSession, TTaskLogic]) -> None:
+        """Syncs metadata across session, task_logic and rig models"""
         task_logic = launcher.get_task_logic(strict=True)
         session = launcher.get_session(strict=True)
         session.experiment = task_logic.name
