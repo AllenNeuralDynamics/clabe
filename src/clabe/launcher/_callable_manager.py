@@ -194,3 +194,30 @@ def ignore_errors(
         return wrapper
 
     return decorator
+
+
+def run_if(predicate: t.Callable[..., bool]) -> t.Callable[[t.Callable[P, R]], t.Callable[P, Optional[R]]]:
+    """
+    A decorator that only runs the wrapped function if the predicate returns True.
+    If the predicate returns False, returns None.
+
+    Args:
+        predicate: A callable that takes the same arguments as the wrapped function and returns a boolean.
+
+    Returns:
+        The decorated function that runs only if predicate(*args, **kwargs) is True, else returns None.
+    """
+
+    def decorator(func: t.Callable[P, R]) -> t.Callable[P, Optional[R]]:
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            fn_name = getattr(func, "__name__", repr(func))
+            if predicate(*args, **kwargs):
+                logger.debug(f"Predicate passed for {fn_name}, executing function")
+                return func(*args, **kwargs)
+            logger.debug(f"Predicate failed for {fn_name}, skipping execution")
+            return None
+
+        return wrapper
+
+    return decorator
