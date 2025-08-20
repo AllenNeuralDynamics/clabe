@@ -56,7 +56,7 @@ class CurriculumSettings(ServiceSettings):
 
     __yml_section__: t.ClassVar[t.Literal["curriculum"]] = "curriculum"
 
-    script: str = "aind_behavior_vr_foraging_curricula run"
+    script: str = "curriculum run"
     project_directory: os.PathLike = Path(".")
     input_trainer_state: t.Optional[os.PathLike] = None
     data_directory: t.Optional[os.PathLike] = None
