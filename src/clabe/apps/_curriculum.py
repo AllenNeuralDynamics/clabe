@@ -49,16 +49,18 @@ class CurriculumSettings(ServiceSettings):
     Settings for the CurriculumApp.
 
     Attributes:
-        module_path: Path to the curriculum module (directory or file)
+        entry_point: Path to the curriculum module (directory or file)
         input_trainer_state: Optional path to input TrainerState serialized file
         data_directory: Optional data directory for metrics calculation
     """
 
     __yml_section__: t.ClassVar[t.Literal["curriculum"]] = "curriculum"
 
-    module_path: os.PathLike
+    script: str = "aind_behavior_vr_foraging_curricula run"
+    project_directory: os.PathLike = Path(".")
     input_trainer_state: t.Optional[os.PathLike] = None
     data_directory: t.Optional[os.PathLike] = None
+    curriculum: t.Optional[str] = None
 
 
 class CurriculumApp(App):
@@ -75,7 +77,7 @@ class CurriculumApp(App):
     Example:
         ```python
         # Create and run a curriculum app
-        settings = CurriculumSettings(module_path="/path/to/curriculum")
+        settings = CurriculumSettings(entry="/path/to/curriculum")
         app = CurriculumApp(settings)
         app.run()
 
@@ -92,35 +94,22 @@ class CurriculumApp(App):
             settings: Configuration settings for the curriculum application
 
         Raises:
-            ValueError: If module_path doesn't exist or is invalid
             FileNotFoundError: If pyproject.toml cannot be found in parent directories
 
         Example:
             ```python
             settings = CurriculumSettings(
-                module_path="/path/to/curriculum/module",
+                entry_point="/path/to/curriculum/module",
                 data_directory="/data/session"
             )
             app = CurriculumApp(settings)
             ```
         """
         self._settings = settings
-        module_path = Path(settings.module_path).resolve()
-        if module_path.exists():
-            if module_path.is_dir():
-                module_name = module_path.name
-                script = f"-m {module_name} run"
-            elif module_path.is_file():
-                script = f"{module_path} run"
-            else:
-                raise ValueError("Invalid module path. It is not a directory or a file.")
 
-            project_directory = _find_project_root(module_path)
-            self._python_script_app = PythonScriptApp(
-                script=script, project_directory=project_directory, extra_uv_arguments="-q"
-            )
-        else:
-            raise ValueError("Module path does not exist.")
+        self._python_script_app = PythonScriptApp(
+            script=settings.script, project_directory=settings.project_directory, extra_uv_arguments="-q"
+        )
 
     def run(self) -> subprocess.CompletedProcess:
         """
@@ -147,10 +136,13 @@ class CurriculumApp(App):
         if self._settings.data_directory is None:
             raise ValueError("Data directory is not set.")
 
-        kwargs = {  # Must use kebab casing
+        kwargs: dict[str, t.Any] = {  # Must use kebab casing
             "data-directory": self._settings.data_directory,
             "input-trainer-state": self._settings.input_trainer_state,
         }
+        if self._settings.curriculum is not None:
+            kwargs["curriculum"] = self._settings.curriculum
+            
         self._python_script_app.add_app_settings(**kwargs)
         return self._python_script_app.run()
 
@@ -295,41 +287,3 @@ class CurriculumApp(App):
             ```
         """
         return CurriculumSuggestion.model_validate_json(self.result.stdout)
-
-
-def _find_project_root(path: os.PathLike, n_attempts: int = 10) -> Path:
-    """
-    Finds the project root directory by searching for pyproject.toml file.
-
-    Traverses up the directory tree from the given path, looking for a pyproject.toml
-    file to identify the project root. This is essential for proper virtual environment
-    and dependency management.
-
-    Args:
-        path: Starting path (file or directory) to search from
-        n_attempts: Maximum number of parent directories to check (default: 10)
-
-    Returns:
-        Path: The project root directory containing pyproject.toml
-
-    Raises:
-        FileNotFoundError: If no pyproject.toml is found within n_attempts
-
-    Example:
-        ```python
-        # Find project root from a module file
-        module_path = Path("/project/src/module/script.py")
-        root = _find_project_root(module_path)
-        print(f"Project root: {root}")  # /project
-        ```
-    """
-    current_path = Path(path).resolve()
-    if current_path.is_file():
-        current_path = current_path.parent
-    while current_path != current_path.parent and n_attempts > 0:
-        if (current_path / "pyproject.toml").exists():
-            return current_path
-        current_path = current_path.parent
-        n_attempts -= 1
-
-    raise FileNotFoundError(f"No pyproject.toml found in any parent directory going up {n_attempts} directories.")

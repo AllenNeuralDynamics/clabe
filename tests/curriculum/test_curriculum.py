@@ -12,13 +12,14 @@ SubmoduleManager.initialize_submodules()
 @pytest.fixture
 def curriculum_app() -> CurriculumApp:
     """Fixture to create a CurriculumApp for the curriculum tests."""
-    submodule_path = TESTS_ASSETS / "Aind.Behavior.curriculumTemplate" / "src" / "aind_behavior_curriculum_template"
 
     return CurriculumApp(
         settings=CurriculumSettings(
-            module_path=Path(submodule_path),
+            script="curriculum run",
             input_trainer_state=Path("MockPath"),
             data_directory="Demo",
+            project_directory=TESTS_ASSETS/"Aind.Behavior.VrForaging.Curricula",
+            curriculum="template"
         )
     )
 
