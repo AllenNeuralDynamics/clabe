@@ -1,3 +1,3 @@
-[submodule "tests/assets/Aind.Behavior.curriculumTemplate"]
-	path = tests/assets/Aind.Behavior.curriculumTemplate
-	url = https://github.com/AllenNeuralDynamics/Aind.Behavior.curriculumTemplate
+[submodule "tests/assets/Aind.Behavior.VrForaging.Curricula"]
+	path = tests/assets/Aind.Behavior.VrForaging.Curricula
+	url = https://github.com/AllenNeuralDynamics/Aind.Behavior.VrForaging.Curricula
