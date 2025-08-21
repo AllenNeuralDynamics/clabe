@@ -160,7 +160,7 @@ class PythonScriptApp(App):
                 capture_output=True,
                 text=True,
                 check=True,
-                cwd=self._project_directory,
+                cwd=Path(self._project_directory).resolve(),
             )
         except subprocess.CalledProcessError as e:
             logger.error("Error running the Python script. %s", e)
@@ -192,7 +192,7 @@ class PythonScriptApp(App):
             raise e
         else:
             self._log_process_std_output(self._script, proc)
-            if len(proc.stdout) > 0 and allow_stderr is False:
+            if len(proc.stderr) > 0 and allow_stderr is False:
                 raise subprocess.CalledProcessError(1, proc.args)
         return self
 
@@ -265,7 +265,7 @@ class PythonScriptApp(App):
         Returns:
             str: The `--directory` argument.
         """
-        return f" --directory {self._project_directory}"
+        return f" --directory {Path(self._project_directory).resolve()}"
 
     def _add_uv_optional_toml_dependencies(self) -> str:
         """
