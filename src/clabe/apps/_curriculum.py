@@ -137,12 +137,12 @@ class CurriculumApp(App):
             raise ValueError("Data directory is not set.")
 
         kwargs: dict[str, t.Any] = {  # Must use kebab casing
-            "data-directory": self._settings.data_directory,
-            "input-trainer-state": self._settings.input_trainer_state,
+            "data-directory": f'"{self._settings.data_directory}"',
+            "input-trainer-state": f'"{self._settings.input_trainer_state}"',
         }
         if self._settings.curriculum is not None:
-            kwargs["curriculum"] = self._settings.curriculum
-            
+            kwargs["curriculum"] = f'"{self._settings.curriculum}"'
+
         self._python_script_app.add_app_settings(**kwargs)
         return self._python_script_app.run()
 
@@ -221,6 +221,7 @@ class CurriculumApp(App):
         self,
         input_trainer_state: Promise[P, aind_behavior_curriculum.trainer.TrainerState],
         *,
+        session_directory: t.Optional[Promise[P, os.PathLike]] = None,
         allow_std_error: bool = False,
     ) -> t.Callable[[Launcher], CurriculumSuggestion]:
         """
@@ -253,8 +254,12 @@ class CurriculumApp(App):
         """
 
         def _run(launcher: Launcher) -> CurriculumSuggestion:
-            self._settings.data_directory = launcher.session_directory
-            self._settings.input_trainer_state = Path(launcher.save_temp_model(input_trainer_state.result))
+            if self._settings.data_directory is None:
+                self._settings.data_directory = (
+                    session_directory.result if session_directory else launcher.session_directory
+                )
+            if self._settings.input_trainer_state is None:
+                self._settings.input_trainer_state = Path(launcher.save_temp_model(input_trainer_state.result))
             try:
                 self.run()
                 self.output_from_result(allow_stderr=allow_std_error)
