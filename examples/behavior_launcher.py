@@ -14,7 +14,7 @@ from pydantic import Field
 from pydantic_settings import CliApp
 
 from clabe import resource_monitor
-from clabe.apps import App
+from clabe.apps import App, CurriculumApp, CurriculumSettings
 from clabe.data_mapper import DataMapper
 from clabe.data_transfer.aind_watchdog import WatchdogDataTransferService, WatchdogSettings
 from clabe.launcher import (
@@ -22,6 +22,7 @@ from clabe.launcher import (
     DefaultBehaviorPickerSettings,
     Launcher,
     LauncherCliArgs,
+    Promise,
     ignore_errors,
 )
 
@@ -217,7 +218,9 @@ def make_launcher():
         settings=behavior_cli_args,
     )
 
-    picker = DefaultBehaviorPicker(settings=DefaultBehaviorPickerSettings(config_library_dir=LIB_CONFIG))
+    picker = DefaultBehaviorPicker(
+        settings=DefaultBehaviorPickerSettings(config_library_dir=LIB_CONFIG), experimenter_validator=lambda x: True
+    )
 
     launcher.register_callable(
         [
@@ -229,6 +232,15 @@ def make_launcher():
     )
     launcher.register_callable(monitor.build_runner())
     launcher.register_callable(EchoApp("Hello World!").build_runner(allow_std_error=True))
+    launcher.register_callable(
+        CurriculumApp(
+            settings=CurriculumSettings(
+                curriculum="template",
+                data_directory=Path("demo"),
+                project_directory=Path("./tests/assets/Aind.Behavior.VrForaging.Curricula"),
+            )
+        ).build_runner(Promise.from_value(mock_trainer_state))
+    )
     output = launcher.register_callable(DemoAindDataSchemaSessionDataMapper.builder_runner(Path("./mock/script.py")))
     launcher.register_callable(
         MockWatchdogService.build_runner(settings=watchdog_settings, aind_session_data_mapper=output)
