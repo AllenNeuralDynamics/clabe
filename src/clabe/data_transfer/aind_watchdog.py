@@ -615,6 +615,10 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
             raise ValueError("ManifestConfig or WatchConfig config is not set.")
 
         path = (Path(path) if path else Path(watch_config.flag_dir) / f"manifest_{manifest_config.name}.yaml").resolve()
+
+        if path.suffix not in [".yml", ".yaml"]:
+            path = path.with_suffix(".yaml")
+
         if not path.name.startswith("manifest_"):
             logger.info("Prefix manifest_ not found in file name. Appending it.")
             path = path.with_name(f"manifest_{path.stem}{path.suffix}")
