@@ -18,6 +18,7 @@ from clabe.data_transfer.aind_watchdog import (
     WatchdogSettings,
 )
 from clabe.data_transfer.robocopy import RobocopyService, RobocopySettings
+from tests import TESTS_ASSETS
 
 
 @pytest.fixture
@@ -71,7 +72,7 @@ def settings():
 @pytest.fixture
 def watchdog_service(mock_ui_helper, source, settings):
     os.environ["WATCHDOG_EXE"] = "watchdog.exe"
-    os.environ["WATCHDOG_CONFIG"] = "watchdog_config.yml"
+    os.environ["WATCHDOG_CONFIG"] = str(TESTS_ASSETS / "watch_config.yml")
 
     service = WatchdogDataTransferService(
         source,
