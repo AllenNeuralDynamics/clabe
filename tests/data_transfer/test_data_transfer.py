@@ -30,7 +30,7 @@ def source():
 def ads_session():
     """Mock AdsSession for testing create_manifest_config_from_ads_session method."""
     mock_session = MagicMock(spec=AdsSession)
-    mock_session.experimenter_full_name = ["John Doe", "Jane Smith"]
+    mock_session.experimenter_full_name = ["john.doe", "jane.smith"]
     mock_session.subject_id = "12345"
     mock_session.session_start_time = datetime(2023, 1, 1, 10, 0, 0)
 

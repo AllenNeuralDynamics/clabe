@@ -148,6 +148,9 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
         validate: bool = True,
         session_name: Optional[str] = None,
         ui_helper: Optional[ui.UiHelper] = None,
+        email_from_experimenter_builder: Optional[
+            Callable[[str], str]
+        ] = lambda user_name: f"{user_name}@alleninstitute.org",
     ) -> None:
         """
         Initializes the WatchdogDataTransferService.
@@ -213,6 +216,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
 
         self._ui_helper = ui_helper or ui.DefaultUIHelper()
         self._session_name = session_name
+        self._email_from_experimenter_builder = email_from_experimenter_builder
 
     @property
     def aind_session_data_mapper(self) -> TSessionMapper:
@@ -383,6 +387,11 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
         """
         processor_full_name = ",".join(ads_session.experimenter_full_name) or os.environ.get("USERNAME", "unknown")
 
+        if (len(ads_session.experimenter_full_name) > 0) and self._email_from_experimenter_builder is not None:
+            user_email = self._email_from_experimenter_builder(ads_session.experimenter_full_name[0])
+        else:
+            user_email = None
+
         destination = Path(self._settings.destination).resolve()
         source = Path(self._source).resolve()
 
@@ -422,6 +431,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
             add_default_tasks=True,
             extra_tasks=self._settings.upload_tasks or {},
             job_type=self._settings.job_type,
+            user_email=user_email,
         )
         return _manifest_config
 
@@ -440,6 +450,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
         job_type: str = "default",
         add_default_tasks: bool = True,
         extra_tasks: TransferServiceTask,
+        user_email: Optional[str] = None,
     ) -> ManifestConfig:
         """Appends extra tasks to a manifest configuration. Additionally appends default
         metadata and modality transformation tasks if requested."""
@@ -480,7 +491,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
         )
 
         submit_request_v2 = aind_data_transfer_service.models.core.SubmitJobRequestV2(
-            upload_jobs=[upload_job_configs_v2],
+            upload_jobs=[upload_job_configs_v2], user_email=user_email
         )
         manifest.transfer_service_args = submit_request_v2
         return manifest
@@ -722,6 +733,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
         cls,
         settings: WatchdogSettings,
         aind_session_data_mapper: Promise[[Launcher], TSessionMapper] | TSessionMapper,
+        **kwargs,
     ) -> Callable[[Launcher], "WatchdogDataTransferService[TSessionMapper]"]:
         """
         A factory method for creating the watchdog service.
@@ -753,9 +765,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
             _settings.destination = Path(_settings.destination) / _session.subject
             launcher.copy_logs()
             service = cls(
-                source=launcher.session_directory,
-                settings=_settings,
-                session_name=_session.session_name,
+                source=launcher.session_directory, settings=_settings, session_name=_session.session_name, **kwargs
             ).with_aind_session_data_mapper(_aind_session_data_mapper)
             service.transfer()
             return service
