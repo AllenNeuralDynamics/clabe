@@ -454,7 +454,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
             }
 
             tasks["gather_preliminary_metadata"] = aind_data_transfer_service.models.core.Task(
-                job_settings={"metadata_dir": str(PurePosixPath(cls._remote_destination_root(manifest) / "metadata"))}
+                job_settings={"metadata_dir": str(PurePosixPath(cls._remote_destination_root(manifest)))}
             )
 
         extra_tasks = cls._interpolate_from_manifest(
