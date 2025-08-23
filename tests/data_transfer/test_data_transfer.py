@@ -65,7 +65,7 @@ def settings():
         s3_bucket="private",
         mount="mount_path",
         force_cloud_sync=True,
-        transfer_endpoint="http://aind-data-transfer-service/api/v2/submit_jobs",
+        transfer_endpoint="http://aind-data-transfer-service-dev/api/v2/submit_jobs",
     )
 
 
@@ -98,7 +98,7 @@ def watchdog_service(mock_ui_helper, source, settings):
         s3_bucket="private",
         script={"script_key": ["script_value"]},
         force_cloud_sync=True,
-        transfer_endpoint="http://aind-data-transfer-service/api/v2/submit_jobs",
+        transfer_endpoint="http://aind-data-transfer-service-dev/api/v2/submit_jobs",
     )
 
     service._watch_config = WatchConfig(
