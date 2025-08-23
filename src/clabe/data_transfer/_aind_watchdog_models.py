@@ -22,7 +22,7 @@ Path: TypeAlias = Annotated[Union[pathlib.Path, str], AfterValidator(lambda v: p
 Platform: TypeAlias = str
 Modality: TypeAlias = str
 BucketType: TypeAlias = Literal["private", "open", "default"]
-DEFAULT_TRANSFER_ENDPOINT: str = "http://aind-data-transfer-service/api/v2/submit_jobs"
+DEFAULT_TRANSFER_ENDPOINT: str = "http://aind-data-transfer-service-dev/api/v2/submit_jobs"
 
 logger = logging.getLogger(__name__)
 

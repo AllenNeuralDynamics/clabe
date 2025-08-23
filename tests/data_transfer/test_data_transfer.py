@@ -30,7 +30,7 @@ def source():
 def ads_session():
     """Mock AdsSession for testing create_manifest_config_from_ads_session method."""
     mock_session = MagicMock(spec=AdsSession)
-    mock_session.experimenter_full_name = ["John Doe", "Jane Smith"]
+    mock_session.experimenter_full_name = ["john.doe", "jane.smith"]
     mock_session.subject_id = "12345"
     mock_session.session_start_time = datetime(2023, 1, 1, 10, 0, 0)
 
@@ -65,7 +65,7 @@ def settings():
         s3_bucket="private",
         mount="mount_path",
         force_cloud_sync=True,
-        transfer_endpoint="http://aind-data-transfer-service/api/v2/submit_jobs",
+        transfer_endpoint="http://aind-data-transfer-service-dev/api/v2/submit_jobs",
     )
 
 
@@ -98,7 +98,7 @@ def watchdog_service(mock_ui_helper, source, settings):
         s3_bucket="private",
         script={"script_key": ["script_value"]},
         force_cloud_sync=True,
-        transfer_endpoint="http://aind-data-transfer-service/api/v2/submit_jobs",
+        transfer_endpoint="http://aind-data-transfer-service-dev/api/v2/submit_jobs",
     )
 
     service._watch_config = WatchConfig(
