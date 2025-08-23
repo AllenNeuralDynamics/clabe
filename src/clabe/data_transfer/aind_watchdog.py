@@ -205,6 +205,12 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
         self._manifest_config: Optional[ManifestConfig] = None
 
         self._validate_project_name = validate
+
+        if validate:
+            self.validate()
+
+        self._watch_config = WatchConfig.model_validate(self._read_yaml(self.config_path))
+
         self._ui_helper = ui_helper or ui.DefaultUIHelper()
         self._session_name = session_name
 
@@ -300,7 +306,6 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
             raise FileNotFoundError(f"Executable not found at {self.executable_path}")
         if not self.config_path.exists():
             raise FileNotFoundError(f"Config file not found at {self.config_path}")
-        self._watch_config = WatchConfig.model_validate(self._read_yaml(self.config_path))
 
         if not self.is_running():
             logger.warning(
@@ -310,14 +315,19 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
             )
             return False
 
-        try:
-            _valid_proj = self.is_valid_project_name()
-            if not _valid_proj:
-                logger.warning("Watchdog project name is not valid.")
-        except HTTPError as e:
-            logger.error("Failed to fetch project names from endpoint. %s", e)
-            raise e
-        return _valid_proj
+        if self.settings.project_name is None:
+            logger.warning("Watchdog project name is not set. Skipping validation.")
+        else:
+            try:
+                _valid_proj = self.is_valid_project_name()
+                if not _valid_proj:
+                    logger.warning("Watchdog project name is not valid.")
+            except HTTPError as e:
+                logger.error("Failed to fetch project names from endpoint. %s", e)
+                raise e
+            return _valid_proj
+
+        return True
 
     def is_valid_project_name(self) -> bool:
         """
@@ -444,7 +454,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
             }
 
             tasks["gather_preliminary_metadata"] = aind_data_transfer_service.models.core.Task(
-                job_settings={"metadata_dir": str(PurePosixPath(cls._remote_destination_root(manifest) / "metadata"))}
+                job_settings={"metadata_dir": str(PurePosixPath(cls._remote_destination_root(manifest)))}
             )
 
         extra_tasks = cls._interpolate_from_manifest(
