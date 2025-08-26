@@ -1,5 +1,4 @@
-from __future__ import annotations
-
+import importlib.metadata
 import importlib.util
 
 if importlib.util.find_spec("aind_data_schema") is None:
@@ -8,19 +7,39 @@ if importlib.util.find_spec("aind_data_schema") is None:
         "Install the optional dependencies defined in `project.toml` "
         "by running `pip install .[aind-services]`"
     )
+else:
+    import importlib.metadata
+
+    import semver
+
+    ads_version = semver.Version.parse(importlib.metadata.version("aind-data-schema"))
 
 import abc
 import logging
-from typing import TypeVar, Union
-
-from aind_data_schema.core import rig as ads_rig
-from aind_data_schema.core import session as ads_session
+from typing import TypeAlias, TypeVar, Union
 
 from ..data_mapper import _base
 
 logger = logging.getLogger(__name__)
 
-_TAdsObject = TypeVar("_TAdsObject", bound=Union[ads_session.Session, ads_rig.Rig])
+# This ensures that clabe works across aind-data-schema versions
+if ads_version.major < 2:
+    from aind_data_schema.core.rig import Rig
+    from aind_data_schema.core.session import Session
+
+    Acquisition: TypeAlias = Session
+    Instrument: TypeAlias = Rig
+    logger.warning("Using deprecated AIND data schema version %s. Consider upgrading.", ads_version)
+
+else:
+    from aind_data_schema.core.acquisition import Acquisition
+    from aind_data_schema.core.instrument import Instrument
+
+    Session: TypeAlias = Acquisition
+    Rig: TypeAlias = Instrument
+
+
+_TAdsObject = TypeVar("_TAdsObject", bound=Union[Session, Rig, Acquisition, Instrument])
 
 
 class AindDataSchemaDataMapper(_base.DataMapper[_TAdsObject], abc.ABC):
@@ -57,7 +76,7 @@ class AindDataSchemaDataMapper(_base.DataMapper[_TAdsObject], abc.ABC):
         """
 
 
-class AindDataSchemaSessionDataMapper(AindDataSchemaDataMapper[ads_session.Session], abc.ABC):
+class AindDataSchemaSessionDataMapper(AindDataSchemaDataMapper[Session], abc.ABC):
     """
     Abstract base class for mapping session data to aind-data-schema Session objects.
 
@@ -66,7 +85,7 @@ class AindDataSchemaSessionDataMapper(AindDataSchemaDataMapper[ads_session.Sessi
     AIND data schema Session format.
     """
 
-    def session_schema(self) -> ads_session.Session:
+    def session_schema(self) -> Session:
         """
         Returns the session schema for the mapped session data.
 
@@ -79,7 +98,7 @@ class AindDataSchemaSessionDataMapper(AindDataSchemaDataMapper[ads_session.Sessi
         raise NotImplementedError("Subclasses must implement this method to return the session schema.")
 
 
-class AindDataSchemaRigDataMapper(AindDataSchemaDataMapper[ads_rig.Rig], abc.ABC):
+class AindDataSchemaRigDataMapper(AindDataSchemaDataMapper[Rig], abc.ABC):
     """
     Abstract base class for mapping rig data to aind-data-schema Rig objects.
 
@@ -88,7 +107,7 @@ class AindDataSchemaRigDataMapper(AindDataSchemaDataMapper[ads_rig.Rig], abc.ABC
     to the AIND data schema Rig format.
     """
 
-    def rig_schema(self) -> ads_rig.Rig:
+    def rig_schema(self) -> Rig:
         """
         Returns the rig schema for the mapped rig data.
 

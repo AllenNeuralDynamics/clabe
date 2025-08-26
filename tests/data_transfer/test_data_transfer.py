@@ -5,11 +5,10 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-from aind_data_schema.core.session import Session as AdsSession
 from aind_data_transfer_service.models.core import Task
 from requests.exceptions import HTTPError
 
-from clabe.data_mapper.aind_data_schema import AindDataSchemaSessionDataMapper
+from clabe.data_mapper.aind_data_schema import AindDataSchemaSessionDataMapper, Session
 from clabe.data_transfer.aind_watchdog import (
     CORE_FILES,
     ManifestConfig,
@@ -28,8 +27,8 @@ def source():
 
 @pytest.fixture
 def ads_session():
-    """Mock AdsSession for testing create_manifest_config_from_ads_session method."""
-    mock_session = MagicMock(spec=AdsSession)
+    """Mock Session for testing create_manifest_config_from_ads_session method."""
+    mock_session = MagicMock(spec=Session)
     mock_session.experimenter_full_name = ["john.doe", "jane.smith"]
     mock_session.subject_id = "12345"
     mock_session.session_start_time = datetime(2023, 1, 1, 10, 0, 0)

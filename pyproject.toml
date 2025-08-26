@@ -37,7 +37,7 @@ Changelog = "https://github.com/AllenNeuralDynamics/clabe/releases"
 
 [project.optional-dependencies]
 aind-services = [
-    "aind-data-schema<2",
+    "aind-data-schema",
     "ms-active-directory",
     "aind-data-transfer-service",
     "cryptography",
