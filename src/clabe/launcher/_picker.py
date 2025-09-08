@@ -13,7 +13,8 @@ from aind_behavior_services.task_logic import AindBehaviorTaskLogicModel
 from aind_behavior_services.utils import model_from_json_file
 from typing_extensions import override
 
-from .. import launcher, ui
+from .. import ui
+from ..launcher import Launcher
 from ..services import ServiceSettings
 from ..utils import ByAnimalFiles
 from ..utils.aind_auth import validate_aind_username
@@ -89,7 +90,7 @@ class DefaultBehaviorPicker(Generic[TRig, TSession, TTaskLogic]):
             **kwargs: Additional keyword arguments
         """
         self._ui_helper = ui_helper
-        self._launcher: launcher.Launcher[TRig, TSession, TTaskLogic]
+        self._launcher: Launcher[TRig, TSession, TTaskLogic]
         self._settings = settings
         self._experimenter_validator = experimenter_validator
         self._trainer_state: Optional[TrainerState] = None
@@ -197,7 +198,7 @@ class DefaultBehaviorPicker(Generic[TRig, TSession, TTaskLogic]):
         """
         return Path(os.path.join(self.config_library_dir, self.TASK_LOGIC_SUFFIX))
 
-    def initialize(self, launcher: launcher.Launcher[TRig, TSession, TTaskLogic]) -> None:
+    def initialize(self, launcher: Launcher[TRig, TSession, TTaskLogic]) -> None:
         """
         Initializes the picker by creating required directories if needed.
         """
@@ -206,7 +207,7 @@ class DefaultBehaviorPicker(Generic[TRig, TSession, TTaskLogic]):
         if self._launcher.settings.create_directories:
             self._create_directories(launcher)
 
-    def _create_directories(self, launcher: launcher.Launcher[TRig, TSession, TTaskLogic]) -> None:
+    def _create_directories(self, launcher: Launcher[TRig, TSession, TTaskLogic]) -> None:
         """
         Creates the required directories for configuration files.
 
@@ -218,7 +219,7 @@ class DefaultBehaviorPicker(Generic[TRig, TSession, TTaskLogic]):
         launcher.create_directory(self.rig_dir)
         launcher.create_directory(self.subject_dir)
 
-    def pick_rig(self, launcher: launcher.Launcher[TRig, TSession, TTaskLogic]) -> TRig:
+    def pick_rig(self, launcher: Launcher[TRig, TSession, TTaskLogic]) -> TRig:
         """
         Prompts the user to select a rig configuration file.
 
@@ -259,7 +260,7 @@ class DefaultBehaviorPicker(Generic[TRig, TSession, TTaskLogic]):
                 except ValueError as e:
                     logger.info("Invalid choice. Try again. %s", e)
 
-    def pick_session(self, launcher: launcher.Launcher[TRig, TSession, TTaskLogic]) -> TSession:
+    def pick_session(self, launcher: Launcher[TRig, TSession, TTaskLogic]) -> TSession:
         """
         Prompts the user to select or create a session configuration.
 
@@ -300,7 +301,7 @@ class DefaultBehaviorPicker(Generic[TRig, TSession, TTaskLogic]):
         launcher.set_session(session)
         return session
 
-    def pick_task_logic(self, launcher: launcher.Launcher[TRig, TSession, TTaskLogic]) -> TTaskLogic:
+    def pick_task_logic(self, launcher: Launcher[TRig, TSession, TTaskLogic]) -> TTaskLogic:
         """
         Prompts the user to select or create a task logic configuration.
 
@@ -369,14 +370,14 @@ class DefaultBehaviorPicker(Generic[TRig, TSession, TTaskLogic]):
         self._sync_session_metadata(launcher)
         return task_logic
 
-    def _sync_session_metadata(self, launcher: launcher.Launcher[TRig, TSession, TTaskLogic]) -> None:
+    def _sync_session_metadata(self, launcher: Launcher[TRig, TSession, TTaskLogic]) -> None:
         """Syncs metadata across session, task_logic and rig models"""
         task_logic = launcher.get_task_logic(strict=True)
         session = launcher.get_session(strict=True)
         session.experiment = task_logic.name
         session.experiment_version = task_logic.version
 
-    def pick_trainer_state(self, launcher: launcher.Launcher[TRig, TSession, TTaskLogic]) -> TrainerState:
+    def pick_trainer_state(self, launcher: Launcher[TRig, TSession, TTaskLogic]) -> TrainerState:
         """
         Prompts the user to select or create a trainer state configuration.
 
@@ -493,7 +494,7 @@ class DefaultBehaviorPicker(Generic[TRig, TSession, TTaskLogic]):
 
     def dump_model(
         self,
-        launcher: launcher.Launcher[TRig, TSession, TTaskLogic],
+        launcher: Launcher[TRig, TSession, TTaskLogic],
         model: Union[AindBehaviorRigModel, AindBehaviorTaskLogicModel, TrainerState],
     ) -> None:
         path: Path
