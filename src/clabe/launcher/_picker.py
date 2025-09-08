@@ -496,7 +496,18 @@ class DefaultBehaviorPicker(Generic[TRig, TSession, TTaskLogic]):
         self,
         launcher: Launcher[TRig, TSession, TTaskLogic],
         model: Union[AindBehaviorRigModel, AindBehaviorTaskLogicModel, TrainerState],
-    ) -> None:
+    ) -> Optional[Path]:
+        """
+        Saves the provided model to the appropriate configuration file.
+
+        Args:
+            launcher: The launcher instance managing the experiment.
+            model: The model instance to save.
+
+        Returns:
+            Optional[Path]: The path to the saved model file, or None if not saved.
+        """
+
         path: Path
         if isinstance(model, AindBehaviorRigModel):
             path = self.rig_dir / ("rig.json")
@@ -516,6 +527,8 @@ class DefaultBehaviorPicker(Generic[TRig, TSession, TTaskLogic]):
             overwrite = self.ui_helper.prompt_yes_no_question(f"File {path} already exists. Overwrite?")
             if not overwrite:
                 logger.info("User chose not to overwrite the existing file: %s", path)
-                return
+                return None
         with open(path, "w", encoding="utf-8") as f:
             f.write(model.model_dump_json(indent=2))
+            logger.info("Saved model to %s", path)
+        return path
