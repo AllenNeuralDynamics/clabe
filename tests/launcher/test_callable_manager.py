@@ -302,15 +302,20 @@ class TestRunIfDecorator:
         assert my_func(3) is None
 
     def test_run_if_predicate_depends_on_args(self):
-        def is_positive(x):
-            return x > 0
+        def is_true(x: bool) -> bool:
+            return x
 
-        @run_if(is_positive)
         def square(x):
             return x * x
 
-        assert square(2) == 4
-        assert square(-1) is None
+        @run_if(is_true, True)
+        def decorated_square(x):
+            return square(x)
+
+        assert run_if(is_true, True)(lambda: square(2))() == 4
+        assert run_if(is_true, False)(lambda: square(-1))() is None
+        assert decorated_square(2) == 4
+        assert decorated_square(-1) == 1
 
     def test_run_if_preserves_function_metadata(self):
         def always_true(*args, **kwargs):
