@@ -218,9 +218,7 @@ def make_launcher():
         settings=behavior_cli_args,
     )
 
-    picker = DefaultBehaviorPicker(
-        settings=DefaultBehaviorPickerSettings(config_library_dir=LIB_CONFIG), experimenter_validator=lambda x: True
-    )
+    picker = DefaultBehaviorPicker(settings=DefaultBehaviorPickerSettings(config_library_dir=LIB_CONFIG))
 
     launcher.register_callable(
         [

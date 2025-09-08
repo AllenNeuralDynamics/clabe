@@ -4,16 +4,16 @@ import glob
 import logging
 import os
 from pathlib import Path
-from typing import Callable, ClassVar, Generic, List, Optional, Self
+from typing import Callable, ClassVar, Generic, List, Optional, Self, Union
 
 import pydantic
 from aind_behavior_curriculum import TrainerState
+from aind_behavior_services.rig import AindBehaviorRigModel
+from aind_behavior_services.task_logic import AindBehaviorTaskLogicModel
 from aind_behavior_services.utils import model_from_json_file
 from typing_extensions import override
 
-from clabe import launcher
-
-from .. import ui
+from .. import launcher, ui
 from ..services import ServiceSettings
 from ..utils import ByAnimalFiles
 from ..utils.aind_auth import validate_aind_username
@@ -490,3 +490,31 @@ class DefaultBehaviorPicker(Generic[TRig, TSession, TTaskLogic]):
                             experimenter = None
                             break
         return experimenter
+
+    def dump_model(
+        self,
+        launcher: launcher.Launcher[TRig, TSession, TTaskLogic],
+        model: Union[AindBehaviorRigModel, AindBehaviorTaskLogicModel, TrainerState],
+    ) -> None:
+        path: Path
+        if isinstance(model, AindBehaviorRigModel):
+            path = self.rig_dir / ("rig.json")
+        elif isinstance(model, AindBehaviorTaskLogicModel):
+            if launcher.subject is None:
+                raise ValueError("No subject set in launcher. Cannot dump task logic.")
+            path = Path(self.subject_dir) / launcher.subject / (ByAnimalFiles.TASK_LOGIC.value + ".json")
+        elif isinstance(model, TrainerState):
+            if launcher.subject is None:
+                raise ValueError("No subject set in launcher. Cannot dump trainer state.")
+            path = Path(self.subject_dir) / launcher.subject / (ByAnimalFiles.TRAINER_STATE.value + ".json")
+        else:
+            raise ValueError("Model type not supported for dumping.")
+
+        os.makedirs(path.parent, exist_ok=True)
+        if path.exists():
+            overwrite = self.ui_helper.prompt_yes_no_question(f"File {path} already exists. Overwrite?")
+            if not overwrite:
+                logger.info("User chose not to overwrite the existing file: %s", path)
+                return
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(model.model_dump_json(indent=2))
