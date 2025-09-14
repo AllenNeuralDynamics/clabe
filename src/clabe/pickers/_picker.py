@@ -18,7 +18,7 @@ from ..launcher import Launcher
 from ..services import ServiceSettings
 from ..utils import ByAnimalFiles
 from ..utils.aind_auth import validate_aind_username
-from ._base import TRig, TSession, TTaskLogic
+from ..launcher._base import TRig, TSession, TTaskLogic
 
 logger = logging.getLogger(__name__)
 
