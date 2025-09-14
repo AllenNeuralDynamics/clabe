@@ -18,13 +18,12 @@ from clabe.apps import App, CurriculumApp, CurriculumSettings
 from clabe.data_mapper import DataMapper
 from clabe.data_transfer.aind_watchdog import WatchdogDataTransferService, WatchdogSettings
 from clabe.launcher import (
-    DefaultBehaviorPicker,
-    DefaultBehaviorPickerSettings,
     Launcher,
     LauncherCliArgs,
     Promise,
     ignore_errors,
 )
+from clabe.pickers import DefaultBehaviorPicker, DefaultBehaviorPickerSettings
 
 logger = logging.getLogger(__name__)
 
