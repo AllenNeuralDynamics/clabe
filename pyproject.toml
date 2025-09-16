@@ -43,6 +43,7 @@ aind-services = [
     "cryptography",
     "winkerberos; sys_platform == 'win32'",
     "ldap3; sys_platform == 'win32'",
+    "msal; sys_platform == 'win32'",
     "requests",
     "pyyaml",
 ]
