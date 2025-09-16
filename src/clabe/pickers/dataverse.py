@@ -41,34 +41,34 @@ class DataverseSettings(ServiceSettings):
     password: SecretStr
     domain: str = "alleninstitute.org"
 
-    @property
     @computed_field
+    @property
     def username_at_domain(self) -> str:
         """Username with domain for authentication."""
         if self.username.endswith(f"@{self.domain}"):
             return self.username
         return self.username + "@" + self.domain
 
-    @property
     @computed_field
+    @property
     def api_url(self) -> str:
         """Base URL for the Dataverse API."""
         return f"https://{self.org}.crm.dynamics.com/api/data/v9.2/"
 
-    @property
     @computed_field
+    @property
     def env_url(self) -> str:
         """Base URL for the Dataverse environment."""
         return f"https://{self.org}.crm.dynamics.com"
 
-    @property
     @computed_field
+    @property
     def authority(self) -> str:
         """Base URL for the Azure AD authority."""
         return f"https://login.microsoftonline.com/{self.tenant_id}"
 
-    @property
     @computed_field
+    @property
     def scope(self) -> str:
         """Scope for the Dataverse API."""
         return f"{self.env_url}/.default " + " ".join(self.additional_scopes)
