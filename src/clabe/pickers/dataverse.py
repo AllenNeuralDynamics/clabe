@@ -1,13 +1,15 @@
 # Code in this module is largely adapted from https://github.com/AllenNeuralDynamics/dataverse-client
 # under the MIT license, with modifications. (thanks patricklatimer for the original code!)
 
+from datetime import datetime
 from ..services import ServiceSettings
 import logging
 from typing import ClassVar, Optional
-
+from aind_behavior_curriculum import TrainerState
 import msal
-from pydantic import SecretStr, computed_field
+from pydantic import BaseModel, SecretStr, computed_field, field_validator
 import requests
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -220,14 +222,14 @@ class DataverseRestClient:
         """
         url = self._construct_url(table, id)
         response = requests.get(url, headers=self.headers, timeout=_REQUEST_TIMEOUT)
-        logger.info(
+        logger.debug(
             f'Dataverse GET: "{url}", status code: {response.status_code}, '
             f"duration: {response.elapsed.total_seconds()} seconds"
         )
         response.raise_for_status()
         return response.json()
 
-    def add_entry(self, table: str, data: dict) -> dict:
+    def add_entry(self, table: str, data: dict) -> Optional[dict]:
         """
         Add a new entry to a Dataverse table.
         Args:
@@ -240,12 +242,15 @@ class DataverseRestClient:
         """
         url = self._construct_url(table)
         response = requests.post(url, headers=self.headers, json=data, timeout=_REQUEST_TIMEOUT)
-        logger.info(
+        logger.debug(
             f'Dataverse POST: "{url}", status code: {response.status_code}, '
             f"duration: {response.elapsed.total_seconds()} seconds"
         )
         response.raise_for_status()
-        return response.json()
+        if response.status_code == 204:
+            return None
+        else:
+            return response.json()
 
     def update_entry(
         self,
@@ -267,7 +272,7 @@ class DataverseRestClient:
         url = self._construct_url(table, id)
         headers = self.headers | {"Prefer": "return=representation"}
         response = requests.patch(url, headers=headers, json=update_data, timeout=_REQUEST_TIMEOUT)
-        logger.info(
+        logger.debug(
             f'Dataverse PATCH: "{url}", status code: {response.status_code}, '
             f"duration: {response.elapsed.total_seconds()} seconds"
         )
@@ -304,10 +309,105 @@ class DataverseRestClient:
         )
         # Note: Could also provide `count`, but it's not useful for this method as this
         # returns a list of values, and wouldn't include the "@odata.count" property anyway
-        response = requests.get(url, headers=self.headers, timeout=_REQUEST_TIMEOUT)
-        logger.info(
+        response = requests.get(
+            url, headers=self.headers | {"Prefer": "return=representation"}, timeout=_REQUEST_TIMEOUT
+        )
+        logger.debug(
             f'Dataverse GET: "{url}", status code: {response.status_code}, '
             f"duration: {response.elapsed.total_seconds()} seconds"
         )
         response.raise_for_status()
         return response.json().get("value", [])
+
+
+_MICE_TABLE = "aibs_dim_mices"
+_SUGGESTIONS_TABLE = "aibs_fact_mouse_proposed_behavior_sessionses"
+
+
+def get_last_sessions_from_subject(client: DataverseRestClient, subject_name: str, task_name: str, history: int = 10):
+    """
+    Get the last N sessions from a subject for a specific task.
+    """
+    subject = client.get_entry(_MICE_TABLE, {"aibs_mouse_id": subject_name})
+    subject_guid = subject["aibs_dim_miceid"]
+
+    filter_str = f"aibs_task_name eq '{task_name}' and _aibs_mouse_id_value eq '{subject_guid}'"
+
+    sessions = client.query(_SUGGESTIONS_TABLE, filter=filter_str, order_by="createdon desc", top=history, select=["*"])
+    return [_Suggestion.from_dict(subject_name, s) for s in sessions]
+
+
+class _Suggestion(BaseModel):
+    """
+    Internal representation of a suggestion entry in Dataverse.
+    """
+
+    trainer_state: Optional[TrainerState] = None
+    subject_id: str
+    task_name: Optional[str]
+    stage_name: Optional[str]
+    modified_on: Optional[datetime] = None
+    created_on: Optional[datetime] = None
+
+    @field_validator("trainer_state", mode="before")
+    @classmethod
+    def validate_trainer_state(cls, value):
+        """
+        Validate and convert the trainer_state field from a JSON string to a TrainerState object.
+        """
+        if value is None:
+            return value
+        if isinstance(value, str):
+            return TrainerState.model_validate_json(value)
+        return value
+
+    @classmethod
+    def from_dict(cls, subject: str, data: dict) -> "_Suggestion":
+        """
+        Create a _Suggestion instance from a dictionary of data.
+        """
+        return cls(
+            subject_id=subject,
+            trainer_state=data.get("aibs_trainer_state_string", None),
+            task_name=data.get("aibs_task_name", None),
+            stage_name=data.get("aibs_stage_name", None),
+            modified_on=data.get("modifiedon", None),
+            created_on=data.get("createdon", None),
+        )
+
+    @classmethod
+    def from_trainer_state(cls, subject: str, trainer_state: TrainerState) -> "_Suggestion":
+        """
+        Create a _Suggestion instance from a TrainerState object.
+        """
+        if trainer_state is None:
+            raise ValueError("trainer_state cannot be None")
+        if trainer_state.stage is None:
+            raise ValueError("trainer_state.stage cannot be None")
+        return cls(
+            subject_id=subject,
+            trainer_state=trainer_state,
+            task_name=trainer_state.stage.task.name,
+            stage_name=trainer_state.stage.name,
+        )
+
+
+def append_suggestion(client: DataverseRestClient, subject_id: str, trainer_state: TrainerState) -> None:
+    """
+    Append a new suggestion to the Dataverse table for a subject.
+    """
+    _suggestion = _Suggestion.from_trainer_state(subject_id, trainer_state)
+    subject = client.get_entry(_MICE_TABLE, {"aibs_mouse_id": _suggestion.subject_id})
+    subject_guid = subject["aibs_dim_miceid"]
+
+    client.add_entry(
+        _SUGGESTIONS_TABLE,
+        {
+            "aibs_task_name": _suggestion.task_name,
+            "aibs_mouse_id@odata.bind": f"/aibs_dim_mices({subject_guid})",
+            "aibs_stage_name": _suggestion.stage_name,
+            "aibs_trainer_state_string": _suggestion.trainer_state.model_dump_json()
+            if _suggestion.trainer_state
+            else None,
+        },
+    )
