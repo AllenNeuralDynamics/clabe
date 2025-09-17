@@ -15,10 +15,10 @@ from typing_extensions import override
 
 from .. import ui
 from ..launcher import Launcher
+from ..launcher._base import TRig, TSession, TTaskLogic
 from ..services import ServiceSettings
 from ..utils import ByAnimalFiles
 from ..utils.aind_auth import validate_aind_username
-from ..launcher._base import TRig, TSession, TTaskLogic
 
 logger = logging.getLogger(__name__)
 

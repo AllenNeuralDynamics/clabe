@@ -1,15 +1,16 @@
 # Code in this module is largely adapted from https://github.com/AllenNeuralDynamics/dataverse-client
 # under the MIT license, with modifications. (thanks patricklatimer for the original code!)
 
-from datetime import datetime
-from ..services import ServiceSettings
 import logging
+from datetime import datetime
 from typing import ClassVar, Optional
-from aind_behavior_curriculum import TrainerState
+
 import msal
-from pydantic import BaseModel, SecretStr, computed_field, field_validator
 import requests
-import os
+from aind_behavior_curriculum import TrainerState
+from pydantic import BaseModel, SecretStr, computed_field, field_validator
+
+from ..services import ServiceSettings
 
 logger = logging.getLogger(__name__)
 
