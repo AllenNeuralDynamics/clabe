@@ -8,6 +8,7 @@ if importlib.util.find_spec("aind_data_transfer_service") is None:
     )
 
 import datetime
+import importlib.metadata
 import json
 import logging
 import os
@@ -19,10 +20,12 @@ from typing import TYPE_CHECKING, Any, Callable, ClassVar, Dict, Generic, List, 
 import aind_data_transfer_service.models.core
 import pydantic
 import requests
+import semver
 import yaml
 from aind_data_schema.core.metadata import CORE_FILES
 from pydantic import BaseModel, SerializeAsAny, TypeAdapter
 from requests.exceptions import HTTPError
+from typing_extensions import deprecated
 
 from .. import ui
 from ..launcher._callable_manager import Promise
@@ -37,13 +40,11 @@ from ._aind_watchdog_models import (
 from ._base import DataTransfer
 
 if TYPE_CHECKING:
-    from aind_data_schema.core.session import Session as AdsSession
-
-    from ..data_mapper.aind_data_schema import AindDataSchemaSessionDataMapper
+    from ..data_mapper.aind_data_schema import AindDataSchemaSessionDataMapper, Session
     from ..launcher import Launcher
 else:
     Launcher = Any
-    AdsSession = Any
+    Session = Any
     AindDataSchemaSessionDataMapper = Any
 
 logger = logging.getLogger(__name__)
@@ -52,6 +53,8 @@ TransferServiceTask = Dict[
     str, Union[aind_data_transfer_service.models.core.Task, Dict[str, aind_data_transfer_service.models.core.Task]]
 ]
 TSessionMapper = TypeVar("TSessionMapper", bound=AindDataSchemaSessionDataMapper)
+
+_AIND_DATA_SCHEMA_PKG_VERSION = semver.Version.parse(importlib.metadata.version("aind_data_schema"))
 
 
 class WatchdogSettings(ServiceSettings):
@@ -273,10 +276,19 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
             if not self.aind_session_data_mapper.is_mapped():
                 raise ValueError("Data mapper has not been mapped yet.")
 
-            self._manifest_config = self._create_manifest_config_from_ads_session(
-                ads_session=self.aind_session_data_mapper.mapped,
-                session_name=self._session_name,
-            )
+            if _AIND_DATA_SCHEMA_PKG_VERSION.major < 2:
+                logger.warning(
+                    "Using deprecated AIND data schema version %s. Consider upgrading.", _AIND_DATA_SCHEMA_PKG_VERSION
+                )
+                self._manifest_config = self._create_manifest_config_from_ads_session(
+                    ads_session=self.aind_session_data_mapper.mapped,
+                    session_name=self._session_name,
+                )
+            else:
+                self._manifest_config = self._create_manifest_config_from_ads_acquisition(
+                    ads_session=self.aind_session_data_mapper.mapped,
+                    session_name=self._session_name,
+                )
 
             if self._watch_config is None:
                 raise ValueError("Watchdog config is not set.")
@@ -346,9 +358,101 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
         project_names = self._get_project_names()
         return self._settings.project_name in project_names
 
+    def _create_manifest_config_from_ads_acquisition(
+        self,
+        ads_session: Session,
+        ads_schemas: Optional[List[os.PathLike]] = None,
+        session_name: Optional[str] = None,
+    ) -> ManifestConfig:
+        """
+        Creates a ManifestConfig object from an aind-data-schema acquisition.
+        This method should replace _create_manifest_config_from_ads_session for >2.0
+        aind-data-schema versions.
+
+        Converts acquisition metadata into a manifest configuration that can be
+        used by the watchdog service for data transfer operations.
+
+        Args:
+            ads_session: The aind-data-schema acquisition data
+            ads_schemas: Optional list of schema files
+            session_name: Name of the session
+
+        Returns:
+            A ManifestConfig object
+
+        Raises:
+            ValueError: If the project name is invalid
+
+        Example:
+            ```python
+            # Create manifest from acquisition data:
+            acquisition = Acquisition(...)
+            manifest = service.create_manifest_config_from_ads_acquisition(
+                ads_session=acquisition,
+            )
+
+            # Create with custom schemas:
+            schemas = ["C:/data/rig.json", "C:/data/processing.json"]
+            manifest = service.create_manifest_config_from_ads_acquisition(
+                ads_session=acquisition,
+                ads_schemas=schemas,
+            )
+            ```
+        """
+        processor_full_name = ",".join(ads_session.experimenters) or os.environ.get("USERNAME", "unknown")
+
+        if (len(ads_session.experimenters) > 0) and self._email_from_experimenter_builder is not None:
+            user_email = self._email_from_experimenter_builder(ads_session.experimenters[0])
+        else:
+            user_email = None
+
+        destination = Path(self._settings.destination).resolve()
+        source = Path(self._source).resolve()
+
+        if self._validate_project_name:
+            project_names = self._get_project_names()
+            if self._settings.project_name not in project_names:
+                raise ValueError(f"Project name {self._settings.project_name} not found in {project_names}")
+
+        ads_schemas = self._find_ads_schemas(source) if ads_schemas is None else ads_schemas
+
+        _manifest_config = ManifestConfig(
+            name=session_name,
+            modalities={
+                str(modality.abbreviation): [Path(path.resolve()) for path in [source / str(modality.abbreviation)]]
+                for modality in ads_session.data_streams[0].modalities
+            },
+            subject_id=int(ads_session.subject_id),
+            acquisition_datetime=ads_session.acquisition_start_time,
+            schemas=[Path(value) for value in ads_schemas],
+            destination=Path(destination),
+            mount=self._settings.mount,
+            processor_full_name=processor_full_name,
+            project_name=self._settings.project_name,
+            schedule_time=self._settings.schedule_time,
+            platform=self._settings.platform,
+            capsule_id=self._settings.capsule_id,
+            s3_bucket=self._settings.s3_bucket,
+            script=self._settings.script if self._settings.script else {},
+            force_cloud_sync=self._settings.force_cloud_sync,
+            transfer_endpoint=self._settings.transfer_endpoint,
+            delete_modalities_source_after_success=self._settings.delete_modalities_source_after_success,
+            extra_identifying_info=self._settings.extra_identifying_info,
+        )
+
+        _manifest_config = self._make_transfer_args(
+            _manifest_config,
+            add_default_tasks=True,
+            extra_tasks=self._settings.upload_tasks or {},
+            job_type=self._settings.job_type,
+            user_email=user_email,
+        )
+        return _manifest_config
+
+    @deprecated("Use _create_manifest_config_from_ads_acquisition instead. This will be removed in a future release.")
     def _create_manifest_config_from_ads_session(
         self,
-        ads_session: AdsSession,
+        ads_session: Session,
         ads_schemas: Optional[List[os.PathLike]] = None,
         session_name: Optional[str] = None,
     ) -> ManifestConfig:
