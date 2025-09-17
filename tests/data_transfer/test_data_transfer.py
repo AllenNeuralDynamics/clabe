@@ -41,6 +41,10 @@ def ads_session():
     mock_session.data_streams = [mock_data_stream]
     mock_session.data_streams[0].stream_modalities = [mock_modality]
 
+    # Mock aind-data-schema v2 attributes because someone did not care about backward compatibility...
+    mock_session.experimenters = mock_session.experimenter_full_name
+    mock_session.acquisition_start_time = mock_session.session_start_time
+    mock_session.data_streams[0].modalities = mock_session.data_streams[0].stream_modalities
     return mock_session
 
 
