@@ -451,6 +451,10 @@ def _append_suggestion(client: _DataverseRestClient, subject_id: str, trainer_st
 
 
 class DataversePicker(DefaultBehaviorPicker, Generic[TRig, TSession, TTaskLogic]):
+    """
+    Picker that integrates with Dataverse to fetch and push trainer state suggestions.
+    """
+
     def __init__(
         self,
         *,
@@ -463,10 +467,10 @@ class DataversePicker(DefaultBehaviorPicker, Generic[TRig, TSession, TTaskLogic]
         Initializes the DataversePicker.
 
         Args:
+            dataverse_client: Optional Dataverse REST client for making API calls. If not provided, a new client will be created using settings from KeePass.
             settings: Settings containing configuration including config_library_dir
             ui_helper: Helper for user interface interactions
             experimenter_validator: Function to validate the experimenter's username. If None, no validation is performed
-            **kwargs: Additional keyword arguments
         """
         super().__init__(settings=settings, ui_helper=ui_helper, experimenter_validator=experimenter_validator)
         self._dataverse_client = (
@@ -543,5 +547,11 @@ class DataversePicker(DefaultBehaviorPicker, Generic[TRig, TSession, TTaskLogic]
         return self.trainer_state
 
     def push_new_suggestion(self, launcher: Launcher[TRig, TSession, TTaskLogic], trainer_state: TrainerState) -> None:
+        """
+        Pushes a new suggestion to Dataverse for the current subject in the launcher.
+        Args:
+            launcher: The Launcher instance containing the current session and subject information.
+            trainer_state: The TrainerState object to be pushed as a new suggestion.
+        """
         logger.info("Pushing new suggestion to Dataverse for subject %s", launcher.get_session(strict=True).subject)
         _append_suggestion(self._dataverse_client, launcher.get_session(strict=True).subject, trainer_state)

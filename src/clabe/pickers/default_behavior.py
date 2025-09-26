@@ -79,10 +79,9 @@ class DefaultBehaviorPicker(Generic[TRig, TSession, TTaskLogic]):
         Initializes the DefaultBehaviorPicker.
 
         Args:
-            settings: Settings containing configuration including config_library_dir
-            ui_helper: Helper for user interface interactions
+            settings: Settings containing configuration including config_library_dir. By default, attempts to rely on DefaultBehaviorPickerSettings to automatic loading from yaml files.
+            ui_helper: Helper for user interface interactions. If None, must be registered later using register_ui_helper().
             experimenter_validator: Function to validate the experimenter's username. If None, no validation is performed
-            **kwargs: Additional keyword arguments
         """
         self._ui_helper = ui_helper
         self._launcher: Launcher[TRig, TSession, TTaskLogic]
