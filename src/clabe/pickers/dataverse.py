@@ -3,16 +3,22 @@
 
 import logging
 from datetime import datetime
-from typing import ClassVar, Generic, Optional
+from typing import Callable, ClassVar, Generic, Optional
 
 import msal
+import pydantic
 import requests
 from aind_behavior_curriculum import TrainerState
 from pydantic import BaseModel, SecretStr, computed_field, field_validator
+from requests import HTTPError
 
+from .. import ui
+from ..launcher import Launcher
 from ..launcher._base import TRig, TSession, TTaskLogic
 from ..services import ServiceSettings
+from ..utils.aind_auth import validate_aind_username
 from ..utils.keepass import KeePass, KeePassSettings
+from .default_behavior import DefaultBehaviorPicker, DefaultBehaviorPickerSettings
 
 logger = logging.getLogger(__name__)
 
@@ -107,7 +113,7 @@ class DataverseSettings(ServiceSettings):
 _REQUEST_TIMEOUT = 5
 
 
-class DataverseRestClient:
+class _DataverseRestClient:
     """Client for basic CRUD operations on Dataverse entities."""
 
     def __init__(self, config: DataverseSettings):
@@ -355,7 +361,7 @@ _MICE_TABLE = "aibs_dim_mices"
 _SUGGESTIONS_TABLE = "aibs_fact_mouse_proposed_behavior_sessionses"
 
 
-def get_last_suggestions(client: DataverseRestClient, subject_name: str, task_name: str, history: int = 10):
+def _get_last_suggestions(client: _DataverseRestClient, subject_name: str, task_name: str, history: int = 10):
     """
     Get the last N suggestions from a subject for a specific task.
     """
@@ -423,7 +429,7 @@ class DataverseSuggestion(BaseModel):
         )
 
 
-def append_suggestion(client: DataverseRestClient, subject_id: str, trainer_state: TrainerState) -> None:
+def _append_suggestion(client: _DataverseRestClient, subject_id: str, trainer_state: TrainerState) -> None:
     """
     Append a new suggestion to the Dataverse table for a subject.
     """
@@ -444,6 +450,98 @@ def append_suggestion(client: DataverseRestClient, subject_id: str, trainer_stat
     )
 
 
-class DataversePicker(Generic[TRig, TSession, TTaskLogic]):
-    ...
-    # TODO
+class DataversePicker(DefaultBehaviorPicker, Generic[TRig, TSession, TTaskLogic]):
+    def __init__(
+        self,
+        *,
+        dataverse_client: Optional[_DataverseRestClient] = None,
+        settings: DefaultBehaviorPickerSettings = DefaultBehaviorPickerSettings(),
+        ui_helper: Optional[ui.UiHelper] = None,
+        experimenter_validator: Optional[Callable[[str], bool]] = validate_aind_username,
+    ):
+        """
+        Initializes the DataversePicker.
+
+        Args:
+            settings: Settings containing configuration including config_library_dir
+            ui_helper: Helper for user interface interactions
+            experimenter_validator: Function to validate the experimenter's username. If None, no validation is performed
+            **kwargs: Additional keyword arguments
+        """
+        super().__init__(settings=settings, ui_helper=ui_helper, experimenter_validator=experimenter_validator)
+        self._dataverse_client = (
+            dataverse_client if dataverse_client is not None else _DataverseRestClient(DataverseSettings.from_keepass())
+        )
+        self._dataverse_suggestion: Optional[DataverseSuggestion] = None
+
+    def _ensure_directories(self, launcher: Launcher[TRig, TSession, TTaskLogic]) -> None:
+        """
+        Ensures the required directories for configuration files exist.
+
+        Creates the configuration library directory and all required subdirectories
+        for storing rig, task logic, and subject configurations.
+        """
+        launcher.create_directory(self.config_library_dir)
+        launcher.create_directory(self.rig_dir)
+        launcher.create_directory(self.subject_dir)
+
+    def pick_trainer_state(self, launcher: Launcher[TRig, TSession, TTaskLogic]) -> TrainerState:
+        """
+        Prompts the user to select or create a trainer state configuration.
+
+        Attempts to load trainer state in the following order:
+        1. If task_logic already exists in launcher, will return an empty TrainerState
+        2. From subject-specific folder
+
+        It will launcher.set_task_logic if the deserialized TrainerState is valid.
+
+        Returns:
+            TrainerState: The deserialized TrainerState object.
+
+        Raises:
+            ValueError: If no valid task logic file is found.
+        """
+        if (launcher.get_task_logic()) is not None:
+            logger.info("Task logic already set in launcher. Cannot inject a trainer state.")
+            self._trainer_state = TrainerState(curriculum=None, stage=None, is_on_curriculum=False)
+        else:
+            if launcher.subject is None:
+                logger.error("No subject set in launcher. Cannot load trainer state.")
+                raise ValueError("No subject set in launcher.")
+            task_logic_name = launcher.get_task_logic_model().model_fields["name"].default
+            if not task_logic_name:
+                raise ValueError("Task logic model does not have a default name.")
+            try:
+                logger.info("Attempting to load trainer state dataverse")
+                last_suggestions = _get_last_suggestions(self._dataverse_client, launcher.subject, task_logic_name, 1)
+            except HTTPError as e:
+                logger.error("Failed to fetch suggestions from Dataverse: %s", e)
+                raise
+            except pydantic.ValidationError as e:
+                logger.error("Failed to validate suggestion from Dataverse: %s", e)
+                raise
+            if len(last_suggestions) == 0:
+                raise ValueError(
+                    f"No valid suggestions found in Dataverse for subject {launcher.subject} with task {task_logic_name}."
+                )
+
+            _dataverse_suggestion = last_suggestions[0]
+
+            assert _dataverse_suggestion is not None
+            if _dataverse_suggestion.trainer_state is None:
+                raise ValueError("No trainer state found in the latest suggestion.")
+            if _dataverse_suggestion.trainer_state.stage is None:
+                raise ValueError("No stage found in the latest suggestion's trainer state.")
+            self._dataverse_suggestion = _dataverse_suggestion
+            self._trainer_state = _dataverse_suggestion.trainer_state
+            launcher.set_task_logic(_dataverse_suggestion.trainer_state.stage.task)
+
+        assert self._trainer_state is not None
+        if not self._trainer_state.is_on_curriculum:
+            logging.warning("Deserialized TrainerState is NOT on curriculum.")
+        self._sync_session_metadata(launcher)
+        return self.trainer_state
+
+    def push_new_suggestion(self, launcher: Launcher[TRig, TSession, TTaskLogic], trainer_state: TrainerState) -> None:
+        logger.info("Pushing new suggestion to Dataverse for subject %s", launcher.get_session(strict=True).subject)
+        _append_suggestion(self._dataverse_client, launcher.get_session(strict=True).subject, trainer_state)

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import glob
 import logging
 import os
@@ -73,7 +71,7 @@ class DefaultBehaviorPicker(Generic[TRig, TSession, TTaskLogic]):
     def __init__(
         self,
         *,
-        settings: DefaultBehaviorPickerSettings,
+        settings: DefaultBehaviorPickerSettings = DefaultBehaviorPickerSettings(),
         ui_helper: Optional[ui.UiHelper] = None,
         experimenter_validator: Optional[Callable[[str], bool]] = validate_aind_username,
     ):
