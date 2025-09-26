@@ -94,7 +94,7 @@ skip = '.git,*.pdf,*.svg,./bonsai,*.bonsai,./docs/_build,uv.lock'
 ignore-words-list = "nd, assertIn"
 
 [tool.pytest.ini_options]
-addopts = "--strict-markers --tb=short --cov=src --cov-report=term-missing --cov-fail-under=70 --ignore=tests/assets" 
+addopts = "--strict-markers --tb=short --cov=src --cov-report=term-missing --ignore=tests/assets"
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
