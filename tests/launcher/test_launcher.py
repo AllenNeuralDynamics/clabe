@@ -68,7 +68,6 @@ def test_base_launcher_create_directories(mock_rig, mock_session, mock_task_logi
     launcher_args_create_dirs = LauncherCliArgs(
         data_dir=tmp_path / "data",
         temp_dir=tmp_path / "temp",
-        create_directories=True,
     )
     with (
         patch("clabe.launcher._base.GitRepository") as mock_git,
@@ -78,7 +77,7 @@ def test_base_launcher_create_directories(mock_rig, mock_session, mock_task_logi
     ):
         log_mod.return_value = MagicMock()
         mock_git.return_value.working_dir = launcher_args_create_dirs.data_dir
-        with patch("clabe.launcher.Launcher._create_directory_structure") as mock_create_dirs:
+        with patch("clabe.launcher.Launcher._ensure_directory_structure") as mock_create_dirs:
             Launcher(
                 rig=mock_rig,
                 session=mock_session,
@@ -97,12 +96,11 @@ def test_create_directory():
         mock_makedirs.assert_called_once_with(directory)
 
 
-def test_create_directory_structure(mock_rig, mock_session, mock_task_logic, mock_ui_helper, tmp_path: Path):
-    """Test that _create_directory_structure calls create_directory for data_dir and temp_dir."""
+def test_ensure_directory_structure(mock_rig, mock_session, mock_task_logic, mock_ui_helper, tmp_path: Path):
+    """Test that _ensure_directory_structure calls create_directory for data_dir and temp_dir."""
     launcher_args = LauncherCliArgs(
         data_dir=tmp_path / "data",
         temp_dir=tmp_path / "temp",
-        create_directories=True,
     )
     with (
         patch("clabe.launcher._base.GitRepository") as mock_git,
@@ -113,7 +111,7 @@ def test_create_directory_structure(mock_rig, mock_session, mock_task_logic, moc
         mock_git.return_value.working_dir = launcher_args.data_dir
         log_mod.return_value = MagicMock()
         with patch("clabe.launcher.Launcher.create_directory") as mock_create_directory:
-            launcher_args.create_directories = True
+           
             launcher = Launcher(
                 rig=mock_rig,
                 session=mock_session,

@@ -103,8 +103,7 @@ class Launcher(Generic[TRig, TSession, TTaskLogic]):
         self._session, self._session_model = self._resolve_model(session)
         self._task_logic, self._task_logic_model = self._resolve_model(task_logic)
 
-        if self.settings.create_directories is True:
-            self._create_directory_structure()
+        self._ensure_directory_structure()
 
     def main(self) -> None:
         """
@@ -613,7 +612,7 @@ class Launcher(Generic[TRig, TSession, TTaskLogic]):
         logger.info("Disposing...")
         self._exit(0)
 
-    def _create_directory_structure(self) -> None:
+    def _ensure_directory_structure(self) -> None:
         """
         Creates the required directory structure for the launcher.
 
@@ -621,15 +620,20 @@ class Launcher(Generic[TRig, TSession, TTaskLogic]):
         exiting with an error code if creation fails.
         """
         try:
-            self.create_directory(self.settings.data_dir)
-            self.create_directory(self.temp_dir)
+            # Create data directory if it doesn't exist
+            if not os.path.exists(self.settings.data_dir):
+                self.create_directory(self.settings.data_dir)
+
+            # Create temp directory if it doesn't exist
+            if not os.path.exists(self.temp_dir):
+                self.create_directory(self.temp_dir)
 
         except OSError as e:
             logger.error("Failed to create directory structure: %s", e)
             self._exit(-1)
 
-    @classmethod
-    def create_directory(cls, directory: os.PathLike) -> None:
+    @staticmethod
+    def create_directory(directory: os.PathLike) -> None:
         """
         Creates a directory at the specified path if it does not already exist.
 

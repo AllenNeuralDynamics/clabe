@@ -20,7 +20,6 @@ class LauncherCliArgs(ServiceSettings, cli_prog_name="clabe", cli_kebab_case=Tru
     Attributes:
         data_dir (os.PathLike): The data directory where to save the data.
         repository_dir (Optional[os.PathLike]): The repository root directory.
-        create_directories (CliImplicitFlag[bool]): Whether to create necessary directory structure.
         debug_mode (CliImplicitFlag[bool]): Whether to run in debug mode.
         allow_dirty (CliImplicitFlag[bool]): Whether to allow running with a dirty repository.
         skip_hardware_validation (CliImplicitFlag[bool]): Whether to skip hardware validation.
@@ -47,9 +46,6 @@ class LauncherCliArgs(ServiceSettings, cli_prog_name="clabe", cli_kebab_case=Tru
 
     data_dir: os.PathLike = Field(description="The data directory where to save the data")
     repository_dir: Optional[os.PathLike] = Field(default=None, description="The repository root directory")
-    create_directories: CliImplicitFlag[bool] = Field(
-        default=False, description="Whether to create directory structure necessary for the launcher"
-    )
     debug_mode: CliImplicitFlag[bool] = Field(default=False, description="Whether to run in debug mode")
     allow_dirty: CliImplicitFlag[bool] = Field(
         default=False, description="Whether to allow the launcher to run with a dirty repository"
