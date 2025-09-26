@@ -64,7 +64,6 @@ def mock_base_launcher(mock_rig, mock_session, mock_task_logic, mock_ui_helper, 
     launcher_args = LauncherCliArgs(
         data_dir=tmp_path / "data",
         temp_dir=tmp_path / "temp",
-        create_directories=True,
     )
     # Ensure directories exist for os.chdir
     launcher_args.data_dir.mkdir(parents=True, exist_ok=True)
@@ -75,7 +74,7 @@ def mock_base_launcher(mock_rig, mock_session, mock_task_logic, mock_ui_helper, 
         patch("os.chdir"),
         patch("pathlib.Path.mkdir"),
         patch("clabe.logging_helper.add_file_handler"),
-        patch("clabe.launcher.Launcher._create_directory_structure"),
+        patch("clabe.launcher.Launcher._ensure_directory_structure"),
         patch("clabe.launcher.Launcher.validate", return_value=True),
         patch("os.environ", {"COMPUTERNAME": "TEST_COMPUTER"}),
     ):
