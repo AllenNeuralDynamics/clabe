@@ -23,9 +23,9 @@ from .default_behavior import DefaultBehaviorPicker, DefaultBehaviorPickerSettin
 logger = logging.getLogger(__name__)
 
 
-class DataverseSettings(ServiceSettings):
+class _DataverseRestClientSettings(ServiceSettings):
     """
-    Settings for the Dataverse picker.
+    Settings for the Dataverse rest client.
 
     Attributes:
         tenant_id (str): Azure AD tenant ID.
@@ -87,7 +87,7 @@ class DataverseSettings(ServiceSettings):
     @classmethod
     def from_keepass(
         cls, entry_title: str = "svc_sipe", keepass: Optional[KeePass] = None, **kwargs
-    ) -> "DataverseSettings":
+    ) -> "_DataverseRestClientSettings":
         """
         Create a DataverseSettings instance getting the password from a KeePass entry.
 
@@ -105,9 +105,9 @@ class DataverseSettings(ServiceSettings):
             keepass = KeePass(settings=KeePassSettings())
 
         keepass_entry = keepass.get_entry(entry_title)
-        if keepass_entry is None or keepass_entry.password is None:
+        if keepass_entry is None or keepass_entry.password is None or keepass_entry.username is None:
             raise ValueError(f"No entry found with title '{entry_title}' or entry has no password")
-        return DataverseSettings(password=keepass_entry.password, **kwargs)
+        return _DataverseRestClientSettings(password=keepass_entry.password, username=keepass_entry.username, **kwargs)
 
 
 _REQUEST_TIMEOUT = 5
@@ -116,7 +116,7 @@ _REQUEST_TIMEOUT = 5
 class _DataverseRestClient:
     """Client for basic CRUD operations on Dataverse entities."""
 
-    def __init__(self, config: DataverseSettings):
+    def __init__(self, config: _DataverseRestClientSettings):
         """
         Initialize the DataverseRestClient with configuration.
         Acquires an authentication token and sets up request headers.
@@ -474,7 +474,9 @@ class DataversePicker(DefaultBehaviorPicker, Generic[TRig, TSession, TTaskLogic]
         """
         super().__init__(settings=settings, ui_helper=ui_helper, experimenter_validator=experimenter_validator)
         self._dataverse_client = (
-            dataverse_client if dataverse_client is not None else _DataverseRestClient(DataverseSettings.from_keepass())
+            dataverse_client
+            if dataverse_client is not None
+            else _DataverseRestClient(_DataverseRestClientSettings.from_keepass())
         )
         self._dataverse_suggestion: Optional[DataverseSuggestion] = None
 
