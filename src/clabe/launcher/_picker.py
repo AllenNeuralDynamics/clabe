@@ -11,7 +11,6 @@ from aind_behavior_curriculum import TrainerState
 from aind_behavior_services.rig import AindBehaviorRigModel
 from aind_behavior_services.task_logic import AindBehaviorTaskLogicModel
 from aind_behavior_services.utils import model_from_json_file
-from typing_extensions import override
 
 from .. import ui
 from ..launcher import Launcher

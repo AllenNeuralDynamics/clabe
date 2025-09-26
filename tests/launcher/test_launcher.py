@@ -111,7 +111,6 @@ def test_ensure_directory_structure(mock_rig, mock_session, mock_task_logic, moc
         mock_git.return_value.working_dir = launcher_args.data_dir
         log_mod.return_value = MagicMock()
         with patch("clabe.launcher.Launcher.create_directory") as mock_create_directory:
-           
             launcher = Launcher(
                 rig=mock_rig,
                 session=mock_session,
