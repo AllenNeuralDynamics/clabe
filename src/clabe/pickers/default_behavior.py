@@ -201,12 +201,11 @@ class DefaultBehaviorPicker(Generic[TRig, TSession, TTaskLogic]):
         """
         self._launcher = launcher
         self._ui_helper = launcher.ui_helper
-        if self._launcher.settings.create_directories:
-            self._create_directories(launcher)
+        self._ensure_directories(launcher)
 
-    def _create_directories(self, launcher: Launcher[TRig, TSession, TTaskLogic]) -> None:
+    def _ensure_directories(self, launcher: Launcher[TRig, TSession, TTaskLogic]) -> None:
         """
-        Creates the required directories for configuration files.
+        Ensures the required directories for configuration files exist.
 
         Creates the configuration library directory and all required subdirectories
         for storing rig, task logic, and subject configurations.
