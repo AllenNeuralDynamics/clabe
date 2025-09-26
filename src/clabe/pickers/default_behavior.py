@@ -11,7 +11,6 @@ from aind_behavior_curriculum import TrainerState
 from aind_behavior_services.rig import AindBehaviorRigModel
 from aind_behavior_services.task_logic import AindBehaviorTaskLogicModel
 from aind_behavior_services.utils import model_from_json_file
-from typing_extensions import override
 
 from .. import ui
 from ..launcher import Launcher
@@ -71,14 +70,12 @@ class DefaultBehaviorPicker(Generic[TRig, TSession, TTaskLogic]):
     SUBJECT_SUFFIX: str = "Subjects"
     TASK_LOGIC_SUFFIX: str = "TaskLogic"
 
-    @override
     def __init__(
         self,
         *,
         settings: DefaultBehaviorPickerSettings,
         ui_helper: Optional[ui.UiHelper] = None,
         experimenter_validator: Optional[Callable[[str], bool]] = validate_aind_username,
-        **kwargs,
     ):
         """
         Initializes the DefaultBehaviorPicker.

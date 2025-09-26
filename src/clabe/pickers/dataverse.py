@@ -3,14 +3,16 @@
 
 import logging
 from datetime import datetime
-from typing import ClassVar, Optional
+from typing import ClassVar, Generic, Optional
 
 import msal
 import requests
 from aind_behavior_curriculum import TrainerState
 from pydantic import BaseModel, SecretStr, computed_field, field_validator
 
+from ..launcher._base import TRig, TSession, TTaskLogic
 from ..services import ServiceSettings
+from ..utils.keepass import KeePass, KeePassSettings
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +77,31 @@ class DataverseSettings(ServiceSettings):
     def scope(self) -> str:
         """Scope for the Dataverse API."""
         return f"{self.env_url}/.default " + " ".join(self.additional_scopes)
+
+    @classmethod
+    def from_keepass(
+        cls, entry_title: str = "svc_sipe", keepass: Optional[KeePass] = None, **kwargs
+    ) -> "DataverseSettings":
+        """
+        Create a DataverseSettings instance getting the password from a KeePass entry.
+
+        Args:
+            entry_title (str): Title of the KeePass entry.
+            keepass_manager (Optional[keepass.KeePass]): An optional KeePass manager instance. If not provided, a new instance will be created with default settings.
+            **kwargs: Additional keyword arguments to pass to the DataverseSettings constructor.
+
+        Returns:
+            DataverseSettings: The created DataverseSettings instance.
+        """
+        if keepass is None:
+            # KeePassSettings will attempt to load settings using the YAML config if available
+            # If not, just let the validation fail and raise an error here.
+            keepass = KeePass(settings=KeePassSettings())
+
+        keepass_entry = keepass.get_entry(entry_title)
+        if keepass_entry is None or keepass_entry.password is None:
+            raise ValueError(f"No entry found with title '{entry_title}' or entry has no password")
+        return DataverseSettings(password=keepass_entry.password, **kwargs)
 
 
 _REQUEST_TIMEOUT = 5
@@ -321,13 +348,16 @@ class DataverseRestClient:
         return response.json().get("value", [])
 
 
+# Helpers for specific API. Prefer using these over direct calls to the client whenever possible
+
+
 _MICE_TABLE = "aibs_dim_mices"
 _SUGGESTIONS_TABLE = "aibs_fact_mouse_proposed_behavior_sessionses"
 
 
-def get_last_sessions_from_subject(client: DataverseRestClient, subject_name: str, task_name: str, history: int = 10):
+def get_last_suggestions(client: DataverseRestClient, subject_name: str, task_name: str, history: int = 10):
     """
-    Get the last N sessions from a subject for a specific task.
+    Get the last N suggestions from a subject for a specific task.
     """
     subject = client.get_entry(_MICE_TABLE, {"aibs_mouse_id": subject_name})
     subject_guid = subject["aibs_dim_miceid"]
@@ -335,10 +365,10 @@ def get_last_sessions_from_subject(client: DataverseRestClient, subject_name: st
     filter_str = f"aibs_task_name eq '{task_name}' and _aibs_mouse_id_value eq '{subject_guid}'"
 
     sessions = client.query(_SUGGESTIONS_TABLE, filter=filter_str, order_by="createdon desc", top=history, select=["*"])
-    return [_Suggestion.from_dict(subject_name, s) for s in sessions]
+    return [DataverseSuggestion.from_dict(subject_name, s) for s in sessions]
 
 
-class _Suggestion(BaseModel):
+class DataverseSuggestion(BaseModel):
     """
     Internal representation of a suggestion entry in Dataverse.
     """
@@ -363,7 +393,7 @@ class _Suggestion(BaseModel):
         return value
 
     @classmethod
-    def from_dict(cls, subject: str, data: dict) -> "_Suggestion":
+    def from_dict(cls, subject: str, data: dict) -> "DataverseSuggestion":
         """
         Create a _Suggestion instance from a dictionary of data.
         """
@@ -377,7 +407,7 @@ class _Suggestion(BaseModel):
         )
 
     @classmethod
-    def from_trainer_state(cls, subject: str, trainer_state: TrainerState) -> "_Suggestion":
+    def from_trainer_state(cls, subject: str, trainer_state: TrainerState) -> "DataverseSuggestion":
         """
         Create a _Suggestion instance from a TrainerState object.
         """
@@ -397,7 +427,7 @@ def append_suggestion(client: DataverseRestClient, subject_id: str, trainer_stat
     """
     Append a new suggestion to the Dataverse table for a subject.
     """
-    _suggestion = _Suggestion.from_trainer_state(subject_id, trainer_state)
+    _suggestion = DataverseSuggestion.from_trainer_state(subject_id, trainer_state)
     subject = client.get_entry(_MICE_TABLE, {"aibs_mouse_id": _suggestion.subject_id})
     subject_guid = subject["aibs_dim_miceid"]
 
@@ -412,3 +442,8 @@ def append_suggestion(client: DataverseRestClient, subject_id: str, trainer_stat
             else None,
         },
     )
+
+
+class DataversePicker(Generic[TRig, TSession, TTaskLogic]):
+    ...
+    # TODO

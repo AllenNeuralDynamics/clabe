@@ -46,6 +46,7 @@ aind-services = [
     "msal; sys_platform == 'win32'",
     "requests",
     "pyyaml",
+    "pykeepass",
 ]
 
 dev = [
