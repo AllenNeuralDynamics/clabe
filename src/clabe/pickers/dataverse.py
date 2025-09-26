@@ -2,7 +2,9 @@
 # under the MIT license, with modifications. (thanks patricklatimer for the original code!)
 
 import logging
+import re
 from datetime import datetime
+from html import unescape
 from typing import Callable, ClassVar, Generic, Optional
 
 import msal
@@ -371,7 +373,7 @@ def _get_last_suggestions(client: _DataverseRestClient, subject_name: str, task_
     filter_str = f"aibs_task_name eq '{task_name}' and _aibs_mouse_id_value eq '{subject_guid}'"
 
     sessions = client.query(_SUGGESTIONS_TABLE, filter=filter_str, order_by="createdon desc", top=history, select=["*"])
-    return [DataverseSuggestion.from_dict(subject_name, s) for s in sessions]
+    return [DataverseSuggestion.from_request_output(subject_name, s) for s in sessions]
 
 
 class DataverseSuggestion(BaseModel):
@@ -399,18 +401,31 @@ class DataverseSuggestion(BaseModel):
         return value
 
     @classmethod
-    def from_dict(cls, subject: str, data: dict) -> "DataverseSuggestion":
+    def from_request_output(cls, subject: str, request_output: dict) -> "DataverseSuggestion":
         """
         Create a _Suggestion instance from a dictionary of data.
         """
+        trainer_state = request_output.get("aibs_trainer_state_string", None)
+        trainer_state = TrainerState.model_validate_json(cls._strip_html(trainer_state)) if trainer_state else None
         return cls(
             subject_id=subject,
-            trainer_state=data.get("aibs_trainer_state_string", None),
-            task_name=data.get("aibs_task_name", None),
-            stage_name=data.get("aibs_stage_name", None),
-            modified_on=data.get("modifiedon", None),
-            created_on=data.get("createdon", None),
+            trainer_state=trainer_state,
+            task_name=request_output.get("aibs_task_name", None),
+            stage_name=request_output.get("aibs_stage_name", None),
+            modified_on=request_output.get("modifiedon", None),
+            created_on=request_output.get("createdon", None),
         )
+
+    @staticmethod
+    def _strip_html(value: str) -> str:
+        """
+        Remove HTML tags and decode HTML entities from a string.
+        """
+        if not value:
+            return ""
+        no_tags = re.sub(r"<[^>]+>", "", value)
+        # decode HTML entities (&nbsp;, &amp;, etc.)
+        return unescape(no_tags).strip()
 
     @classmethod
     def from_trainer_state(cls, subject: str, trainer_state: TrainerState) -> "DataverseSuggestion":
@@ -459,7 +474,7 @@ class DataversePicker(DefaultBehaviorPicker, Generic[TRig, TSession, TTaskLogic]
         self,
         *,
         dataverse_client: Optional[_DataverseRestClient] = None,
-        settings: DefaultBehaviorPickerSettings = DefaultBehaviorPickerSettings(),
+        settings: DefaultBehaviorPickerSettings,
         ui_helper: Optional[ui.UiHelper] = None,
         experimenter_validator: Optional[Callable[[str], bool]] = validate_aind_username,
     ):
