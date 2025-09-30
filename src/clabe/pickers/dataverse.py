@@ -12,7 +12,6 @@ import pydantic
 import requests
 from aind_behavior_curriculum import TrainerState
 from pydantic import BaseModel, SecretStr, computed_field, field_validator
-from requests import HTTPError
 
 from .. import ui
 from ..launcher import Launcher
@@ -405,7 +404,7 @@ class DataverseSuggestion(BaseModel):
         """
         Create a _Suggestion instance from a dictionary of data.
         """
-        trainer_state = request_output.get("aibs_trainer_state_string", None)
+        trainer_state = request_output.get("aibs_trainer_state", None)
         trainer_state = TrainerState.model_validate_json(cls._strip_html(trainer_state)) if trainer_state else None
         return cls(
             subject_id=subject,
@@ -458,9 +457,7 @@ def _append_suggestion(client: _DataverseRestClient, subject_id: str, trainer_st
             "aibs_task_name": _suggestion.task_name,
             "aibs_mouse_id@odata.bind": f"/aibs_dim_mices({subject_guid})",
             "aibs_stage_name": _suggestion.stage_name,
-            "aibs_trainer_state_string": _suggestion.trainer_state.model_dump_json()
-            if _suggestion.trainer_state
-            else None,
+            "aibs_trainer_state": _suggestion.trainer_state.model_dump_json() if _suggestion.trainer_state else None,
         },
     )
 
@@ -535,7 +532,7 @@ class DataversePicker(DefaultBehaviorPicker, Generic[TRig, TSession, TTaskLogic]
             try:
                 logger.info("Attempting to load trainer state dataverse")
                 last_suggestions = _get_last_suggestions(self._dataverse_client, launcher.subject, task_logic_name, 1)
-            except HTTPError as e:
+            except requests.exceptions.HTTPError as e:
                 logger.error("Failed to fetch suggestions from Dataverse: %s", e)
                 raise
             except pydantic.ValidationError as e:
