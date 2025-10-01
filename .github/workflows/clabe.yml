@@ -85,6 +85,7 @@ jobs:
       - name: Bump pre-release by default
         # Note: Bumping the rc will fail if the version is not currently an rc
         # To solve it, we bump the patch and rc atomically
+        shell: bash # interop with win/linux for if statement
         run: |
           if uv version --bump rc --dry-run; then
             uv version --bump rc
@@ -102,6 +103,7 @@ jobs:
 
       - name: Get version
         id: get_version
+        shell: bash # interop with win/linux for if statement
         run: |
           version=$(uv version --output-format json | jq -r '.version')
           echo "version=$version" >> $GITHUB_OUTPUT
