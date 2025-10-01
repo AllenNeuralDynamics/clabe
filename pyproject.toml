@@ -1,6 +1,6 @@
 [build-system]
-requires = ["setuptools", "setuptools-scm"]
-build-backend = "setuptools.build_meta"
+requires = ["uv_build>=0.8.22"]
+build-backend = "uv_build"
 
 [project]
 name = "aind-clabe"
@@ -11,7 +11,8 @@ authors = [
 license = "MIT"
 license-files = ["LICENSE"]
 requires-python = ">=3.11"
-dynamic = ["version", "readme"]
+version = "0.6.15"
+readme = {file = "README.md", content-type = "text/markdown"}
 
 classifiers = [
     "Programming Language :: Python :: 3.11",
@@ -47,6 +48,8 @@ aind-services = [
     "pyyaml",
 ]
 
+[dependency-groups]
+
 dev = [
     "ruff",
     "codespell",
@@ -66,15 +69,11 @@ docs = [
     'ruff',
 ]
 
-[tool.setuptools.packages.find]
-where = ["src"]
+[tool.uv]
+default-groups = ['dev']
 
-[tool.setuptools.package-data]
-aind_behavior_task_launcher = ["py.typed"]
-
-[tool.setuptools.dynamic]
-version = { attr = "clabe.__version__" }
-readme = { file = "README.md", content-type = "text/markdown" }
+[tool.uv.build-backend]
+module-name = "clabe"
 
 [tool.ruff]
 line-length = 120
