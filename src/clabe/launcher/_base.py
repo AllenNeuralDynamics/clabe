@@ -299,14 +299,56 @@ class Launcher(Generic[TRig, TSession, TTaskLogic]):
             raise ValueError("Rig schema instance is not set.")
         return self._rig
 
+    @overload
     def set_rig(self, rig: TRig) -> None:
         """
         Sets the rig schema instance.
 
         Args:
             rig: The rig schema instance to set.
+
+        Raises:
+            ValueError: If rig is already set
         """
-        if self._rig is not None:
+        ...
+
+    @overload
+    def set_rig(self, rig: TRig, force: Literal[False]) -> None:
+        """
+        Sets the rig schema instance.
+
+        Args:
+            rig: The rig schema instance to set.
+            force: When False, raises ValueError if rig is already set
+
+        Raises:
+            ValueError: If rig is already set
+        """
+        ...
+
+    @overload
+    def set_rig(self, rig: TRig, force: Literal[True]) -> None:
+        """
+        Sets the rig schema instance, overriding any existing value.
+
+        Args:
+            rig: The rig schema instance to set.
+            force: When True, allows overriding an existing rig
+        """
+        ...
+
+    def set_rig(self, rig: TRig, force: bool = False) -> None:
+        """
+        Sets the rig schema instance.
+
+        Args:
+            rig: The rig schema instance to set.
+            force: If True, allows overriding an existing rig. Defaults to False.
+
+        Raises:
+            ValueError: If rig is already set and force is False
+        """
+        if self._rig is not None and not force:
             raise ValueError("Rig already set.")
         rig = self._rig_model.model_validate_json(rig.model_dump_json())
         self._rig, self._rig_model = self._resolve_model(rig)
@@ -372,14 +414,56 @@ class Launcher(Generic[TRig, TSession, TTaskLogic]):
             raise ValueError("Session schema instance is not set.")
         return self._session
 
+    @overload
     def set_session(self, session: TSession) -> None:
         """
         Sets the session schema instance.
 
         Args:
             session: The session schema instance to set.
+
+        Raises:
+            ValueError: If session is already set
         """
-        if self._session is not None:
+        ...
+
+    @overload
+    def set_session(self, session: TSession, force: Literal[False]) -> None:
+        """
+        Sets the session schema instance.
+
+        Args:
+            session: The session schema instance to set.
+            force: When False, raises ValueError if session is already set
+
+        Raises:
+            ValueError: If session is already set
+        """
+        ...
+
+    @overload
+    def set_session(self, session: TSession, force: Literal[True]) -> None:
+        """
+        Sets the session schema instance, overriding any existing value.
+
+        Args:
+            session: The session schema instance to set.
+            force: When True, allows overriding an existing session
+        """
+        ...
+
+    def set_session(self, session: TSession, force: bool = False) -> None:
+        """
+        Sets the session schema instance.
+
+        Args:
+            session: The session schema instance to set.
+            force: If True, allows overriding an existing session. Defaults to False.
+
+        Raises:
+            ValueError: If session is already set and force is False
+        """
+        if self._session is not None and not force:
             raise ValueError("Session already set.")
         self._session = self._session_model.model_validate_json(session.model_dump_json())
         self._session, self._session_model = self._resolve_model(self._session)
@@ -444,7 +528,45 @@ class Launcher(Generic[TRig, TSession, TTaskLogic]):
             raise ValueError("Task logic schema instance is not set.")
         return self._task_logic
 
+    @overload
     def set_task_logic(self, task_logic: TTaskLogic) -> None:
+        """
+        Sets the task logic schema instance.
+
+        Args:
+            task_logic: The task logic schema instance to set.
+
+        Raises:
+            ValueError: If task logic is already set
+        """
+        ...
+
+    @overload
+    def set_task_logic(self, task_logic: TTaskLogic, force: Literal[False]) -> None:
+        """
+        Sets the task logic schema instance.
+
+        Args:
+            task_logic: The task logic schema instance to set.
+            force: When False, raises ValueError if task logic is already set
+
+        Raises:
+            ValueError: If task logic is already set
+        """
+        ...
+
+    @overload
+    def set_task_logic(self, task_logic: TTaskLogic, force: Literal[True]) -> None:
+        """
+        Sets the task logic schema instance, overriding any existing value.
+
+        Args:
+            task_logic: The task logic schema instance to set.
+            force: When True, allows overriding an existing task logic
+        """
+        ...
+
+    def set_task_logic(self, task_logic: TTaskLogic, force: bool = False) -> None:
         """
         Sets the task logic schema instance.
         Before setting the task logic, it validates the input by forcing
@@ -452,8 +574,12 @@ class Launcher(Generic[TRig, TSession, TTaskLogic]):
 
         Args:
             task_logic: The task logic schema instance to set.
+            force: If True, allows overriding an existing task logic. Defaults to False.
+
+        Raises:
+            ValueError: If task logic is already set and force is False
         """
-        if self._task_logic is not None:
+        if self._task_logic is not None and not force:
             raise ValueError("Task logic already set.")
         task_logic = self._task_logic_model.model_validate_json(task_logic.model_dump_json())
         self._task_logic, self._task_logic_model = self._resolve_model(task_logic)
