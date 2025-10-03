@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -61,6 +62,7 @@ def mock_task_logic():
 
 @pytest.fixture
 def mock_base_launcher(mock_rig, mock_session, mock_task_logic, mock_ui_helper, tmp_path: Path):
+    os.environ["COMPUTERNAME"] = "TEST_COMPUTER"
     launcher_args = LauncherCliArgs(
         data_dir=tmp_path / "data",
         temp_dir=tmp_path / "temp",
