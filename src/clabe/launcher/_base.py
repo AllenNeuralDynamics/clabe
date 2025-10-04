@@ -4,6 +4,7 @@ import logging
 import os
 import shutil
 import sys
+import threading
 from pathlib import Path
 from typing import Any, Callable, Generic, List, Optional, Self, Type, TypeVar, Union, overload
 
@@ -762,6 +763,8 @@ class Launcher(Generic[TRig, TSession, TTaskLogic]):
     def create_directory(directory: os.PathLike) -> None:
         """
         Creates a directory at the specified path if it does not already exist.
+        To prevent deadlocks from network issues/auth, this function will run on a separate thread
+        and timeout after 2 seconds.
 
         Args:
             directory: The path of the directory to create
@@ -769,13 +772,23 @@ class Launcher(Generic[TRig, TSession, TTaskLogic]):
         Raises:
             OSError: If the directory creation fails
         """
-        if not os.path.exists(abspath(directory)):
-            logger.info("Creating  %s", directory)
-            try:
-                os.makedirs(directory)
-            except OSError as e:
-                logger.error("Failed to create directory %s: %s", directory, e)
-                raise e
+
+        def _create_directory_with_timeout():
+            if not os.path.exists(abspath(directory)):
+                logger.info("Creating  %s", directory)
+                try:
+                    os.makedirs(directory)
+                except OSError as e:
+                    logger.error("Failed to create directory %s: %s", directory, e)
+                    raise e
+
+        thread = threading.Thread(target=_create_directory_with_timeout)
+        thread.start()
+        thread.join(timeout=2.0)
+
+        if thread.is_alive():
+            logger.error("Directory creation timed out after 2 seconds")
+            raise TimeoutError(f"Failed to create directory {directory} within 2 seconds")
 
     def _copy_tmp_directory(self, dst: os.PathLike) -> None:
         """
