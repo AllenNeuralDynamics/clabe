@@ -8,7 +8,6 @@ import aind_behavior_curriculum.trainer
 import pydantic
 
 from ..launcher import Launcher
-from ..launcher._callable_manager import Promise
 from ..services import ServiceSettings
 from ._base import App
 from ._python_script import PythonScriptApp
@@ -17,9 +16,6 @@ if t.TYPE_CHECKING:
     from ..launcher import Launcher
 else:
     Launcher = t.Any
-
-P = t.ParamSpec("P")
-
 
 logger = logging.getLogger(__name__)
 
@@ -219,9 +215,9 @@ class CurriculumApp(App):
 
     def build_runner(
         self,
-        input_trainer_state: Promise[P, aind_behavior_curriculum.trainer.TrainerState],
+        input_trainer_state: t.Callable[[], aind_behavior_curriculum.trainer.TrainerState],
         *,
-        session_directory: t.Optional[Promise[P, os.PathLike]] = None,
+        session_directory: t.Optional[t.Callable[[], os.PathLike]] = None,
         allow_std_error: bool = False,
     ) -> t.Callable[[Launcher], CurriculumSuggestion]:
         """
@@ -231,7 +227,7 @@ class CurriculumApp(App):
         the curriculum with proper data directory and trainer state management.
 
         Args:
-            input_trainer_state: Promise containing the trainer state to process
+            input_trainer_state: Callable containing the trainer state to process
             allow_std_error: Whether to allow stderr output without raising an error
 
         Returns:
@@ -255,11 +251,9 @@ class CurriculumApp(App):
 
         def _run(launcher: Launcher) -> CurriculumSuggestion:
             if self._settings.data_directory is None:
-                self._settings.data_directory = (
-                    session_directory.result if session_directory else launcher.session_directory
-                )
+                self._settings.data_directory = session_directory() if session_directory else launcher.session_directory
             if self._settings.input_trainer_state is None:
-                self._settings.input_trainer_state = Path(launcher.save_temp_model(input_trainer_state.result))
+                self._settings.input_trainer_state = Path(launcher.save_temp_model(input_trainer_state()))
             try:
                 self.run()
                 self.output_from_result(allow_stderr=allow_std_error)

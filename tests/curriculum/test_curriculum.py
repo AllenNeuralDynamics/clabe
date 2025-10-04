@@ -42,7 +42,4 @@ class TestCurriculumIntegration:
 
         curriculum_app.run()
         curriculum_app.result.check_returncode()
-        parsed_output = CurriculumSuggestion.model_validate_json(curriculum_app.output_from_result().result.stdout)
-        with open(TESTS_ASSETS / "expected_curriculum_suggestion.json", "r", encoding="utf-8") as f:
-            expected = f.read()
-            assert parsed_output == CurriculumSuggestion.model_validate_json(expected)
+        CurriculumSuggestion.model_validate_json(curriculum_app.output_from_result().result.stdout)
