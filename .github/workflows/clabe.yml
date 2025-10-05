@@ -148,7 +148,9 @@ jobs:
 
       - name: Get release version from tag
         id: get_version
-        run: echo "version=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+        shell: bash
+        run: |
+          echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
 
       - name: Validate version tag format
         run: uv version ${{ steps.get_version.outputs.version }} --dry-run
@@ -182,7 +184,6 @@ jobs:
     name: Build and deploy documentation to GitHub Pages
     runs-on: windows-latest
     needs: github-public-release
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
       - name: Checkout
         uses: actions/checkout@v5
