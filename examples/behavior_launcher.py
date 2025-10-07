@@ -239,6 +239,7 @@ def make_launcher():
         ).build_runner(Promise.from_value(mock_trainer_state))
     )
     output = launcher.register_callable(DemoAindDataSchemaSessionDataMapper.builder_runner(Path("./mock/script.py")))
+    launcher.register_callable(lambda x: x.copy_logs())
     launcher.register_callable(
         MockWatchdogService.build_runner(settings=watchdog_settings, aind_session_data_mapper=output)
     )
