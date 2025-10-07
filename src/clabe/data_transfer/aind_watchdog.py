@@ -867,7 +867,6 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
 
             _session = launcher.get_session(strict=True)
             _settings.destination = Path(_settings.destination) / _session.subject
-            launcher.copy_logs()
             service = cls(
                 source=launcher.session_directory, settings=_settings, session_name=_session.session_name, **kwargs
             ).with_aind_session_data_mapper(_aind_session_data_mapper)
