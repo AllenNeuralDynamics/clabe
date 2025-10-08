@@ -197,21 +197,36 @@ def ignore_errors(
 
 
 class _TryResult(t.Generic[R, TException]):
+    """A wrapper for the result of a function that may raise an exception."""
+
     def __init__(self, result: R | TException):
+        """Initialize with either a result or an exception.
+        Args:
+            result: The result of the function or an exception instance.
+        """
         self._result = result
 
     @property
     def has_exception(self) -> bool:
+        """Check if the result is an exception."""
         return isinstance(self._result, BaseException)
 
     @property
     def result(self) -> R:
+        """Get the result if it's not an exception, else raise an error."""
         if self.has_exception:
             raise RuntimeError("Result is an exception, not a valid result.")
         return self._result  # type: ignore[return-value]
 
+    def raise_from_exception(self) -> None:
+        """Raise the stored exception if it exists."""
+        if self.has_exception:
+            assert isinstance(self._result, BaseException)
+            raise self._result  # type: ignore[raise-value]
+
     @property
     def exception(self) -> Optional[TException]:
+        """Get the exception if it exists, else return None."""
         if self.has_exception:
             return self._result  # type: ignore[return-value]
         return None
