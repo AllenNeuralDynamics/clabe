@@ -3,7 +3,15 @@ import re
 
 import pytest
 
-from clabe.launcher._callable_manager import Promise, _CallableManager, _UnsetType, ignore_errors, run_if
+from clabe.launcher._callable_manager import (
+    Promise,
+    _CallableManager,
+    _TryResult,
+    _UnsetType,
+    ignore_errors,
+    run_if,
+    try_catch,
+)
 
 
 class TestCallableManager:
@@ -329,3 +337,154 @@ class TestRunIfDecorator:
         assert hasattr(documented_func, "__name__")
         assert hasattr(documented_func, "__doc__")
         assert documented_func.__doc__ == "This function squares its input."
+
+
+class TestTryCatchDecorator:
+    def test_try_catch_successful_execution(self):
+        """Test that the decorator doesn't interfere with successful function execution."""
+
+        @try_catch()
+        def successful_function(x, y):
+            return x + y
+
+        result = successful_function(2, 3)
+        assert not result.has_exception
+        assert result.result == 5
+
+    def test_try_catch_default_behavior(self, caplog):
+        """Test that the decorator catches exceptions and returns _TryResult with exception."""
+
+        @try_catch()
+        def failing_function():
+            raise ValueError("Test error")
+
+        with caplog.at_level(logging.WARNING):
+            result = failing_function()
+
+        assert result.has_exception
+        assert isinstance(result.exception, ValueError)
+        assert str(result.exception) == "Test error"
+        assert "Exception in failing_function: Test error" in caplog.text
+
+    def test_try_catch_specific_exception_type(self, caplog):
+        """Test that the decorator only catches specified exception types."""
+
+        @try_catch(exception_types=ValueError)
+        def function_with_value_error():
+            raise ValueError("This will be caught")
+
+        @try_catch(exception_types=ValueError)
+        def function_with_runtime_error():
+            raise RuntimeError("This will not be caught")
+
+        # Should catch ValueError
+        with caplog.at_level(logging.WARNING):
+            result1 = function_with_value_error()
+
+        assert result1.has_exception
+        assert isinstance(result1.exception, ValueError)
+        assert "Exception in function_with_value_error: This will be caught" in caplog.text
+
+        # Should not catch RuntimeError
+        with pytest.raises(RuntimeError, match="This will not be caught"):
+            function_with_runtime_error()
+
+    def test_try_catch_multiple_exception_types(self, caplog):
+        """Test that the decorator catches multiple exception types."""
+
+        @try_catch(exception_types=(ValueError, TypeError))
+        def function_with_value_error():
+            raise ValueError("ValueError")
+
+        @try_catch(exception_types=(ValueError, TypeError))
+        def function_with_type_error():
+            raise TypeError("TypeError")
+
+        @try_catch(exception_types=(ValueError, TypeError))
+        def function_with_runtime_error():
+            raise RuntimeError("RuntimeError")
+
+        # Should catch ValueError
+        with caplog.at_level(logging.WARNING):
+            result1 = function_with_value_error()
+        assert result1.has_exception
+        assert isinstance(result1.exception, ValueError)
+
+        # Should catch TypeError
+        with caplog.at_level(logging.WARNING):
+            result2 = function_with_type_error()
+        assert result2.has_exception
+        assert isinstance(result2.exception, TypeError)
+
+        # Should not catch RuntimeError
+        with pytest.raises(RuntimeError, match="RuntimeError"):
+            function_with_runtime_error()
+
+    def test_try_catch_nested_exceptions(self, caplog):
+        """Test that the decorator handles nested function calls properly."""
+
+        @try_catch()
+        def inner_function():
+            raise ValueError("Inner error")
+
+        @try_catch()
+        def outer_function():
+            inner_result = inner_function()
+            if inner_result.has_exception:
+                return inner_result.result  # This will raise because it's an exception
+            return "success"
+
+        with caplog.at_level(logging.WARNING):
+            result = outer_function()
+
+        # The outer function should catch the RuntimeError from accessing result on exception
+        assert result.has_exception
+        assert isinstance(result.exception, RuntimeError)
+
+    def test_try_catch_lambda_function(self, caplog):
+        """Test that the decorator works with lambda functions."""
+        failing_lambda = try_catch()(lambda x: x / 0 if x == 0 else x * 2)
+
+        # Test successful execution
+        result1 = failing_lambda(5)
+        assert not result1.has_exception
+        assert result1.result == 10
+
+        # Test exception handling
+        with caplog.at_level(logging.WARNING):
+            result2 = failing_lambda(0)
+
+        assert result2.has_exception
+        assert isinstance(result2.exception, ZeroDivisionError)
+        # Lambda functions have a generic name
+        assert "Exception in <lambda>: division by zero" in caplog.text
+
+
+class TestTryResult:
+    def test_try_result_with_success(self):
+        """Test _TryResult with a successful result."""
+        result = _TryResult("success")
+        assert not result.has_exception
+        assert result.result == "success"
+        assert result.exception is None
+
+    def test_try_result_with_exception(self):
+        """Test _TryResult with an exception."""
+        exc = ValueError("test error")
+        result = _TryResult(exc)
+        assert result.has_exception
+        assert result.exception == exc
+
+    def test_try_result_result_raises_on_exception(self):
+        """Test that accessing result raises RuntimeError when it's an exception."""
+        exc = ValueError("test error")
+        result = _TryResult(exc)
+        with pytest.raises(RuntimeError, match="Result is an exception, not a valid result."):
+            result.result
+
+    def test_try_result_raise_from_exception(self):
+        """Test that raise_from_exception raises the stored exception."""
+        exc = ValueError("test error")
+        result = _TryResult(exc)
+        with pytest.raises(ValueError, match="test error"):
+            result.raise_from_exception()
