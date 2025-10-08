@@ -131,6 +131,36 @@ class TestCallableManager:
         promise.invoke(0, 2, 3, 4)
         assert promise.result == 1
 
+    def test_promise_as_callable(self):
+        """Test that as_callable returns a callable that returns the stored result."""
+
+        def test_func(x):
+            return x * 2
+
+        promise = Promise(test_func)
+        promise.invoke(5)
+
+        # Get the callable version
+        callable_version = promise.as_callable()
+
+        # The callable should return the result regardless of arguments
+        assert callable_version() == 10
+        assert callable_version(1, 2, 3) == 10
+        assert callable_version(x=100, y=200) == 10
+
+    def test_promise_as_callable_before_invoke(self):
+        """Test that as_callable raises error if promise hasn't been invoked."""
+
+        def test_func(x):
+            return x * 2
+
+        promise = Promise(test_func)
+        callable_version = promise.as_callable()
+
+        # Should raise RuntimeError when trying to call it
+        with pytest.raises(RuntimeError, match=re.escape("Callable has not been executed yet. Call invoke() first.")):
+            callable_version()
+
 
 class TestIgnoreErrorsDecorator:
     def test_ignore_errors_default_behavior(self, caplog):

@@ -60,6 +60,10 @@ class Promise(t.Generic[P, R]):
         self._result = self._fn(*args, **kwargs)
         return self._result
 
+    def as_callable(self) -> t.Callable[..., R]:
+        """Return a callable that returns the stored result, ignoring any arguments."""
+        return lambda *args, **kwargs: self.result
+
     @property
     def result(self) -> R:
         """
@@ -238,7 +242,7 @@ class _TryResult(t.Generic[R, TException]):
 
 
 def try_catch(
-    exception_types: t.Union[t.Type[TException], t.Tuple[t.Type[TException], ...]] = Exception,
+    exception_types: t.Union[t.Type[TException], t.Tuple[t.Type[TException], ...]] = Exception,  # type: ignore[assignment]
 ) -> t.Callable[[t.Callable[P, R]], t.Callable[P, _TryResult[R, TException]]]:
     """
     A decorator that implements try-catch for the wrapped function.
