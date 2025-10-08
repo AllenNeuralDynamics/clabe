@@ -28,7 +28,6 @@ from requests.exceptions import HTTPError
 from typing_extensions import deprecated
 
 from .. import ui
-from ..launcher._callable_manager import Promise
 from ..services import ServiceSettings
 from ._aind_watchdog_models import (
     DEFAULT_TRANSFER_ENDPOINT,
@@ -40,12 +39,16 @@ from ._aind_watchdog_models import (
 from ._base import DataTransfer
 
 if TYPE_CHECKING:
+    from aind_behavior_services import AindBehaviorSessionModel
+
     from ..data_mapper.aind_data_schema import AindDataSchemaSessionDataMapper, Session
     from ..launcher import Launcher
 else:
     Launcher = Any
     Session = Any
     AindDataSchemaSessionDataMapper = Any
+    AindBehaviorSessionModel = Any
+
 
 logger = logging.getLogger(__name__)
 
@@ -836,7 +839,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
     def build_runner(
         cls,
         settings: WatchdogSettings,
-        aind_session_data_mapper: Promise[[Launcher], TSessionMapper] | TSessionMapper,
+        aind_session_data_mapper: Callable[[Launcher], TSessionMapper] | TSessionMapper,
         **kwargs,
     ) -> Callable[[Launcher], "WatchdogDataTransferService[TSessionMapper]"]:
         """
@@ -851,13 +854,11 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
         """
 
         def _from_launcher(
-            launcher: Launcher,
+            launcher: Launcher[Any, AindBehaviorSessionModel, Any],
         ) -> "WatchdogDataTransferService":
             """Inner callable to create the service from a launcher"""
             _aind_session_data_mapper = (
-                aind_session_data_mapper.result
-                if isinstance(aind_session_data_mapper, Promise)
-                else aind_session_data_mapper
+                aind_session_data_mapper(launcher) if callable(aind_session_data_mapper) else aind_session_data_mapper
             )
 
             if not _aind_session_data_mapper.is_mapped():
@@ -867,7 +868,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
 
             _session = launcher.get_session(strict=True)
             _settings.destination = Path(_settings.destination) / _session.subject
-            service = cls(
+            service = WatchdogDataTransferService[TSessionMapper](
                 source=launcher.session_directory, settings=_settings, session_name=_session.session_name, **kwargs
             ).with_aind_session_data_mapper(_aind_session_data_mapper)
             service.transfer()
