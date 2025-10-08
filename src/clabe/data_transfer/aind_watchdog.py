@@ -301,7 +301,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
 
         except (pydantic.ValidationError, ValueError, IOError) as e:
             logger.error("Failed to create watchdog manifest config. %s", e)
-            raise e
+            raise
 
     def validate(self) -> bool:
         """
@@ -340,7 +340,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
                     logger.warning("Watchdog project name is not valid.")
             except HTTPError as e:
                 logger.error("Failed to fetch project names from endpoint. %s", e)
-                raise e
+                raise
             return _valid_proj
 
         return True

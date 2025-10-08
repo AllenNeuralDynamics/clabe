@@ -63,7 +63,7 @@ if platform.system() == "Windows":
         except concurrent.futures.TimeoutError as e:
             logger.error("Timeout occurred while validating username: %s", e)
             e.add_note("Timeout occurred while validating username")
-            raise e
+            raise
 
 else:
 

@@ -401,7 +401,7 @@ class DefaultBehaviorPicker(Generic[TRig, TSession, TTaskLogic]):
                     raise ValueError("Trainer state stage is None, cannot use this trainer state.")
             except (ValueError, FileNotFoundError, pydantic.ValidationError) as e:
                 logger.error("Failed to find a valid task logic file. %s", e)
-                raise e
+                raise
             else:
                 self._trainer_state = trainer_state
                 launcher.set_task_logic(trainer_state.stage.task)

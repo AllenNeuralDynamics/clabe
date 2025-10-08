@@ -41,7 +41,7 @@ def temp_git_repo(tmp_path: Path) -> Path:
                 check=True,
             )
         else:
-            raise e
+            raise
     return git_dir
 
 

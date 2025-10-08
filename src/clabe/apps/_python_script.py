@@ -164,7 +164,7 @@ class PythonScriptApp(App):
             )
         except subprocess.CalledProcessError as e:
             logger.error("Error running the Python script. %s", e)
-            raise e
+            raise
 
         logger.info("Python script completed.")
         self._result = proc
@@ -187,9 +187,9 @@ class PythonScriptApp(App):
         proc = self.result
         try:
             proc.check_returncode()
-        except subprocess.CalledProcessError as e:
+        except subprocess.CalledProcessError:
             self._log_process_std_output(self._script, proc)
-            raise e
+            raise
         else:
             self._log_process_std_output(self._script, proc)
             if len(proc.stderr) > 0 and allow_stderr is False:
@@ -255,7 +255,7 @@ class PythonScriptApp(App):
             proc.check_returncode()
         except subprocess.CalledProcessError as e:
             logger.error("Error creating Python environment. %s", e)
-            raise e
+            raise
         return proc
 
     def _add_uv_project_directory(self) -> str:

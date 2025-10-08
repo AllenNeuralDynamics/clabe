@@ -215,9 +215,9 @@ class BonsaiApp(App):
         proc = self.result
         try:
             proc.check_returncode()
-        except subprocess.CalledProcessError as e:
+        except subprocess.CalledProcessError:
             self._log_process_std_output("Bonsai", proc)
-            raise e
+            raise
         else:
             logger.info("Result from bonsai process is valid.")
             self._log_process_std_output("Bonsai", proc)
