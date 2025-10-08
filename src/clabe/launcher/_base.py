@@ -75,6 +75,7 @@ class Launcher(Generic[TRig, TSession, TTaskLogic]):
         """
         self._settings = settings
         self.ui_helper = ui_helper
+        self._on_error_handler: Optional[Callable[[Self, Exception], None]] = None
         self.temp_dir = abspath(settings.temp_dir) / format_datetime(utcnow())
         self.temp_dir.mkdir(parents=True, exist_ok=True)
         self.computer_name = os.environ["COMPUTERNAME"]
@@ -117,6 +118,7 @@ class Launcher(Generic[TRig, TSession, TTaskLogic]):
             launcher = MyLauncher(...)
             launcher.main()  # Starts the launcher workflow
         """
+        _code = 0
         try:
             logger.info(self.make_header())
             if self.settings.debug_mode:
@@ -125,23 +127,50 @@ class Launcher(Generic[TRig, TSession, TTaskLogic]):
             if not self.settings.debug_mode:
                 self.validate()
 
-            self.callable_manager.run(self)
-
-            self.dispose()
+            try:
+                self.callable_manager.run(self)
+            except Exception as e:
+                logger.error("Launcher execution failed: %s", e)
+                if self._on_error_handler:
+                    self._on_error_handler(self, e)
+                else:
+                    raise
 
         except KeyboardInterrupt:
             logger.error("User interrupted the process.")
-            self._exit(-1)
-            return
+            _code = -1
+        except Exception as e:
+            logger.error("Launcher failed: %s", e)
+            _code = -1
+        finally:
+            try:
+                self.copy_logs()
+            except ValueError as ve:  # In the case session_directory fails
+                logger.error("Failed to copy logs: %s", ve)  # we swallow the error
+                self._exit(-1)
+            else:
+                self._exit(_code)
 
-    def copy_logs(self) -> None:
+    def register_on_error(self, handler: Callable[[Self, Exception], None]) -> None:
+        """
+        Registers an error handler to be called on exceptions during launcher execution.
+
+        Args:
+            handler: A callable that takes the launcher instance and the exception as arguments
+        """
+        self._on_error_handler = handler
+
+    def copy_logs(self, dst: Optional[os.PathLike] = None) -> None:
         """
         Closes the file handlers of the launcher and copies the temporary data to the session directory.
 
         This method is typically called at the end of the launcher by a registered callable that transfers data.
         """
         logging_helper.close_file_handlers(logger)
-        self._copy_tmp_directory(self.session_directory / "Behavior" / "Logs")
+        if dst is not None:
+            self._copy_tmp_directory(dst)
+        else:
+            self._copy_tmp_directory(self.session_directory / "Behavior" / "Logs")
 
     @property
     def callable_manager(self) -> _CallableManager[[Self], Any]:
@@ -723,7 +752,7 @@ class Launcher(Generic[TRig, TSession, TTaskLogic]):
         except Exception as e:
             logger.error("Failed to validate dependencies. %s", e)
             self._exit(-1)
-            raise e
+            raise
 
     def _ensure_directory_structure(self) -> None:
         """
@@ -766,7 +795,7 @@ class Launcher(Generic[TRig, TSession, TTaskLogic]):
                     os.makedirs(directory)
                 except OSError as e:
                     logger.error("Failed to create directory %s: %s", directory, e)
-                    raise e
+                    raise
 
         thread = threading.Thread(target=_create_directory_with_timeout)
         thread.start()
