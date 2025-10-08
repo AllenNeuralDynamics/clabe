@@ -725,20 +725,6 @@ class Launcher(Generic[TRig, TSession, TTaskLogic]):
             self._exit(-1)
             raise e
 
-    def dispose(self) -> None:
-        """
-        Cleans up resources and exits the launcher.
-
-        Performs final cleanup operations and gracefully exits the launcher
-        with a success code.
-
-        Example:
-            launcher = MyLauncher(...)
-            launcher.dispose()  # Cleans up and exits
-        """
-        logger.info("Disposing...")
-        self._exit(0)
-
     def _ensure_directory_structure(self) -> None:
         """
         Creates the required directory structure for the launcher.
