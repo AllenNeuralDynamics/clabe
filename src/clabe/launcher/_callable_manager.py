@@ -10,7 +10,7 @@ else:
 
 logger = logging.getLogger(__name__)
 
-TException = t.TypeVar("TException", bound=BaseException)
+TException = t.TypeVar("TException", bound=Exception)
 
 P = t.ParamSpec("P")
 R = t.TypeVar("R")
