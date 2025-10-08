@@ -11,6 +11,7 @@ else:
 logger = logging.getLogger(__name__)
 
 TLauncher = t.TypeVar("TLauncher", bound=Launcher)
+TException = t.TypeVar("TException", bound=BaseException)
 
 P = t.ParamSpec("P")
 R = t.TypeVar("R")
@@ -190,6 +191,63 @@ def ignore_errors(
                 fn_name = getattr(func, "__name__", repr(func))
                 logger.warning(f"Exception in {fn_name}: {e}")
                 return default_return
+
+        return wrapper
+
+    return decorator
+
+
+TException = t.TypeVar("TException", bound=Exception)
+
+
+class _TryResult(t.Generic[R, TException]):
+    def __init__(self, result: R | TException):
+        self._result = result
+
+    @property
+    def has_exception(self) -> bool:
+        return isinstance(self._result, BaseException)
+
+    @property
+    def result(self) -> R:
+        if self.has_exception:
+            raise RuntimeError("Result is an exception, not a valid result.")
+        return self._result  # type: ignore[return-value]
+
+    @property
+    def exception(self) -> Optional[TException]:
+        if self.has_exception:
+            return self._result  # type: ignore[return-value]
+        return None
+
+    def __repr__(self) -> str:
+        if self.has_exception:
+            return f"_TryResult(exception={self._result})"
+        return f"_TryResult(result={self._result})"
+
+
+def try_catch(
+    exception_types: t.Union[t.Type[TException], t.Tuple[t.Type[TException], ...]] = Exception,
+) -> t.Callable[[t.Callable[P, R]], t.Callable[P, _TryResult[R, TException]]]:
+    """
+    A decorator that implements try-catch for the wrapped function.
+
+    Args:
+        exception_types: Exception type(s) to catch (default: Exception)
+
+    Returns:
+        The decorated function with exception handling that returns a _TryResult
+    """
+
+    def decorator(func: t.Callable[P, R]) -> t.Callable[P, _TryResult[R, TException]]:
+        @functools.wraps(func)
+        def wrapper(*args: P.args, **kwargs: P.kwargs) -> _TryResult[R, TException]:
+            try:
+                return _TryResult(func(*args, **kwargs))
+            except exception_types as e:
+                fn_name = getattr(func, "__name__", repr(func))
+                logger.warning(f"Exception in {fn_name}: {e}. Returning exception instance.")
+                return _TryResult(e)
 
         return wrapper
 
