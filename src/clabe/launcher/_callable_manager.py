@@ -10,7 +10,6 @@ else:
 
 logger = logging.getLogger(__name__)
 
-TLauncher = t.TypeVar("TLauncher", bound=Launcher)
 TException = t.TypeVar("TException", bound=BaseException)
 
 P = t.ParamSpec("P")
@@ -195,9 +194,6 @@ def ignore_errors(
         return wrapper
 
     return decorator
-
-
-TException = t.TypeVar("TException", bound=Exception)
 
 
 class _TryResult(t.Generic[R, TException]):
