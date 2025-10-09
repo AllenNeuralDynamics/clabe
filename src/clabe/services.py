@@ -6,11 +6,6 @@ import pydantic_settings as ps
 
 from .utils import KNOWN_CONFIG_FILES
 
-if t.TYPE_CHECKING:
-    from .launcher import Launcher
-else:
-    Launcher = t.Any
-
 logger = logging.getLogger(__name__)
 
 

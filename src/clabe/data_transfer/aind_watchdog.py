@@ -42,12 +42,13 @@ if TYPE_CHECKING:
     from aind_behavior_services import AindBehaviorSessionModel
 
     from ..data_mapper.aind_data_schema import AindDataSchemaSessionDataMapper, Session
-    from ..launcher import Launcher
+    from ..launcher import Launcher, TRig, TSession, TTaskLogic
 else:
     Launcher = Any
     Session = Any
     AindDataSchemaSessionDataMapper = Any
     AindBehaviorSessionModel = Any
+    TRig = TSession = TTaskLogic = Any
 
 
 logger = logging.getLogger(__name__)
@@ -839,9 +840,9 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
     def build_runner(
         cls,
         settings: WatchdogSettings,
-        aind_session_data_mapper: Callable[[Launcher], TSessionMapper] | TSessionMapper,
+        aind_session_data_mapper: Callable[["Launcher[TRig, TSession, TTaskLogic]"], TSessionMapper] | TSessionMapper,
         **kwargs,
-    ) -> Callable[[Launcher], "WatchdogDataTransferService[TSessionMapper]"]:
+    ) -> Callable[["Launcher[TRig, TSession, TTaskLogic]"], "WatchdogDataTransferService[TSessionMapper]"]:
         """
         A factory method for creating the watchdog service.
 
@@ -854,7 +855,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
         """
 
         def _from_launcher(
-            launcher: "Launcher[Any, AindBehaviorSessionModel, Any]",
+            launcher: "Launcher[TRig, TSession, TTaskLogic]",
         ) -> "WatchdogDataTransferService":
             """Inner callable to create the service from a launcher"""
             _aind_session_data_mapper = (
