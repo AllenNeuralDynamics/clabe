@@ -520,7 +520,7 @@ class DataversePicker(DefaultBehaviorPicker, Generic[TRig, TSession, TTaskLogic]
             ValueError: If no valid task logic file is found.
         """
         if (launcher.get_task_logic()) is not None:
-            logger.info("Task logic already set in launcher. Cannot inject a trainer state.")
+            logger.debug("Task logic already set in launcher. Cannot inject a trainer state.")
             self._trainer_state = TrainerState(curriculum=None, stage=None, is_on_curriculum=False)
         else:
             if launcher.subject is None:
@@ -530,7 +530,7 @@ class DataversePicker(DefaultBehaviorPicker, Generic[TRig, TSession, TTaskLogic]
             if not task_logic_name:
                 raise ValueError("Task logic model does not have a default name.")
             try:
-                logger.info("Attempting to load trainer state dataverse")
+                logger.debug("Attempting to load trainer state dataverse")
                 last_suggestions = _get_last_suggestions(self._dataverse_client, launcher.subject, task_logic_name, 1)
             except requests.exceptions.HTTPError as e:
                 logger.error("Failed to fetch suggestions from Dataverse: %s", e)

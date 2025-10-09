@@ -274,7 +274,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
                     else:
                         logger.info("Watchdog service restarted successfully.")
 
-            logger.info("Creating watchdog manifest config.")
+            logger.debug("Creating watchdog manifest config.")
 
             if not self.aind_session_data_mapper.is_mapped():
                 raise ValueError("Data mapper has not been mapped yet.")
@@ -320,7 +320,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
             FileNotFoundError: If required files are missing
             HTTPError: If the project name validation fails
         """
-        logger.info("Attempting to validate Watchdog service.")
+        logger.debug("Attempting to validate Watchdog service.")
         if not self.executable_path.exists():
             raise FileNotFoundError(f"Executable not found at {self.executable_path}")
         if not self.config_path.exists():
@@ -748,7 +748,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
             path = path.with_suffix(".yaml")
 
         if not path.name.startswith("manifest_"):
-            logger.info("Prefix manifest_ not found in file name. Appending it.")
+            logger.debug("Prefix manifest_ not found in file name. Appending it.")
             path = path.with_name(f"manifest_{path.stem}{path.suffix}")
 
         if make_dir and not path.parent.exists():
@@ -854,7 +854,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
         """
 
         def _from_launcher(
-            launcher: 'Launcher[Any, AindBehaviorSessionModel, Any]',
+            launcher: "Launcher[Any, AindBehaviorSessionModel, Any]",
         ) -> "WatchdogDataTransferService":
             """Inner callable to create the service from a launcher"""
             _aind_session_data_mapper = (

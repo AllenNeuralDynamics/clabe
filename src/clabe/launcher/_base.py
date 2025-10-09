@@ -783,7 +783,7 @@ class Launcher(Generic[TRig, TSession, TTaskLogic]):
 
         def _create_directory_with_timeout():
             if not os.path.exists(abspath(directory)):
-                logger.info("Creating  %s", directory)
+                logger.debug("Creating  %s", directory)
                 try:
                     os.makedirs(directory)
                 except OSError as e:
