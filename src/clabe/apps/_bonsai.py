@@ -1,4 +1,3 @@
-import glob
 import logging
 import os
 import subprocess
@@ -15,8 +14,6 @@ from ._base import App
 
 logger = logging.getLogger(__name__)
 
-VISUALIZERS_DIR = "VisualizerLayouts"
-
 if TYPE_CHECKING:
     from ..launcher import Launcher
 else:
@@ -32,8 +29,6 @@ class BonsaiAppSettings(ServiceSettings):
         executable (os.PathLike): Path to the Bonsai executable.
         is_editor_mode (bool): Whether to run Bonsai in editor mode.
         is_start_flag (bool): Whether to use the start flag when running Bonsai.
-        layout (Optional[os.PathLike]): Path to the visualizer layout file.
-        layout_dir (Optional[os.PathLike]): Directory containing visualizer layouts.
         additional_properties (Optional[Dict[str, str]]): Additional properties to pass to Bonsai.
         cwd (Optional[os.PathLike]): Working directory for the Bonsai process.
         timeout (Optional[float]): Timeout for the Bonsai process.
@@ -46,8 +41,6 @@ class BonsaiAppSettings(ServiceSettings):
     executable: os.PathLike = Path("./bonsai/bonsai.exe")
     is_editor_mode: bool = True
     is_start_flag: bool = True
-    layout: Optional[os.PathLike] = None
-    layout_dir: Optional[os.PathLike] = None
     additional_properties: Dict[str, str] = pydantic.Field(default_factory=dict)
     cwd: Optional[os.PathLike] = None
     timeout: Optional[float] = None
@@ -160,10 +153,6 @@ class BonsaiApp(App):
             raise FileNotFoundError(f"Executable not found: {self.settings.executable}")
         if not Path(self.settings.workflow).exists():
             raise FileNotFoundError(f"Workflow file not found: {self.settings.workflow}")
-        if self.settings.layout and not Path(self.settings.layout).exists():
-            raise FileNotFoundError(f"Layout file not found: {self.settings.layout}")
-        if self.settings.layout_dir and not Path(self.settings.layout_dir).exists():
-            raise FileNotFoundError(f"Layout directory not found: {self.settings.layout_dir}")
         return True
 
     @override
@@ -178,7 +167,6 @@ class BonsaiApp(App):
             FileNotFoundError: If validation fails.
         """
         self.validate()
-        self.prompt_input()
 
         if self.settings.is_editor_mode:
             logger.warning("Bonsai is running in editor mode. Cannot assert successful completion.")
@@ -188,7 +176,6 @@ class BonsaiApp(App):
             bonsai_exe=self.settings.executable,
             is_editor_mode=self.settings.is_editor_mode,
             is_start_flag=self.settings.is_start_flag,
-            layout=self.settings.layout,
             additional_properties=self.settings.additional_properties,
             cwd=self.settings.cwd,
             timeout=self.settings.timeout,
@@ -219,7 +206,6 @@ class BonsaiApp(App):
             self._log_process_std_output("Bonsai", proc)
             raise
         else:
-            logger.info("Result from bonsai process is valid.")
             self._log_process_std_output("Bonsai", proc)
 
             if len(proc.stdout) > 0:
@@ -229,45 +215,6 @@ class BonsaiApp(App):
                 if allow_stderr is False:
                     raise subprocess.CalledProcessError(1, proc.args)
         return self
-
-    def prompt_visualizer_layout_input(
-        self,
-        directory: Optional[os.PathLike] = None,
-    ) -> Optional[str | os.PathLike]:
-        """
-        Prompts the user to select a visualizer layout.
-
-        Args:
-            directory (Optional[os.PathLike]): Directory containing visualizer layouts.
-
-        Returns:
-            Optional[str | os.PathLike]: The selected layout file path, or None if no layout is selected.
-        """
-        if directory is None:
-            directory = self.settings.layout_dir
-        else:
-            directory = Path(os.path.join(directory, VISUALIZERS_DIR, os.environ["COMPUTERNAME"]))
-
-        layout_schemas_path = directory if directory is not None else self.settings.layout_dir
-        available_layouts = glob.glob(os.path.join(str(layout_schemas_path), "*.bonsai.layout"))
-
-        if len(available_layouts) == 0:
-            logger.warning("No visualizer layouts found.")
-            return None
-
-        picked: Optional[str | os.PathLike] = None
-        has_pick = False
-        while has_pick is False:
-            try:
-                picked = self.ui_helper.prompt_pick_from_list(
-                    value=available_layouts, prompt="Pick a visualizer layout:"
-                )
-                picked = picked if picked else ""
-                has_pick = True
-            except ValueError as e:
-                logger.info("Invalid choice. Try again. %s", e)
-
-        return Path(picked) if picked else None
 
     def _log_process_std_output(self, process_name: str, proc: subprocess.CompletedProcess) -> None:
         """
@@ -281,23 +228,6 @@ class BonsaiApp(App):
             logger.info("%s full stdout dump: \n%s", process_name, proc.stdout)
         if len(proc.stderr) > 0:
             logger.error("%s full stderr dump: \n%s", process_name, proc.stderr)
-
-    def prompt_input(self, *args, **kwargs):
-        """
-        Prompts the user for input if required.
-
-        Args:
-            *args: Additional positional arguments.
-            **kwargs: Additional keyword arguments.
-
-        Returns:
-            Self: The updated instance of BonsaiApp.
-        """
-        layout_dir = kwargs.pop("layout_directory", None)
-        if self.settings.layout is None:
-            r = self.prompt_visualizer_layout_input(layout_dir if layout_dir else self.settings.layout_dir)
-            self.settings.layout = Path(r) if r else None
-        return self
 
     def build_runner(self, allow_std_error: bool = False) -> Callable[[Launcher], Self]:
         """
