@@ -40,7 +40,7 @@ wheels = [
 
 [[package]]
 name = "aind-clabe"
-version = "0.7.0rc0"
+version = "0.7.0rc1"
 source = { editable = "." }
 dependencies = [
     { name = "aind-behavior-services" },
