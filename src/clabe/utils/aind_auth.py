@@ -6,6 +6,11 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
+_ad_logger = logging.getLogger(
+    "ms_active_directory"
+)  # This library is annoyingly verbose at the INFO level. We will turn it off unless the root is at DEBUG level
+
+
 if platform.system() == "Windows":
     import ldap3
     import ms_active_directory
@@ -44,9 +49,10 @@ if platform.system() == "Windows":
 
         def _helper(username: str, domain: str, domain_username: Optional[str]) -> bool:
             """A function submitted to a thread pool to validate the username."""
+            if not logger.isEnabledFor(logging.DEBUG):
+                _ad_logger.disabled = True
             if domain_username is None:
                 domain_username = getpass.getuser()
-
             _domain = ms_active_directory.ADDomain(domain)
             session = _domain.create_session_as_user(
                 domain_username,
