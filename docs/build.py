@@ -14,7 +14,7 @@ MKDOCS_YML = ROOT_DIR / "mkdocs.yml"
 API_LABEL = "API Reference"
 INCLUDE_PRIVATE_MODULES = False
 
-TO_COPY = ["assets", "examples", "LICENSE"]
+TO_COPY = ["examples", "LICENSE"]
 log = logging.getLogger("mkdocs")
 
 
@@ -65,29 +65,6 @@ def discover_module_files(module_path: Path, include_private: bool = False) -> L
 
     _find_files(module_path)
     return sorted(files)
-
-
-def on_pre_build(config: Dict[str, Any]) -> None:
-    """Mkdocs pre-build hook."""
-    for file_or_dir in TO_COPY:
-        src: Path = ROOT_DIR / file_or_dir
-        dest: Path = DOCS_DIR / file_or_dir
-
-        if src.exists():
-            log.info(f"Copying {file_or_dir} to docs...")
-
-            if src.is_file():
-                print(f"Copying file {src} to {dest}")
-                shutil.copy(src, dest)
-            else:
-                if dest.exists():
-                    shutil.rmtree(dest)
-                shutil.copytree(src, dest)
-            log.info(f"{file_or_dir} copied successfully.")
-        else:
-            log.warning(f"Source: {file_or_dir} not found, skipping.")
-
-    main()
 
 
 def generate_api_structure() -> Dict[str, List[Dict[str, str]]]:
@@ -156,9 +133,30 @@ def update_mkdocs_yml(api_structure: Dict[str, List[Dict[str, str]]]) -> None:
         yaml.dump(config, f, sort_keys=False, default_flow_style=False)
 
 
-def main() -> None:
-    log.info("Regenerating API documentation...")
+def copy_assets() -> None:
+    for file_or_dir in TO_COPY:
+        src: Path = ROOT_DIR / file_or_dir
+        dest: Path = DOCS_DIR / file_or_dir
 
+        if src.exists():
+            log.info(f"Copying {file_or_dir} to docs...")
+
+            if src.is_file():
+                log.info(f"Copying file {src} to {dest}")
+                shutil.copy(src, dest)
+            else:
+                if dest.exists():
+                    shutil.rmtree(dest)
+                shutil.copytree(src, dest)
+            log.info(f"{file_or_dir} copied successfully.")
+        else:
+            log.warning(f"Source: {file_or_dir} not found, skipping.")
+
+
+def main() -> None:
+    log.info("Starting API documentation regeneration...")
+    copy_assets()
+    log.info("Regenerating API documentation...")
     # Generate API structure
     api_structure: Dict[str, List[Dict[str, str]]] = generate_api_structure()
 

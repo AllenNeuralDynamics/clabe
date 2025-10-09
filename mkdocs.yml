@@ -39,8 +39,6 @@ theme:
   - toc.follow
   logo: logo.svg
   favicon: icon.ico
-hooks:
-- docs/_regenerate_api.py
 plugins:
 - search
 - mkdocstrings:
