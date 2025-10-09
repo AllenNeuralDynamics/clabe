@@ -130,7 +130,6 @@ class Launcher(Generic[TRig, TSession, TTaskLogic]):
             try:
                 self.callable_manager.run(self)
             except Exception as e:
-                logger.error("Launcher execution failed: %s", e)
                 if self._on_error_handler:
                     self._on_error_handler(self, e)
                 else:
