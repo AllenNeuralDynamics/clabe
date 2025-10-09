@@ -854,7 +854,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
         """
 
         def _from_launcher(
-            launcher: Launcher[Any, AindBehaviorSessionModel, Any],
+            launcher: 'Launcher[Any, AindBehaviorSessionModel, Any]',
         ) -> "WatchdogDataTransferService":
             """Inner callable to create the service from a launcher"""
             _aind_session_data_mapper = (
