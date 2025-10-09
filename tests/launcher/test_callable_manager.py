@@ -6,6 +6,7 @@ import pytest
 from clabe.launcher._callable_manager import (
     Promise,
     _CallableManager,
+    _MaybeResult,
     _TryResult,
     _UnsetType,
     ignore_errors,
@@ -327,9 +328,11 @@ class TestRunIfDecorator:
         def my_func(x):
             return x * 2
 
-        assert my_func(3) == 6
+        result = my_func(3)
+        assert result.has_result
+        assert result.result == 6
 
-    def test_run_if_returns_none_when_predicate_false(self):
+    def test_run_if_returns_maybe_result_without_result_when_predicate_false(self):
         def always_false(*args, **kwargs):
             return False
 
@@ -337,7 +340,8 @@ class TestRunIfDecorator:
         def my_func(x):
             return x * 2
 
-        assert my_func(3) is None
+        result = my_func(3)
+        assert not result.has_result
 
     def test_run_if_predicate_depends_on_args(self):
         def is_true(x: bool) -> bool:
@@ -350,10 +354,19 @@ class TestRunIfDecorator:
         def decorated_square(x):
             return square(x)
 
-        assert run_if(is_true, True)(lambda: square(2))() == 4
-        assert run_if(is_true, False)(lambda: square(-1))() is None
-        assert decorated_square(2) == 4
-        assert decorated_square(-1) == 1
+        # Test with predicate True
+        result_true = run_if(is_true, True)(lambda: square(2))()
+        assert result_true.has_result
+        assert result_true.result == 4
+
+        # Test with predicate False
+        result_false = run_if(is_true, False)(lambda: square(-1))()
+        assert not result_false.has_result
+
+        # Test decorated function with predicate True (already decorated with True)
+        result_decorated = decorated_square(2)
+        assert result_decorated.has_result
+        assert result_decorated.result == 4
 
     def test_run_if_preserves_function_metadata(self):
         def always_true(*args, **kwargs):
@@ -367,6 +380,20 @@ class TestRunIfDecorator:
         assert hasattr(documented_func, "__name__")
         assert hasattr(documented_func, "__doc__")
         assert documented_func.__doc__ == "This function squares its input."
+
+    def test_run_if_accessing_result_when_no_result_raises_error(self):
+        def always_false(*args, **kwargs):
+            return False
+
+        @run_if(always_false)
+        def my_func(x):
+            return x * 2
+
+        result = my_func(3)
+        assert not result.has_result
+
+        with pytest.raises(RuntimeError, match=re.escape("Result is not set.")):
+            result.result
 
 
 class TestTryCatchDecorator:
@@ -488,6 +515,31 @@ class TestTryCatchDecorator:
         assert isinstance(result2.exception, ZeroDivisionError)
         # Lambda functions have a generic name
         assert "Exception in <lambda>: division by zero" in caplog.text
+
+
+class TestMaybeResult:
+    def test_maybe_result_with_value(self):
+        """Test _MaybeResult with a value."""
+        result = _MaybeResult("success")
+        assert result.has_result
+        assert result.result == "success"
+
+    def test_maybe_result_without_value(self):
+        """Test _MaybeResult without a value (default initialization)."""
+        result = _MaybeResult()
+        assert not result.has_result
+
+    def test_maybe_result_accessing_result_when_not_set_raises_error(self):
+        """Test that accessing result raises RuntimeError when no result is set."""
+        result = _MaybeResult()
+        with pytest.raises(RuntimeError, match=re.escape("Result is not set.")):
+            result.result
+
+    def test_maybe_result_with_none_value(self):
+        """Test _MaybeResult with None as an explicit value."""
+        result = _MaybeResult(None)
+        assert result.has_result
+        assert result.result is None
 
 
 class TestTryResult:
