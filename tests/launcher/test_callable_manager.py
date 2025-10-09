@@ -3,7 +3,16 @@ import re
 
 import pytest
 
-from clabe.launcher._callable_manager import Promise, _CallableManager, _UnsetType, ignore_errors, run_if
+from clabe.launcher._callable_manager import (
+    Promise,
+    _CallableManager,
+    _MaybeResult,
+    _TryResult,
+    _UnsetType,
+    ignore_errors,
+    run_if,
+    try_catch,
+)
 
 
 class TestCallableManager:
@@ -122,6 +131,36 @@ class TestCallableManager:
         promise = Promise.from_value(1)
         promise.invoke(0, 2, 3, 4)
         assert promise.result == 1
+
+    def test_promise_as_callable(self):
+        """Test that as_callable returns a callable that returns the stored result."""
+
+        def test_func(x):
+            return x * 2
+
+        promise = Promise(test_func)
+        promise.invoke(5)
+
+        # Get the callable version
+        callable_version = promise.as_callable()
+
+        # The callable should return the result regardless of arguments
+        assert callable_version() == 10
+        assert callable_version(1, 2, 3) == 10
+        assert callable_version(x=100, y=200) == 10
+
+    def test_promise_as_callable_before_invoke(self):
+        """Test that as_callable raises error if promise hasn't been invoked."""
+
+        def test_func(x):
+            return x * 2
+
+        promise = Promise(test_func)
+        callable_version = promise.as_callable()
+
+        # Should raise RuntimeError when trying to call it
+        with pytest.raises(RuntimeError, match=re.escape("Callable has not been executed yet. Call invoke() first.")):
+            callable_version()
 
 
 class TestIgnoreErrorsDecorator:
@@ -289,9 +328,11 @@ class TestRunIfDecorator:
         def my_func(x):
             return x * 2
 
-        assert my_func(3) == 6
+        result = my_func(3)
+        assert result.has_result
+        assert result.result == 6
 
-    def test_run_if_returns_none_when_predicate_false(self):
+    def test_run_if_returns_maybe_result_without_result_when_predicate_false(self):
         def always_false(*args, **kwargs):
             return False
 
@@ -299,7 +340,8 @@ class TestRunIfDecorator:
         def my_func(x):
             return x * 2
 
-        assert my_func(3) is None
+        result = my_func(3)
+        assert not result.has_result
 
     def test_run_if_predicate_depends_on_args(self):
         def is_true(x: bool) -> bool:
@@ -312,10 +354,19 @@ class TestRunIfDecorator:
         def decorated_square(x):
             return square(x)
 
-        assert run_if(is_true, True)(lambda: square(2))() == 4
-        assert run_if(is_true, False)(lambda: square(-1))() is None
-        assert decorated_square(2) == 4
-        assert decorated_square(-1) == 1
+        # Test with predicate True
+        result_true = run_if(is_true, True)(lambda: square(2))()
+        assert result_true.has_result
+        assert result_true.result == 4
+
+        # Test with predicate False
+        result_false = run_if(is_true, False)(lambda: square(-1))()
+        assert not result_false.has_result
+
+        # Test decorated function with predicate True (already decorated with True)
+        result_decorated = decorated_square(2)
+        assert result_decorated.has_result
+        assert result_decorated.result == 4
 
     def test_run_if_preserves_function_metadata(self):
         def always_true(*args, **kwargs):
@@ -329,3 +380,193 @@ class TestRunIfDecorator:
         assert hasattr(documented_func, "__name__")
         assert hasattr(documented_func, "__doc__")
         assert documented_func.__doc__ == "This function squares its input."
+
+    def test_run_if_accessing_result_when_no_result_raises_error(self):
+        def always_false(*args, **kwargs):
+            return False
+
+        @run_if(always_false)
+        def my_func(x):
+            return x * 2
+
+        result = my_func(3)
+        assert not result.has_result
+
+        with pytest.raises(RuntimeError, match=re.escape("Result is not set.")):
+            result.result
+
+
+class TestTryCatchDecorator:
+    def test_try_catch_successful_execution(self):
+        """Test that the decorator doesn't interfere with successful function execution."""
+
+        @try_catch()
+        def successful_function(x, y):
+            return x + y
+
+        result = successful_function(2, 3)
+        assert not result.has_exception
+        assert result.result == 5
+
+    def test_try_catch_default_behavior(self, caplog):
+        """Test that the decorator catches exceptions and returns _TryResult with exception."""
+
+        @try_catch()
+        def failing_function():
+            raise ValueError("Test error")
+
+        with caplog.at_level(logging.WARNING):
+            result = failing_function()
+
+        assert result.has_exception
+        assert isinstance(result.exception, ValueError)
+        assert str(result.exception) == "Test error"
+        assert "Exception in failing_function: Test error" in caplog.text
+
+    def test_try_catch_specific_exception_type(self, caplog):
+        """Test that the decorator only catches specified exception types."""
+
+        @try_catch(exception_types=ValueError)
+        def function_with_value_error():
+            raise ValueError("This will be caught")
+
+        @try_catch(exception_types=ValueError)
+        def function_with_runtime_error():
+            raise RuntimeError("This will not be caught")
+
+        # Should catch ValueError
+        with caplog.at_level(logging.WARNING):
+            result1 = function_with_value_error()
+
+        assert result1.has_exception
+        assert isinstance(result1.exception, ValueError)
+        assert "Exception in function_with_value_error: This will be caught" in caplog.text
+
+        # Should not catch RuntimeError
+        with pytest.raises(RuntimeError, match="This will not be caught"):
+            function_with_runtime_error()
+
+    def test_try_catch_multiple_exception_types(self, caplog):
+        """Test that the decorator catches multiple exception types."""
+
+        @try_catch(exception_types=(ValueError, TypeError))
+        def function_with_value_error():
+            raise ValueError("ValueError")
+
+        @try_catch(exception_types=(ValueError, TypeError))
+        def function_with_type_error():
+            raise TypeError("TypeError")
+
+        @try_catch(exception_types=(ValueError, TypeError))
+        def function_with_runtime_error():
+            raise RuntimeError("RuntimeError")
+
+        # Should catch ValueError
+        with caplog.at_level(logging.WARNING):
+            result1 = function_with_value_error()
+        assert result1.has_exception
+        assert isinstance(result1.exception, ValueError)
+
+        # Should catch TypeError
+        with caplog.at_level(logging.WARNING):
+            result2 = function_with_type_error()
+        assert result2.has_exception
+        assert isinstance(result2.exception, TypeError)
+
+        # Should not catch RuntimeError
+        with pytest.raises(RuntimeError, match="RuntimeError"):
+            function_with_runtime_error()
+
+    def test_try_catch_nested_exceptions(self, caplog):
+        """Test that the decorator handles nested function calls properly."""
+
+        @try_catch()
+        def inner_function():
+            raise ValueError("Inner error")
+
+        @try_catch()
+        def outer_function():
+            inner_result = inner_function()
+            if inner_result.has_exception:
+                return inner_result.result  # This will raise because it's an exception
+            return "success"
+
+        with caplog.at_level(logging.WARNING):
+            result = outer_function()
+
+        # The outer function should catch the RuntimeError from accessing result on exception
+        assert result.has_exception
+        assert isinstance(result.exception, RuntimeError)
+
+    def test_try_catch_lambda_function(self, caplog):
+        """Test that the decorator works with lambda functions."""
+        failing_lambda = try_catch()(lambda x: x / 0 if x == 0 else x * 2)
+
+        # Test successful execution
+        result1 = failing_lambda(5)
+        assert not result1.has_exception
+        assert result1.result == 10
+
+        # Test exception handling
+        with caplog.at_level(logging.WARNING):
+            result2 = failing_lambda(0)
+
+        assert result2.has_exception
+        assert isinstance(result2.exception, ZeroDivisionError)
+        # Lambda functions have a generic name
+        assert "Exception in <lambda>: division by zero" in caplog.text
+
+
+class TestMaybeResult:
+    def test_maybe_result_with_value(self):
+        """Test _MaybeResult with a value."""
+        result = _MaybeResult("success")
+        assert result.has_result
+        assert result.result == "success"
+
+    def test_maybe_result_without_value(self):
+        """Test _MaybeResult without a value (default initialization)."""
+        result = _MaybeResult()
+        assert not result.has_result
+
+    def test_maybe_result_accessing_result_when_not_set_raises_error(self):
+        """Test that accessing result raises RuntimeError when no result is set."""
+        result = _MaybeResult()
+        with pytest.raises(RuntimeError, match=re.escape("Result is not set.")):
+            result.result
+
+    def test_maybe_result_with_none_value(self):
+        """Test _MaybeResult with None as an explicit value."""
+        result = _MaybeResult(None)
+        assert result.has_result
+        assert result.result is None
+
+
+class TestTryResult:
+    def test_try_result_with_success(self):
+        """Test _TryResult with a successful result."""
+        result = _TryResult("success")
+        assert not result.has_exception
+        assert result.result == "success"
+        assert result.exception is None
+
+    def test_try_result_with_exception(self):
+        """Test _TryResult with an exception."""
+        exc = ValueError("test error")
+        result = _TryResult(exc)
+        assert result.has_exception
+        assert result.exception == exc
+
+    def test_try_result_result_raises_on_exception(self):
+        """Test that accessing result raises RuntimeError when it's an exception."""
+        exc = ValueError("test error")
+        result = _TryResult(exc)
+        with pytest.raises(RuntimeError, match="Result is an exception, not a valid result."):
+            result.result
+
+    def test_try_result_raise_from_exception(self):
+        """Test that raise_from_exception raises the stored exception."""
+        exc = ValueError("test error")
+        result = _TryResult(exc)
+        with pytest.raises(ValueError, match="test error"):
+            result.raise_from_exception()

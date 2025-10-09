@@ -10,7 +10,7 @@ else:
 
 logger = logging.getLogger(__name__)
 
-TLauncher = t.TypeVar("TLauncher", bound=Launcher)
+TException = t.TypeVar("TException", bound=Exception)
 
 P = t.ParamSpec("P")
 R = t.TypeVar("R")
@@ -59,6 +59,10 @@ class Promise(t.Generic[P, R]):
             return self._result
         self._result = self._fn(*args, **kwargs)
         return self._result
+
+    def as_callable(self) -> t.Callable[..., R]:
+        """Return a callable that returns the stored result, ignoring any arguments."""
+        return lambda *args, **kwargs: self.result
 
     @property
     def result(self) -> R:
@@ -196,12 +200,103 @@ def ignore_errors(
     return decorator
 
 
+class _TryResult(t.Generic[R, TException]):
+    """A wrapper for the result of a function that may raise an exception."""
+
+    def __init__(self, result: R | TException):
+        """Initialize with either a result or an exception.
+        Args:
+            result: The result of the function or an exception instance.
+        """
+        self._result = result
+
+    @property
+    def has_exception(self) -> bool:
+        """Check if the result is an exception."""
+        return isinstance(self._result, BaseException)
+
+    @property
+    def result(self) -> R:
+        """Get the result if it's not an exception, else raise an error."""
+        if self.has_exception:
+            raise RuntimeError("Result is an exception, not a valid result.")
+        return self._result  # type: ignore[return-value]
+
+    def raise_from_exception(self) -> None:
+        """Raise the stored exception if it exists."""
+        if self.has_exception:
+            assert isinstance(self._result, BaseException)
+            raise self._result  # type: ignore[raise-value]
+
+    @property
+    def exception(self) -> Optional[TException]:
+        """Get the exception if it exists, else return None."""
+        if self.has_exception:
+            return self._result  # type: ignore[return-value]
+        return None
+
+    def __repr__(self) -> str:
+        if self.has_exception:
+            return f"_TryResult(exception={self._result})"
+        return f"_TryResult(result={self._result})"
+
+
+class _MaybeResult(t.Generic[R]):
+    """A wrapper for the result of a function that may not return a value"""
+
+    def __init__(self, result: R | _UnsetType = _UNSET):
+        """Initialize with either a result or None.
+        Args:
+            result: The result of the function or _UNSET if not set.
+        """
+        self._result = result
+
+    @property
+    def has_result(self) -> bool:
+        """Check if the result is an exception."""
+        return self._result is not _UNSET
+
+    @property
+    def result(self) -> R:
+        """Get the result if the function returned a value, else raise an error."""
+        if not self.has_result:
+            raise RuntimeError("Result is not set.")
+        return self._result  # type: ignore[return-value]
+
+
+def try_catch(
+    exception_types: t.Union[t.Type[TException], t.Tuple[t.Type[TException], ...]] = Exception,  # type: ignore[assignment]
+) -> t.Callable[[t.Callable[P, R]], t.Callable[P, _TryResult[R, TException]]]:
+    """
+    A decorator that implements try-catch for the wrapped function.
+
+    Args:
+        exception_types: Exception type(s) to catch (default: Exception)
+
+    Returns:
+        The decorated function with exception handling that returns a _TryResult
+    """
+
+    def decorator(func: t.Callable[P, R]) -> t.Callable[P, _TryResult[R, TException]]:
+        @functools.wraps(func)
+        def wrapper(*args: P.args, **kwargs: P.kwargs) -> _TryResult[R, TException]:
+            try:
+                return _TryResult(func(*args, **kwargs))
+            except exception_types as e:
+                fn_name = getattr(func, "__name__", repr(func))
+                logger.warning(f"Exception in {fn_name}: {e}. Returning exception instance.")
+                return _TryResult(e)
+
+        return wrapper
+
+    return decorator
+
+
 def run_if(
     predicate: t.Callable[..., bool], *predicate_args, **predicate_kwargs
-) -> t.Callable[[t.Callable[P, R]], t.Callable[P, Optional[R]]]:
+) -> t.Callable[[t.Callable[P, R]], t.Callable[P, _MaybeResult[R]]]:
     """
     A decorator that only runs the wrapped function if the predicate returns True.
-    If the predicate returns False, returns None.
 
     Args:
         predicate: A callable that returns a boolean.
@@ -209,18 +304,18 @@ def run_if(
         **predicate_kwargs: Keyword arguments to pass to the predicate.
 
     Returns:
-        The decorated function that runs only if predicate(*predicate_args, **predicate_kwargs) is True, else returns None.
+        The decorated function that runs only if predicate(*predicate_args, **predicate_kwargs) is True.
     """
 
-    def decorator(func: t.Callable[P, R]) -> t.Callable[P, Optional[R]]:
+    def decorator(func: t.Callable[P, R]) -> t.Callable[P, _MaybeResult[R]]:
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             fn_name = getattr(func, "__name__", repr(func))
             if predicate(*predicate_args, **predicate_kwargs):
                 logger.debug(f"Predicate passed for {fn_name}, executing function")
-                return func(*args, **kwargs)
+                return _MaybeResult(func(*args, **kwargs))
             logger.debug(f"Predicate failed for {fn_name}, skipping execution")
-            return None
+            return _MaybeResult()
 
         return wrapper
 

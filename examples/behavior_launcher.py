@@ -20,7 +20,6 @@ from clabe.data_transfer.aind_watchdog import WatchdogDataTransferService, Watch
 from clabe.launcher import (
     Launcher,
     LauncherCliArgs,
-    Promise,
     ignore_errors,
 )
 from clabe.pickers import DefaultBehaviorPicker, DefaultBehaviorPickerSettings
@@ -156,7 +155,7 @@ class EchoApp(App):
             )
         except subprocess.CalledProcessError as e:
             logger.error("%s", e)
-            raise e
+            raise
         self._result = proc
         logger.info("EchoApp completed.")
         return proc
@@ -165,9 +164,9 @@ class EchoApp(App):
         proc = self.result
         try:
             proc.check_returncode()
-        except subprocess.CalledProcessError as e:
+        except subprocess.CalledProcessError:
             self._log_process_std_output("echo", proc)
-            raise e
+            raise
         else:
             self._log_process_std_output("echo", proc)
             if len(proc.stdout) > 0 and allow_stderr is False:
@@ -236,7 +235,7 @@ def make_launcher():
                 data_directory=Path("demo"),
                 project_directory=Path("./tests/assets/Aind.Behavior.VrForaging.Curricula"),
             )
-        ).build_runner(Promise.from_value(mock_trainer_state))
+        ).build_runner(lambda: mock_trainer_state)
     )
     output = launcher.register_callable(DemoAindDataSchemaSessionDataMapper.builder_runner(Path("./mock/script.py")))
     launcher.register_callable(lambda x: x.copy_logs())

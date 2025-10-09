@@ -46,7 +46,11 @@ def mock_ui_helper():
 @pytest.fixture
 def mock_session():
     return AindBehaviorSessionModel(
-        experiment="mock", subject="mock_subject", experiment_version="0.0.0", root_path="mock_path"
+        experiment="mock",
+        subject="mock_subject",
+        experiment_version="0.0.0",
+        root_path="mock_path",
+        session_name="mock_session",
     )
 
 

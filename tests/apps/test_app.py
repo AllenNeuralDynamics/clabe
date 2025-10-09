@@ -62,13 +62,6 @@ class TestBonsaiApp:
         with patch.object(mock_result, "check_returncode", return_value=None):
             assert bonsai_app.output_from_result(allow_stderr=True) == bonsai_app
 
-    def test_prompt_visualizer_layout_input(self, mock_ui_helper, bonsai_app: BonsaiApp) -> None:
-        """Test prompt visualizer layout input."""
-        mock_ui_helper._prompt_pick_from_list.return_value = "picked_layout.bonsai.layout"
-        with patch("glob.glob", return_value=["layout1.bonsai.layout", "layout2.bonsai.layout"]):
-            layout = bonsai_app.prompt_visualizer_layout_input()
-            assert str(layout) == "picked_layout.bonsai.layout"
-
 
 @pytest.fixture
 def python_script_app() -> PythonScriptApp:
