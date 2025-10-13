@@ -15,10 +15,13 @@ __all__ = [
     "ByAnimalFiles",
 ]
 
+PROGRAMDATA_DIR = os.environ.get("PROGRAMDATA", "C:/ProgramData")
+
+# The config files will be used in order, with the first one having the highest priority
 KNOWN_CONFIG_FILES: t.List[str] = [
-    "./clabe.yml",
     "./local/clabe.yml",
-    "./.local/clabe.yml",
+    "./clabe.yml",
+    str(Path(PROGRAMDATA_DIR) / "clabe.yml"),
 ]
 
 
