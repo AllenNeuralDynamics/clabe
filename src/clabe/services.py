@@ -47,9 +47,7 @@ class ServiceSettings(ps.BaseSettings, abc.ABC):
     def __init_subclass__(cls, *args, **kwargs):
         """Initializes the subclass and sets up the YAML configuration."""
         super().__init_subclass__(*args, **kwargs)
-        cls.model_config.update(
-            ps.SettingsConfigDict(yaml_file=KNOWN_CONFIG_FILES, yaml_config_section=cls.__yml_section__, extra="ignore")
-        )
+        cls.model_config.update(ps.SettingsConfigDict(extra="ignore"))
 
     @classmethod
     def settings_customise_sources(
@@ -75,7 +73,10 @@ class ServiceSettings(ps.BaseSettings, abc.ABC):
         """
         return (
             init_settings,
-            _SafeYamlSettingsSource(settings_cls),
+            *(
+                _SafeYamlSettingsSource(settings_cls, yaml_file=p, yaml_config_section=cls.__yml_section__)
+                for p in KNOWN_CONFIG_FILES
+            ),
             env_settings,
             dotenv_settings,
             file_secret_settings,
