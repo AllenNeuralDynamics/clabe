@@ -2,6 +2,11 @@ name: clabe test suite
 
 on:
   workflow_dispatch:
+    inputs:
+      release_version:
+        description: "Release version (e.g., 1.2.3). Leave empty to auto-detect from current rc version."
+        required: false
+        type: string
   pull_request:
   push:
     branches:
@@ -105,7 +110,7 @@ jobs:
         id: get_version
         shell: bash # interop with win/linux for if statement
         run: |
-          version=$(uv version --output-format json | jq -r '.version')
+          version=$(uv run uv version --short)
           echo "version=$version" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
@@ -129,13 +134,11 @@ jobs:
   # │                                                                 │
   # ╚─────────────────────────────────────────────────────────────────╝
 
-  github-public-release:
+  prepare-public-release:
     runs-on: windows-latest
-    name: Create GitHub public release
+    name: Prepare files for public release
     needs: tests
-    if: github.event_name == 'release' &&
-      github.event.action == 'published' &&
-      !github.event.release.prerelease
+    if: github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v5
         with:
@@ -146,30 +149,84 @@ jobs:
         with:
           enable-cache: true
 
-      - name: Get release version from tag
+      - name: Get target version
         id: get_version
         shell: bash
         run: |
-          echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          # Use input version if provided, otherwise derive from current version
+          if [[ -n "${{ github.event.inputs.release_version }}" ]]; then
+            release_version="${{ github.event.inputs.release_version }}"
+          else
+            # We bump the patch by default
+            uv version --bump patch
+            release_version=$(uv run uv version --short)
+          fi
+          echo "version=$release_version" >> $GITHUB_OUTPUT
+          echo "Release version will be: $release_version"
 
-      - name: Validate version tag format
+      - name: Validate version format
         run: uv version ${{ steps.get_version.outputs.version }} --dry-run
 
       - name: Update package version
         run: uv version ${{ steps.get_version.outputs.version }}
 
-      - name: Commit version
+      - name: Commit version and create tag
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add .
-          git commit -m "Set version [skip ci]" || echo "No changes to commit"
+          git commit -m "Release v${{ steps.get_version.outputs.version }} [skip ci]"
+          git tag -a "v${{ steps.get_version.outputs.version }}" -m "Release v${{ steps.get_version.outputs.version }}"
           git push origin main
+          git push origin "v${{ steps.get_version.outputs.version }}"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ steps.get_version.outputs.version }}
+          name: Release v${{ steps.get_version.outputs.version }}
+          generate_release_notes: true
+          prerelease: false
+          body: |
+            Release v${{ steps.get_version.outputs.version }}
+
+            This release was automatically prepared with updated version files.
+
+  publish-to-pypi:
+    runs-on: windows-latest
+    name: Publish to PyPI after release
+    needs: tests
+    if: github.event_name == 'release' &&
+      github.event.action == 'published' &&
+      !github.event.release.prerelease &&
+      startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: ${{ github.ref_name }}
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Verify version consistency
+        shell: bash
+        run: |
+          tag_version=$(echo "${{ github.ref_name }}" | sed 's/^v//')
+          package_version=$(uv run uv version --short)
+          if [[ "$tag_version" != "$package_version" ]]; then
+            echo "ERROR: Tag version ($tag_version) doesn't match package version ($package_version)"
+            exit 1
+          fi
+          echo "✅ Version consistency verified: $tag_version"
 
       - name: Build
         run: uv build
 
-      - name: Publish
+      - name: Publish to PyPI
         run: uv publish --token ${{ secrets.AIND_PYPI_TOKEN }}
 
   # ╔─────────────────────────╗
@@ -183,7 +240,10 @@ jobs:
   build-docs:
     name: Build and deploy documentation to GitHub Pages
     runs-on: windows-latest
-    needs: github-public-release
+    needs: publish-to-pypi
+    if: github.event_name == 'release' &&
+      github.event.action == 'published' &&
+      !github.event.release.prerelease
     steps:
       - name: Checkout
         uses: actions/checkout@v5
