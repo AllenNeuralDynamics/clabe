@@ -117,6 +117,8 @@ _REQUEST_TIMEOUT = 5
 class _DataverseRestClient:
     """Client for basic CRUD operations on Dataverse entities."""
 
+    _REFRESH_TOKEN_SECONDS: ClassVar[int] = 50 * 60  # Refresh token every 50 minutes
+
     def __init__(self, config: _DataverseRestClientSettings):
         """
         Initialize the DataverseRestClient with configuration.
@@ -125,7 +127,8 @@ class _DataverseRestClient:
             config (DataverseSettings): Config object with credentials and URLs.
         """
         self.config = config
-        self.token = self._acquire_token()
+        self._last_token_acquired = None
+        self._token = self._acquire_token()
         self.headers = {
             "Authorization": f"Bearer {self.token['access_token']}",
             "OData-MaxVersion": "4.0",
@@ -134,6 +137,16 @@ class _DataverseRestClient:
             "If-None-Match": None,
             "Content-Type": "application/json",
         }
+
+    @property
+    def token(self) -> dict:
+        """Get the current authentication token."""
+        if (
+            self._last_token_acquired is None
+            or (datetime.now() - self._last_token_acquired).total_seconds() > self._REFRESH_TOKEN_SECONDS
+        ):
+            self._token = self._acquire_token()
+        return self._token
 
     def _acquire_token(self):
         """
@@ -155,6 +168,7 @@ class _DataverseRestClient:
             scopes=[self.config.scope],
         )
         if "access_token" in token:
+            self._last_token_acquired = datetime.now()
             return token
         else:
             raise ValueError(f"Error acquiring token: {token.get('error')} : {token.get('error_description')}")
