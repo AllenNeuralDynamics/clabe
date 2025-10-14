@@ -3,10 +3,16 @@ name: clabe test suite
 on:
   workflow_dispatch:
     inputs:
-      release_version:
-        description: "Release version (e.g., 1.2.3). Leave empty to auto-detect from current rc version."
+      bump_type:
+        description: "Version bump type"
         required: false
-        type: string
+        default: "rc"
+        type: choice
+        options:
+          - rc
+          - patch
+          - minor
+          - major
   pull_request:
   push:
     branches:
@@ -139,6 +145,9 @@ jobs:
     name: Prepare files for public release
     needs: tests
     if: github.event_name == 'workflow_dispatch'
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+      is_prerelease: ${{ steps.check_prerelease.outputs.prerelease }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -153,14 +162,22 @@ jobs:
         id: get_version
         shell: bash
         run: |
-          # Use input version if provided, otherwise derive from current version
-          if [[ -n "${{ github.event.inputs.release_version }}" ]]; then
-            release_version="${{ github.event.inputs.release_version }}"
+          # Use bump type from input (defaults to rc)
+          bump_type="${{ github.event.inputs.bump_type || 'rc' }}"
+          echo "Bumping version with type: $bump_type"
+
+          # Handle rc bumping logic (same as in github-rc-release)
+          if [[ "$bump_type" == "rc" ]]; then
+            if uv version --bump rc --dry-run; then
+              uv version --bump rc
+            else
+              uv version --bump rc --bump patch
+            fi
           else
-            # We bump the patch by default
-            uv version --bump patch
-            release_version=$(uv run uv version --short)
+            uv version --bump $bump_type
           fi
+
+          release_version=$(uv run uv version --short)
           echo "version=$release_version" >> $GITHUB_OUTPUT
           echo "Release version will be: $release_version"
 
@@ -180,6 +197,17 @@ jobs:
           git push origin main
           git push origin "v${{ steps.get_version.outputs.version }}"
 
+      - name: Determine if prerelease
+        id: check_prerelease
+        shell: bash
+        run: |
+          version="${{ steps.get_version.outputs.version }}"
+          if [[ "$version" == *"rc"* ]]; then
+            echo "prerelease=true" >> $GITHUB_OUTPUT
+          else
+            echo "prerelease=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         env:
@@ -188,31 +216,34 @@ jobs:
           tag_name: v${{ steps.get_version.outputs.version }}
           name: Release v${{ steps.get_version.outputs.version }}
           generate_release_notes: true
-          prerelease: false
+          prerelease: ${{ steps.check_prerelease.outputs.prerelease }}
           body: |
             Release v${{ steps.get_version.outputs.version }}
 
-            This release was automatically prepared with updated version files.
+            This release was manually triggered.
 
   publish-to-pypi:
     runs-on: windows-latest
-    name: Publish to PyPI after release
-    needs: tests
-    if: github.event_name == 'release' &&
-      github.event.action == 'published' &&
-      !github.event.release.prerelease &&
-      startsWith(github.ref, 'refs/tags/v')
+    name: Publish to PyPI
+    needs: [tests, prepare-public-release]
+    if: |
+      (github.event_name == 'workflow_dispatch') ||
+      (github.event_name == 'release' &&
+       github.event.action == 'published' &&
+       !github.event.release.prerelease &&
+       startsWith(github.ref, 'refs/tags/v'))
     steps:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-          ref: ${{ github.ref_name }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && 'main' || github.ref_name }}
 
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
 
-      - name: Verify version consistency
+      - name: Verify version consistency (for automatic releases)
+        if: github.event_name == 'release'
         shell: bash
         run: |
           tag_version=$(echo "${{ github.ref_name }}" | sed 's/^v//')
@@ -222,6 +253,13 @@ jobs:
             exit 1
           fi
           echo "✅ Version consistency verified: $tag_version"
+
+      - name: Get current version (for manual releases)
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          package_version=$(uv run uv version --short)
+          echo "📦 Publishing version: $package_version"
 
       - name: Build
         run: uv build
@@ -241,9 +279,7 @@ jobs:
     name: Build and deploy documentation to GitHub Pages
     runs-on: windows-latest
     needs: publish-to-pypi
-    if: github.event_name == 'release' &&
-      github.event.action == 'published' &&
-      !github.event.release.prerelease
+    if: github.event_name == 'release' && !github.event.release.prerelease
     steps:
       - name: Checkout
         uses: actions/checkout@v5
