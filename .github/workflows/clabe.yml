@@ -13,6 +13,7 @@ on:
           - patch
           - minor
           - major
+          - stable
   pull_request:
   push:
     branches:
@@ -166,14 +167,16 @@ jobs:
           bump_type="${{ github.event.inputs.bump_type || 'rc' }}"
           echo "Bumping version with type: $bump_type"
 
-          # Handle rc bumping logic (same as in github-rc-release)
+          # Handle version bumping based on type
           if [[ "$bump_type" == "rc" ]]; then
+            # Handle rc bumping logic (same as in github-rc-release)
             if uv version --bump rc --dry-run; then
               uv version --bump rc
             else
               uv version --bump rc --bump patch
             fi
           else
+            # Handle patch, minor, major, stable
             uv version --bump $bump_type
           fi
 
