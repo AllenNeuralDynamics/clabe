@@ -2,18 +2,11 @@ import datetime
 import logging
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING, TypeVar
+from typing import TypeVar
 
 import aind_behavior_services.utils as utils
 import rich.logging
 import rich.style
-
-if TYPE_CHECKING:
-    from ..launcher import Launcher
-
-    TLauncher = TypeVar("TLauncher", bound="Launcher")
-else:
-    TLauncher = TypeVar("TLauncher")
 
 TLogger = TypeVar("TLogger", bound=logging.Logger)
 

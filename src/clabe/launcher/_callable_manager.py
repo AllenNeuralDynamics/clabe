@@ -1,12 +1,7 @@
 import functools
 import logging
 import typing as t
-from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
-
-if TYPE_CHECKING:
-    from ._base import Launcher
-else:
-    Launcher = Any
+from typing import Callable, Dict, Optional
 
 logger = logging.getLogger(__name__)
 

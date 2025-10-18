@@ -2,7 +2,7 @@ import logging
 import os
 import subprocess
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, ClassVar, Dict, Optional, Self
+from typing import TYPE_CHECKING, Callable, ClassVar, Dict, Optional, Self
 
 import pydantic
 from aind_behavior_services.utils import run_bonsai_process
@@ -16,8 +16,6 @@ logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from ..launcher import Launcher
-else:
-    Launcher = Any
 
 
 class BonsaiAppSettings(ServiceSettings):
@@ -229,7 +227,7 @@ class BonsaiApp(App):
         if len(proc.stderr) > 0:
             logger.error("%s full stderr dump: \n%s", process_name, proc.stderr)
 
-    def build_runner(self, allow_std_error: bool = False) -> Callable[[Launcher], Self]:
+    def build_runner(self, allow_std_error: bool = False) -> Callable[["Launcher"], Self]:
         """
         Builds a runner function for the application.
 
@@ -242,7 +240,7 @@ class BonsaiApp(App):
             Callable[[Launcher], Self]: A callable that takes a launcher instance and returns the application instance.
         """
 
-        def _run(launcher: Launcher):
+        def _run(launcher: "Launcher"):
             """Internal wrapper function"""
             try:
                 self.add_app_settings(launcher=launcher)
@@ -273,7 +271,7 @@ class AindBehaviorServicesBonsaiApp(BonsaiApp):
         ```
     """
 
-    def add_app_settings(self, *, launcher: Optional[Launcher] = None, **kwargs) -> Self:
+    def add_app_settings(self, *, launcher: Optional["Launcher"] = None, **kwargs) -> Self:
         """
         Adds AIND behavior-specific application settings to the Bonsai workflow.
 

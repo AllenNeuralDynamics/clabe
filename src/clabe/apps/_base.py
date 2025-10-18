@@ -7,8 +7,7 @@ from ..services import Service
 
 if TYPE_CHECKING:
     from ..launcher import Launcher
-else:
-    Launcher = Any
+
 logger = logging.getLogger(__name__)
 
 
@@ -119,6 +118,6 @@ class App(Service, abc.ABC):
         return self
 
     @abc.abstractmethod
-    def build_runner(self, *args, **kwargs) -> Callable[[Launcher], Any]:
+    def build_runner(self, *args, **kwargs) -> Callable[["Launcher"], Any]:
         """Builds a runner for the application. Expected to be implemented by subclasses."""
         pass

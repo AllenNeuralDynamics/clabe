@@ -17,8 +17,6 @@ _HAS_UV = shutil.which("uv") is not None
 
 if TYPE_CHECKING:
     from ..launcher import Launcher
-else:
-    Launcher = Any
 
 
 class PythonScriptApp(App):
@@ -294,7 +292,7 @@ class PythonScriptApp(App):
             )
         return True
 
-    def build_runner(self, allow_std_error: bool = False) -> Callable[[Launcher], Self]:
+    def build_runner(self, allow_std_error: bool = False) -> Callable[["Launcher"], Self]:
         """
         Builds a runner function for the application.
 
@@ -307,7 +305,7 @@ class PythonScriptApp(App):
             Callable[[Launcher], Self]: A callable that takes a launcher instance and returns the application instance.
         """
 
-        def _run(launcher: Launcher):
+        def _run(launcher: "Launcher"):
             """Internal wrapper function"""
             try:
                 self.run()

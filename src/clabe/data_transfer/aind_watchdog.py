@@ -39,8 +39,6 @@ from ._aind_watchdog_models import (
 from ._base import DataTransfer
 
 if TYPE_CHECKING:
-    from aind_behavior_services import AindBehaviorSessionModel
-
     from ..data_mapper.aind_data_schema import AindDataSchemaSessionDataMapper, Session
     from ..launcher import Launcher, TRig, TSession, TTaskLogic
 else:
@@ -364,7 +362,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
 
     def _create_manifest_config_from_ads_acquisition(
         self,
-        ads_session: Session,
+        ads_session: "Session",
         ads_schemas: Optional[List[os.PathLike]] = None,
         session_name: Optional[str] = None,
     ) -> ManifestConfig:
@@ -456,7 +454,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
     @deprecated("Use _create_manifest_config_from_ads_acquisition instead. This will be removed in a future release.")
     def _create_manifest_config_from_ads_session(
         self,
-        ads_session: Session,
+        ads_session: "Session",
         ads_schemas: Optional[List[os.PathLike]] = None,
         session_name: Optional[str] = None,
     ) -> ManifestConfig:
