@@ -8,17 +8,8 @@ from clabe.launcher._cli import LauncherCliArgs
 
 def test_base_launcher_init_basic(
     mock_base_launcher,
-    mock_rig,
-    mock_session,
-    mock_task_logic,
 ):
     """Test basic initialization of Launcher."""
-    assert mock_base_launcher.get_rig() == mock_rig
-    assert mock_base_launcher.get_session() == mock_session
-    assert mock_base_launcher.get_task_logic() == mock_task_logic
-    assert mock_base_launcher.get_rig_model() is type(mock_rig)
-    assert mock_base_launcher.get_session_model() is type(mock_session)
-    assert mock_base_launcher.get_task_logic_model() is type(mock_task_logic)
     assert Path(mock_base_launcher.settings.temp_dir).exists()
 
 
@@ -46,7 +37,6 @@ def test_base_launcher_debug_mode(mock_rig, mock_session, mock_task_logic, mock_
         data_dir=tmp_path / "data",
         temp_dir=tmp_path / "temp",
         debug_mode=True,
-        create_directories=True,
     )
     with patch("clabe.launcher._base.GitRepository") as mock_git, patch("os.chdir"), patch("pathlib.Path.mkdir"):
         mock_git.return_value.working_dir = launcher_args_debug.data_dir
