@@ -2,7 +2,6 @@ import logging
 import re
 
 import pytest
-
 from clabe.launcher._callable_manager import (
     MaybeResult,
     Promise,

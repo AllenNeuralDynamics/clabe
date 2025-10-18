@@ -1,14 +1,10 @@
 import abc
 import logging
 import subprocess
-from typing import TYPE_CHECKING, Any, Callable, Optional, Self, TypeVar
+from typing import Optional, Self, TypeVar
 
 from ..services import Service
 
-if TYPE_CHECKING:
-    from ..launcher import Launcher
-else:
-    Launcher = Any
 logger = logging.getLogger(__name__)
 
 
@@ -19,7 +15,7 @@ class App(Service, abc.ABC):
     """
     Abstract base class representing an application that can be run and managed.
 
-    This class defines the interface for applications that can be executed and managed by the launcher.
+    This class defines the interface for applications that can be executed.
     Subclasses must implement the abstract methods to define the specific behavior of the application.
 
     Attributes:
@@ -117,8 +113,3 @@ class App(Service, abc.ABC):
             ```
         """
         return self
-
-    @abc.abstractmethod
-    def build_runner(self, *args, **kwargs) -> Callable[[Launcher], Any]:
-        """Builds a runner for the application. Expected to be implemented by subclasses."""
-        pass

@@ -272,7 +272,7 @@ def main():
     create_fake_subjects()
     create_fake_rig()
     launcher = make_launcher()
-    launcher.main()
+    launcher.wrap_routine()
     return None
 
 

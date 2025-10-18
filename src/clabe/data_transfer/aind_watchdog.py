@@ -15,7 +15,7 @@ import os
 import subprocess
 from os import PathLike
 from pathlib import Path, PurePosixPath
-from typing import TYPE_CHECKING, Any, Callable, ClassVar, Dict, Generic, List, Optional, TypeVar, Union
+from typing import TYPE_CHECKING, Any, Callable, ClassVar, Dict, List, Optional, Self, TypeVar, Union
 
 import aind_data_transfer_service.models.core
 import pydantic
@@ -33,6 +33,7 @@ from ._aind_watchdog_models import (
     DEFAULT_TRANSFER_ENDPOINT,
     BucketType,
     ManifestConfig,
+    Modality,
     Platform,
     WatchConfig,
 )
@@ -98,9 +99,10 @@ class WatchdogSettings(ServiceSettings):
     extra_identifying_info: Optional[dict] = None
     upload_tasks: Optional[SerializeAsAny[TransferServiceTask]] = None
     job_type: str = "default"
+    extra_modalities: Optional[List[Modality]] = None
 
 
-class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessionMapper]):
+class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
     """
     A data transfer service that uses the aind-watchdog-service to monitor and transfer
     data based on manifest configurations.
@@ -200,7 +202,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
         self._settings = settings
         self._source = source
 
-        self._aind_session_data_mapper: Optional[TSessionMapper] = None
+        self._aind_session_data_mapper: Optional[AindDataSchemaSessionDataMapper] = None
 
         _default_exe = os.environ.get("WATCHDOG_EXE", None)
         _default_config = os.environ.get("WATCHDOG_CONFIG", None)
@@ -226,7 +228,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
         self._email_from_experimenter_builder = email_from_experimenter_builder
 
     @property
-    def aind_session_data_mapper(self) -> TSessionMapper:
+    def aind_session_data_mapper(self) -> AindDataSchemaSessionDataMapper:
         """
         Gets the aind-data-schema session data mapper.
 
@@ -240,7 +242,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
             raise ValueError("Data mapper is not set.")
         return self._aind_session_data_mapper
 
-    def with_aind_session_data_mapper(self, value: TSessionMapper) -> "WatchdogDataTransferService[TSessionMapper]":
+    def with_aind_session_data_mapper(self, value: AindDataSchemaSessionDataMapper) -> Self:
         """
         Sets the aind-data-schema session data mapper.
 
@@ -419,13 +421,17 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
                 raise ValueError(f"Project name {self._settings.project_name} not found in {project_names}")
 
         ads_schemas = self._find_ads_schemas(source) if ads_schemas is None else ads_schemas
+        modalities = {
+            str(modality.abbreviation): [Path(path.resolve()) for path in [source / str(modality.abbreviation)]]
+            for modality in ads_session.data_streams[0].modalities
+        }
+        if self._settings.extra_modalities is not None:
+            for modality in self._settings.extra_modalities:
+                modalities[str(modality)] = [Path(path.resolve()) for path in [source / str(modality)]]
 
         _manifest_config = ManifestConfig(
             name=session_name,
-            modalities={
-                str(modality.abbreviation): [Path(path.resolve()) for path in [source / str(modality.abbreviation)]]
-                for modality in ads_session.data_streams[0].modalities
-            },
+            modalities=modalities,
             subject_id=int(ads_session.subject_id),
             acquisition_datetime=ads_session.acquisition_start_time,
             schemas=[Path(value) for value in ads_schemas],
@@ -835,44 +841,3 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
             ```
         """
         return self._ui_helper.prompt_yes_no_question("Would you like to generate a watchdog manifest (Y/N)?")
-
-    @classmethod
-    def build_runner(
-        cls,
-        settings: WatchdogSettings,
-        aind_session_data_mapper: Callable[["Launcher[TRig, TSession, TTaskLogic]"], TSessionMapper] | TSessionMapper,
-        **kwargs,
-    ) -> Callable[["Launcher[TRig, TSession, TTaskLogic]"], "WatchdogDataTransferService[TSessionMapper]"]:
-        """
-        A factory method for creating the watchdog service.
-
-        Args:
-            settings: The watchdog settings.
-            aind_session_data_mapper: The aind session data mapper.
-
-        Returns:
-            A factory for WatchdogDataTransferService.
-        """
-
-        def _from_launcher(
-            launcher: "Launcher[TRig, TSession, TTaskLogic]",
-        ) -> "WatchdogDataTransferService":
-            """Inner callable to create the service from a launcher"""
-            _aind_session_data_mapper = (
-                aind_session_data_mapper(launcher) if callable(aind_session_data_mapper) else aind_session_data_mapper
-            )
-
-            if not _aind_session_data_mapper.is_mapped():
-                raise ValueError("Data mapper has not mapped yet. Cannot create watchdog.")
-
-            _settings = settings.model_copy()
-
-            _session = launcher.get_session(strict=True)
-            _settings.destination = Path(_settings.destination) / _session.subject
-            service = WatchdogDataTransferService[TSessionMapper](
-                source=launcher.session_directory, settings=_settings, session_name=_session.session_name, **kwargs
-            ).with_aind_session_data_mapper(_aind_session_data_mapper)
-            service.transfer()
-            return service
-
-        return _from_launcher

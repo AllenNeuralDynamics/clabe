@@ -7,15 +7,9 @@ from pathlib import Path
 import aind_behavior_curriculum.trainer
 import pydantic
 
-from ..launcher import Launcher
 from ..services import ServiceSettings
 from ._base import App
 from ._python_script import PythonScriptApp
-
-if t.TYPE_CHECKING:
-    from ..launcher import Launcher
-else:
-    Launcher = t.Any
 
 logger = logging.getLogger(__name__)
 
@@ -213,57 +207,6 @@ class CurriculumApp(App):
         """
         return self._python_script_app.result
 
-    def build_runner(
-        self,
-        input_trainer_state: t.Callable[[], aind_behavior_curriculum.trainer.TrainerState],
-        *,
-        session_directory: t.Optional[t.Callable[[], os.PathLike]] = None,
-        allow_std_error: bool = False,
-    ) -> t.Callable[[Launcher], CurriculumSuggestion]:
-        """
-        Builds a runner function for curriculum execution within a launcher context.
-
-        This method creates a callable that can be registered with a launcher to run
-        the curriculum with proper data directory and trainer state management.
-
-        Args:
-            input_trainer_state: Callable containing the trainer state to process
-            allow_std_error: Whether to allow stderr output without raising an error
-
-        Returns:
-            Callable that takes a Launcher and returns a CurriculumSuggestion
-
-        Raises:
-            subprocess.CalledProcessError: If curriculum execution fails
-
-        Note:
-            This method overrides the base App.build_runner to provide curriculum-specific
-            functionality and return type compatibility.
-
-        Example:
-            ```python
-            # Register curriculum with launcher
-            trainer_state_promise = launcher.register_callable(get_trainer_state)
-            curriculum_runner = CurriculumApp.build_runner(trainer_state_promise, settings)
-            launcher.register_callable(curriculum_runner)
-            ```
-        """
-
-        def _run(launcher: Launcher) -> CurriculumSuggestion:
-            if self._settings.data_directory is None:
-                self._settings.data_directory = session_directory() if session_directory else launcher.session_directory
-            if self._settings.input_trainer_state is None:
-                self._settings.input_trainer_state = Path(launcher.save_temp_model(input_trainer_state()))
-            try:
-                self.run()
-                self.output_from_result(allow_stderr=allow_std_error)
-            except subprocess.CalledProcessError as e:
-                logger.error("App %s failed with error: %s", self.__class__.__name__, e)
-                raise
-            return self.get_suggestion()
-
-        return _run
-
     def get_suggestion(self) -> CurriculumSuggestion:
         """
         Parses and returns the curriculum suggestion from the execution result.
@@ -285,4 +228,10 @@ class CurriculumApp(App):
             print(f"Metrics: {suggestion.metrics}")
             ```
         """
+        try:
+            self.run()
+            self.output_from_result(allow_stderr=True)
+        except subprocess.CalledProcessError as e:
+            logger.error("App %s failed with error: %s", self.__class__.__name__, e)
+            raise
         return CurriculumSuggestion.model_validate_json(self.result.stdout)

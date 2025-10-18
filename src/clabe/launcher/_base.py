@@ -6,37 +6,26 @@ import shutil
 import sys
 import threading
 from pathlib import Path
-from typing import Any, Callable, Generic, List, Optional, Self, Type, TypeVar, Union, overload
+from typing import Callable, Optional, Self, TypeVar
 
 import pydantic
 from aind_behavior_services import (
-    AindBehaviorRigModel,
     AindBehaviorSessionModel,
-    AindBehaviorTaskLogicModel,
 )
-from typing_extensions import Literal
 
 from .. import __version__, logging_helper
 from ..git_manager import GitRepository
 from ..ui import DefaultUIHelper, UiHelper
 from ..utils import abspath, format_datetime, utcnow
-from ._callable_manager import Promise, _CallableManager
 from ._cli import LauncherCliArgs
 
 logger = logging.getLogger(__name__)
 
-
-TRig = TypeVar("TRig", bound=AindBehaviorRigModel)
-TSession = TypeVar("TSession", bound=AindBehaviorSessionModel)
-TTaskLogic = TypeVar("TTaskLogic", bound=AindBehaviorTaskLogicModel)
 TModel = TypeVar("TModel", bound=pydantic.BaseModel)
-
-
 TLauncher = TypeVar("TLauncher", bound="Launcher")
-_TOutput = TypeVar("_TOutput")
 
 
-class Launcher(Generic[TRig, TSession, TTaskLogic]):
+class Launcher:
     """
     Abstract base class for experiment launchers. Provides common functionality
     for managing configuration files, directories, and registered callables.
@@ -54,9 +43,6 @@ class Launcher(Generic[TRig, TSession, TTaskLogic]):
         self,
         *,
         settings: LauncherCliArgs,
-        rig: TRig | Type[TRig],
-        session: TSession | Type[TSession],
-        task_logic: TTaskLogic | Type[TTaskLogic],
         attached_logger: Optional[logging.Logger] = None,
         ui_helper: UiHelper = DefaultUIHelper(),
         **kwargs,
@@ -92,22 +78,30 @@ class Launcher(Generic[TRig, TSession, TTaskLogic]):
 
         self._logger = _logger
 
-        # Create callable managers
-        self._callable_manager: _CallableManager[[Self], Any] = _CallableManager()
-
         repository_dir = Path(self.settings.repository_dir) if self.settings.repository_dir is not None else None
         self.repository = GitRepository() if repository_dir is None else GitRepository(path=repository_dir)
         self._cwd = self.repository.working_dir
         os.chdir(self._cwd)
 
-        # Schemas
-        self._rig, self._rig_model = self._resolve_model(rig)
-        self._session, self._session_model = self._resolve_model(session)
-        self._task_logic, self._task_logic_model = self._resolve_model(task_logic)
-
         self._ensure_directory_structure()
 
-    def main(self) -> None:
+        self._session: Optional[AindBehaviorSessionModel]
+
+    def register_session(self, session: AindBehaviorSessionModel) -> Self:
+        if self._session is None:
+            self._session = session
+        else:
+            raise ValueError("Session already registered.")
+        return self
+
+    @property
+    def session(self) -> AindBehaviorSessionModel:
+        if self._session is None:
+            raise ValueError("Session is not set.")
+        else:
+            return self._session
+
+    def wrap_function(self, func: Callable[[Self], None]) -> None:
         """
         Main entry point for the launcher execution.
 
@@ -128,12 +122,10 @@ class Launcher(Generic[TRig, TSession, TTaskLogic]):
                 self.validate()
 
             try:
-                self.callable_manager.run(self)
-            except Exception as e:
-                if self._on_error_handler:
-                    self._on_error_handler(self, e)
-                else:
-                    raise
+                func(self)
+            except Exception:
+                logger.error("Error occurred while executing function")
+                raise  # this gets catched outside
 
         except KeyboardInterrupt:
             logger.error("User interrupted the process.")
@@ -150,16 +142,7 @@ class Launcher(Generic[TRig, TSession, TTaskLogic]):
             else:
                 self._exit(_code)
 
-    def register_on_error(self, handler: Callable[[Self, Exception], None]) -> None:
-        """
-        Registers an error handler to be called on exceptions during launcher execution.
-
-        Args:
-            handler: A callable that takes the launcher instance and the exception as arguments
-        """
-        self._on_error_handler = handler
-
-    def copy_logs(self, dst: Optional[os.PathLike] = None) -> None:
+    def copy_logs(self, dst: Optional[os.PathLike] = None, suffix: str = "Behavior/Logs") -> None:
         """
         Closes the file handlers of the launcher and copies the temporary data to the session directory.
 
@@ -169,65 +152,7 @@ class Launcher(Generic[TRig, TSession, TTaskLogic]):
         if dst is not None:
             self._copy_tmp_directory(dst)
         else:
-            self._copy_tmp_directory(self.session_directory / "Behavior" / "Logs")
-
-    @property
-    def callable_manager(self) -> _CallableManager[[Self], Any]:
-        """
-        Returns the callable managers for the launcher.
-
-        Returns:
-            _CallableManager[Self, Any]: The callable managers for the launcher
-        """
-        return self._callable_manager
-
-    @overload
-    def register_callable(self, callable: Callable[[Self], _TOutput]) -> Promise[[Self], _TOutput]:
-        """
-        Adds a single callable to the launcher and returns a promise for its result.
-
-        Args:
-            callable: The callable to add to the launcher
-
-        Returns:
-            _Promise[Self, _TOutput]: A promise that can be used to access the callable result
-        """
-        ...
-
-    @overload
-    def register_callable(self, callable: List[Callable[[Self], _TOutput]]) -> List[Promise[[Self], _TOutput]]:
-        """
-        Adds a list of callables to the launcher and returns promises for their results.
-
-        Args:
-            callable: The list of callables to add to the launcher
-
-        Returns:
-            List[_Promise[Self, _TOutput]]: A list of promises that can be used to access callable results
-        """
-        ...
-
-    def register_callable(
-        self, callable: Callable[[Self], _TOutput] | List[Callable[[Self], _TOutput]]
-    ) -> Union[Promise[[Self], _TOutput], List[Promise[[Self], _TOutput]]]:
-        """
-        Adds a callable to the launcher and returns a promise for its result.
-
-        Args:
-            callable: The callable or list of callables to add to the launcher
-
-        Returns:
-            Promise or list of Promises that can be used to access callable results
-        """
-        if isinstance(callable, list):
-            promises = []
-            for h in callable:
-                promise = self._callable_manager.register(h)
-                promises.append(promise)
-            return promises
-        else:
-            promise = self._callable_manager.register(callable)
-            return promise
+            self._copy_tmp_directory(self.session_directory() / suffix)
 
     @property
     def logger(self) -> logging.Logger:
@@ -240,31 +165,6 @@ class Launcher(Generic[TRig, TSession, TTaskLogic]):
         return self._logger
 
     @property
-    def subject(self) -> Optional[str]:
-        """
-        Returns the current subject name.
-
-        Returns:
-            Optional[str]: The subject name or None if not set
-        """
-        return self.settings.subject
-
-    @subject.setter
-    def subject(self, value: str) -> None:
-        """
-        Sets the subject name.
-
-        Args:
-            value: The subject name to set
-
-        Raises:
-            ValueError: If subject is already set
-        """
-        if self.settings.subject is not None:
-            raise ValueError("Subject already set.")
-        self.settings.subject = value
-
-    @property
     def settings(self) -> LauncherCliArgs:
         """
         Returns the launcher settings.
@@ -274,355 +174,6 @@ class Launcher(Generic[TRig, TSession, TTaskLogic]):
         """
         return self._settings
 
-    # Public properties / interfaces
-    @overload
-    def get_rig(self) -> Optional[TRig]:
-        """
-        Returns the rig schema instance.
-
-        Returns:
-            Optional[TRig]: The rig schema instance or None if not set
-        """
-        ...
-
-    @overload
-    def get_rig(self, strict: Literal[False]) -> Optional[TRig]:
-        """
-        Returns the rig schema instance.
-
-        Args:
-            strict: When False, returns None if rig schema is not set
-
-        Returns:
-            Optional[TRig]: The rig schema instance or None if not set
-        """
-        ...
-
-    @overload
-    def get_rig(self, strict: Literal[True]) -> TRig:
-        """
-        Returns the rig schema instance.
-
-        Args:
-            strict: When True, raises ValueError if rig schema is not set
-
-        Returns:
-            TRig: The rig schema instance
-
-        Raises:
-            ValueError: If rig schema is not set
-        """
-        ...
-
-    def get_rig(self, strict: bool = False) -> Optional[TRig]:
-        """
-        Returns the rig schema instance.
-
-        Args:
-            strict: If True, raises ValueError if rig schema is not set
-
-        Returns:
-            Optional[TRig]: The rig schema instance
-        """
-        if self._rig is None and strict:
-            raise ValueError("Rig schema instance is not set.")
-        return self._rig
-
-    @overload
-    def set_rig(self, rig: TRig) -> None:
-        """
-        Sets the rig schema instance.
-
-        Args:
-            rig: The rig schema instance to set.
-
-        Raises:
-            ValueError: If rig is already set
-        """
-        ...
-
-    @overload
-    def set_rig(self, rig: TRig, force: Literal[False]) -> None:
-        """
-        Sets the rig schema instance.
-
-        Args:
-            rig: The rig schema instance to set.
-            force: When False, raises ValueError if rig is already set
-
-        Raises:
-            ValueError: If rig is already set
-        """
-        ...
-
-    @overload
-    def set_rig(self, rig: TRig, force: Literal[True]) -> None:
-        """
-        Sets the rig schema instance, overriding any existing value.
-
-        Args:
-            rig: The rig schema instance to set.
-            force: When True, allows overriding an existing rig
-        """
-        ...
-
-    def set_rig(self, rig: TRig, force: bool = False) -> None:
-        """
-        Sets the rig schema instance.
-
-        Args:
-            rig: The rig schema instance to set.
-            force: If True, allows overriding an existing rig. Defaults to False.
-
-        Raises:
-            ValueError: If rig is already set and force is False
-        """
-        if self._rig is not None and not force:
-            raise ValueError("Rig already set.")
-        rig = self._rig_model.model_validate_json(rig.model_dump_json())
-        self._rig, self._rig_model = self._resolve_model(rig)
-
-    def get_rig_model(self) -> Type[TRig]:
-        """
-        Returns the rig schema model class.
-
-        Returns:
-            Type[TRig]: The rig schema model class
-        """
-        return self._rig_model
-
-    @overload
-    def get_session(self) -> Optional[TSession]:
-        """
-        Returns the session schema instance.
-
-        Returns:
-            Optional[TSession]: The session schema instance or None if not set
-        """
-        ...
-
-    @overload
-    def get_session(self, strict: Literal[False]) -> Optional[TSession]:
-        """
-        Returns the session schema instance.
-
-        Args:
-            strict: When False, returns None if session schema is not set
-
-        Returns:
-            Optional[TSession]: The session schema instance or None if not set
-        """
-        ...
-
-    @overload
-    def get_session(self, strict: Literal[True]) -> TSession:
-        """
-        Returns the session schema instance.
-
-        Args:
-            strict: When True, raises ValueError if session schema is not set
-
-        Returns:
-            TSession: The session schema instance
-
-        Raises:
-            ValueError: If session schema is not set
-        """
-        ...
-
-    def get_session(self, strict: bool = False) -> Optional[TSession]:
-        """
-        Returns the session schema instance.
-        Args:
-            strict: If True, raises ValueError if session schema is not set
-
-        Returns:
-            TSession: The session schema instance
-        """
-        if self._session is None and strict:
-            raise ValueError("Session schema instance is not set.")
-        return self._session
-
-    @overload
-    def set_session(self, session: TSession) -> None:
-        """
-        Sets the session schema instance.
-
-        Args:
-            session: The session schema instance to set.
-
-        Raises:
-            ValueError: If session is already set
-        """
-        ...
-
-    @overload
-    def set_session(self, session: TSession, force: Literal[False]) -> None:
-        """
-        Sets the session schema instance.
-
-        Args:
-            session: The session schema instance to set.
-            force: When False, raises ValueError if session is already set
-
-        Raises:
-            ValueError: If session is already set
-        """
-        ...
-
-    @overload
-    def set_session(self, session: TSession, force: Literal[True]) -> None:
-        """
-        Sets the session schema instance, overriding any existing value.
-
-        Args:
-            session: The session schema instance to set.
-            force: When True, allows overriding an existing session
-        """
-        ...
-
-    def set_session(self, session: TSession, force: bool = False) -> None:
-        """
-        Sets the session schema instance.
-
-        Args:
-            session: The session schema instance to set.
-            force: If True, allows overriding an existing session. Defaults to False.
-
-        Raises:
-            ValueError: If session is already set and force is False
-        """
-        if self._session is not None and not force:
-            raise ValueError("Session already set.")
-        self._session = self._session_model.model_validate_json(session.model_dump_json())
-        self._session, self._session_model = self._resolve_model(self._session)
-
-    def get_session_model(self) -> Type[TSession]:
-        """
-        Returns the session schema model class.
-
-        Returns:
-            Type[TSession]: The session schema model class
-        """
-        return self._session_model
-
-    @overload
-    def get_task_logic(self) -> Optional[TTaskLogic]:
-        """
-        Returns the task logic schema instance.
-
-        Returns:
-            Optional[TTaskLogic]: The task logic schema instance or None if not set
-        """
-        ...
-
-    @overload
-    def get_task_logic(self, strict: Literal[False]) -> Optional[TTaskLogic]:
-        """
-        Returns the task logic schema instance.
-
-        Args:
-            strict: When False, returns None if task logic schema is not set
-
-        Returns:
-            Optional[TTaskLogic]: The task logic schema instance or None if not set
-        """
-        ...
-
-    @overload
-    def get_task_logic(self, strict: Literal[True]) -> TTaskLogic:
-        """
-        Returns the task logic schema instance.
-
-        Args:
-            strict: When True, raises ValueError if task logic schema is not set
-
-        Returns:
-            TTaskLogic: The task logic schema instance
-
-        Raises:
-            ValueError: If task logic schema is not set
-        """
-        ...
-
-    def get_task_logic(self, strict: bool = False) -> Optional[TTaskLogic]:
-        """
-        Returns the task logic schema instance.
-        Args:
-            strict: If True, raises ValueError if task logic schema is not set
-        Returns:
-            TTaskLogic: The task logic schema instance
-        """
-        if self._task_logic is None and strict:
-            raise ValueError("Task logic schema instance is not set.")
-        return self._task_logic
-
-    @overload
-    def set_task_logic(self, task_logic: TTaskLogic) -> None:
-        """
-        Sets the task logic schema instance.
-
-        Args:
-            task_logic: The task logic schema instance to set.
-
-        Raises:
-            ValueError: If task logic is already set
-        """
-        ...
-
-    @overload
-    def set_task_logic(self, task_logic: TTaskLogic, force: Literal[False]) -> None:
-        """
-        Sets the task logic schema instance.
-
-        Args:
-            task_logic: The task logic schema instance to set.
-            force: When False, raises ValueError if task logic is already set
-
-        Raises:
-            ValueError: If task logic is already set
-        """
-        ...
-
-    @overload
-    def set_task_logic(self, task_logic: TTaskLogic, force: Literal[True]) -> None:
-        """
-        Sets the task logic schema instance, overriding any existing value.
-
-        Args:
-            task_logic: The task logic schema instance to set.
-            force: When True, allows overriding an existing task logic
-        """
-        ...
-
-    def set_task_logic(self, task_logic: TTaskLogic, force: bool = False) -> None:
-        """
-        Sets the task logic schema instance.
-        Before setting the task logic, it validates the input by forcing
-        a round-trip (de)serialization.
-
-        Args:
-            task_logic: The task logic schema instance to set.
-            force: If True, allows overriding an existing task logic. Defaults to False.
-
-        Raises:
-            ValueError: If task logic is already set and force is False
-        """
-        if self._task_logic is not None and not force:
-            raise ValueError("Task logic already set.")
-        task_logic = self._task_logic_model.model_validate_json(task_logic.model_dump_json())
-        self._task_logic, self._task_logic_model = self._resolve_model(task_logic)
-
-    def get_task_logic_model(self) -> Type[TTaskLogic]:
-        """
-        Returns the task logic schema model class.
-
-        Returns:
-            Type[TTaskLogic]: The task logic schema model class
-        """
-        return self._task_logic_model
-
-    @property
     def session_directory(self) -> Path:
         """
         Returns the session directory path.
@@ -633,11 +184,9 @@ class Launcher(Generic[TRig, TSession, TTaskLogic]):
         Raises:
             ValueError: If session_name is not set in the session schema
         """
-        session = self.get_session()
-        if session is None:
-            raise ValueError("Session schema is not set.")
+        session = self.session
         if session.session_name is None:
-            raise ValueError("session_schema.session_name is not set.")
+            raise ValueError("session.session_name is not set.")
         else:
             return Path(session.root_path) / (session.session_name if session.session_name is not None else "")
 
@@ -665,13 +214,7 @@ class Launcher(Generic[TRig, TSession, TTaskLogic]):
         """
 
         _str = (
-            "-------------------------------\n"
-            f"{_HEADER}\n"
-            f"CLABE Version: {__version__}\n"
-            f"TaskLogic ({self.get_task_logic_model().__name__}) Schema Version: {self.get_task_logic_model().model_construct().version}\n"
-            f"Rig ({self.get_rig_model().__name__}) Schema Version: {self.get_rig_model().model_construct().version}\n"
-            f"Session ({self.get_session_model().__name__}) Schema Version: {self.get_session_model().model_construct().version}\n"
-            "-------------------------------"
+            f"-------------------------------\n{_HEADER}\nCLABE Version: {__version__}\n-------------------------------"
         )
 
         return _str
@@ -808,12 +351,12 @@ class Launcher(Generic[TRig, TSession, TTaskLogic]):
         dst = Path(dst) / ".launcher"
         shutil.copytree(self.temp_dir, dst, dirs_exist_ok=True)
 
-    def save_temp_model(self, model: pydantic.BaseModel, directory: Optional[os.PathLike] = None) -> str:
+    def save_temp_model(self, model: pydantic.BaseModel, directory: Optional[os.PathLike] = None) -> Path:
         """
         Saves a temporary JSON representation of a schema model.
 
         Args:
-            model (Union[TRig, TSession, TTaskLogic]): The schema model to save.
+            model (pydantic.BaseModel): The schema model to save.
             directory (Optional[os.PathLike]): The directory to save the file in.
 
         Returns:
@@ -824,21 +367,5 @@ class Launcher(Generic[TRig, TSession, TTaskLogic]):
         fname = model.__class__.__name__ + ".json"
         fpath = os.path.join(directory, fname)
         with open(fpath, "w+", encoding="utf-8") as f:
-            f.write(model.model_dump_json(indent=3))
-        return fpath
-
-    @staticmethod
-    def _resolve_model(model: TModel | Type[TModel]) -> tuple[Optional[TModel], Type[TModel]]:
-        """
-        Resolves the model and its type.
-
-        Args:
-            model: The model instance or model class to resolve
-
-        Returns:
-            tuple[TModel, Type[TModel]]: The resolved model instance and its type
-        """
-        if isinstance(model, type):
-            return None, model
-        else:
-            return model, type(model)
+            f.write(model.model_dump_json(indent=2))
+        return Path(fpath)

@@ -2,22 +2,20 @@ import logging
 import os
 import subprocess
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, ClassVar, Dict, Optional, Self
+from typing import ClassVar, Dict, Optional, Self
 
 import pydantic
+from aind_behavior_services import AindBehaviorRigModel, AindBehaviorSessionModel, AindBehaviorTaskLogicModel
 from aind_behavior_services.utils import run_bonsai_process
 from typing_extensions import override
+
+from clabe.launcher._base import Launcher
 
 from ..services import ServiceSettings
 from ..ui import DefaultUIHelper, UiHelper
 from ._base import App
 
 logger = logging.getLogger(__name__)
-
-if TYPE_CHECKING:
-    from ..launcher import Launcher
-else:
-    Launcher = Any
 
 
 class BonsaiAppSettings(ServiceSettings):
@@ -117,8 +115,7 @@ class BonsaiApp(App):
             raise RuntimeError("The app has not been run yet.")
         return self._result
 
-    @override
-    def add_app_settings(self, **kwargs):
+    def add_app_settings(self, *args, **kwargs):
         """
         Adds application-specific settings to the additional properties.
 
@@ -229,32 +226,6 @@ class BonsaiApp(App):
         if len(proc.stderr) > 0:
             logger.error("%s full stderr dump: \n%s", process_name, proc.stderr)
 
-    def build_runner(self, allow_std_error: bool = False) -> Callable[[Launcher], Self]:
-        """
-        Builds a runner function for the application.
-
-        This method returns a callable that can be executed by the launcher to run the application.
-
-        Args:
-            allow_std_error (bool): Whether to allow stderr in the output. Defaults to False.
-
-        Returns:
-            Callable[[Launcher], Self]: A callable that takes a launcher instance and returns the application instance.
-        """
-
-        def _run(launcher: Launcher):
-            """Internal wrapper function"""
-            try:
-                self.add_app_settings(launcher=launcher)
-                self.run()
-                result = self.output_from_result(allow_stderr=allow_std_error)
-            except subprocess.CalledProcessError as e:
-                logger.error(f"App {self.__class__.__name__} failed with error: {e}")
-                raise
-            return result
-
-        return _run
-
 
 class AindBehaviorServicesBonsaiApp(BonsaiApp):
     """
@@ -268,47 +239,27 @@ class AindBehaviorServicesBonsaiApp(BonsaiApp):
         ```python
         # Create an AIND behavior services Bonsai app
         app = AindBehaviorServicesBonsaiApp(workflow="behavior_workflow.bonsai")
-        app.add_app_settings(launcher=my_launcher)
         app.run()
         ```
     """
 
-    def add_app_settings(self, *, launcher: Optional[Launcher] = None, **kwargs) -> Self:
-        """
-        Adds AIND behavior-specific application settings to the Bonsai workflow.
+    @override
+    def add_app_settings(
+        self,
+        launcher: Launcher,
+        *args,
+        rig: Optional[AindBehaviorRigModel] = None,
+        session: Optional[AindBehaviorSessionModel] = None,
+        task_logic: Optional[AindBehaviorTaskLogicModel] = None,
+        **kwargs,
+    ) -> Self:  # type: ignore[override]
+        settings = {}
+        if rig:
+            settings["RigPath"] = os.path.abspath(launcher.save_temp_model(model=rig))
+        if session:
+            settings["SessionPath"] = os.path.abspath(launcher.save_temp_model(model=session))
+        if task_logic:
+            settings["TaskLogicPath"] = os.path.abspath(launcher.save_temp_model(model=task_logic))
 
-        This method automatically configures the TaskLogicPath, SessionPath, and RigPath
-        properties for the Bonsai workflow based on the launcher's schema models.
-
-        Args:
-            launcher: The behavior launcher instance containing schema models
-            **kwargs: Additional keyword arguments
-
-        Returns:
-            Self: The updated instance
-
-        Raises:
-            ValueError: If the required launcher argument is not provided
-
-        Example:
-            ```python
-            # Add AIND behavior settings
-            app.add_app_settings(launcher=my_launcher)
-            ```
-        """
-
-        if launcher is None:
-            raise ValueError("Missing required argument 'launcher'.")
-
-        settings = {
-            "TaskLogicPath": os.path.abspath(
-                launcher.save_temp_model(model=launcher.get_task_logic(strict=True), directory=launcher.temp_dir)
-            ),
-            "SessionPath": os.path.abspath(
-                launcher.save_temp_model(model=launcher.get_session(strict=True), directory=launcher.temp_dir)
-            ),
-            "RigPath": os.path.abspath(
-                launcher.save_temp_model(model=launcher.get_rig(strict=True), directory=launcher.temp_dir)
-            ),
-        }
-        return super().add_app_settings(**settings)
+        settings.update(kwargs)
+        return super().add_app_settings(*args, **settings)

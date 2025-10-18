@@ -2,16 +2,11 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Callable, List, Optional
+from typing import Callable, List, Optional
 
 from ..services import Service
 
 logger = logging.getLogger(__name__)
-
-if TYPE_CHECKING:
-    from ..launcher import Launcher
-else:
-    Launcher = Any
 
 
 class ResourceMonitor(Service):
@@ -57,23 +52,12 @@ class ResourceMonitor(Service):
         """
         self.constraints = constrains or []
 
-    def build_runner(self) -> Callable[[Launcher], bool]:
-        """
-        Builds a runner function that evaluates all constraints.
-
-        Returns:
-            A callable that takes a launcher instance and returns True if all constraints are satisfied, False otherwise.
-        """
-
-        def _run(launcher: Launcher) -> bool:
-            """Inner function to run the resource monitor given a launcher instance."""
-            logger.debug("Evaluating resource monitor constraints.")
-            if result := not self.evaluate_constraints():
-                logger.error("One or more resource monitor constraints failed.")
-                raise RuntimeError("Resource monitor constraints failed.")
-            return result
-
-        return _run
+    def run(self) -> bool:
+        logger.debug("Evaluating resource monitor constraints.")
+        if result := not self.evaluate_constraints():
+            logger.error("One or more resource monitor constraints failed.")
+            raise RuntimeError("Resource monitor constraints failed.")
+        return result
 
     def add_constraint(self, constraint: Constraint) -> None:
         """

@@ -5,7 +5,7 @@ import os
 import shutil
 import subprocess
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Optional, Self
+from typing import Any, Optional, Self
 
 from typing_extensions import override
 
@@ -14,11 +14,6 @@ from ._base import App
 logger = logging.getLogger(__name__)
 
 _HAS_UV = shutil.which("uv") is not None
-
-if TYPE_CHECKING:
-    from ..launcher import Launcher
-else:
-    Launcher = Any
 
 
 class PythonScriptApp(App):
@@ -293,28 +288,3 @@ class PythonScriptApp(App):
                 "uv is not installed in this computer. Please install uv. see https://docs.astral.sh/uv/getting-started/installation/"
             )
         return True
-
-    def build_runner(self, allow_std_error: bool = False) -> Callable[[Launcher], Self]:
-        """
-        Builds a runner function for the application.
-
-        This method returns a callable that can be executed by the launcher to run the application.
-
-        Args:
-            allow_std_error (bool): Whether to allow stderr in the output. Defaults to False.
-
-        Returns:
-            Callable[[Launcher], Self]: A callable that takes a launcher instance and returns the application instance.
-        """
-
-        def _run(launcher: Launcher):
-            """Internal wrapper function"""
-            try:
-                self.run()
-                result = self.output_from_result(allow_stderr=allow_std_error)
-            except subprocess.CalledProcessError as e:
-                logger.error(f"App {self.__class__.__name__} failed with error: {e}")
-                raise
-            return result
-
-        return _run
