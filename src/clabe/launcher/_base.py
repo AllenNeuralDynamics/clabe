@@ -45,7 +45,6 @@ class Launcher:
         settings: LauncherCliArgs,
         attached_logger: Optional[logging.Logger] = None,
         ui_helper: UiHelper = DefaultUIHelper(),
-        **kwargs,
     ) -> None:
         """
         Initializes the Launcher instance.
