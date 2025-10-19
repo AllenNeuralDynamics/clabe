@@ -10,10 +10,6 @@ from ..services import ServiceSettings
 if TYPE_CHECKING:
     from ..launcher import Launcher
 
-    TLauncher = TypeVar("TLauncher", bound="Launcher")
-else:
-    TLauncher = TypeVar("TLauncher")
-
 TLogger = TypeVar("TLogger", bound=logging.Logger)
 
 
@@ -148,7 +144,7 @@ def add_handler(
     return logger
 
 
-def attach_to_launcher(launcher: TLauncher, settings: AibsLogServerHandlerSettings) -> TLauncher:
+def attach_to_launcher(launcher: "Launcher", settings: AibsLogServerHandlerSettings) -> "Launcher":
     """
     Attaches an AIBS log server handler to a launcher instance.
 

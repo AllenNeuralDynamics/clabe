@@ -40,16 +40,10 @@ from ._aind_watchdog_models import (
 from ._base import DataTransfer
 
 if TYPE_CHECKING:
-    from aind_behavior_services import AindBehaviorSessionModel
-
     from ..data_mapper.aind_data_schema import AindDataSchemaSessionDataMapper, Session
-    from ..launcher import Launcher, TRig, TSession, TTaskLogic
 else:
-    Launcher = Any
     Session = Any
     AindDataSchemaSessionDataMapper = Any
-    AindBehaviorSessionModel = Any
-    TRig = TSession = TTaskLogic = Any
 
 
 logger = logging.getLogger(__name__)
