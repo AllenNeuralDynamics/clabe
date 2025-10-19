@@ -93,12 +93,12 @@ class DemoAindDataSchemaSessionDataMapper(DataMapper[MockAindDataSchemaSession])
         return self._mapped
 
 
-class EchoApp(App):
+class EchoApp(App[None]):
     def __init__(self, value: str) -> None:
         self._value = value
-        self._result = None
+        self._completed_process = None
 
-    def run(self) -> subprocess.CompletedProcess:
+    def run(self) -> Self:
         logger.info("Running EchoApp...")
         command = ["cmd", "/c", "echo", self._value]
 
@@ -113,12 +113,14 @@ class EchoApp(App):
         except subprocess.CalledProcessError as e:
             logger.error("%s", e)
             raise
-        self._result = proc
+        self._completed_process = proc
         logger.info("EchoApp completed.")
-        return self._process_process_output(allow_stderr=False).result
+        return self
 
     def _process_process_output(self, allow_stderr: Optional[bool]) -> Self:
-        proc = self.result
+        proc = self._completed_process
+        if proc is None:
+            raise RuntimeError("The app has not been run yet.")
         try:
             proc.check_returncode()
         except subprocess.CalledProcessError:
@@ -136,30 +138,17 @@ class EchoApp(App):
         if len(proc.stderr) > 0:
             logger.error("%s full stderr dump: \n%s", process_name, proc.stderr)
 
-    @property
-    def result(self) -> subprocess.CompletedProcess:
-        if self._result is None:
-            raise RuntimeError("The app has not been run yet.")
-        return self._result
+    def result(self, *, allow_stderr: bool = True) -> None:
+        self._process_process_output(allow_stderr=allow_stderr)
+        return
 
 
 def experiment(launcher: Launcher) -> None:
-    behavior_cli_args = CliApp.run(
-        LauncherCliArgs,
-        cli_args=["--temp-dir", "./local/.temp", "--allow-dirty", "--skip-hardware-validation", "--data-dir", "."],
-    )
-
-    DATA_DIR = Path(r"./local/data")
-
     monitor = resource_monitor.ResourceMonitor(
         constrains=[
-            resource_monitor.available_storage_constraint_factory(DATA_DIR, 2e11),
+            resource_monitor.available_storage_constraint_factory(launcher.settings.data_dir, 2e11),
             resource_monitor.remote_dir_exists_constraint_factory(Path(r"C:/")),
         ]
-    )
-
-    launcher = Launcher(
-        settings=behavior_cli_args,
     )
 
     picker = DefaultBehaviorPicker(
@@ -177,17 +166,20 @@ def experiment(launcher: Launcher) -> None:
     monitor.run()
 
     app = EchoApp("Hello World!")
-    app.run()
-    app._process_process_output(allow_stderr=True).result
+    app.run().result(allow_stderr=True)
 
-    suggestion = CurriculumApp(
-        settings=CurriculumSettings(
-            curriculum="template",
-            data_directory=Path("demo"),
-            project_directory=Path("./tests/assets/Aind.Behavior.VrForaging.Curricula"),
-            input_trainer_state=_temp_trainer_state_path,
+    suggestion = (
+        CurriculumApp(
+            settings=CurriculumSettings(
+                curriculum="template",
+                data_directory=Path("demo"),
+                project_directory=Path("./tests/assets/Aind.Behavior.VrForaging.Curricula"),
+                input_trainer_state=_temp_trainer_state_path,
+            )
         )
-    ).get_suggestion()
+        .run()
+        .result(allow_stderr=True)
+    )
 
     DemoAindDataSchemaSessionDataMapper(
         rig,
