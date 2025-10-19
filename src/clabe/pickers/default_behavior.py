@@ -84,8 +84,8 @@ class DefaultBehaviorPicker:
         """
         self._launcher = launcher
         self._ui_helper = launcher.ui_helper if ui_helper is None else ui_helper
-        self._ensure_directories()
         self._settings = settings
+        self._ensure_directories()
         self._experimenter_validator = experimenter_validator
         self._trainer_state: Optional[TrainerState] = None
         self._session: Optional[AindBehaviorSessionModel] = None

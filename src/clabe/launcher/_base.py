@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 import os
 import shutil
-import sys
 import threading
 from pathlib import Path
 from typing import Callable, Optional, Self, TypeVar
@@ -84,7 +83,8 @@ class Launcher:
 
         self._ensure_directory_structure()
 
-        self._session: Optional[AindBehaviorSessionModel]
+        self._session: Optional[AindBehaviorSessionModel] = None
+        self._has_copied_logs = False
 
     def register_session(self, session: AindBehaviorSessionModel) -> Self:
         if self._session is None:
@@ -100,7 +100,7 @@ class Launcher:
         else:
             return self._session
 
-    def wrap_function(self, func: Callable[[Self], None]) -> None:
+    def run_experiment(self, experiment: Callable[[Self], None]) -> None:
         """
         Main entry point for the launcher execution.
 
@@ -120,11 +120,7 @@ class Launcher:
             if not self.settings.debug_mode:
                 self.validate()
 
-            try:
-                func(self)
-            except Exception:
-                logger.error("Error occurred while executing function")
-                raise  # this gets catched outside
+            experiment(self)
 
         except KeyboardInterrupt:
             logger.error("User interrupted the process.")
@@ -147,11 +143,17 @@ class Launcher:
 
         This method is typically called at the end of the launcher by a registered callable that transfers data.
         """
+        if self._has_copied_logs:
+            logger.warning("Logs have already been copied. Skipping copy.")
+            return None
+
         logging_helper.close_file_handlers(logger)
         if dst is not None:
-            self._copy_tmp_directory(dst)
+            out = self._copy_tmp_directory(dst)
         else:
-            self._copy_tmp_directory(self.session_directory() / suffix)
+            out = self._copy_tmp_directory(self.session_directory / suffix)
+        logger.info("Copied logs to %s", out)
+        self._has_copied_logs = True
 
     @property
     def logger(self) -> logging.Logger:
@@ -173,6 +175,7 @@ class Launcher:
         """
         return self._settings
 
+    @property
     def session_directory(self) -> Path:
         """
         Returns the session directory path.
@@ -234,7 +237,6 @@ class Launcher:
             logging_helper.shutdown_logger(logger)
         if not _force:
             self.ui_helper.input("Press any key to exit...")
-        sys.exit(code)
 
     def _print_debug(self) -> None:
         """
@@ -340,7 +342,7 @@ class Launcher:
             logger.error("Directory creation timed out after 2 seconds")
             raise TimeoutError(f"Failed to create directory {directory} within 2 seconds")
 
-    def _copy_tmp_directory(self, dst: os.PathLike) -> None:
+    def _copy_tmp_directory(self, dst: os.PathLike) -> Path:
         """
         Copies the temporary directory to the specified destination.
 
@@ -349,6 +351,7 @@ class Launcher:
         """
         dst = Path(dst) / ".launcher"
         shutil.copytree(self.temp_dir, dst, dirs_exist_ok=True)
+        return dst
 
     def save_temp_model(self, model: pydantic.BaseModel, directory: Optional[os.PathLike] = None) -> Path:
         """

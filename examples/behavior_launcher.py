@@ -3,7 +3,7 @@ import logging
 import os
 import subprocess
 from pathlib import Path
-from typing import Any, Callable, Dict, Literal, Optional, Self, Union
+from typing import Any, Dict, Literal, Optional, Self, Union
 
 import git
 from aind_behavior_curriculum import Stage, TrainerState
@@ -16,11 +16,9 @@ from pydantic_settings import CliApp
 from clabe import resource_monitor
 from clabe.apps import App, CurriculumApp, CurriculumSettings
 from clabe.data_mapper import DataMapper
-from clabe.data_transfer.aind_watchdog import WatchdogDataTransferService, WatchdogSettings
 from clabe.launcher import (
     Launcher,
     LauncherCliArgs,
-    ignore_errors,
 )
 from clabe.pickers import DefaultBehaviorPicker, DefaultBehaviorPickerSettings
 
@@ -66,8 +64,8 @@ class MockAindDataSchemaSession:
 class DemoAindDataSchemaSessionDataMapper(DataMapper[MockAindDataSchemaSession]):
     def __init__(
         self,
-        session_model: AindBehaviorSessionModel,
         rig_model: RigModel,
+        session_model: AindBehaviorSessionModel,
         task_logic_model: TaskLogicModel,
         repository: Union[os.PathLike, git.Repo],
         script_path: os.PathLike,
@@ -93,47 +91,6 @@ class DemoAindDataSchemaSessionDataMapper(DataMapper[MockAindDataSchemaSession])
         print("#" * 50)
         print(self._mapped)
         return self._mapped
-
-    @classmethod
-    def builder_runner(
-        cls,
-        script_path: os.PathLike,
-        session_end_time: Optional[datetime.datetime] = None,
-        output_parameters: Optional[Dict] = None,
-    ) -> Callable[[Launcher], Self]:
-        def _run(launcher: Launcher) -> Self:
-            logger.info("Running DemoAindDataSchemaSessionDataMapper...")
-            new = cls(
-                session_model=launcher.get_session(strict=True),
-                rig_model=launcher.get_rig(strict=True),
-                task_logic_model=launcher.get_task_logic(strict=True),
-                repository=launcher.repository,
-                script_path=script_path,
-                session_end_time=session_end_time or datetime.datetime.now(),
-                output_parameters=output_parameters,
-            )
-            logger.info("DemoAindDataSchemaSessionDataMapper completed.")
-            new.map()
-            return new
-
-        return _run
-
-
-class MockWatchdogService(WatchdogDataTransferService):
-    def __init__(self, *args, **kwargs):
-        os.environ["WATCHDOG_EXE"] = "mock_executable"
-        os.environ["WATCHDOG_CONFIG"] = "mock_config"
-        super().__init__(*args, **kwargs)
-
-    def transfer(self) -> None:
-        logger.info("MockWatchdogService: Transfer method called.")
-        logger.info("Validating watchdog service...")
-        self.validate()
-        logger.info("Watchdog service validated successfully.")
-        logger.info("MockWatchdogService: Data transfer completed successfully.")
-
-    def validate(self, *args, **kwargs) -> bool:
-        return True
 
 
 class EchoApp(App):
@@ -185,11 +142,8 @@ class EchoApp(App):
             raise RuntimeError("The app has not been run yet.")
         return self._result
 
-    def build_runner(self, *args, **kwargs) -> Callable[[Launcher], Any]:
-        return lambda launcher: self.run()
 
-
-def make_launcher():
+def experiment(launcher: Launcher) -> None:
     behavior_cli_args = CliApp.run(
         LauncherCliArgs,
         cli_args=["--temp-dir", "./local/.temp", "--allow-dirty", "--skip-hardware-validation", "--data-dir", "."],
@@ -204,51 +158,48 @@ def make_launcher():
         ]
     )
 
-    watchdog_settings = WatchdogSettings(
-        destination=Path(r"./local/data"),
-        project_name="my_project",
-    )
-
     launcher = Launcher(
-        rig=RigModel,
-        session=AindBehaviorSessionModel,
-        task_logic=TaskLogicModel,
         settings=behavior_cli_args,
     )
 
-    picker = DefaultBehaviorPicker(settings=DefaultBehaviorPickerSettings(config_library_dir=LIB_CONFIG))
-
-    launcher.register_callable(
-        [
-            picker.initialize,
-            picker.pick_session,
-            picker.pick_trainer_state,
-            picker.pick_rig,
-        ]
-    )
-    launcher.register_callable(monitor.build_runner())
-    launcher.register_callable(EchoApp("Hello World!").build_runner(allow_std_error=True))
-    launcher.register_callable(
-        CurriculumApp(
-            settings=CurriculumSettings(
-                curriculum="template",
-                data_directory=Path("demo"),
-                project_directory=Path("./tests/assets/Aind.Behavior.VrForaging.Curricula"),
-            )
-        ).build_runner(lambda: mock_trainer_state)
-    )
-    output = launcher.register_callable(DemoAindDataSchemaSessionDataMapper.builder_runner(Path("./mock/script.py")))
-    launcher.register_callable(lambda x: x.copy_logs())
-    launcher.register_callable(
-        MockWatchdogService.build_runner(settings=watchdog_settings, aind_session_data_mapper=output)
+    picker = DefaultBehaviorPicker(
+        launcher=launcher,
+        settings=DefaultBehaviorPickerSettings(config_library_dir=LIB_CONFIG),
+        experimenter_validator=lambda _: True,
     )
 
-    def raises_error(x: Launcher) -> int:
-        raise ValueError("This is a test error.")
-        return 42
+    session = picker.pick_session(AindBehaviorSessionModel)
+    launcher.register_session(session)
+    trainer_state, task_logic = picker.pick_trainer_state(TaskLogicModel)
+    _temp_trainer_state_path = launcher.save_temp_model(trainer_state)
+    rig = picker.pick_rig(RigModel)
 
-    launcher.register_callable(ignore_errors(default_return="bla")(raises_error))
-    return launcher
+    monitor.run()
+
+    app = EchoApp("Hello World!")
+    app.run()
+    app.output_from_result(allow_stderr=True).result
+
+    suggestion = CurriculumApp(
+        settings=CurriculumSettings(
+            curriculum="template",
+            data_directory=Path("demo"),
+            project_directory=Path("./tests/assets/Aind.Behavior.VrForaging.Curricula"),
+            input_trainer_state=_temp_trainer_state_path,
+        )
+    ).get_suggestion()
+
+    DemoAindDataSchemaSessionDataMapper(
+        rig,
+        session,
+        task_logic,
+        repository=launcher.repository,
+        script_path=Path("./mock/script.py"),
+        output_parameters={"suggestion": suggestion.model_dump()},
+    )
+    launcher.copy_logs()
+
+    return
 
 
 def create_fake_subjects():
@@ -271,8 +222,13 @@ def create_fake_rig():
 def main():
     create_fake_subjects()
     create_fake_rig()
-    launcher = make_launcher()
-    launcher.wrap_routine()
+    behavior_cli_args = CliApp.run(
+        LauncherCliArgs,
+        cli_args=["--temp-dir", "./local/.temp", "--allow-dirty", "--skip-hardware-validation", "--data-dir", "."],
+    )
+
+    launcher = Launcher(settings=behavior_cli_args)
+    launcher.run_experiment(experiment)
     return None
 
 
