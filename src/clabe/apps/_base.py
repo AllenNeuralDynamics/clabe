@@ -65,7 +65,7 @@ class App(Service, abc.ABC, Generic[TResult]):
         ...
 
     @abc.abstractmethod
-    def result(self, *, allow_stderr: bool = True) -> TResult:
+    def get_result(self, *, allow_stderr: bool = True) -> TResult:
         """
         Retrieves the result of the application's execution.
 

@@ -41,4 +41,4 @@ class TestCurriculumIntegration:
         """Tests that the curriculum can be run."""
 
         curriculum_app.run()
-        curriculum_app._python_script_app.result(allow_stderr=True).check_returncode()
+        curriculum_app._python_script_app.get_result(allow_stderr=True).check_returncode()

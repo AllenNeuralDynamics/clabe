@@ -138,7 +138,7 @@ class EchoApp(App[None]):
         if len(proc.stderr) > 0:
             logger.error("%s full stderr dump: \n%s", process_name, proc.stderr)
 
-    def result(self, *, allow_stderr: bool = True) -> None:
+    def get_result(self, *, allow_stderr: bool = True) -> None:
         self._process_process_output(allow_stderr=allow_stderr)
         return
 
@@ -166,7 +166,7 @@ def experiment(launcher: Launcher) -> None:
     monitor.run()
 
     app = EchoApp("Hello World!")
-    app.run().result(allow_stderr=True)
+    app.run().get_result(allow_stderr=True)
 
     suggestion = (
         CurriculumApp(
@@ -178,7 +178,7 @@ def experiment(launcher: Launcher) -> None:
             )
         )
         .run()
-        .result(allow_stderr=True)
+        .get_result(allow_stderr=True)
     )
 
     DemoAindDataSchemaSessionDataMapper(

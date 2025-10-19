@@ -44,7 +44,7 @@ class TestBonsaiApp:
     def test_raises_before_run(self, bonsai_app: BonsaiApp) -> None:
         """Test result property."""
         with pytest.raises(RuntimeError):
-            bonsai_app.result(allow_stderr=True)
+            bonsai_app.get_result(allow_stderr=True)
 
     def test__process_process_output(self, mock_ui_helper, bonsai_app: BonsaiApp) -> None:
         """Test output from result."""
@@ -91,7 +91,7 @@ class TestPythonScriptApp:
         mock_run.return_value = MagicMock(returncode=0)
         python_script_app.run()
         mock_run.assert_called_once()
-        assert python_script_app.result(allow_stderr=True).returncode == 0
+        assert python_script_app.get_result(allow_stderr=True).returncode == 0
 
     def test__process_process_output_failure(self, python_script_app: PythonScriptApp) -> None:
         """Test output from result failure."""
@@ -104,7 +104,7 @@ class TestPythonScriptApp:
     def test_result_property(self, python_script_app: PythonScriptApp) -> None:
         """Test result property."""
         with pytest.raises(RuntimeError):
-            _ = python_script_app.result()
+            _ = python_script_app.get_result()
 
     def test_add_uv_project_directory(self, python_script_app: PythonScriptApp) -> None:
         """Test add uv project directory."""

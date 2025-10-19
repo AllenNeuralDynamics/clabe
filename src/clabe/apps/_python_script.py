@@ -112,7 +112,7 @@ class PythonScriptApp(App[subprocess.CompletedProcess]):
         self._additional_arguments = " ".join([self._additional_arguments] + [f"--{k} {v}" for k, v in kwargs.items()])
         return self
 
-    def result(self, *, allow_stderr: bool = True) -> subprocess.CompletedProcess:
+    def get_result(self, *, allow_stderr: bool = True) -> subprocess.CompletedProcess:
         """
         Retrieves the result of the executed script.
 

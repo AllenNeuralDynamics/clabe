@@ -100,7 +100,7 @@ class BonsaiApp(App[None]):
         self._completed_process: Optional[subprocess.CompletedProcess] = None
         self.ui_helper = ui_helper if ui_helper is not None else DefaultUIHelper()
 
-    def result(self, *, allow_stderr: bool = True) -> None:
+    def get_result(self, *, allow_stderr: bool = True) -> None:
         """
         Returns the result of the Bonsai process execution.
 

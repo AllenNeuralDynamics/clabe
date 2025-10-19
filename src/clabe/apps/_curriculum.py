@@ -136,7 +136,7 @@ class CurriculumApp(App[CurriculumSuggestion]):
         self._python_script_app.run()
         return self
 
-    def result(self, *, allow_stderr: bool = True) -> CurriculumSuggestion:
+    def get_result(self, *, allow_stderr: bool = True) -> CurriculumSuggestion:
         return self._process_process_output(allow_stderr=allow_stderr)
 
     def _process_process_output(self, *, allow_stderr: bool | None = None) -> CurriculumSuggestion:
