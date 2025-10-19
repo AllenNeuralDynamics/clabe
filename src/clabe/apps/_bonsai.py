@@ -57,7 +57,7 @@ class BonsaiAppSettings(ServiceSettings):
         return self
 
 
-class BonsaiApp(App):
+class BonsaiApp(App[None]):
     """
     A class to manage the execution of Bonsai workflows.
 
@@ -97,11 +97,10 @@ class BonsaiApp(App):
             ```
         """
         self.settings = settings
-        self._result: Optional[subprocess.CompletedProcess] = None
+        self._completed_process: Optional[subprocess.CompletedProcess] = None
         self.ui_helper = ui_helper if ui_helper is not None else DefaultUIHelper()
 
-    @property
-    def result(self) -> subprocess.CompletedProcess:
+    def result(self, *, allow_stderr: bool = True) -> None:
         """
         Returns the result of the Bonsai process execution.
 
@@ -111,9 +110,9 @@ class BonsaiApp(App):
         Raises:
             RuntimeError: If the app has not been run yet.
         """
-        if self._result is None:
+        if self._completed_process is None:
             raise RuntimeError("The app has not been run yet.")
-        return self._result
+        return self._process_process_output(allow_stderr=allow_stderr)
 
     def add_app_settings(self, *args, **kwargs):
         """
@@ -153,7 +152,7 @@ class BonsaiApp(App):
         return True
 
     @override
-    def run(self) -> subprocess.CompletedProcess:
+    def run(self) -> Self:
         """
         Runs the Bonsai process.
 
@@ -178,12 +177,11 @@ class BonsaiApp(App):
             timeout=self.settings.timeout,
             print_cmd=self.settings.print_cmd,
         )
-        self._result = proc
+        self._completed_process = proc
         logger.info("Bonsai process completed.")
-        return proc
+        return self
 
-    @override
-    def output_from_result(self, *, allow_stderr: Optional[bool]) -> Self:
+    def _process_process_output(self, *, allow_stderr: Optional[bool]) -> None:
         """
         Processes the output from the Bonsai process result.
 
@@ -196,7 +194,10 @@ class BonsaiApp(App):
         Raises:
             subprocess.CalledProcessError: If the process exits with an error.
         """
-        proc = self.result
+        proc = self._completed_process
+        if proc is None:
+            raise RuntimeError("The app has not been run yet.")
+
         try:
             proc.check_returncode()
         except subprocess.CalledProcessError:
@@ -204,14 +205,13 @@ class BonsaiApp(App):
             raise
         else:
             self._log_process_std_output("Bonsai", proc)
-
-            if len(proc.stdout) > 0:
+            if len(proc.stderr) > 0:
                 logger.error("Bonsai process finished with errors.")
                 if allow_stderr is None:
                     allow_stderr = self.ui_helper.prompt_yes_no_question("Would you like to see the error message?")
                 if allow_stderr is False:
                     raise subprocess.CalledProcessError(1, proc.args)
-        return self
+        return
 
     def _log_process_std_output(self, process_name: str, proc: subprocess.CompletedProcess) -> None:
         """
@@ -243,7 +243,6 @@ class AindBehaviorServicesBonsaiApp(BonsaiApp):
         ```
     """
 
-    @override
     def add_app_settings(
         self,
         launcher: Launcher,

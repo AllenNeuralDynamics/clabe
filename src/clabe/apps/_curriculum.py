@@ -1,6 +1,5 @@
 import logging
 import os
-import subprocess
 import typing as t
 from pathlib import Path
 
@@ -53,7 +52,7 @@ class CurriculumSettings(ServiceSettings):
     curriculum: t.Optional[str] = None
 
 
-class CurriculumApp(App):
+class CurriculumApp(App[CurriculumSuggestion]):
     """
     A curriculum application that manages the execution of behavior curriculum scripts.
 
@@ -101,7 +100,7 @@ class CurriculumApp(App):
             script=settings.script, project_directory=settings.project_directory, extra_uv_arguments="-q"
         )
 
-    def run(self) -> subprocess.CompletedProcess:
+    def run(self) -> t.Self:
         """
         Executes the curriculum module with the configured settings.
 
@@ -134,9 +133,13 @@ class CurriculumApp(App):
             kwargs["curriculum"] = f'"{self._settings.curriculum}"'
 
         self._python_script_app.add_app_settings(**kwargs)
-        return self._python_script_app.run()
+        self._python_script_app.run()
+        return self
 
-    def output_from_result(self, *, allow_stderr: bool | None = None) -> t.Self:
+    def result(self, *, allow_stderr: bool = True) -> CurriculumSuggestion:
+        return self._process_process_output(allow_stderr=allow_stderr)
+
+    def _process_process_output(self, *, allow_stderr: bool | None = None) -> CurriculumSuggestion:
         """
         Processes the output from the curriculum execution result.
 
@@ -153,14 +156,14 @@ class CurriculumApp(App):
             ```python
             # Process output and handle errors
             try:
-                app.output_from_result(allow_stderr=True)
+                app._process_process_output(allow_stderr=True)
                 print("Curriculum completed successfully")
             except subprocess.CalledProcessError as e:
                 print(f"Curriculum failed: {e}")
             ```
         """
-        self._python_script_app.output_from_result(allow_stderr=allow_stderr)
-        return self
+        out = self._python_script_app._process_process_output(allow_stderr=allow_stderr)
+        return CurriculumSuggestion.model_validate_json(out.stdout)
 
     def add_app_settings(self, **kwargs) -> t.Self:
         """
@@ -184,54 +187,3 @@ class CurriculumApp(App):
         """
         self._python_script_app.add_app_settings(**kwargs)
         return self
-
-    @property
-    def result(self) -> subprocess.CompletedProcess:
-        """
-        Retrieves the result of the curriculum execution.
-
-        Returns:
-            subprocess.CompletedProcess: The result of the curriculum script execution
-
-        Raises:
-            RuntimeError: If the curriculum has not been run yet
-
-        Example:
-            ```python
-            # Get execution result after running
-            app.run()
-            result = app.result
-            print(f"Return code: {result.returncode}")
-            print(f"Output: {result.stdout}")
-            ```
-        """
-        return self._python_script_app.result
-
-    def get_suggestion(self) -> CurriculumSuggestion:
-        """
-        Parses and returns the curriculum suggestion from the execution result.
-
-        Returns:
-            CurriculumSuggestion: Parsed curriculum output containing trainer state and metrics
-
-        Raises:
-            pydantic.ValidationError: If the result stdout cannot be parsed as valid JSON
-            RuntimeError: If the curriculum has not been run yet
-
-        Example:
-            ```python
-            # Get suggestion after running curriculum
-            app.run()
-            app.output_from_result()
-            suggestion = app.get_suggestion()
-            print(f"New trainer state: {suggestion.trainer_state}")
-            print(f"Metrics: {suggestion.metrics}")
-            ```
-        """
-        try:
-            self.run()
-            self.output_from_result(allow_stderr=True)
-        except subprocess.CalledProcessError as e:
-            logger.error("App %s failed with error: %s", self.__class__.__name__, e)
-            raise
-        return CurriculumSuggestion.model_validate_json(self.result.stdout)

@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 _HAS_UV = shutil.which("uv") is not None
 
 
-class PythonScriptApp(App):
+class PythonScriptApp(App[subprocess.CompletedProcess]):
     """
     PythonScriptApp is a class that facilitates running Python scripts within a managed environment.
     It ensures the presence of a virtual environment, handles dependencies, and executes the script
@@ -36,7 +36,7 @@ class PythonScriptApp(App):
             Property that retrieves the result of the executed script. Raises an error if the script has not been run.
         run() -> subprocess.CompletedProcess:
             Executes the Python script within the managed environment. Creates a virtual environment if one does not exist.
-        output_from_result(allow_stderr: Optional[bool]) -> Self:
+        _process_process_output(allow_stderr: Optional[bool]) -> Self:
             Processes the output of the executed script. Logs stdout and stderr, and optionally raises an error if stderr is present.
         _log_process_std_output(process_name: str, proc: subprocess.CompletedProcess) -> None:
             Logs the stdout and stderr of a completed process.
@@ -104,7 +104,7 @@ class PythonScriptApp(App):
         self._additional_arguments = additional_arguments
         self._extra_uv_arguments = extra_uv_arguments
 
-        self._result: Optional[subprocess.CompletedProcess] = None
+        self._completed_process: Optional[subprocess.CompletedProcess] = None
 
     @override
     def add_app_settings(self, **kwargs) -> Self:
@@ -112,8 +112,7 @@ class PythonScriptApp(App):
         self._additional_arguments = " ".join([self._additional_arguments] + [f"--{k} {v}" for k, v in kwargs.items()])
         return self
 
-    @property
-    def result(self) -> subprocess.CompletedProcess:
+    def result(self, *, allow_stderr: bool = True) -> subprocess.CompletedProcess:
         """
         Retrieves the result of the executed script.
 
@@ -123,12 +122,12 @@ class PythonScriptApp(App):
         Raises:
             RuntimeError: If the script has not been run yet.
         """
-        if self._result is None:
+        if self._completed_process is None:
             raise RuntimeError("The app has not been run yet.")
-        return self._result
+        return self._process_process_output(allow_stderr=allow_stderr)
 
     @override
-    def run(self) -> subprocess.CompletedProcess:
+    def run(self) -> Self:
         """
         Executes the Python script within the managed environment.
 
@@ -162,11 +161,10 @@ class PythonScriptApp(App):
             raise
 
         logger.info("Python script completed.")
-        self._result = proc
-        return proc
+        self._completed_process = proc
+        return self
 
-    @override
-    def output_from_result(self, *, allow_stderr: Optional[bool] = True) -> Self:
+    def _process_process_output(self, *, allow_stderr: Optional[bool] = True) -> subprocess.CompletedProcess:
         """
         Processes the output of the executed script.
 
@@ -179,7 +177,10 @@ class PythonScriptApp(App):
         Raises:
             subprocess.CalledProcessError: If the script execution fails or stderr is present when not allowed.
         """
-        proc = self.result
+        proc = self._completed_process
+        if proc is None:
+            raise RuntimeError("The app has not been run yet.")
+
         try:
             proc.check_returncode()
         except subprocess.CalledProcessError:
@@ -189,7 +190,7 @@ class PythonScriptApp(App):
             self._log_process_std_output(self._script, proc)
             if len(proc.stderr) > 0 and allow_stderr is False:
                 raise subprocess.CalledProcessError(1, proc.args)
-        return self
+        return proc
 
     @staticmethod
     def _log_process_std_output(process_name: str, proc: subprocess.CompletedProcess) -> None:

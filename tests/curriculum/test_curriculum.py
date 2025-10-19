@@ -42,4 +42,4 @@ class TestCurriculumIntegration:
 
         curriculum_app.run()
         curriculum_app.result.check_returncode()
-        CurriculumSuggestion.model_validate_json(curriculum_app.output_from_result().result.stdout)
+        CurriculumSuggestion.model_validate_json(curriculum_app._process_process_output().result.stdout)

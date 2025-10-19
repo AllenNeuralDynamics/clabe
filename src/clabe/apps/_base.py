@@ -1,7 +1,6 @@
 import abc
 import logging
-import subprocess
-from typing import Optional, Self, TypeVar
+from typing import Any, Generic, Self, TypeVar
 
 from ..services import Service
 
@@ -9,9 +8,10 @@ logger = logging.getLogger(__name__)
 
 
 TApp = TypeVar("TApp", bound="App")
+TResult = TypeVar("TResult", bound=Any)
 
 
-class App(Service, abc.ABC):
+class App(Service, abc.ABC, Generic[TResult]):
     """
     Abstract base class representing an application that can be run and managed.
 
@@ -24,7 +24,7 @@ class App(Service, abc.ABC):
     Methods:
         run() -> subprocess.CompletedProcess:
             Executes the application. Must be implemented by subclasses.
-        output_from_result(allow_stderr: Optional[bool]) -> Self:
+        _process_process_output(allow_stderr: Optional[bool]) -> Self:
             Processes and returns the output from the application's result.
             Must be implemented by subclasses.
         result() -> subprocess.CompletedProcess:
@@ -43,7 +43,7 @@ class App(Service, abc.ABC):
         # Implement a custom app
         class MyApp(App):
             def run(self) -> subprocess.CompletedProcess: return subprocess.run(["echo", "hello"])
-            def output_from_result(self, allow_stderr: Optional[bool]) -> Self: return self
+            def _process_process_output(self, allow_stderr: Optional[bool]) -> Self: return self
             @property
             def result(self) -> subprocess.CompletedProcess: return self._result
 
@@ -53,7 +53,7 @@ class App(Service, abc.ABC):
     """
 
     @abc.abstractmethod
-    def run(self) -> subprocess.CompletedProcess:
+    def run(self) -> Self:
         """
         Executes the application.
 
@@ -65,23 +65,7 @@ class App(Service, abc.ABC):
         ...
 
     @abc.abstractmethod
-    def output_from_result(self, *, allow_stderr: Optional[bool]) -> Self:
-        """
-        Processes and returns the output from the application's result.
-
-        This method should process the result of the application's execution and return the output.
-
-        Args:
-            allow_stderr (Optional[bool]): Whether to allow stderr in the output.
-
-        Returns:
-            Self: The processed output.
-        """
-        ...
-
-    @property
-    @abc.abstractmethod
-    def result(self) -> subprocess.CompletedProcess:
+    def result(self, *, allow_stderr: bool = True) -> TResult:
         """
         Retrieves the result of the application's execution.
 

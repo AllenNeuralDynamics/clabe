@@ -46,21 +46,21 @@ class TestBonsaiApp:
         with pytest.raises(RuntimeError):
             _ = bonsai_app.result
         mock_result = MagicMock(spec=subprocess.CompletedProcess)
-        bonsai_app._result = mock_result
+        bonsai_app._completed_process = mock_result
         assert bonsai_app.result == mock_result
 
-    def test_output_from_result(self, mock_ui_helper, bonsai_app: BonsaiApp) -> None:
+    def test__process_process_output(self, mock_ui_helper, bonsai_app: BonsaiApp) -> None:
         """Test output from result."""
         mock_ui_helper._prompt_yes_no_question.return_value = True
         mock_result = MagicMock(spec=subprocess.CompletedProcess)
         mock_result.stdout = "output"
         mock_result.stderr = ""
-        bonsai_app._result = mock_result
+        bonsai_app._completed_process = mock_result
         with patch.object(mock_result, "check_returncode", side_effect=subprocess.CalledProcessError(1, "cmd")):
             with pytest.raises(subprocess.CalledProcessError):
-                bonsai_app.output_from_result(allow_stderr=True)
+                bonsai_app._process_process_output(allow_stderr=True)
         with patch.object(mock_result, "check_returncode", return_value=None):
-            assert bonsai_app.output_from_result(allow_stderr=True) == bonsai_app
+            assert bonsai_app._process_process_output(allow_stderr=True) == bonsai_app
 
 
 @pytest.fixture
@@ -96,19 +96,19 @@ class TestPythonScriptApp:
         mock_run.assert_called_once()
         assert result.returncode == 0
 
-    def test_output_from_result_success(self, python_script_app: PythonScriptApp) -> None:
+    def test__process_process_output_success(self, python_script_app: PythonScriptApp) -> None:
         """Test output from result success."""
         python_script_app._result = subprocess.CompletedProcess(args="test", returncode=0, stdout="output", stderr="")
-        result = python_script_app.output_from_result()
+        result = python_script_app._process_process_output()
         assert result == python_script_app
 
-    def test_output_from_result_failure(self, python_script_app: PythonScriptApp) -> None:
+    def test__process_process_output_failure(self, python_script_app: PythonScriptApp) -> None:
         """Test output from result failure."""
         python_script_app._result = subprocess.CompletedProcess(
             args="test", returncode=1, stdout="output", stderr="error"
         )
         with pytest.raises(subprocess.CalledProcessError):
-            python_script_app.output_from_result()
+            python_script_app._process_process_output()
 
     def test_result_property(self, python_script_app: PythonScriptApp) -> None:
         """Test result property."""

@@ -115,9 +115,9 @@ class EchoApp(App):
             raise
         self._result = proc
         logger.info("EchoApp completed.")
-        return proc
+        return self._process_process_output(allow_stderr=False).result
 
-    def output_from_result(self, allow_stderr: Optional[bool]) -> Self:
+    def _process_process_output(self, allow_stderr: Optional[bool]) -> Self:
         proc = self.result
         try:
             proc.check_returncode()
@@ -178,7 +178,7 @@ def experiment(launcher: Launcher) -> None:
 
     app = EchoApp("Hello World!")
     app.run()
-    app.output_from_result(allow_stderr=True).result
+    app._process_process_output(allow_stderr=True).result
 
     suggestion = CurriculumApp(
         settings=CurriculumSettings(
