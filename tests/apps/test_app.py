@@ -26,7 +26,7 @@ class TestBonsaiApp:
         """Test run."""
         mock_result = MagicMock(spec=subprocess.CompletedProcess)
         mock_run_bonsai_process.return_value = mock_result
-        result = bonsai_app.run()
+        result = bonsai_app.run()._completed_process
         assert result == mock_result
         mock_run_bonsai_process.assert_called_once()
 
@@ -41,13 +41,10 @@ class TestBonsaiApp:
             with pytest.raises(FileNotFoundError):
                 bonsai_app.validate()
 
-    def test_result_property(self, bonsai_app: BonsaiApp) -> None:
+    def test_raises_before_run(self, bonsai_app: BonsaiApp) -> None:
         """Test result property."""
         with pytest.raises(RuntimeError):
-            _ = bonsai_app.result
-        mock_result = MagicMock(spec=subprocess.CompletedProcess)
-        bonsai_app._completed_process = mock_result
-        assert bonsai_app.result == mock_result
+            bonsai_app.result(allow_stderr=True)
 
     def test__process_process_output(self, mock_ui_helper, bonsai_app: BonsaiApp) -> None:
         """Test output from result."""
@@ -60,7 +57,7 @@ class TestBonsaiApp:
             with pytest.raises(subprocess.CalledProcessError):
                 bonsai_app._process_process_output(allow_stderr=True)
         with patch.object(mock_result, "check_returncode", return_value=None):
-            assert bonsai_app._process_process_output(allow_stderr=True) == bonsai_app
+            bonsai_app._process_process_output(allow_stderr=True)
 
 
 @pytest.fixture
@@ -92,19 +89,13 @@ class TestPythonScriptApp:
     def test_run(self, mock_has_env: MagicMock, mock_run: MagicMock, python_script_app: PythonScriptApp) -> None:
         """Test run."""
         mock_run.return_value = MagicMock(returncode=0)
-        result = python_script_app.run()
+        python_script_app.run()
         mock_run.assert_called_once()
-        assert result.returncode == 0
-
-    def test__process_process_output_success(self, python_script_app: PythonScriptApp) -> None:
-        """Test output from result success."""
-        python_script_app._result = subprocess.CompletedProcess(args="test", returncode=0, stdout="output", stderr="")
-        result = python_script_app._process_process_output()
-        assert result == python_script_app
+        assert python_script_app.result(allow_stderr=True).returncode == 0
 
     def test__process_process_output_failure(self, python_script_app: PythonScriptApp) -> None:
         """Test output from result failure."""
-        python_script_app._result = subprocess.CompletedProcess(
+        python_script_app._completed_process = subprocess.CompletedProcess(
             args="test", returncode=1, stdout="output", stderr="error"
         )
         with pytest.raises(subprocess.CalledProcessError):
@@ -113,7 +104,7 @@ class TestPythonScriptApp:
     def test_result_property(self, python_script_app: PythonScriptApp) -> None:
         """Test result property."""
         with pytest.raises(RuntimeError):
-            _ = python_script_app.result
+            _ = python_script_app.result()
 
     def test_add_uv_project_directory(self, python_script_app: PythonScriptApp) -> None:
         """Test add uv project directory."""
