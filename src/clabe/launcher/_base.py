@@ -144,7 +144,6 @@ class Launcher:
         This method is typically called at the end of the launcher by a registered callable that transfers data.
         """
         if self._has_copied_logs:
-            logger.warning("Logs have already been copied. Skipping copy.")
             return None
 
         logging_helper.close_file_handlers(logger)
