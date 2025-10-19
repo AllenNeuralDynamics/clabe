@@ -88,6 +88,15 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
     Integrates with the AIND data transfer infrastructure to automatically monitor
     directories for new data and transfer it to specified destinations with proper
     metadata handling and validation.
+
+    Methods:
+        transfer: Executes the data transfer by generating a manifest configuration
+        validate: Validates the Watchdog service and its configuration
+        is_valid_project_name: Checks if the project name is valid
+        is_running: Checks if the Watchdog service is currently running
+        force_restart: Attempts to restart the Watchdog application
+        dump_manifest_config: Dumps the manifest configuration to a YAML file
+        prompt_input: Prompts the user to confirm manifest generation
     """
 
     def __init__(

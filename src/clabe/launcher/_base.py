@@ -26,16 +26,26 @@ TLauncher = TypeVar("TLauncher", bound="Launcher")
 
 class Launcher:
     """
-    Abstract base class for experiment launchers. Provides common functionality
-    for managing configuration files, directories, and registered callables.
+    Base class for experiment launchers. Provides functionality for managing
+    configuration files, directories, and experiment execution.
 
-    This class serves as the foundation for all launcher implementations, providing
-    schema management, directory handling, validation, and lifecycle management.
+    This class serves as the foundation for launcher implementations, providing
+    session management, directory handling, validation, and lifecycle management.
 
-    Type Parameters:
-        TRig: Type of the rig schema model
-        TSession: Type of the session schema model
-        TTaskLogic: Type of the task logic schema model
+    Properties:
+        logger: The logger instance used by the launcher
+        settings: The launcher configuration settings
+        session: The registered session model
+        session_directory: The path to the session directory
+
+    Methods:
+        register_session: Registers a session model with the launcher
+        run_experiment: Main entry point for launcher execution
+        copy_logs: Closes file handlers and copies temporary data
+        make_header: Creates a formatted header string for the launcher
+        validate: Validates dependencies required for the launcher
+        save_temp_model: Saves a temporary JSON representation of a schema model
+        create_directory: Creates a directory at the specified path
     """
 
     def __init__(

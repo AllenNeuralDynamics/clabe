@@ -15,41 +15,16 @@ class App(Service, abc.ABC, Generic[TResult]):
     """
     Abstract base class representing an application that can be run and managed.
 
-    This class defines the interface for applications that can be executed.
-    Subclasses must implement the abstract methods to define the specific behavior of the application.
+    Defines the interface for applications that can be executed. Subclasses must
+    implement the abstract methods to define specific application behavior.
 
-    Attributes:
-        None
+    Type Parameters:
+        TResult: The type of result returned by the application
 
     Methods:
-        run() -> subprocess.CompletedProcess:
-            Executes the application. Must be implemented by subclasses.
-        _process_process_output(allow_stderr: Optional[bool]) -> Self:
-            Processes and returns the output from the application's result.
-            Must be implemented by subclasses.
-        result() -> subprocess.CompletedProcess:
-            Retrieves the result of the application's execution.
-            Must be implemented by subclasses.
-        add_app_settings(**kwargs) -> Self:
-            Adds or updates application settings. Can be overridden by subclasses
-            to provide specific behavior for managing application settings.
-
-    Notes:
-        Subclasses must implement the abstract methods and property to define the specific
-        behavior of the application.
-
-    Example:
-        ```python
-        # Implement a custom app
-        class MyApp(App):
-            def run(self) -> subprocess.CompletedProcess: return subprocess.run(["echo", "hello"])
-            def _process_process_output(self, allow_stderr: Optional[bool]) -> Self: return self
-            @property
-            def result(self) -> subprocess.CompletedProcess: return self._result
-
-        app = MyApp()
-        app.run()
-        ```
+        run: Executes the application
+        get_result: Retrieves the result of the application's execution
+        add_app_settings: Adds or updates application settings
     """
 
     @abc.abstractmethod

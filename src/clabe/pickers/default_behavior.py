@@ -34,33 +34,28 @@ class DefaultBehaviorPickerSettings(ServiceSettings):
 
 class DefaultBehaviorPicker:
     """
-    A picker class for selecting rig, session, and task logic configurations for behavior experiments.
+    A picker class for selecting rig, session, and task logic configurations.
 
-    This class provides methods to initialize directories, pick configurations, and prompt user inputs
-    for various components of the experiment setup. It manages the configuration library structure
-    and user interactions for selecting experiment parameters.
+    Provides methods to initialize directories, pick configurations, and prompt user
+    inputs for various components of the experiment setup. Manages the configuration
+    library structure and user interactions for selecting experiment parameters.
 
-    Attributes:
-        RIG_SUFFIX (str): Directory suffix for rig configurations
-        SUBJECT_SUFFIX (str): Directory suffix for subject configurations
-        TASK_LOGIC_SUFFIX (str): Directory suffix for task logic configurations
+    Properties:
+        ui_helper: Helper for user interface interactions
+        trainer_state: The current trainer state
+        config_library_dir: Path to the configuration library directory
+        rig_dir: Path to the rig configurations directory
+        subject_dir: Path to the subject configurations directory
+        task_logic_dir: Path to the task logic configurations directory
 
-    Example:
-        ```python
-        # Create settings for the picker
-        settings = DefaultBehaviorPickerSettings(config_library_dir="config_dir")
-
-        # Create a default behavior picker
-        picker = DefaultBehaviorPicker(
-            launcher=some_launcher_instance,
-            settings=settings,
-        )
-        # Initialize and pick configurations
-        picker.initialize()
-        rig = picker.pick_rig()
-        session = picker.pick_session()
-        task_logic = picker.pick_task_logic()
-        ```
+    Methods:
+        pick_rig: Picks the rig configuration
+        pick_session: Picks the session configuration
+        pick_task_logic: Picks the task logic configuration
+        pick_trainer_state: Picks the trainer state configuration
+        choose_subject: Allows the user to choose a subject
+        prompt_experimenter: Prompts for experimenter information
+        dump_model: Saves a Pydantic model to a file
     """
 
     RIG_SUFFIX: str = "Rig"

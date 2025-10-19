@@ -22,15 +22,8 @@ class BonsaiAppSettings(ServiceSettings):
     """
     Settings for the BonsaiApp.
 
-    Attributes:
-        workflow (os.PathLike): Path to the Bonsai workflow file.
-        executable (os.PathLike): Path to the Bonsai executable.
-        is_editor_mode (bool): Whether to run Bonsai in editor mode.
-        is_start_flag (bool): Whether to use the start flag when running Bonsai.
-        additional_properties (Optional[Dict[str, str]]): Additional properties to pass to Bonsai.
-        cwd (Optional[os.PathLike]): Working directory for the Bonsai process.
-        timeout (Optional[float]): Timeout for the Bonsai process.
-        print_cmd (bool): Whether to print the command being executed.
+    Configuration for Bonsai workflow execution including paths, modes, and
+    execution parameters.
     """
 
     __yml_section__: ClassVar[Optional[str]] = "bonsai_app"
@@ -74,8 +67,14 @@ class BonsaiApp(App[None]):
     """
     A class to manage the execution of Bonsai workflows.
 
-    This class handles Bonsai workflow execution, configuration management,
-    and process monitoring for behavioral experiments using Bonsai.
+    Handles Bonsai workflow execution, configuration management, and process
+    monitoring for behavioral experiments.
+
+    Methods:
+        run: Executes the Bonsai workflow
+        get_result: Retrieves the result of the Bonsai execution
+        add_app_settings: Adds or updates application settings
+        validate: Validates the Bonsai application configuration
     """
 
     def __init__(

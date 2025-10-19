@@ -13,29 +13,14 @@ class ResourceMonitor(Service):
     """
     A service that monitors and validates resource constraints.
 
-    This service manages a collection of constraints that can be evaluated to ensure
-    that system resources meet the requirements for experiment execution.
+    Manages a collection of constraints that can be evaluated to ensure system
+    resources meet the requirements for experiment execution.
 
-    Attributes:
-        constraints (List[Constraint]): A list of constraints to monitor
-
-    Example:
-        ```python
-        from clabe.resource_monitor import available_storage_constraint_factory
-
-        # Create monitor with storage constraint
-        monitor = ResourceMonitor()
-        storage_constraint = available_storage_constraint_factory(
-            drive="C:\\", min_bytes=1e9  # 1GB minimum
-        )
-        monitor.add_constraint(storage_constraint)
-
-        # Validate all constraints
-        if monitor.validate():
-            print("All constraints satisfied")
-        else:
-            print("Some constraints failed")
-        ```
+    Methods:
+        run: Runs the resource monitor and evaluates all constraints
+        add_constraint: Adds a constraint to the monitor
+        remove_constraint: Removes a constraint from the monitor
+        evaluate_constraints: Evaluates all registered constraints
     """
 
     def __init__(

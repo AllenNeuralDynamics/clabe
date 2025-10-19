@@ -28,19 +28,15 @@ class _DataverseRestClientSettings(ServiceSettings):
     """
     Settings for the Dataverse rest client.
 
-    Attributes:
-        tenant_id (str): Azure AD tenant ID.
-        client_id (str): Azure AD client ID.
-        org (str): Dataverse organization name.
-        additional_scopes (list[str]): Additional scopes for authentication.
-        username (str): Username for authentication.
-        password (SecretStr): Password for authentication.
-        domain (str): Domain for the username.
-        username_at_domain (str): Computed property for username with domain.
-        api_url (str): Computed property for the Dataverse API URL.
-        env_url (str): Computed property for the Dataverse environment URL.
-        authority (str): Computed property for the Azure AD authority URL.
-        scope (str): Computed property for the Dataverse API scope.
+    Configuration for authenticating and connecting to Microsoft Dataverse,
+    including Azure AD settings and organization details.
+
+    Properties:
+        username_at_domain: Username with domain for authentication
+        api_url: Base URL for the Dataverse API
+        env_url: Base URL for the Dataverse environment
+        authority: Base URL for the Azure AD authority
+        scope: Scope string for the Dataverse API
     """
 
     __yml_section__: ClassVar[Optional[str]] = "dataverse"

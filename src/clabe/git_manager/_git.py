@@ -16,8 +16,18 @@ class GitRepository(Repo):
     A wrapper around the `git.Repo` class that provides additional methods
     for managing Git repositories and their submodules.
 
-    This class extends the functionality of GitPython's Repo class with additional
-    utilities for repository management, submodule handling, and cleanup operations.
+    Extends the functionality of GitPython's Repo class with additional utilities
+    for repository management, submodule handling, and cleanup operations.
+
+    Methods:
+        reset_repo: Resets the repository to the last committed state
+        clean_repo: Cleans the repository by removing untracked files
+        is_dirty_with_submodules: Checks if the repository or submodules are dirty
+        uncommitted_changes: Returns a list of uncommitted changes
+        force_update_submodules: Forces an update of all submodules
+        submodules_sync: Synchronizes submodules
+        full_reset: Performs a full reset of the repository and submodules
+        try_prompt_full_reset: Prompts the user to perform a full reset
     """
 
     def __init__(self, *args, **kwargs):

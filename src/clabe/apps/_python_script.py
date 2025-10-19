@@ -20,24 +20,15 @@ class PythonScriptApp(App[subprocess.CompletedProcess]):
     """
     Application class for running Python scripts within a managed uv environment.
 
-    This class facilitates running Python scripts with automatic virtual environment
-    management, dependency handling, and script execution with specified arguments.
-    It uses the uv tool for environment and dependency management.
+    Facilitates running Python scripts with automatic virtual environment management,
+    dependency handling, and script execution. Uses the uv tool for environment and
+    dependency management.
 
-    Example:
-        ```python
-        # Create and run a Python script app
-        app = PythonScriptApp(script="my_script.py")
-        app.run()
-
-        # Create with additional arguments and dependencies
-        app = PythonScriptApp(
-            script="my_script.py",
-            additional_arguments="--verbose",
-            optional_toml_dependencies=["dev", "test"]
-        )
-        app.run()
-        ```
+    Methods:
+        run: Executes the Python script
+        get_result: Retrieves the result of the script execution
+        add_app_settings: Adds or updates application settings
+        create_environment: Creates or synchronizes the virtual environment
     """
 
     def __init__(

@@ -37,10 +37,8 @@ class CurriculumSettings(ServiceSettings):
     """
     Settings for the CurriculumApp.
 
-    Attributes:
-        entry_point: Path to the curriculum module (directory or file)
-        input_trainer_state: Optional path to input TrainerState serialized file
-        data_directory: Optional data directory for metrics calculation
+    Configuration for curriculum execution including script path, project directory,
+    and data handling.
     """
 
     __yml_section__: t.ClassVar[t.Literal["curriculum"]] = "curriculum"
@@ -56,23 +54,13 @@ class CurriculumApp(App[CurriculumSuggestion]):
     """
     A curriculum application that manages the execution of behavior curriculum scripts.
 
-    This class facilitates running curriculum modules within a managed Python environment,
-    handling trainer state input/output and data directory management for curriculum processing.
+    Facilitates running curriculum modules within a managed Python environment, handling
+    trainer state input/output and data directory management.
 
-    Attributes:
-        _settings: The curriculum settings configuration
-        _python_script_app: Internal Python script application for execution
-
-    Example:
-        ```python
-        # Create and run a curriculum app
-        settings = CurriculumSettings(entry="/path/to/curriculum")
-        app = CurriculumApp(settings)
-        app.run()
-
-        # Use with launcher for automated curriculum processing
-        launcher.register_callable(app.build_runner(input_state_promise))
-        ```
+    Methods:
+        run: Executes the curriculum script
+        get_result: Retrieves the curriculum suggestion result
+        add_app_settings: Adds or updates application settings
     """
 
     def __init__(self, settings: CurriculumSettings):
