@@ -106,5 +106,6 @@ ignore-magic = true
 ignore_module = true
 ignore_nested_functions=true
 ignore_overloaded_functions=true
+ignore-private = true
 fail-under = 100
 exclude = ["__init__.py", "tests", "docs", "build", "setup.py", "examples", "site"]

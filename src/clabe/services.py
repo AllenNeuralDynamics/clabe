@@ -10,8 +10,11 @@ logger = logging.getLogger(__name__)
 
 
 class Service(abc.ABC):
-    """Abstract base class for all services in the application.
-    This may be needed in the future to ensure a common interface"""
+    """
+    Abstract base class for all services in the application.
+
+    This may be needed in the future to ensure a common interface.
+    """
 
     ...
 
@@ -45,7 +48,13 @@ class ServiceSettings(ps.BaseSettings, abc.ABC):
 
     @classmethod
     def __init_subclass__(cls, *args, **kwargs):
-        """Initializes the subclass and sets up the YAML configuration."""
+        """
+        Initializes the subclass and sets up the YAML configuration.
+
+        Args:
+            *args: Positional arguments
+            **kwargs: Keyword arguments
+        """
         super().__init_subclass__(*args, **kwargs)
         cls.model_config.update(ps.SettingsConfigDict(extra="ignore"))
 
@@ -62,14 +71,14 @@ class ServiceSettings(ps.BaseSettings, abc.ABC):
         Customizes the settings sources to include the safe YAML settings source.
 
         Args:
-            settings_cls: The settings class.
-            init_settings: The initial settings source.
-            env_settings: The environment settings source.
-            dotenv_settings: The dotenv settings source.
-            file_secret_settings: The file secret settings source.
+            settings_cls: The settings class
+            init_settings: The initial settings source
+            env_settings: The environment settings source
+            dotenv_settings: The dotenv settings source
+            file_secret_settings: The file secret settings source
 
         Returns:
-            A tuple of settings sources.
+            Tuple[PydanticBaseSettingsSource, ...]: A tuple of settings sources
         """
         return (
             init_settings,
@@ -86,6 +95,9 @@ class ServiceSettings(ps.BaseSettings, abc.ABC):
 class _SafeYamlSettingsSource(ps.YamlConfigSettingsSource):
     """
     A safe YAML settings source that does not raise an error if the YAML configuration section is not found.
+
+    This class extends YamlConfigSettingsSource to gracefully handle missing configuration sections,
+    allowing the settings to continue loading from other sources when a specific YAML section is absent.
     """
 
     def __init__(
@@ -99,10 +111,10 @@ class _SafeYamlSettingsSource(ps.YamlConfigSettingsSource):
         Initializes the safe YAML settings source.
 
         Args:
-            settings_cls: The settings class.
-            yaml_file: The YAML file path.
-            yaml_file_encoding: The YAML file encoding.
-            yaml_config_section: The YAML configuration section.
+            settings_cls: The settings class
+            yaml_file: The YAML file path. Defaults to DEFAULT_PATH
+            yaml_file_encoding: The YAML file encoding. Defaults to None
+            yaml_config_section: The YAML configuration section. Defaults to None
         """
         try:
             # pydantic-settings will raise an error if a yaml_config_section is passed but is not found in the yaml file
@@ -118,7 +130,7 @@ class _SafeYamlSettingsSource(ps.YamlConfigSettingsSource):
         Calls the settings source and returns the settings dictionary.
 
         Returns:
-            A dictionary of settings.
+            Dict[str, Any]: A dictionary of settings
         """
         try:
             return super().__call__()

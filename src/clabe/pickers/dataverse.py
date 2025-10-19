@@ -93,12 +93,12 @@ class _DataverseRestClientSettings(ServiceSettings):
         Create a DataverseSettings instance getting the password from a KeePass entry.
 
         Args:
-            entry_title (str): Title of the KeePass entry.
-            keepass_manager (Optional[keepass.KeePass]): An optional KeePass manager instance. If not provided, a new instance will be created with default settings.
-            **kwargs: Additional keyword arguments to pass to the DataverseSettings constructor.
+            entry_title: Title of the KeePass entry. Defaults to "svc_sipe"
+            keepass: An optional KeePass manager instance. If not provided, a new instance will be created with default settings. Defaults to None
+            **kwargs: Additional keyword arguments to pass to the DataverseSettings constructor
 
         Returns:
-            DataverseSettings: The created DataverseSettings instance.
+            _DataverseRestClientSettings: The created DataverseSettings instance
         """
         if keepass is None:
             # KeePassSettings will attempt to load settings using the YAML config if available
@@ -122,9 +122,11 @@ class _DataverseRestClient:
     def __init__(self, config: _DataverseRestClientSettings):
         """
         Initialize the DataverseRestClient with configuration.
+
         Acquires an authentication token and sets up request headers.
+
         Args:
-            config (DataverseSettings): Config object with credentials and URLs.
+            config: Config object with credentials and URLs
         """
         self.config = config
         self._last_token_acquired = None
@@ -140,7 +142,12 @@ class _DataverseRestClient:
 
     @property
     def token(self) -> dict:
-        """Get the current authentication token."""
+        """
+        Get the current authentication token.
+
+        Returns:
+            dict: Token dictionary containing access_token
+        """
         if (
             self._last_token_acquired is None
             or (datetime.now() - self._last_token_acquired).total_seconds() > self._REFRESH_TOKEN_SECONDS
@@ -151,10 +158,12 @@ class _DataverseRestClient:
     def _acquire_token(self):
         """
         Acquire an access token using MSAL and user credentials.
+
         Returns:
-            dict: Token dictionary containing 'access_token'.
+            dict: Token dictionary containing access_token
+
         Raises:
-            ValueError: If token acquisition fails.
+            ValueError: If token acquisition fails
         """
         app = msal.PublicClientApplication(
             client_id=self.config.client_id,
@@ -183,14 +192,16 @@ class _DataverseRestClient:
     ) -> str:
         """
         Format query parameters for a Dataverse API request.
+
         Args:
-            filter (str, optional): OData filter query.
-            order_by (str or list[str], optional): OData order by clause.
-            top (int, optional): OData top value.
-            count (bool, optional): Include "@odata.count" in the response, counting matches
-            select (str or list[str], optional): OData select clause.
+            filter: OData filter query. Defaults to None
+            order_by: OData order by clause. Defaults to None
+            top: OData top value. Defaults to None
+            count: Include "@odata.count" in the response, counting matches. Defaults to None
+            select: OData select clause. Defaults to None
+
         Returns:
-            str: Formatted query string.
+            str: Formatted query string
         """
         queries = []
         if filter:
@@ -221,16 +232,18 @@ class _DataverseRestClient:
     ) -> str:
         """
         Construct the URL for a Dataverse table entry.
+
         Args:
-            table (str): Table name.
-            entry_id (str or dict, optional): Entry ID or alternate key.
-            filter (str, optional): OData filter query, e.g. "column eq 'value'".
-            order_by (str or list[str], optional): Column or list of columns to order by
-            top (int, optional): Return the top n results
-            count (bool, optional): Include "@odata.count" in the response, counting matches
-            select (str or list[str], optional): Columns to include in the response
+            table: Table name
+            entry_id: Entry ID or alternate key. Defaults to None
+            filter: OData filter query, e.g. "column eq 'value'". Defaults to None
+            order_by: Column or list of columns to order by. Defaults to None
+            top: Return the top n results. Defaults to None
+            count: Include "@odata.count" in the response, counting matches. Defaults to None
+            select: Columns to include in the response. Defaults to None
+
         Returns:
-            str: Constructed URL for the entry.
+            str: Constructed URL for the entry
         """
         if entry_id is None:
             identifier = ""
@@ -261,13 +274,16 @@ class _DataverseRestClient:
     def get_entry(self, table: str, id: str | dict) -> dict:
         """
         Get a Dataverse entry by ID or alternate key.
+
         Args:
-            table (str): Table name.
-            id (str or dict): Entry ID or alternate key.
+            table: Table name
+            id: Entry ID or alternate key
+
         Returns:
-            dict: Entry data as a dictionary.
+            dict: Entry data as a dictionary
+
         Raises:
-            ValueError: If the entry cannot be fetched.
+            ValueError: If the entry cannot be fetched
         """
         url = self._construct_url(table, id)
         response = requests.get(url, headers=self.headers, timeout=_REQUEST_TIMEOUT)
@@ -281,13 +297,16 @@ class _DataverseRestClient:
     def add_entry(self, table: str, data: dict) -> Optional[dict]:
         """
         Add a new entry to a Dataverse table.
+
         Args:
-            table (str): Table name.
-            data (dict): Entry data to add.
+            table: Table name
+            data: Entry data to add
+
         Returns:
-            dict: Response data from Dataverse.
+            Optional[dict]: Response data from Dataverse
+
         Raises:
-            ValueError: If the entry cannot be added.
+            ValueError: If the entry cannot be added
         """
         url = self._construct_url(table)
         response = requests.post(url, headers=self.headers, json=data, timeout=_REQUEST_TIMEOUT)
@@ -309,14 +328,17 @@ class _DataverseRestClient:
     ) -> dict:
         """
         Update an existing entry in a Dataverse table.
+
         Args:
-            table (str): Table name.
-            id (str or dict): Entry ID or alternate key.
-            update_data (dict): Data to update.
+            table: Table name
+            id: Entry ID or alternate key
+            update_data: Data to update
+
         Returns:
-            dict: Updated entry data from Dataverse.
+            dict: Updated entry data from Dataverse
+
         Raises:
-            ValueError: If the entry cannot be updated.
+            ValueError: If the entry cannot be updated
         """
         url = self._construct_url(table, id)
         headers = self.headers | {"Prefer": "return=representation"}
@@ -338,16 +360,19 @@ class _DataverseRestClient:
     ) -> list[dict]:
         """
         Query a Dataverse table for multiple entries based on filters.
+
         For details, see https://www.odata.org/getting-started/basic-tutorial/#queryData
-        https://docs.oasis-open.org/odata/odata/v4.0/errata03/os/complete/part1-protocol/odata-v4.0-errata03-os-part1-protocol-complete.html#_The_$filter_System # noqa
+        and https://docs.oasis-open.org/odata/odata/v4.0/errata03/os/complete/part1-protocol/odata-v4.0-errata03-os-part1-protocol-complete.html#_The_$filter_System
+
         Args:
-            table (str): Table name.
-            filter (str, optional): OData filter query, e.g. "column eq 'value'".
-            order_by (str or list[str], optional): Column or list of columns to order by
-            top (int, optional): Return the top n results
-            select (str or list[str], optional): Columns to include in the response
+            table: Table name
+            filter: OData filter query, e.g. "column eq 'value'". Defaults to None
+            order_by: Column or list of columns to order by. Defaults to None
+            top: Return the top n results. Defaults to None
+            select: Columns to include in the response. Defaults to None
+
         Returns:
-            dict: Query results from Dataverse.
+            list[dict]: Query results from Dataverse
         """
         url = self._construct_url(
             table,

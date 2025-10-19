@@ -78,9 +78,10 @@ class DefaultBehaviorPicker:
         Initializes the DefaultBehaviorPicker.
 
         Args:
-            settings: Settings containing configuration including config_library_dir. By default, attempts to rely on DefaultBehaviorPickerSettings to automatic loading from yaml files.
-            ui_helper: Helper for user interface interactions. If None, must be registered later using register_ui_helper().
-            experimenter_validator: Function to validate the experimenter's username. If None, no validation is performed
+            settings: Settings containing configuration including config_library_dir. By default, attempts to rely on DefaultBehaviorPickerSettings to automatic loading from yaml files
+            launcher: The launcher instance for managing experiment execution
+            ui_helper: Helper for user interface interactions. If None, uses launcher's ui_helper. Defaults to None
+            experimenter_validator: Function to validate the experimenter's username. If None, no validation is performed. Defaults to validate_aind_username
         """
         self._launcher = launcher
         self._ui_helper = launcher.ui_helper if ui_helper is None else ui_helper
@@ -96,7 +97,7 @@ class DefaultBehaviorPicker:
         Retrieves the registered UI helper.
 
         Returns:
-            DefaultUIHelper: The registered UI helper
+            UiHelper: The registered UI helper
 
         Raises:
             ValueError: If no UI helper is registered
@@ -111,10 +112,10 @@ class DefaultBehaviorPicker:
         Returns the current trainer state.
 
         Returns:
-            TrainerState: The current trainer state.
+            TrainerState: The current trainer state
 
         Raises:
-            ValueError: If the trainer state is not set.
+            ValueError: If the trainer state is not set
         """
         if self._trainer_state is None:
             raise ValueError("Trainer state not set.")
@@ -126,7 +127,7 @@ class DefaultBehaviorPicker:
         Returns the path to the configuration library directory.
 
         Returns:
-            Path: The configuration library directory.
+            Path: The configuration library directory
         """
         return Path(self._settings.config_library_dir)
 
@@ -136,7 +137,7 @@ class DefaultBehaviorPicker:
         Returns the path to the rig configuration directory.
 
         Returns:
-            Path: The rig configuration directory.
+            Path: The rig configuration directory
         """
         return Path(os.path.join(self.config_library_dir, self.RIG_SUFFIX, self._launcher.computer_name))
 
@@ -146,7 +147,7 @@ class DefaultBehaviorPicker:
         Returns the path to the subject configuration directory.
 
         Returns:
-            Path: The subject configuration directory.
+            Path: The subject configuration directory
         """
         return Path(os.path.join(self.config_library_dir, self.SUBJECT_SUFFIX))
 
@@ -156,7 +157,7 @@ class DefaultBehaviorPicker:
         Returns the path to the task logic configuration directory.
 
         Returns:
-            Path: The task logic configuration directory.
+            Path: The task logic configuration directory
         """
         return Path(os.path.join(self.config_library_dir, self.TASK_LOGIC_SUFFIX))
 
@@ -179,11 +180,14 @@ class DefaultBehaviorPicker:
         Searches for available rig configuration files and either automatically
         selects a single file or prompts the user to choose from multiple options.
 
+        Args:
+            model: The rig model type to validate against
+
         Returns:
-            TRig: The selected rig configuration.
+            TRig: The selected rig configuration
 
         Raises:
-            ValueError: If no rig configuration files are found or an invalid choice is made.
+            ValueError: If no rig configuration files are found or an invalid choice is made
         """
         available_rigs = glob.glob(os.path.join(self.rig_dir, "*.json"))
         if len(available_rigs) == 0:
@@ -214,8 +218,11 @@ class DefaultBehaviorPicker:
         Collects experimenter information, subject selection, and session notes
         to create a new session configuration with appropriate metadata.
 
+        Args:
+            model: The session model type to instantiate. Defaults to AindBehaviorSessionModel
+
         Returns:
-            TSession: The created or selected session configuration.
+            TSession: The created or selected session configuration
         """
 
         experimenter = self.prompt_experimenter(strict=True)
@@ -247,11 +254,14 @@ class DefaultBehaviorPicker:
         2. From subject-specific folder
         3. From user selection in task logic library
 
+        Args:
+            model: The task logic model type to validate against
+
         Returns:
-            TTaskLogic: The created or selected task logic configuration.
+            TTaskLogic: The created or selected task logic configuration
 
         Raises:
-            ValueError: If no valid task logic file is found.
+            ValueError: If no valid task logic file is found
         """
         task_logic: Optional[TTaskLogic] = None
         if self._session is None:
@@ -309,11 +319,14 @@ class DefaultBehaviorPicker:
 
         It will launcher.set_task_logic if the deserialized TrainerState is valid.
 
+        Args:
+            task_logic_model: The task logic model type to validate against
+
         Returns:
-            TrainerState: The deserialized TrainerState object.
+            tuple[TrainerState, TTaskLogic]: The deserialized TrainerState object and validated task logic
 
         Raises:
-            ValueError: If no valid task logic file is found.
+            ValueError: If no valid task logic file is found or session is not set
         """
 
         if self._session is None:
@@ -381,10 +394,10 @@ class DefaultBehaviorPicker:
         Validates names using the configured validator function if provided.
 
         Args:
-            strict: Whether to enforce non-empty input
+            strict: Whether to enforce non-empty input. Defaults to True
 
         Returns:
-            Optional[List[str]]: List of experimenter names.
+            Optional[List[str]]: List of experimenter names
 
         Example:
             ```python
@@ -417,11 +430,10 @@ class DefaultBehaviorPicker:
         Saves the provided model to the appropriate configuration file.
 
         Args:
-            launcher: The launcher instance managing the experiment.
-            model: The model instance to save.
+            model: The model instance to save
 
         Returns:
-            Optional[Path]: The path to the saved model file, or None if not saved.
+            Optional[Path]: The path to the saved model file, or None if not saved
         """
 
         path: Path

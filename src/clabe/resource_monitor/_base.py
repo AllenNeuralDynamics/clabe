@@ -40,9 +40,7 @@ class ResourceMonitor(Service):
 
     def __init__(
         self,
-        *args,
         constrains: Optional[List[Constraint]] = None,
-        **kwargs,
     ) -> None:
         """
         Initializes the ResourceMonitor.
@@ -53,6 +51,15 @@ class ResourceMonitor(Service):
         self.constraints = constrains or []
 
     def run(self) -> bool:
+        """
+        Runs the resource monitor and evaluates all constraints.
+
+        Returns:
+            bool: True if all constraints pass
+
+        Raises:
+            RuntimeError: If one or more constraints fail
+        """
         logger.debug("Evaluating resource monitor constraints.")
         if result := not self.evaluate_constraints():
             logger.error("One or more resource monitor constraints failed.")

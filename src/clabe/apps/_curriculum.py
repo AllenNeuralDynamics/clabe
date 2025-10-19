@@ -105,7 +105,7 @@ class CurriculumApp(App[CurriculumSuggestion]):
         Executes the curriculum module with the configured settings.
 
         Returns:
-            subprocess.CompletedProcess: The result of the curriculum execution
+            Self: The updated instance
 
         Raises:
             ValueError: If input_trainer_state or data_directory is not set
@@ -117,7 +117,6 @@ class CurriculumApp(App[CurriculumSuggestion]):
             app._settings.input_trainer_state = "/path/to/trainer_state.json"
             app._settings.data_directory = "/path/to/data"
             result = app.run()
-            print(f"Exit code: {result.returncode}")
             ```
         """
         if self._settings.input_trainer_state is None:
@@ -137,6 +136,19 @@ class CurriculumApp(App[CurriculumSuggestion]):
         return self
 
     def get_result(self, *, allow_stderr: bool = True) -> CurriculumSuggestion:
+        """
+        Retrieves the curriculum suggestion result from the execution.
+
+        Args:
+            allow_stderr: Whether to allow stderr in the output. Defaults to True
+
+        Returns:
+            CurriculumSuggestion: The curriculum suggestion with trainer state and metrics
+
+        Raises:
+            RuntimeError: If the app has not been run yet
+            subprocess.CalledProcessError: If there was an error during execution
+        """
         return self._process_process_output(allow_stderr=allow_stderr)
 
     def _process_process_output(self, *, allow_stderr: bool | None = None) -> CurriculumSuggestion:
@@ -147,7 +159,7 @@ class CurriculumApp(App[CurriculumSuggestion]):
             allow_stderr: Whether to allow stderr in the output. If None, uses default behavior
 
         Returns:
-            Self: The current CurriculumApp instance
+            CurriculumSuggestion: The parsed curriculum suggestion from stdout
 
         Raises:
             subprocess.CalledProcessError: If the process failed or stderr is present when not allowed
@@ -156,7 +168,7 @@ class CurriculumApp(App[CurriculumSuggestion]):
             ```python
             # Process output and handle errors
             try:
-                app._process_process_output(allow_stderr=True)
+                suggestion = app._process_process_output(allow_stderr=True)
                 print("Curriculum completed successfully")
             except subprocess.CalledProcessError as e:
                 print(f"Curriculum failed: {e}")

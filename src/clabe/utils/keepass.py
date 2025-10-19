@@ -93,13 +93,12 @@ class KeePass(Service):
         immediately upon initialization.
 
         Args:
-            settings (KeePassSettings): Configuration settings containing database
-                path and authentication credentials.
+            settings: Configuration settings containing database path and authentication credentials
 
         Raises:
-            FileNotFoundError: If the database file cannot be found.
-            CredentialsError: If the provided authentication credentials are invalid.
-            IOError: If there's an error reading the database or keyfile.
+            FileNotFoundError: If the database file cannot be found
+            CredentialsError: If the provided authentication credentials are invalid
+            IOError: If there's an error reading the database or keyfile
 
         Example:
             ```python
@@ -124,15 +123,13 @@ class KeePass(Service):
         only the first one encountered will be returned.
 
         Args:
-            title (str): The title of the entry to retrieve. This should match
-                the entry title exactly (case-sensitive).
+            title: The title of the entry to retrieve. This should match the entry title exactly (case-sensitive)
 
         Returns:
-            Entry: The KeePass entry object containing username, password, and
-                other metadata associated with the specified title.
+            Entry: The KeePass entry object containing username, password, and other metadata associated with the specified title
 
         Raises:
-            ValueError: If no entry is found with the specified title.
+            ValueError: If no entry is found with the specified title
 
         Example:
             ```python

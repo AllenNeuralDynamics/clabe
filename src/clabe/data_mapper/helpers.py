@@ -21,7 +21,7 @@ def get_cameras(
     rig_instance: AindBehaviorRigModel, exclude_without_video_writer: bool = True
 ) -> Dict[str, CameraTypes]:
     """
-    Retrieves a dictionary of cameras from the given rig instance.
+    Retrieves cameras from a rig instance.
 
     Extracts camera information from camera controllers within the rig model,
     optionally filtering based on video writer availability.
@@ -31,7 +31,7 @@ def get_cameras(
         exclude_without_video_writer: If True, exclude cameras without a video writer
 
     Returns:
-        Dict[str, CameraTypes]: A dictionary mapping camera names to their types
+        A dictionary mapping camera names to their types
     """
     cameras: dict[str, CameraTypes] = {}
     camera_controllers = [x[1] for x in get_fields_of_type(rig_instance, CameraController)]
@@ -50,25 +50,13 @@ ISearchable = Union[pydantic.BaseModel, Dict, List]
 
 def snapshot_python_environment() -> Dict[str, str]:
     """
-    Captures a snapshot of the current Python environment, including installed packages.
+    Captures a snapshot of the current Python environment.
 
     Creates a record of all currently installed Python packages and their versions,
     useful for reproducibility and debugging purposes.
 
     Returns:
-        Dict[str, str]: A dictionary of package names and their versions
-
-    Example:
-        ```python
-        # Capture the current Python environment:
-        env_snapshot = snapshot_python_environment()
-        # Returns: {'numpy': '1.24.3', 'pandas': '2.0.1', 'aind-data-schema': '0.15.0', ...}
-
-        # Use for debugging package versions:
-        packages = snapshot_python_environment()
-        print(f"NumPy version: {packages.get('numpy', 'Not installed')}")
-        # Prints: NumPy version: 1.24.3
-        ```
+        A dictionary of package names and their versions
     """
     return {dist.name: dist.version for dist in metadata.distributions()}
 
@@ -77,27 +65,16 @@ def snapshot_bonsai_environment(
     config_file: os.PathLike = Path("./bonsai/bonsai.config"),
 ) -> Dict[str, str]:
     """
-    Captures a snapshot of the Bonsai environment from the given configuration file.
+    Captures a snapshot of the Bonsai environment from a configuration file.
 
     Parses the Bonsai configuration file to extract information about installed
-    packages and their versions, creating a snapshot of the Bonsai environment.
+    packages and their versions.
 
     Args:
         config_file: Path to the Bonsai configuration file
 
     Returns:
-        Dict[str, str]: A dictionary of package IDs and their versions
-
-    Example:
-        ```python
-        # Capture Bonsai environment from default config:
-        bonsai_env = snapshot_bonsai_environment()
-        # Returns: {'Bonsai.Core': '2.7.0', 'Bonsai.Vision': '2.8.0', 'Bonsai.Spinnaker': '0.3.0', ...}
-
-        # Capture from custom config file:
-        custom_env = snapshot_bonsai_environment("./custom/bonsai.config")
-        # Returns: {'Bonsai.Core': '2.6.0', 'Bonsai.Arduino': '2.7.0', ...}
-        ```
+        A dictionary of package IDs and their versions
     """
     tree = ET.parse(Path(config_file))
     root = tree.getroot()

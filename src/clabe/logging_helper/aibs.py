@@ -18,7 +18,18 @@ TLogger = TypeVar("TLogger", bound=logging.Logger)
 
 
 def _getenv(key: str) -> str:
-    """Gets an environment variable, raising a ValueError if it is not set."""
+    """
+    Gets an environment variable, raising a ValueError if it is not set.
+
+    Args:
+        key: The environment variable key to retrieve
+
+    Returns:
+        str: The value of the environment variable
+
+    Raises:
+        ValueError: If the environment variable is not set
+    """
     value = os.getenv(key, None)
     if value is None:
         raise ValueError(f"Environment variable '{key}' is not set.")
@@ -29,14 +40,7 @@ class AibsLogServerHandlerSettings(ServiceSettings):
     """
     Settings for the AIBS log server handler.
 
-    Attributes:
-        rig_id (str): The ID of the rig.
-        comp_id (str): The ID of the computer.
-        project_name (str): The name of the project.
-        version (str): The version of the project.
-        host (str): The hostname of the log server.
-        port (int): The port of the log server.
-        level (int): The logging level.
+    Handler that sends log records to a remote AIBS log server over HTTP.
     """
 
     __yml_section__: ClassVar[str] = "aibs_log_server_handler"
@@ -54,39 +58,8 @@ class AibsLogServerHandler(logging.handlers.SocketHandler):
     """
     A custom logging handler that sends log records to the AIBS log server.
 
-    This handler extends the standard SocketHandler to include project-specific
-    metadata in the log records before sending them to the log server.
-
-    Attributes:
-        project_name (str): The name of the project.
-        version (str): The version of the project.
-        rig_id (str): The ID of the rig.
-        comp_id (str): The ID of the computer.
-
-    Examples:
-        ```python
-        import logging
-        from clabe.logging_helper.aibs import AibsLogServerHandler, AibsLogServerHandlerSettings
-
-        # Initialize the handler with settings
-        settings = AibsLogServerHandlerSettings(
-            project_name='my_project',
-            version='1.0.0',
-            host='localhost',
-            port=5000
-        )
-        handler = AibsLogServerHandler(settings=settings)
-
-        # Initialize with custom level
-        settings = AibsLogServerHandlerSettings(
-            project_name='my_project',
-            version='1.0.0',
-            host='localhost',
-            port=5000,
-            level=logging.WARNING
-        )
-        handler = AibsLogServerHandler(settings=settings)
-        ```
+    Extends the standard SocketHandler to include project-specific metadata
+    in the log records before sending them to the log server.
     """
 
     def __init__(
@@ -99,9 +72,9 @@ class AibsLogServerHandler(logging.handlers.SocketHandler):
         Initializes the AIBS log server handler.
 
         Args:
-            settings: AibsLogServerHandlerSettings containing all configuration options
-            *args: Additional arguments to pass to the SocketHandler.
-            **kwargs: Additional keyword arguments to pass to the SocketHandler.
+            settings: Configuration for the handler
+            *args: Additional arguments to pass to the SocketHandler
+            **kwargs: Additional keyword arguments to pass to the SocketHandler
         """
         super().__init__(settings.host, settings.port, *args, **kwargs)
         self.setLevel(settings.level)
@@ -114,12 +87,10 @@ class AibsLogServerHandler(logging.handlers.SocketHandler):
 
     def emit(self, record: logging.LogRecord) -> None:
         """
-        Emits a log record.
-
-        Adds project-specific information to the log record before emitting it.
+        Emits a log record with project-specific metadata.
 
         Args:
-            record: The log record to emit.
+            record: The log record to emit
         """
         record.project = self._settings.project_name
         record.rig_id = self._settings.rig_id

@@ -50,16 +50,11 @@ class Launcher:
 
         Args:
             settings: The settings for the launcher
-            rig: The rig schema model instance or class
-            session: The session schema model instance or class
-            task_logic: The task logic schema model instance or class
             attached_logger: An attached logger instance. Defaults to None
             ui_helper: The UI helper for user interactions. Defaults to DefaultUIHelper
-            **kwargs: Additional keyword arguments
         """
         self._settings = settings
         self.ui_helper = ui_helper
-        self._on_error_handler: Optional[Callable[[Self, Exception], None]] = None
         self.temp_dir = abspath(settings.temp_dir) / format_datetime(utcnow())
         self.temp_dir.mkdir(parents=True, exist_ok=True)
         self.computer_name = os.environ["COMPUTERNAME"]
@@ -87,6 +82,18 @@ class Launcher:
         self._has_copied_logs = False
 
     def register_session(self, session: AindBehaviorSessionModel) -> Self:
+        """
+        Registers the session model with the launcher.
+
+        Args:
+            session: The session model to register
+
+        Returns:
+            Self: The updated instance
+
+        Raises:
+            ValueError: If a session is already registered
+        """
         if self._session is None:
             self._session = session
         else:
@@ -95,6 +102,15 @@ class Launcher:
 
     @property
     def session(self) -> AindBehaviorSessionModel:
+        """
+        Returns the registered session model.
+
+        Returns:
+            AindBehaviorSessionModel: The session model
+
+        Raises:
+            ValueError: If session is not set
+        """
         if self._session is None:
             raise ValueError("Session is not set.")
         else:
@@ -105,11 +121,20 @@ class Launcher:
         Main entry point for the launcher execution.
 
         Orchestrates the complete launcher workflow including validation,
-        UI prompting, callable execution, and cleanup.
+        experiment execution, and cleanup.
+
+        Args:
+            experiment: A callable that takes the launcher as an argument and runs the experiment
 
         Example:
-            launcher = MyLauncher(...)
-            launcher.main()  # Starts the launcher workflow
+            ```python
+            def my_experiment(launcher: Launcher):
+                # Experiment logic here
+                pass
+
+            launcher = Launcher(...)
+            launcher.run_experiment(my_experiment)
+            ```
         """
         _code = 0
         try:
@@ -142,6 +167,10 @@ class Launcher:
         Closes the file handlers of the launcher and copies the temporary data to the session directory.
 
         This method is typically called at the end of the launcher by a registered callable that transfers data.
+
+        Args:
+            dst: Destination path for logs. If None, uses session_directory/suffix. Defaults to None
+            suffix: Suffix to append to session directory path. Defaults to "Behavior/Logs"
         """
         if self._has_copied_logs:
             return None
@@ -228,8 +257,8 @@ class Launcher:
         prompting the user before exit.
 
         Args:
-            code: The exit code to use
-            _force: Whether to force exit without user prompt
+            code: The exit code to use. Defaults to 0
+            _force: Whether to force exit without user prompt. Defaults to False
         """
         logger.info("Exiting with code %s", code)
         if logger is not None:
@@ -314,6 +343,7 @@ class Launcher:
     def create_directory(directory: os.PathLike) -> None:
         """
         Creates a directory at the specified path if it does not already exist.
+
         To prevent deadlocks from network issues/auth, this function will run on a separate thread
         and timeout after 2 seconds.
 
@@ -322,6 +352,7 @@ class Launcher:
 
         Raises:
             OSError: If the directory creation fails
+            TimeoutError: If the directory creation times out after 2 seconds
         """
 
         def _create_directory_with_timeout():
@@ -347,6 +378,9 @@ class Launcher:
 
         Args:
             dst: The destination path for copying the temporary directory
+
+        Returns:
+            Path: The destination path where files were copied
         """
         dst = Path(dst) / ".launcher"
         shutil.copytree(self.temp_dir, dst, dirs_exist_ok=True)
@@ -357,11 +391,11 @@ class Launcher:
         Saves a temporary JSON representation of a schema model.
 
         Args:
-            model (pydantic.BaseModel): The schema model to save.
-            directory (Optional[os.PathLike]): The directory to save the file in.
+            model: The schema model to save
+            directory: The directory to save the file in. Defaults to temp_dir if None
 
         Returns:
-            str: The path to the saved file.
+            Path: The path to the saved file
         """
         directory = Path(directory) if directory is not None else Path(self.temp_dir)
         os.makedirs(directory, exist_ok=True)
