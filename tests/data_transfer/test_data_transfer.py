@@ -8,7 +8,7 @@ import pytest
 from aind_data_transfer_service.models.core import Task
 from requests.exceptions import HTTPError
 
-from clabe.data_mapper.aind_data_schema import AindDataSchemaSessionDataMapper, Session
+from clabe.data_mapper.aind_data_schema import Session
 from clabe.data_transfer.aind_watchdog import (
     CORE_FILES,
     ManifestConfig,
@@ -49,14 +49,6 @@ def ads_session():
 
 
 @pytest.fixture
-def aind_data_mapper(ads_session):
-    mapper = MagicMock(spec=AindDataSchemaSessionDataMapper)
-    mapper.is_mapped.return_value = True
-    mapper.mapped = ads_session
-    return mapper
-
-
-@pytest.fixture
 def settings():
     return WatchdogSettings(
         destination=Path("destination_path"),
@@ -73,13 +65,14 @@ def settings():
 
 
 @pytest.fixture
-def watchdog_service(mock_ui_helper, source, settings):
+def watchdog_service(mock_ui_helper, source, settings, ads_session):
     os.environ["WATCHDOG_EXE"] = "watchdog.exe"
     os.environ["WATCHDOG_CONFIG"] = str(TESTS_ASSETS / "watch_config.yml")
 
     service = WatchdogDataTransferService(
         source,
         settings=settings,
+        aind_data_schema_session=ads_session,
         validate=False,
         ui_helper=mock_ui_helper,
         session_name="test_session",
@@ -187,31 +180,13 @@ class TestWatchdogDataTransferService:
             with pytest.raises(FileNotFoundError):
                 watchdog_service.validate()
 
-    def test_aind_session_data_mapper_get(self, watchdog_service, aind_data_mapper):
-        watchdog_service.with_aind_session_data_mapper(aind_data_mapper)
-        assert watchdog_service.aind_session_data_mapper == aind_data_mapper
-
-    def test_aind_session_data_mapper_get_not_set(self, watchdog_service):
-        watchdog_service._aind_session_data_mapper = None
-        with pytest.raises(ValueError):
-            _ = watchdog_service.aind_session_data_mapper
-
-    def test_with_aind_session_data_mapper(self, watchdog_service, aind_data_mapper):
-        returned_service = watchdog_service.with_aind_session_data_mapper(aind_data_mapper)
-        assert watchdog_service._aind_session_data_mapper == aind_data_mapper
-        assert returned_service == watchdog_service
-
-    def test_missing_env_variables(self, source, settings, aind_data_mapper):
+    def test_missing_env_variables(self, source, settings, ads_session):
         if "WATCHDOG_EXE" in os.environ:
             del os.environ["WATCHDOG_EXE"]
         if "WATCHDOG_CONFIG" in os.environ:
             del os.environ["WATCHDOG_CONFIG"]
         with pytest.raises(ValueError):
-            WatchdogDataTransferService(
-                source,
-                settings=settings,
-                validate=False,
-            ).with_aind_session_data_mapper(aind_data_mapper)
+            WatchdogDataTransferService(source, settings=settings, validate=False, aind_data_schema_session=ads_session)
 
     @patch("clabe.data_transfer.aind_watchdog.Path.exists", return_value=True)
     def test_find_ads_schemas(self, mock_exists):
@@ -338,10 +313,8 @@ class TestWatchdogDataTransferService:
         mock_force_restart,
         mock_is_running,
         watchdog_service,
-        aind_data_mapper,
     ):
         mock_is_running.side_effect = [False, True]  # First call returns False, second returns True
-        watchdog_service.with_aind_session_data_mapper(aind_data_mapper)
         watchdog_service.transfer()
         mock_force_restart.assert_called_once_with(kill_if_running=False)
         mock_dump_manifest_config.assert_called_once()
@@ -351,10 +324,7 @@ class TestWatchdogDataTransferService:
         "clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.force_restart",
         side_effect=subprocess.CalledProcessError(1, "cmd"),
     )
-    def test_transfer_service_not_running_restart_fail(
-        self, mock_force_restart, mock_is_running, watchdog_service, aind_data_mapper
-    ):
-        watchdog_service.with_aind_session_data_mapper(aind_data_mapper)
+    def test_transfer_service_not_running_restart_fail(self, mock_force_restart, mock_is_running, watchdog_service):
         with pytest.raises(RuntimeError):
             watchdog_service.transfer()
         mock_force_restart.assert_called_once_with(kill_if_running=False)
@@ -366,10 +336,8 @@ class TestWatchdogDataTransferService:
         mock_dump_manifest_config,
         mock_is_running,
         watchdog_service,
-        aind_data_mapper,
     ):
         watchdog_service._watch_config = None
-        watchdog_service.with_aind_session_data_mapper(aind_data_mapper)
         with pytest.raises(ValueError):
             watchdog_service.transfer()
         mock_dump_manifest_config.assert_not_called()
@@ -381,9 +349,7 @@ class TestWatchdogDataTransferService:
         mock_dump_manifest_config,
         mock_is_running,
         watchdog_service,
-        aind_data_mapper,
     ):
-        watchdog_service.with_aind_session_data_mapper(aind_data_mapper)
         watchdog_service.transfer()
         mock_dump_manifest_config.assert_called_once()
 
@@ -473,11 +439,11 @@ class TestWatchdogDataTransferService:
     )
     @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService._find_ads_schemas", return_value=[])
     def test_create_manifest_config_from_ads_session_invalid_project_name(
-        self, mock_find_ads_schemas, mock_get_project_names, watchdog_service, aind_data_mapper
+        self, mock_find_ads_schemas, mock_get_project_names, watchdog_service, ads_session
     ):
         watchdog_service._validate_project_name = True
         with pytest.raises(ValueError):
-            watchdog_service._create_manifest_config_from_ads_session(aind_data_mapper.mapped)
+            watchdog_service._create_manifest_config_from_ads_session(ads_session)
 
 
 @pytest.fixture
