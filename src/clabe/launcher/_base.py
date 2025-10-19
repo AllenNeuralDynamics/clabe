@@ -161,7 +161,7 @@ class Launcher:
             logger.error("User interrupted the process.")
             _code = -1
         except Exception as e:
-            logger.error("Launcher failed: %s", e)
+            logger.error("Launcher failed: %s", e, exc_info=True)
             _code = -1
         finally:
             try:
