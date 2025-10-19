@@ -2,18 +2,11 @@ import datetime
 import logging
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING, TypeVar
+from typing import TypeVar
 
 import aind_behavior_services.utils as utils
 import rich.logging
 import rich.style
-
-if TYPE_CHECKING:
-    from ..launcher import Launcher
-
-    TLauncher = TypeVar("TLauncher", bound="Launcher")
-else:
-    TLauncher = TypeVar("TLauncher")
 
 TLogger = TypeVar("TLogger", bound=logging.Logger)
 
@@ -39,7 +32,7 @@ class _SeverityHighlightingHandler(rich.logging.RichHandler):
 
         Args:
             *args: Arguments passed to the parent RichHandler
-            **kwargs: Keyword arguments passed to the parent RichHandler (highlighter is removed)
+            **kwargs: Keyword arguments passed to the parent RichHandler (highlighter is removed if present)
         """
         # I don't think this is necessary, but just in case, better to fail early
         if "highlighter" in kwargs:
@@ -91,8 +84,7 @@ class _TzFormatter(logging.Formatter):
 
         Args:
             *args: Positional arguments for the base Formatter class
-            **kwargs: Keyword arguments for the base Formatter class.
-                      The 'tz' keyword can be used to specify a timezone
+            **kwargs: Keyword arguments for the base Formatter class. The 'tz' keyword can be used to specify a timezone
         """
         self._tz = kwargs.pop("tz", None)
         super().__init__(*args, **kwargs)
@@ -106,7 +98,7 @@ class _TzFormatter(logging.Formatter):
 
         Args:
             record: The log record to format
-            datefmt: An optional date format string (unused)
+            datefmt: An optional date format string (unused). Defaults to None
 
         Returns:
             str: A string representation of the formatted time

@@ -5,7 +5,7 @@ import logging
 import re
 from datetime import datetime
 from html import unescape
-from typing import Callable, ClassVar, Generic, Optional
+from typing import Callable, ClassVar, Optional, Type
 
 import msal
 import pydantic
@@ -14,8 +14,8 @@ from aind_behavior_curriculum import TrainerState
 from pydantic import BaseModel, SecretStr, computed_field, field_validator
 
 from .. import ui
+from .._typing import TTaskLogic
 from ..launcher import Launcher
-from ..launcher._base import TRig, TSession, TTaskLogic
 from ..services import ServiceSettings
 from ..utils.aind_auth import validate_aind_username
 from ..utils.keepass import KeePass, KeePassSettings
@@ -28,19 +28,15 @@ class _DataverseRestClientSettings(ServiceSettings):
     """
     Settings for the Dataverse rest client.
 
-    Attributes:
-        tenant_id (str): Azure AD tenant ID.
-        client_id (str): Azure AD client ID.
-        org (str): Dataverse organization name.
-        additional_scopes (list[str]): Additional scopes for authentication.
-        username (str): Username for authentication.
-        password (SecretStr): Password for authentication.
-        domain (str): Domain for the username.
-        username_at_domain (str): Computed property for username with domain.
-        api_url (str): Computed property for the Dataverse API URL.
-        env_url (str): Computed property for the Dataverse environment URL.
-        authority (str): Computed property for the Azure AD authority URL.
-        scope (str): Computed property for the Dataverse API scope.
+    Configuration for authenticating and connecting to Microsoft Dataverse,
+    including Azure AD settings and organization details.
+
+    Properties:
+        username_at_domain: Username with domain for authentication
+        api_url: Base URL for the Dataverse API
+        env_url: Base URL for the Dataverse environment
+        authority: Base URL for the Azure AD authority
+        scope: Scope string for the Dataverse API
     """
 
     __yml_section__: ClassVar[Optional[str]] = "dataverse"
@@ -93,12 +89,12 @@ class _DataverseRestClientSettings(ServiceSettings):
         Create a DataverseSettings instance getting the password from a KeePass entry.
 
         Args:
-            entry_title (str): Title of the KeePass entry.
-            keepass_manager (Optional[keepass.KeePass]): An optional KeePass manager instance. If not provided, a new instance will be created with default settings.
-            **kwargs: Additional keyword arguments to pass to the DataverseSettings constructor.
+            entry_title: Title of the KeePass entry. Defaults to "svc_sipe"
+            keepass: An optional KeePass manager instance. If not provided, a new instance will be created with default settings. Defaults to None
+            **kwargs: Additional keyword arguments to pass to the DataverseSettings constructor
 
         Returns:
-            DataverseSettings: The created DataverseSettings instance.
+            _DataverseRestClientSettings: The created DataverseSettings instance
         """
         if keepass is None:
             # KeePassSettings will attempt to load settings using the YAML config if available
@@ -122,9 +118,11 @@ class _DataverseRestClient:
     def __init__(self, config: _DataverseRestClientSettings):
         """
         Initialize the DataverseRestClient with configuration.
+
         Acquires an authentication token and sets up request headers.
+
         Args:
-            config (DataverseSettings): Config object with credentials and URLs.
+            config: Config object with credentials and URLs
         """
         self.config = config
         self._last_token_acquired = None
@@ -140,7 +138,12 @@ class _DataverseRestClient:
 
     @property
     def token(self) -> dict:
-        """Get the current authentication token."""
+        """
+        Get the current authentication token.
+
+        Returns:
+            dict: Token dictionary containing access_token
+        """
         if (
             self._last_token_acquired is None
             or (datetime.now() - self._last_token_acquired).total_seconds() > self._REFRESH_TOKEN_SECONDS
@@ -151,10 +154,12 @@ class _DataverseRestClient:
     def _acquire_token(self):
         """
         Acquire an access token using MSAL and user credentials.
+
         Returns:
-            dict: Token dictionary containing 'access_token'.
+            dict: Token dictionary containing access_token
+
         Raises:
-            ValueError: If token acquisition fails.
+            ValueError: If token acquisition fails
         """
         app = msal.PublicClientApplication(
             client_id=self.config.client_id,
@@ -183,14 +188,16 @@ class _DataverseRestClient:
     ) -> str:
         """
         Format query parameters for a Dataverse API request.
+
         Args:
-            filter (str, optional): OData filter query.
-            order_by (str or list[str], optional): OData order by clause.
-            top (int, optional): OData top value.
-            count (bool, optional): Include "@odata.count" in the response, counting matches
-            select (str or list[str], optional): OData select clause.
+            filter: OData filter query. Defaults to None
+            order_by: OData order by clause. Defaults to None
+            top: OData top value. Defaults to None
+            count: Include "@odata.count" in the response, counting matches. Defaults to None
+            select: OData select clause. Defaults to None
+
         Returns:
-            str: Formatted query string.
+            str: Formatted query string
         """
         queries = []
         if filter:
@@ -221,16 +228,18 @@ class _DataverseRestClient:
     ) -> str:
         """
         Construct the URL for a Dataverse table entry.
+
         Args:
-            table (str): Table name.
-            entry_id (str or dict, optional): Entry ID or alternate key.
-            filter (str, optional): OData filter query, e.g. "column eq 'value'".
-            order_by (str or list[str], optional): Column or list of columns to order by
-            top (int, optional): Return the top n results
-            count (bool, optional): Include "@odata.count" in the response, counting matches
-            select (str or list[str], optional): Columns to include in the response
+            table: Table name
+            entry_id: Entry ID or alternate key. Defaults to None
+            filter: OData filter query, e.g. "column eq 'value'". Defaults to None
+            order_by: Column or list of columns to order by. Defaults to None
+            top: Return the top n results. Defaults to None
+            count: Include "@odata.count" in the response, counting matches. Defaults to None
+            select: Columns to include in the response. Defaults to None
+
         Returns:
-            str: Constructed URL for the entry.
+            str: Constructed URL for the entry
         """
         if entry_id is None:
             identifier = ""
@@ -261,13 +270,16 @@ class _DataverseRestClient:
     def get_entry(self, table: str, id: str | dict) -> dict:
         """
         Get a Dataverse entry by ID or alternate key.
+
         Args:
-            table (str): Table name.
-            id (str or dict): Entry ID or alternate key.
+            table: Table name
+            id: Entry ID or alternate key
+
         Returns:
-            dict: Entry data as a dictionary.
+            dict: Entry data as a dictionary
+
         Raises:
-            ValueError: If the entry cannot be fetched.
+            ValueError: If the entry cannot be fetched
         """
         url = self._construct_url(table, id)
         response = requests.get(url, headers=self.headers, timeout=_REQUEST_TIMEOUT)
@@ -281,13 +293,16 @@ class _DataverseRestClient:
     def add_entry(self, table: str, data: dict) -> Optional[dict]:
         """
         Add a new entry to a Dataverse table.
+
         Args:
-            table (str): Table name.
-            data (dict): Entry data to add.
+            table: Table name
+            data: Entry data to add
+
         Returns:
-            dict: Response data from Dataverse.
+            Optional[dict]: Response data from Dataverse
+
         Raises:
-            ValueError: If the entry cannot be added.
+            ValueError: If the entry cannot be added
         """
         url = self._construct_url(table)
         response = requests.post(url, headers=self.headers, json=data, timeout=_REQUEST_TIMEOUT)
@@ -309,14 +324,17 @@ class _DataverseRestClient:
     ) -> dict:
         """
         Update an existing entry in a Dataverse table.
+
         Args:
-            table (str): Table name.
-            id (str or dict): Entry ID or alternate key.
-            update_data (dict): Data to update.
+            table: Table name
+            id: Entry ID or alternate key
+            update_data: Data to update
+
         Returns:
-            dict: Updated entry data from Dataverse.
+            dict: Updated entry data from Dataverse
+
         Raises:
-            ValueError: If the entry cannot be updated.
+            ValueError: If the entry cannot be updated
         """
         url = self._construct_url(table, id)
         headers = self.headers | {"Prefer": "return=representation"}
@@ -338,16 +356,19 @@ class _DataverseRestClient:
     ) -> list[dict]:
         """
         Query a Dataverse table for multiple entries based on filters.
+
         For details, see https://www.odata.org/getting-started/basic-tutorial/#queryData
-        https://docs.oasis-open.org/odata/odata/v4.0/errata03/os/complete/part1-protocol/odata-v4.0-errata03-os-part1-protocol-complete.html#_The_$filter_System # noqa
+        and https://docs.oasis-open.org/odata/odata/v4.0/errata03/os/complete/part1-protocol/odata-v4.0-errata03-os-part1-protocol-complete.html#_The_$filter_System
+
         Args:
-            table (str): Table name.
-            filter (str, optional): OData filter query, e.g. "column eq 'value'".
-            order_by (str or list[str], optional): Column or list of columns to order by
-            top (int, optional): Return the top n results
-            select (str or list[str], optional): Columns to include in the response
+            table: Table name
+            filter: OData filter query, e.g. "column eq 'value'". Defaults to None
+            order_by: Column or list of columns to order by. Defaults to None
+            top: Return the top n results. Defaults to None
+            select: Columns to include in the response. Defaults to None
+
         Returns:
-            dict: Query results from Dataverse.
+            list[dict]: Query results from Dataverse
         """
         url = self._construct_url(
             table,
@@ -476,7 +497,7 @@ def _append_suggestion(client: _DataverseRestClient, subject_id: str, trainer_st
     )
 
 
-class DataversePicker(DefaultBehaviorPicker, Generic[TRig, TSession, TTaskLogic]):
+class DataversePicker(DefaultBehaviorPicker):
     """
     Picker that integrates with Dataverse to fetch and push trainer state suggestions.
     """
@@ -486,6 +507,7 @@ class DataversePicker(DefaultBehaviorPicker, Generic[TRig, TSession, TTaskLogic]
         *,
         dataverse_client: Optional[_DataverseRestClient] = None,
         settings: DefaultBehaviorPickerSettings,
+        launcher: Launcher,
         ui_helper: Optional[ui.UiHelper] = None,
         experimenter_validator: Optional[Callable[[str], bool]] = validate_aind_username,
     ):
@@ -498,7 +520,9 @@ class DataversePicker(DefaultBehaviorPicker, Generic[TRig, TSession, TTaskLogic]
             ui_helper: Helper for user interface interactions
             experimenter_validator: Function to validate the experimenter's username. If None, no validation is performed
         """
-        super().__init__(settings=settings, ui_helper=ui_helper, experimenter_validator=experimenter_validator)
+        super().__init__(
+            settings=settings, launcher=launcher, ui_helper=ui_helper, experimenter_validator=experimenter_validator
+        )
         self._dataverse_client = (
             dataverse_client
             if dataverse_client is not None
@@ -506,18 +530,7 @@ class DataversePicker(DefaultBehaviorPicker, Generic[TRig, TSession, TTaskLogic]
         )
         self._dataverse_suggestion: Optional[DataverseSuggestion] = None
 
-    def _ensure_directories(self, launcher: Launcher[TRig, TSession, TTaskLogic]) -> None:
-        """
-        Ensures the required directories for configuration files exist.
-
-        Creates the configuration library directory and all required subdirectories
-        for storing rig, task logic, and subject configurations.
-        """
-        launcher.create_directory(self.config_library_dir)
-        launcher.create_directory(self.rig_dir)
-        launcher.create_directory(self.subject_dir)
-
-    def pick_trainer_state(self, launcher: Launcher[TRig, TSession, TTaskLogic]) -> TrainerState:
+    def pick_trainer_state(self, task_logic_model: Type[TTaskLogic]) -> tuple[TrainerState, TTaskLogic]:
         """
         Prompts the user to select or create a trainer state configuration.
 
@@ -533,53 +546,49 @@ class DataversePicker(DefaultBehaviorPicker, Generic[TRig, TSession, TTaskLogic]
         Raises:
             ValueError: If no valid task logic file is found.
         """
-        if (launcher.get_task_logic()) is not None:
-            logger.debug("Task logic already set in launcher. Cannot inject a trainer state.")
-            self._trainer_state = TrainerState(curriculum=None, stage=None, is_on_curriculum=False)
-        else:
-            if launcher.subject is None:
-                logger.error("No subject set in launcher. Cannot load trainer state.")
-                raise ValueError("No subject set in launcher.")
-            task_logic_name = launcher.get_task_logic_model().model_fields["name"].default
-            if not task_logic_name:
-                raise ValueError("Task logic model does not have a default name.")
-            try:
-                logger.debug("Attempting to load trainer state dataverse")
-                last_suggestions = _get_last_suggestions(self._dataverse_client, launcher.subject, task_logic_name, 1)
-            except requests.exceptions.HTTPError as e:
-                logger.error("Failed to fetch suggestions from Dataverse: %s", e)
-                raise
-            except pydantic.ValidationError as e:
-                logger.error("Failed to validate suggestion from Dataverse: %s", e)
-                raise
-            if len(last_suggestions) == 0:
-                raise ValueError(
-                    f"No valid suggestions found in Dataverse for subject {launcher.subject} with task {task_logic_name}."
-                )
+        if self._session is None:
+            raise ValueError("No session set. Run pick_session first.")
+        task_logic_name = task_logic_model.model_fields["name"].default
+        if not task_logic_name:
+            raise ValueError("Task logic model does not have a default name.")
+        try:
+            logger.debug("Attempting to load trainer state dataverse")
+            last_suggestions = _get_last_suggestions(self._dataverse_client, self._session.subject, task_logic_name, 1)
+        except requests.exceptions.HTTPError as e:
+            logger.error("Failed to fetch suggestions from Dataverse: %s", e)
+            raise
+        except pydantic.ValidationError as e:
+            logger.error("Failed to validate suggestion from Dataverse: %s", e)
+            raise
+        if len(last_suggestions) == 0:
+            raise ValueError(
+                f"No valid suggestions found in Dataverse for subject {self._session.subject} with task {task_logic_name}."
+            )
 
-            _dataverse_suggestion = last_suggestions[0]
+        _dataverse_suggestion = last_suggestions[0]
 
-            assert _dataverse_suggestion is not None
-            if _dataverse_suggestion.trainer_state is None:
-                raise ValueError("No trainer state found in the latest suggestion.")
-            if _dataverse_suggestion.trainer_state.stage is None:
-                raise ValueError("No stage found in the latest suggestion's trainer state.")
-            self._dataverse_suggestion = _dataverse_suggestion
-            self._trainer_state = _dataverse_suggestion.trainer_state
-            launcher.set_task_logic(_dataverse_suggestion.trainer_state.stage.task)
+        assert _dataverse_suggestion is not None
+        if _dataverse_suggestion.trainer_state is None:
+            raise ValueError("No trainer state found in the latest suggestion.")
+        if _dataverse_suggestion.trainer_state.stage is None:
+            raise ValueError("No stage found in the latest suggestion's trainer state.")
+        self._dataverse_suggestion = _dataverse_suggestion
+        self._trainer_state = _dataverse_suggestion.trainer_state
 
         assert self._trainer_state is not None
         if not self._trainer_state.is_on_curriculum:
             logging.warning("Deserialized TrainerState is NOT on curriculum.")
-        self._sync_session_metadata(launcher)
-        return self.trainer_state
+        return (self.trainer_state, task_logic_model.model_validate(self.trainer_state.stage.task.model_dump()))
 
-    def push_new_suggestion(self, launcher: Launcher[TRig, TSession, TTaskLogic], trainer_state: TrainerState) -> None:
+    def push_new_suggestion(self, trainer_state: TrainerState) -> None:
         """
         Pushes a new suggestion to Dataverse for the current subject in the launcher.
         Args:
             launcher: The Launcher instance containing the current session and subject information.
             trainer_state: The TrainerState object to be pushed as a new suggestion.
         """
-        logger.info("Pushing new suggestion to Dataverse for subject %s", launcher.get_session(strict=True).subject)
-        _append_suggestion(self._dataverse_client, launcher.get_session(strict=True).subject, trainer_state)
+        if self._session is None:
+            raise ValueError("No session or subject set in launcher.")
+
+        logger.info("Pushing new suggestion to Dataverse for subject %s", self._session.subject)
+        _append_suggestion(self._dataverse_client, self._session.subject, trainer_state)

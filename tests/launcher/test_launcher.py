@@ -8,17 +8,8 @@ from clabe.launcher._cli import LauncherCliArgs
 
 def test_base_launcher_init_basic(
     mock_base_launcher,
-    mock_rig,
-    mock_session,
-    mock_task_logic,
 ):
     """Test basic initialization of Launcher."""
-    assert mock_base_launcher.get_rig() == mock_rig
-    assert mock_base_launcher.get_session() == mock_session
-    assert mock_base_launcher.get_task_logic() == mock_task_logic
-    assert mock_base_launcher.get_rig_model() is type(mock_rig)
-    assert mock_base_launcher.get_session_model() is type(mock_session)
-    assert mock_base_launcher.get_task_logic_model() is type(mock_task_logic)
     assert Path(mock_base_launcher.settings.temp_dir).exists()
 
 
@@ -29,9 +20,6 @@ def test_base_launcher_with_attached_logger(
     with patch("clabe.logging_helper.add_file_handler") as mock_add_file_handler:
         mock_attached_logger = MagicMock()
         launcher = Launcher(
-            rig=mock_rig,
-            session=mock_session,
-            task_logic=mock_task_logic,
             ui_helper=mock_ui_helper,
             settings=mock_base_launcher.settings,
             attached_logger=mock_attached_logger,
@@ -46,7 +34,6 @@ def test_base_launcher_debug_mode(mock_rig, mock_session, mock_task_logic, mock_
         data_dir=tmp_path / "data",
         temp_dir=tmp_path / "temp",
         debug_mode=True,
-        create_directories=True,
     )
     with patch("clabe.launcher._base.GitRepository") as mock_git, patch("os.chdir"), patch("pathlib.Path.mkdir"):
         mock_git.return_value.working_dir = launcher_args_debug.data_dir
@@ -54,9 +41,6 @@ def test_base_launcher_debug_mode(mock_rig, mock_session, mock_task_logic, mock_
             mock_logger = MagicMock()
             mock_add_file_handler.return_value = mock_logger
             Launcher(
-                rig=mock_rig,
-                session=mock_session,
-                task_logic=mock_task_logic,
                 ui_helper=mock_ui_helper,
                 settings=launcher_args_debug,
             )
@@ -79,9 +63,6 @@ def test_base_launcher_create_directories(mock_rig, mock_session, mock_task_logi
         mock_git.return_value.working_dir = launcher_args_create_dirs.data_dir
         with patch("clabe.launcher.Launcher._ensure_directory_structure") as mock_create_dirs:
             Launcher(
-                rig=mock_rig,
-                session=mock_session,
-                task_logic=mock_task_logic,
                 ui_helper=mock_ui_helper,
                 settings=launcher_args_create_dirs,
                 attached_logger=log_mod.return_value,
@@ -112,9 +93,6 @@ def test_ensure_directory_structure(mock_rig, mock_session, mock_task_logic, moc
         log_mod.return_value = MagicMock()
         with patch("clabe.launcher.Launcher.create_directory") as mock_create_directory:
             launcher = Launcher(
-                rig=mock_rig,
-                session=mock_session,
-                task_logic=mock_task_logic,
                 ui_helper=mock_ui_helper,
                 settings=launcher_args,
                 attached_logger=log_mod.return_value,

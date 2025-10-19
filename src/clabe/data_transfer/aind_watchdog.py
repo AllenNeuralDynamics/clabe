@@ -15,7 +15,7 @@ import os
 import subprocess
 from os import PathLike
 from pathlib import Path, PurePosixPath
-from typing import TYPE_CHECKING, Any, Callable, ClassVar, Dict, Generic, List, Optional, TypeVar, Union
+from typing import TYPE_CHECKING, Any, Callable, ClassVar, Dict, List, Optional, Union
 
 import aind_data_transfer_service.models.core
 import pydantic
@@ -33,22 +33,16 @@ from ._aind_watchdog_models import (
     DEFAULT_TRANSFER_ENDPOINT,
     BucketType,
     ManifestConfig,
+    Modality,
     Platform,
     WatchConfig,
 )
 from ._base import DataTransfer
 
 if TYPE_CHECKING:
-    from aind_behavior_services import AindBehaviorSessionModel
-
-    from ..data_mapper.aind_data_schema import AindDataSchemaSessionDataMapper, Session
-    from ..launcher import Launcher, TRig, TSession, TTaskLogic
+    from ..data_mapper.aind_data_schema import Session
 else:
-    Launcher = Any
     Session = Any
-    AindDataSchemaSessionDataMapper = Any
-    AindBehaviorSessionModel = Any
-    TRig = TSession = TTaskLogic = Any
 
 
 logger = logging.getLogger(__name__)
@@ -56,7 +50,6 @@ logger = logging.getLogger(__name__)
 TransferServiceTask = Dict[
     str, Union[aind_data_transfer_service.models.core.Task, Dict[str, aind_data_transfer_service.models.core.Task]]
 ]
-TSessionMapper = TypeVar("TSessionMapper", bound=AindDataSchemaSessionDataMapper)
 
 _AIND_DATA_SCHEMA_PKG_VERSION = semver.Version.parse(importlib.metadata.version("aind_data_schema"))
 
@@ -65,21 +58,8 @@ class WatchdogSettings(ServiceSettings):
     """
     Settings for the WatchdogDataTransferService.
 
-    Attributes:
-        destination (Path): The destination path for the data transfer.
-        schedule_time (Optional[datetime.time]): The time to schedule the data transfer.
-        project_name (str): The name of the project.
-        platform (Platform): The platform of the project.
-        capsule_id (Optional[str]): The capsule ID for the data transfer.
-        script (Optional[Dict[str, List[str]]]): A dictionary of scripts to run.
-        s3_bucket (BucketType): The S3 bucket to transfer the data to.
-        mount (Optional[str]): The mount point for the data transfer.
-        force_cloud_sync (bool): Whether to force a cloud sync.
-        transfer_endpoint (str): The endpoint for the data transfer service.
-        delete_modalities_source_after_success (bool): Whether to delete the source data after a successful transfer.
-        extra_identifying_info (Optional[dict]): Extra identifying information for the data transfer.
-        upload_tasks (Optional[Any]): Upload job configurations. Use the placeholder "{{ destination }}" to later reference the destination path.
-        job_config (str): Job configuration name.
+    Configures data transfer operations including destination paths, scheduling,
+    and integration with the AIND watchdog service.
     """
 
     __yml_section__: ClassVar[Optional[str]] = "watchdog"
@@ -98,59 +78,32 @@ class WatchdogSettings(ServiceSettings):
     extra_identifying_info: Optional[dict] = None
     upload_tasks: Optional[SerializeAsAny[TransferServiceTask]] = None
     job_type: str = "default"
+    extra_modalities: Optional[List[Modality]] = None
 
 
-class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessionMapper]):
+class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
     """
-    A data transfer service that uses the aind-watchdog-service to monitor and transfer
-    data based on manifest configurations.
+    A data transfer service that uses the aind-watchdog-service to monitor and transfer data.
 
-    This service integrates with the AIND data transfer infrastructure to automatically
-    monitor directories for new data and transfer it to specified destinations with
-    proper metadata handling and validation.
+    Integrates with the AIND data transfer infrastructure to automatically monitor
+    directories for new data and transfer it to specified destinations with proper
+    metadata handling and validation.
 
-    Attributes:
-        _source (PathLike): Source directory to monitor
-        _settings (WatchdogSettings): Service settings containing destination and configuration
-        _aind_session_data_mapper (Optional[_TSessionMapper]): Mapper for session data
-        _ui_helper (ui.UiHelper): UI helper for user prompts
-        Various configuration attributes accessible via settings
-
-    Example:
-        ```python
-        # Basic watchdog service setup:
-        settings = WatchdogSettings(
-            destination="//server/data/session_001",
-            project_name="my_project"
-        )
-        service = WatchdogDataTransferService(
-            source="C:/data/session_001",
-            settings=settings
-        )
-
-        # Full configuration with session mapper:
-        settings = WatchdogSettings(
-            destination="//server/data/session_001",
-            project_name="behavior_study",
-            schedule_time=datetime.time(hour=22, minute=30),
-            platform=Platform.BEHAVIOR,
-            force_cloud_sync=True
-        )
-        session_mapper = MySessionMapper(session_data)
-        service = WatchdogDataTransferService(
-            source="C:/data/session_001",
-            settings=settings
-        )
-        service = service.with_aind_session_data_mapper(session_mapper)
-        if service.validate():
-            service.transfer()
-        ```
+    Methods:
+        transfer: Executes the data transfer by generating a manifest configuration
+        validate: Validates the Watchdog service and its configuration
+        is_valid_project_name: Checks if the project name is valid
+        is_running: Checks if the Watchdog service is currently running
+        force_restart: Attempts to restart the Watchdog application
+        dump_manifest_config: Dumps the manifest configuration to a YAML file
+        prompt_input: Prompts the user to confirm manifest generation
     """
 
     def __init__(
         self,
         source: PathLike,
         settings: WatchdogSettings,
+        aind_data_schema_session: Session,
         *,
         validate: bool = True,
         session_name: Optional[str] = None,
@@ -164,43 +117,17 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
 
         Args:
             source: The source directory or file to monitor
-            settings: WatchdogSettings containing destination and configuration options
+            settings: Configuration for the watchdog service
+            aind_data_schema_session: The session data schema
             validate: Whether to validate the project name
             session_name: Name of the session
             ui_helper: UI helper for user prompts
-
-        Example:
-            ```python
-            # Basic initialization:
-            settings = WatchdogSettings(
-                destination="//server/archive/session_001",
-                project_name="behavior_project"
-            )
-            service = WatchdogDataTransferService(
-                source="C:/data/session_001",
-                settings=settings
-            )
-
-            # Advanced configuration:
-            settings = WatchdogSettings(
-                destination="//server/archive/session_001",
-                project_name="behavior_project",
-                schedule_time=datetime.time(hour=23),
-                platform=Platform.BEHAVIOR,
-                force_cloud_sync=True,
-                delete_modalities_source_after_success=True,
-                extra_identifying_info={"experiment_type": "foraging"}
-            )
-            service = WatchdogDataTransferService(
-                source="C:/data/session_001",
-                settings=settings
-            )
-            ```
+            email_from_experimenter_builder: Function to build email from experimenter name
         """
         self._settings = settings
         self._source = source
 
-        self._aind_session_data_mapper: Optional[TSessionMapper] = None
+        self._aind_data_schema_session: Session = aind_data_schema_session
 
         _default_exe = os.environ.get("WATCHDOG_EXE", None)
         _default_config = os.environ.get("WATCHDOG_CONFIG", None)
@@ -225,40 +152,12 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
         self._session_name = session_name
         self._email_from_experimenter_builder = email_from_experimenter_builder
 
-    @property
-    def aind_session_data_mapper(self) -> TSessionMapper:
-        """
-        Gets the aind-data-schema session data mapper.
-
-        Returns:
-            The session data mapper
-
-        Raises:
-            ValueError: If the data mapper is not set
-        """
-        if self._aind_session_data_mapper is None:
-            raise ValueError("Data mapper is not set.")
-        return self._aind_session_data_mapper
-
-    def with_aind_session_data_mapper(self, value: TSessionMapper) -> "WatchdogDataTransferService[TSessionMapper]":
-        """
-        Sets the aind-data-schema session data mapper.
-
-        Args:
-            value: The data mapper to set
-
-        Raises:
-            ValueError: If the provided value is not a valid data mapper
-        """
-        self._aind_session_data_mapper = value
-        return self
-
     def transfer(self) -> None:
         """
         Executes the data transfer by generating a Watchdog manifest configuration.
 
         Creates and deploys a manifest configuration file that the watchdog service
-        will use to monitor and transfer data according to the specified parameters.
+        will use to monitor and transfer data.
         """
         try:
             if not self.is_running():
@@ -277,20 +176,17 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
 
             logger.debug("Creating watchdog manifest config.")
 
-            if not self.aind_session_data_mapper.is_mapped():
-                raise ValueError("Data mapper has not been mapped yet.")
-
             if _AIND_DATA_SCHEMA_PKG_VERSION.major < 2:
                 logger.warning(
                     "Using deprecated AIND data schema version %s. Consider upgrading.", _AIND_DATA_SCHEMA_PKG_VERSION
                 )
                 self._manifest_config = self._create_manifest_config_from_ads_session(
-                    ads_session=self.aind_session_data_mapper.mapped,
+                    ads_session=self._aind_data_schema_session,
                     session_name=self._session_name,
                 )
             else:
                 self._manifest_config = self._create_manifest_config_from_ads_acquisition(
-                    ads_session=self.aind_session_data_mapper.mapped,
+                    ads_session=self._aind_data_schema_session,
                     session_name=self._session_name,
                 )
 
@@ -353,9 +249,6 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
         """
         Checks if the project name is valid by querying the metadata service.
 
-        Validates the project name against the list of known projects from
-        the AIND metadata service.
-
         Returns:
             True if the project name is valid, False otherwise
         """
@@ -369,12 +262,10 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
         session_name: Optional[str] = None,
     ) -> ManifestConfig:
         """
-        Creates a ManifestConfig object from an aind-data-schema acquisition.
-        This method should replace _create_manifest_config_from_ads_session for >2.0
-        aind-data-schema versions.
+        Creates a ManifestConfig from an aind-data-schema acquisition.
 
-        Converts acquisition metadata into a manifest configuration that can be
-        used by the watchdog service for data transfer operations.
+        For aind-data-schema versions >= 2.0. Converts acquisition metadata into
+        a manifest configuration for the watchdog service.
 
         Args:
             ads_session: The aind-data-schema acquisition data
@@ -386,22 +277,6 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
 
         Raises:
             ValueError: If the project name is invalid
-
-        Example:
-            ```python
-            # Create manifest from acquisition data:
-            acquisition = Acquisition(...)
-            manifest = service.create_manifest_config_from_ads_acquisition(
-                ads_session=acquisition,
-            )
-
-            # Create with custom schemas:
-            schemas = ["C:/data/rig.json", "C:/data/processing.json"]
-            manifest = service.create_manifest_config_from_ads_acquisition(
-                ads_session=acquisition,
-                ads_schemas=schemas,
-            )
-            ```
         """
         processor_full_name = ",".join(ads_session.experimenters) or os.environ.get("USERNAME", "unknown")
 
@@ -419,13 +294,17 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
                 raise ValueError(f"Project name {self._settings.project_name} not found in {project_names}")
 
         ads_schemas = self._find_ads_schemas(source) if ads_schemas is None else ads_schemas
+        modalities = {
+            str(modality.abbreviation): [Path(path.resolve()) for path in [source / str(modality.abbreviation)]]
+            for modality in ads_session.data_streams[0].modalities
+        }
+        if self._settings.extra_modalities is not None:
+            for modality in self._settings.extra_modalities:
+                modalities[str(modality)] = [Path(path.resolve()) for path in [source / str(modality)]]
 
         _manifest_config = ManifestConfig(
             name=session_name,
-            modalities={
-                str(modality.abbreviation): [Path(path.resolve()) for path in [source / str(modality.abbreviation)]]
-                for modality in ads_session.data_streams[0].modalities
-            },
+            modalities=modalities,
             subject_id=int(ads_session.subject_id),
             acquisition_datetime=ads_session.acquisition_start_time,
             schemas=[Path(value) for value in ads_schemas],
@@ -461,10 +340,9 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
         session_name: Optional[str] = None,
     ) -> ManifestConfig:
         """
-        Creates a ManifestConfig object from an aind-data-schema session.
+        Creates a ManifestConfig from an aind-data-schema session.
 
-        Converts session metadata into a manifest configuration that can be
-        used by the watchdog service for data transfer operations.
+        Deprecated: Use _create_manifest_config_from_ads_acquisition instead.
 
         Args:
             ads_session: The aind-data-schema session data
@@ -476,22 +354,6 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
 
         Raises:
             ValueError: If the project name is invalid
-
-        Example:
-            ```python
-            # Create manifest from session data:
-            session = Session(...)
-            manifest = service.create_manifest_config_from_ads_session(
-                ads_session=session,
-            )
-
-            # Create with custom schemas:
-            schemas = ["C:/data/rig.json", "C:/data/processing.json"]
-            manifest = service.create_manifest_config_from_ads_session(
-                ads_session=session,
-                ads_schemas=schemas,
-            )
-            ```
         """
         processor_full_name = ",".join(ads_session.experimenter_full_name) or os.environ.get("USERNAME", "unknown")
 
@@ -545,7 +407,15 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
 
     @staticmethod
     def _remote_destination_root(manifest: ManifestConfig) -> Path:
-        """Determines the remote destination root path for the manifest."""
+        """
+        Determines the remote destination root path for the manifest.
+
+        Args:
+            manifest: The manifest configuration
+
+        Returns:
+            The remote destination root path
+        """
         assert manifest.destination is not None, "Manifest destination must be set."
         assert manifest.name is not None, "Manifest name must be set."
         return Path(manifest.destination) / manifest.name
@@ -560,8 +430,22 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
         extra_tasks: TransferServiceTask,
         user_email: Optional[str] = None,
     ) -> ManifestConfig:
-        """Appends extra tasks to a manifest configuration. Additionally appends default
-        metadata and modality transformation tasks if requested."""
+        """
+        Appends tasks to a manifest configuration.
+
+        Adds metadata and modality transformation tasks to the manifest, along with
+        any extra tasks specified.
+
+        Args:
+            manifest: The manifest configuration to update
+            job_type: The job type identifier
+            add_default_tasks: Whether to add default metadata and transformation tasks
+            extra_tasks: Additional tasks to include
+            user_email: Optional user email for the job submission
+
+        Returns:
+            The updated manifest configuration
+        """
         tasks = {}
 
         if add_default_tasks:
@@ -609,12 +493,15 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
         tasks: TransferServiceTask | dict, value: str, placeholder: str
     ) -> TransferServiceTask:
         """
-        Interpolates values from the manifest into the upload job configuration.
+        Interpolates values from the manifest into upload job configurations.
 
         Args:
-            upload_job_configs: The upload job configuration to update
-            destination: The destination path to use for interpolation
+            tasks: The upload job configuration to update
+            value: The value to use for interpolation
             placeholder: The placeholder string to replace
+
+        Returns:
+            The updated upload job configuration
         """
         _adapter = TypeAdapter(TransferServiceTask)
         literal = _adapter.dump_json(tasks, serialize_as_any=True)
@@ -625,8 +512,6 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
     def _find_ads_schemas(source: PathLike) -> List[PathLike]:
         """
         Finds aind-data-schema schema files in the source directory.
-
-        Searches for standard AIND data schema files in the specified directory.
 
         Args:
             source: The source directory to search
@@ -648,12 +533,9 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
         """
         Fetches the list of valid project names from the metadata service.
 
-        Queries the AIND metadata service to retrieve the current list of
-        valid project names for validation purposes.
-
         Args:
             end_point: The endpoint URL for the metadata service
-            timeout: Timeout for the request
+            timeout: Timeout for the request in seconds
 
         Returns:
             A list of valid project names
@@ -672,26 +554,8 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
         """
         Checks if the Watchdog service is currently running.
 
-        Uses system process monitoring to determine if the watchdog executable
-        is currently active.
-
         Returns:
             True if the service is running, False otherwise
-
-        Example:
-            ```python
-            # Check service status:
-            settings = WatchdogSettings(
-                destination="//server/data",
-                project_name="my_project"
-            )
-            service = WatchdogDataTransferService(source="C:/data", settings=settings)
-            if service.is_running():
-                print("Watchdog service is active")
-            else:
-                print("Watchdog service is not running")
-                service.force_restart()
-            ```
         """
         output = subprocess.check_output(
             ["tasklist", "/FI", f"IMAGENAME eq {self.executable_path.name}"], shell=True, encoding="utf-8"
@@ -702,9 +566,6 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
     def force_restart(self, kill_if_running: bool = True) -> subprocess.Popen[bytes]:
         """
         Attempts to restart the Watchdog application.
-
-        Terminates the existing service if running and starts a new instance
-        with the current configuration.
 
         Args:
             kill_if_running: Whether to terminate the service if it's already running
@@ -723,9 +584,6 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
     def dump_manifest_config(self, path: Optional[os.PathLike] = None, make_dir: bool = True) -> Path:
         """
         Dumps the manifest configuration to a YAML file.
-
-        Saves the current manifest configuration to a file that can be
-        processed by the watchdog service.
 
         Args:
             path: The file path to save the manifest
@@ -768,8 +626,6 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
         """
         Converts a Pydantic model to a YAML string.
 
-        Serializes a Pydantic model to YAML format for file output.
-
         Args:
             model: The Pydantic model to convert
 
@@ -784,8 +640,6 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
         """
         Writes a Pydantic model to a YAML file.
 
-        Saves a Pydantic model as a YAML file at the specified path.
-
         Args:
             model: The Pydantic model to write
             path: The file path to save the YAML
@@ -797,8 +651,6 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
     def _read_yaml(path: PathLike) -> dict:
         """
         Reads a YAML file and returns its contents as a dictionary.
-
-        Loads and parses a YAML file into a Python dictionary.
 
         Args:
             path: The file path to read
@@ -813,66 +665,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings], Generic[TSessi
         """
         Prompts the user to confirm whether to generate a manifest.
 
-        Provides user interaction to confirm manifest generation for the
-        watchdog service.
-
         Returns:
             True if the user confirms, False otherwise
-
-        Example:
-            ```python
-            # Interactive manifest generation:
-            settings = WatchdogSettings(
-                destination="//server/data",
-                project_name="my_project"
-            )
-            service = WatchdogDataTransferService(source="C:/data", settings=settings)
-            if service.prompt_input():
-                service.transfer()
-                print("Manifest generation confirmed")
-            else:
-                print("Manifest generation cancelled")
-            ```
         """
         return self._ui_helper.prompt_yes_no_question("Would you like to generate a watchdog manifest (Y/N)?")
-
-    @classmethod
-    def build_runner(
-        cls,
-        settings: WatchdogSettings,
-        aind_session_data_mapper: Callable[["Launcher[TRig, TSession, TTaskLogic]"], TSessionMapper] | TSessionMapper,
-        **kwargs,
-    ) -> Callable[["Launcher[TRig, TSession, TTaskLogic]"], "WatchdogDataTransferService[TSessionMapper]"]:
-        """
-        A factory method for creating the watchdog service.
-
-        Args:
-            settings: The watchdog settings.
-            aind_session_data_mapper: The aind session data mapper.
-
-        Returns:
-            A factory for WatchdogDataTransferService.
-        """
-
-        def _from_launcher(
-            launcher: "Launcher[TRig, TSession, TTaskLogic]",
-        ) -> "WatchdogDataTransferService":
-            """Inner callable to create the service from a launcher"""
-            _aind_session_data_mapper = (
-                aind_session_data_mapper(launcher) if callable(aind_session_data_mapper) else aind_session_data_mapper
-            )
-
-            if not _aind_session_data_mapper.is_mapped():
-                raise ValueError("Data mapper has not mapped yet. Cannot create watchdog.")
-
-            _settings = settings.model_copy()
-
-            _session = launcher.get_session(strict=True)
-            _settings.destination = Path(_settings.destination) / _session.subject
-            service = WatchdogDataTransferService[TSessionMapper](
-                source=launcher.session_directory, settings=_settings, session_name=_session.session_name, **kwargs
-            ).with_aind_session_data_mapper(_aind_session_data_mapper)
-            service.transfer()
-            return service
-
-        return _from_launcher

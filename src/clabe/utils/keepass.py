@@ -21,29 +21,8 @@ class KeePassSettings(ServiceSettings):
     """
     Settings for the KeePass service.
 
-    This class provides configuration settings for accessing KeePass password databases.
-    It supports authentication using both keyfiles and passwords, with automatic YAML
-    configuration loading through the ServiceSettings base class.
-
-    Attributes:
-        database (Path): Path to the KeePass database file (.kdbx).
-        keyfile (Optional[Path]): Path to the keyfile for database authentication.
-            Can be None if using password-only authentication.
-        password (Optional[str]): Master password for the database. Can be None
-            if using keyfile-only authentication.
-
-    Example:
-        ```python
-        # Using default settings
-        settings = KeePassSettings()
-
-        # Using custom settings
-        settings = KeePassSettings(
-            database=Path("/path/to/database.kdbx"),
-            keyfile=Path("/path/to/keyfile.key"),
-            password="master_password"
-        )
-        ```
+    Configuration settings for accessing KeePass password databases, supporting
+    authentication using both keyfiles and passwords.
     """
 
     __yml_section__: ClassVar[Optional[str]] = "keepass"
@@ -57,31 +36,11 @@ class KeePass(Service):
     """
     KeePass password manager service for accessing password database entries.
 
-    This service provides a simple interface for connecting to and retrieving entries
-    from KeePass password databases. It handles authentication using the provided
-    settings and supports both keyfile and password-based authentication methods.
+    Provides an interface for connecting to and retrieving entries from KeePass
+    password databases, supporting both keyfile and password-based authentication.
 
-    The service automatically establishes a connection to the database upon initialization
-    and provides methods for retrieving password entries by title.
-
-    Attributes:
-        _settings (KeePassSettings): Configuration settings for the KeePass database.
-        _keepass (PyKeePass): The underlying PyKeePass instance for database operations.
-
-    Example:
-        ```python
-        # Create settings and service
-        settings = KeePassSettings(
-            database=Path("/path/to/database.kdbx"),
-            password="master_password"
-        )
-        keepass = KeePass(settings)
-
-        # Retrieve an entry
-        entry = keepass.get_entry("my_service_credentials")
-        username = entry.username
-        password = entry.password
-        ```
+    Methods:
+        get_entry: Retrieves a password entry by title
     """
 
     def __init__(self, settings: KeePassSettings):
@@ -93,13 +52,12 @@ class KeePass(Service):
         immediately upon initialization.
 
         Args:
-            settings (KeePassSettings): Configuration settings containing database
-                path and authentication credentials.
+            settings: Configuration settings containing database path and authentication credentials
 
         Raises:
-            FileNotFoundError: If the database file cannot be found.
-            CredentialsError: If the provided authentication credentials are invalid.
-            IOError: If there's an error reading the database or keyfile.
+            FileNotFoundError: If the database file cannot be found
+            CredentialsError: If the provided authentication credentials are invalid
+            IOError: If there's an error reading the database or keyfile
 
         Example:
             ```python
@@ -124,15 +82,13 @@ class KeePass(Service):
         only the first one encountered will be returned.
 
         Args:
-            title (str): The title of the entry to retrieve. This should match
-                the entry title exactly (case-sensitive).
+            title: The title of the entry to retrieve. This should match the entry title exactly (case-sensitive)
 
         Returns:
-            Entry: The KeePass entry object containing username, password, and
-                other metadata associated with the specified title.
+            Entry: The KeePass entry object containing username, password, and other metadata associated with the specified title
 
         Raises:
-            ValueError: If no entry is found with the specified title.
+            ValueError: If no entry is found with the specified title
 
         Example:
             ```python

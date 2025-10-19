@@ -46,33 +46,18 @@ class AindDataSchemaDataMapper(_base.DataMapper[_TAdsObject], abc.ABC):
     """
     Abstract base class for mapping data to aind-data-schema objects.
 
-    This class provides the foundation for mapping experimental data to AIND data schema
-    formats, ensuring consistent structure and metadata handling across different data types.
-
-    Attributes:
-        session_name (str): The name of the session associated with the data
-
-    Example:
-        ```python
-        # Example subclass implementing session_name
-        class MySessionMapper(AindDataSchemaDataMapper):
-            @property
-            def session_name(self) -> str:
-                return "session_001"
-        ```
+    Provides the foundation for mapping experimental data to AIND data schema
+    formats, ensuring consistent structure and metadata handling.
     """
 
     @property
     @abc.abstractmethod
     def session_name(self) -> str:
         """
-        Abstract property that must be implemented to return the session name.
-
-        Subclasses must implement this property to provide the session name
-        associated with the data being mapped.
+        Returns the session name associated with the data.
 
         Returns:
-            str: The name of the session
+            The name of the session
         """
 
 
@@ -80,20 +65,16 @@ class AindDataSchemaSessionDataMapper(AindDataSchemaDataMapper[Session], abc.ABC
     """
     Abstract base class for mapping session data to aind-data-schema Session objects.
 
-    This class specializes the generic data mapper for session-specific data,
-    providing the interface for converting experimental session data to the
-    AIND data schema Session format.
+    Specializes the generic data mapper for session-specific data, providing the
+    interface for converting experimental session data to the AIND data schema format.
     """
 
     def session_schema(self) -> Session:
         """
         Returns the session schema for the mapped session data.
 
-        This method should be implemented by subclasses to return the specific
-        session schema that corresponds to the data being mapped.
-
         Returns:
-            ads_session.Session: The session schema object
+            The session schema object
         """
         raise NotImplementedError("Subclasses must implement this method to return the session schema.")
 
@@ -102,19 +83,15 @@ class AindDataSchemaRigDataMapper(AindDataSchemaDataMapper[Rig], abc.ABC):
     """
     Abstract base class for mapping rig data to aind-data-schema Rig objects.
 
-    This class specializes the generic data mapper for rig-specific data,
-    providing the interface for converting experimental rig configurations
-    to the AIND data schema Rig format.
+    Specializes the generic data mapper for rig-specific data, providing the
+    interface for converting experimental rig configurations to the AIND data schema format.
     """
 
     def rig_schema(self) -> Rig:
         """
         Returns the rig schema for the mapped rig data.
 
-        This method should be implemented by subclasses to return the specific
-        rig schema that corresponds to the data being mapped.
-
         Returns:
-            ads_rig.Rig: The rig schema object
+            The rig schema object
         """
         raise NotImplementedError("Subclasses must implement this method to return the rig schema.")

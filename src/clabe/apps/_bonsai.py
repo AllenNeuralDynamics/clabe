@@ -2,11 +2,14 @@ import logging
 import os
 import subprocess
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, ClassVar, Dict, Optional, Self
+from typing import ClassVar, Dict, Optional, Self
 
 import pydantic
+from aind_behavior_services import AindBehaviorRigModel, AindBehaviorSessionModel, AindBehaviorTaskLogicModel
 from aind_behavior_services.utils import run_bonsai_process
 from typing_extensions import override
+
+from clabe.launcher._base import Launcher
 
 from ..services import ServiceSettings
 from ..ui import DefaultUIHelper, UiHelper
@@ -14,25 +17,13 @@ from ._base import App
 
 logger = logging.getLogger(__name__)
 
-if TYPE_CHECKING:
-    from ..launcher import Launcher
-else:
-    Launcher = Any
-
 
 class BonsaiAppSettings(ServiceSettings):
     """
     Settings for the BonsaiApp.
 
-    Attributes:
-        workflow (os.PathLike): Path to the Bonsai workflow file.
-        executable (os.PathLike): Path to the Bonsai executable.
-        is_editor_mode (bool): Whether to run Bonsai in editor mode.
-        is_start_flag (bool): Whether to use the start flag when running Bonsai.
-        additional_properties (Optional[Dict[str, str]]): Additional properties to pass to Bonsai.
-        cwd (Optional[os.PathLike]): Working directory for the Bonsai process.
-        timeout (Optional[float]): Timeout for the Bonsai process.
-        print_cmd (bool): Whether to print the command being executed.
+    Configuration for Bonsai workflow execution including paths, modes, and
+    execution parameters.
     """
 
     __yml_section__: ClassVar[Optional[str]] = "bonsai_app"
@@ -49,24 +40,41 @@ class BonsaiAppSettings(ServiceSettings):
     @pydantic.field_validator("workflow", "executable", mode="after", check_fields=True)
     @classmethod
     def _resolve_path(cls, value: os.PathLike) -> os.PathLike:
-        """Resolves the path to an absolute path."""
+        """
+        Resolves the path to an absolute path.
+
+        Args:
+            value: The path to resolve
+
+        Returns:
+            os.PathLike: The absolute path
+        """
         return Path(value).resolve()
 
     @pydantic.model_validator(mode="after")
     def _set_start_flag(self) -> Self:
-        """Ensures that the start flag is set correctly based on the editor mode"""
+        """
+        Ensures that the start flag is set correctly based on the editor mode.
+
+        Returns:
+            Self: The updated instance
+        """
         self.is_start_flag = self.is_start_flag if not self.is_editor_mode else True
         return self
 
 
-class BonsaiApp(App):
+class BonsaiApp(App[None]):
     """
     A class to manage the execution of Bonsai workflows.
 
-    Attributes:
-        settings (BonsaiAppSettings): Settings for the Bonsai App
-        ui_helper (UiHelper): Helper for user interface interactions.
-        _result (Optional[subprocess.CompletedProcess]): Result of the Bonsai process execution.
+    Handles Bonsai workflow execution, configuration management, and process
+    monitoring for behavioral experiments.
+
+    Methods:
+        run: Executes the Bonsai workflow
+        get_result: Retrieves the result of the Bonsai execution
+        add_app_settings: Adds or updates application settings
+        validate: Validates the Bonsai application configuration
     """
 
     def __init__(
@@ -80,15 +88,16 @@ class BonsaiApp(App):
         Initializes the BonsaiApp instance.
 
         Args:
-            settings (BonsaiAppSettings): Settings for the Bonsai App.
-            ui_helper (Optional[UiHelper]): UI helper instance. Defaults to DefaultUIHelper.
-            **kwargs: Additional keyword arguments.
+            settings: Settings for the Bonsai App
+            ui_helper: UI helper instance. Defaults to DefaultUIHelper
+            **kwargs: Additional keyword arguments
 
         Example:
             ```python
             # Create and run a Bonsai app
             app = BonsaiApp(settings=BonsaiAppSettings(workflow="workflow.bonsai"))
             app.run()
+
             # Create with custom settings
             app = BonsaiApp(
                 settings=BonsaiAppSettings(
@@ -99,34 +108,36 @@ class BonsaiApp(App):
             ```
         """
         self.settings = settings
-        self._result: Optional[subprocess.CompletedProcess] = None
+        self._completed_process: Optional[subprocess.CompletedProcess] = None
         self.ui_helper = ui_helper if ui_helper is not None else DefaultUIHelper()
 
-    @property
-    def result(self) -> subprocess.CompletedProcess:
+    def get_result(self, *, allow_stderr: bool = True) -> None:
         """
         Returns the result of the Bonsai process execution.
 
+        Args:
+            allow_stderr: Whether to allow stderr in the output. Defaults to True
+
         Returns:
-            subprocess.CompletedProcess: The result of the Bonsai process.
+            None
 
         Raises:
-            RuntimeError: If the app has not been run yet.
+            RuntimeError: If the app has not been run yet
         """
-        if self._result is None:
+        if self._completed_process is None:
             raise RuntimeError("The app has not been run yet.")
-        return self._result
+        return self._process_process_output(allow_stderr=allow_stderr)
 
-    @override
-    def add_app_settings(self, **kwargs):
+    def add_app_settings(self, *args, **kwargs):
         """
         Adds application-specific settings to the additional properties.
 
         Args:
-            **kwargs: Additional keyword arguments.
+            *args: Positional arguments (unused)
+            **kwargs: Additional keyword arguments to add to settings
 
         Returns:
-            Self: The updated instance of BonsaiApp.
+            Self: The updated instance of BonsaiApp
         """
 
         if self.settings.additional_properties is not None:
@@ -140,14 +151,14 @@ class BonsaiApp(App):
         Validates the existence of required files and directories.
 
         Args:
-            *args: Additional positional arguments.
-            **kwargs: Additional keyword arguments.
+            *args: Additional positional arguments (unused)
+            **kwargs: Additional keyword arguments (unused)
 
         Returns:
-            bool: True if validation is successful.
+            bool: True if validation is successful
 
         Raises:
-            FileNotFoundError: If any required file or directory is missing.
+            FileNotFoundError: If any required file or directory is missing
         """
         if not Path(self.settings.executable).exists():
             raise FileNotFoundError(f"Executable not found: {self.settings.executable}")
@@ -156,15 +167,16 @@ class BonsaiApp(App):
         return True
 
     @override
-    def run(self) -> subprocess.CompletedProcess:
+    def run(self) -> Self:
         """
         Runs the Bonsai process.
 
         Returns:
-            subprocess.CompletedProcess: The result of the Bonsai process execution.
+            Self: The updated instance
 
         Raises:
-            FileNotFoundError: If validation fails.
+            FileNotFoundError: If validation fails
+            subprocess.CalledProcessError: If the Bonsai process fails
         """
         self.validate()
 
@@ -181,25 +193,28 @@ class BonsaiApp(App):
             timeout=self.settings.timeout,
             print_cmd=self.settings.print_cmd,
         )
-        self._result = proc
+        self._completed_process = proc
         logger.info("Bonsai process completed.")
-        return proc
+        return self
 
-    @override
-    def output_from_result(self, *, allow_stderr: Optional[bool]) -> Self:
+    def _process_process_output(self, *, allow_stderr: Optional[bool]) -> None:
         """
         Processes the output from the Bonsai process result.
 
         Args:
-            allow_stderr (Optional[bool]): Whether to allow stderr output.
+            allow_stderr: Whether to allow stderr output. If None, prompts user
 
         Returns:
-            Self: The updated instance of BonsaiApp.
+            None
 
         Raises:
-            subprocess.CalledProcessError: If the process exits with an error.
+            RuntimeError: If the app has not been run yet
+            subprocess.CalledProcessError: If the process exits with an error
         """
-        proc = self.result
+        proc = self._completed_process
+        if proc is None:
+            raise RuntimeError("The app has not been run yet.")
+
         try:
             proc.check_returncode()
         except subprocess.CalledProcessError:
@@ -207,53 +222,26 @@ class BonsaiApp(App):
             raise
         else:
             self._log_process_std_output("Bonsai", proc)
-
-            if len(proc.stdout) > 0:
+            if len(proc.stderr) > 0:
                 logger.error("Bonsai process finished with errors.")
                 if allow_stderr is None:
                     allow_stderr = self.ui_helper.prompt_yes_no_question("Would you like to see the error message?")
                 if allow_stderr is False:
                     raise subprocess.CalledProcessError(1, proc.args)
-        return self
+        return
 
     def _log_process_std_output(self, process_name: str, proc: subprocess.CompletedProcess) -> None:
         """
         Logs the standard output and error of a process.
 
         Args:
-            process_name (str): Name of the process.
-            proc (subprocess.CompletedProcess): The process result.
+            process_name: Name of the process
+            proc: The process result
         """
         if len(proc.stdout) > 0:
             logger.info("%s full stdout dump: \n%s", process_name, proc.stdout)
         if len(proc.stderr) > 0:
             logger.error("%s full stderr dump: \n%s", process_name, proc.stderr)
-
-    def build_runner(self, allow_std_error: bool = False) -> Callable[[Launcher], Self]:
-        """
-        Builds a runner function for the application.
-
-        This method returns a callable that can be executed by the launcher to run the application.
-
-        Args:
-            allow_std_error (bool): Whether to allow stderr in the output. Defaults to False.
-
-        Returns:
-            Callable[[Launcher], Self]: A callable that takes a launcher instance and returns the application instance.
-        """
-
-        def _run(launcher: Launcher):
-            """Internal wrapper function"""
-            try:
-                self.add_app_settings(launcher=launcher)
-                self.run()
-                result = self.output_from_result(allow_stderr=allow_std_error)
-            except subprocess.CalledProcessError as e:
-                logger.error(f"App {self.__class__.__name__} failed with error: {e}")
-                raise
-            return result
-
-        return _run
 
 
 class AindBehaviorServicesBonsaiApp(BonsaiApp):
@@ -268,47 +256,43 @@ class AindBehaviorServicesBonsaiApp(BonsaiApp):
         ```python
         # Create an AIND behavior services Bonsai app
         app = AindBehaviorServicesBonsaiApp(workflow="behavior_workflow.bonsai")
-        app.add_app_settings(launcher=my_launcher)
         app.run()
         ```
     """
 
-    def add_app_settings(self, *, launcher: Optional[Launcher] = None, **kwargs) -> Self:
+    def add_app_settings(
+        self,
+        launcher: Launcher,
+        *args,
+        rig: Optional[AindBehaviorRigModel] = None,
+        session: Optional[AindBehaviorSessionModel] = None,
+        task_logic: Optional[AindBehaviorTaskLogicModel] = None,
+        **kwargs,
+    ) -> Self:  # type: ignore[override]
         """
-        Adds AIND behavior-specific application settings to the Bonsai workflow.
+        Adds AIND behavior services settings to the Bonsai workflow.
 
-        This method automatically configures the TaskLogicPath, SessionPath, and RigPath
-        properties for the Bonsai workflow based on the launcher's schema models.
+        Automatically configures RigPath, SessionPath, and TaskLogicPath properties
+        for the Bonsai workflow based on the provided models.
 
         Args:
-            launcher: The behavior launcher instance containing schema models
-            **kwargs: Additional keyword arguments
+            launcher: The launcher instance for saving temporary models
+            *args: Additional positional arguments
+            rig: Optional rig model to configure. Defaults to None
+            session: Optional session model to configure. Defaults to None
+            task_logic: Optional task logic model to configure. Defaults to None
+            **kwargs: Additional keyword arguments to pass to the workflow
 
         Returns:
             Self: The updated instance
-
-        Raises:
-            ValueError: If the required launcher argument is not provided
-
-        Example:
-            ```python
-            # Add AIND behavior settings
-            app.add_app_settings(launcher=my_launcher)
-            ```
         """
+        settings = {}
+        if rig:
+            settings["RigPath"] = os.path.abspath(launcher.save_temp_model(model=rig))
+        if session:
+            settings["SessionPath"] = os.path.abspath(launcher.save_temp_model(model=session))
+        if task_logic:
+            settings["TaskLogicPath"] = os.path.abspath(launcher.save_temp_model(model=task_logic))
 
-        if launcher is None:
-            raise ValueError("Missing required argument 'launcher'.")
-
-        settings = {
-            "TaskLogicPath": os.path.abspath(
-                launcher.save_temp_model(model=launcher.get_task_logic(strict=True), directory=launcher.temp_dir)
-            ),
-            "SessionPath": os.path.abspath(
-                launcher.save_temp_model(model=launcher.get_session(strict=True), directory=launcher.temp_dir)
-            ),
-            "RigPath": os.path.abspath(
-                launcher.save_temp_model(model=launcher.get_rig(strict=True), directory=launcher.temp_dir)
-            ),
-        }
-        return super().add_app_settings(**settings)
+        settings.update(kwargs)
+        return super().add_app_settings(*args, **settings)

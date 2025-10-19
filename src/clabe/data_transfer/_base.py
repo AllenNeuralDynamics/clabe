@@ -13,38 +13,21 @@ TSettings = TypeVar("TSettings", bound=ServiceSettings)
 
 class DataTransfer(Service, abc.ABC, Generic[TSettings]):
     """
-    Abstract base class for data transfer services. All data transfer implementations
-    must inherit from this class and implement its abstract methods.
+    Abstract base class for data transfer services.
 
-    This class defines the interface that all data transfer services must implement,
-    providing a consistent API for different transfer mechanisms such as file copying,
-    cloud uploads, or network transfers.
+    Defines the interface that all data transfer services must implement, providing
+    a consistent API for different transfer mechanisms such as file copying, cloud
+    uploads, or network transfers.
 
-    Example:
-        ```python
-        # Implementing a custom data transfer service with settings:
-        class MyTransferSettings(ServiceSettings):
-            destination: str
+    Type Parameters:
+        TSettings: Type of the service settings
 
-        class MyTransferService(DataTransfer[MyTransferSettings]):
-            def __init__(self, source: str, settings: MyTransferSettings):
-                self.source = source
-                self._settings = settings
+    Properties:
+        settings: The service settings
 
-            def transfer(self) -> None:
-                # Implementation specific transfer logic
-                print(f"Transferring from {self.source} to {self._settings.destination}")
-
-            def validate(self) -> bool:
-                # Implementation specific validation
-                return Path(self.source).exists()
-
-        # Using the custom service:
-        settings = MyTransferSettings(destination="D:/backup")
-        service = MyTransferService("C:/data", settings)
-        if service.validate():
-            service.transfer()
-        ```
+    Methods:
+        transfer: Executes the data transfer process
+        validate: Validates the data transfer service
     """
 
     @abc.abstractmethod
@@ -73,5 +56,10 @@ class DataTransfer(Service, abc.ABC, Generic[TSettings]):
 
     @property
     def settings(self) -> TSettings:
-        """Returns the settings for the data transfer service."""
+        """
+        Returns the settings for the data transfer service.
+
+        Returns:
+            TSettings: The service settings
+        """
         return self._settings

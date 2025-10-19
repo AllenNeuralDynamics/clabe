@@ -2,52 +2,30 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Callable, List, Optional
+from typing import Callable, List, Optional
 
 from ..services import Service
 
 logger = logging.getLogger(__name__)
-
-if TYPE_CHECKING:
-    from ..launcher import Launcher
-else:
-    Launcher = Any
 
 
 class ResourceMonitor(Service):
     """
     A service that monitors and validates resource constraints.
 
-    This service manages a collection of constraints that can be evaluated to ensure
-    that system resources meet the requirements for experiment execution.
+    Manages a collection of constraints that can be evaluated to ensure system
+    resources meet the requirements for experiment execution.
 
-    Attributes:
-        constraints (List[Constraint]): A list of constraints to monitor
-
-    Example:
-        ```python
-        from clabe.resource_monitor import available_storage_constraint_factory
-
-        # Create monitor with storage constraint
-        monitor = ResourceMonitor()
-        storage_constraint = available_storage_constraint_factory(
-            drive="C:\\", min_bytes=1e9  # 1GB minimum
-        )
-        monitor.add_constraint(storage_constraint)
-
-        # Validate all constraints
-        if monitor.validate():
-            print("All constraints satisfied")
-        else:
-            print("Some constraints failed")
-        ```
+    Methods:
+        run: Runs the resource monitor and evaluates all constraints
+        add_constraint: Adds a constraint to the monitor
+        remove_constraint: Removes a constraint from the monitor
+        evaluate_constraints: Evaluates all registered constraints
     """
 
     def __init__(
         self,
-        *args,
         constrains: Optional[List[Constraint]] = None,
-        **kwargs,
     ) -> None:
         """
         Initializes the ResourceMonitor.
@@ -57,23 +35,21 @@ class ResourceMonitor(Service):
         """
         self.constraints = constrains or []
 
-    def build_runner(self) -> Callable[[Launcher], bool]:
+    def run(self) -> bool:
         """
-        Builds a runner function that evaluates all constraints.
+        Runs the resource monitor and evaluates all constraints.
 
         Returns:
-            A callable that takes a launcher instance and returns True if all constraints are satisfied, False otherwise.
+            bool: True if all constraints pass
+
+        Raises:
+            RuntimeError: If one or more constraints fail
         """
-
-        def _run(launcher: Launcher) -> bool:
-            """Inner function to run the resource monitor given a launcher instance."""
-            logger.debug("Evaluating resource monitor constraints.")
-            if result := not self.evaluate_constraints():
-                logger.error("One or more resource monitor constraints failed.")
-                raise RuntimeError("Resource monitor constraints failed.")
-            return result
-
-        return _run
+        logger.debug("Evaluating resource monitor constraints.")
+        if result := not self.evaluate_constraints():
+            logger.error("One or more resource monitor constraints failed.")
+            raise RuntimeError("Resource monitor constraints failed.")
+        return result
 
     def add_constraint(self, constraint: Constraint) -> None:
         """

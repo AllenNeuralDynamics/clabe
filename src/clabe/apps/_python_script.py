@@ -5,7 +5,7 @@ import os
 import shutil
 import subprocess
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Optional, Self
+from typing import Any, Optional, Self
 
 from typing_extensions import override
 
@@ -15,54 +15,20 @@ logger = logging.getLogger(__name__)
 
 _HAS_UV = shutil.which("uv") is not None
 
-if TYPE_CHECKING:
-    from ..launcher import Launcher
-else:
-    Launcher = Any
 
-
-class PythonScriptApp(App):
+class PythonScriptApp(App[subprocess.CompletedProcess]):
     """
-    PythonScriptApp is a class that facilitates running Python scripts within a managed environment.
-    It ensures the presence of a virtual environment, handles dependencies, and executes the script
-    with specified arguments.
-    Attributes:
-        _script (str): The Python script to be executed.
-        _project_directory (os.PathLike): The directory where the project resides.
-        _timeout (Optional[float]): Timeout for the script execution.
-        _optional_toml_dependencies (list[str]): Additional TOML dependencies to be included.
-        _append_python_exe (bool): Whether to append the Python executable to the command.
-        _additional_arguments (str): Additional arguments to pass to the script.
-        _result (Optional[subprocess.CompletedProcess]): The result of the executed script.
+    Application class for running Python scripts within a managed uv environment.
+
+    Facilitates running Python scripts with automatic virtual environment management,
+    dependency handling, and script execution. Uses the uv tool for environment and
+    dependency management.
+
     Methods:
-        __init__(script: str, additional_arguments: str, project_directory: os.PathLike, optional_toml_dependencies: Optional[list[str]], append_python_exe: bool, timeout: Optional[float]):
-            Initializes the PythonScriptApp with the specified parameters.
-        result:
-            Property that retrieves the result of the executed script. Raises an error if the script has not been run.
-        run() -> subprocess.CompletedProcess:
-            Executes the Python script within the managed environment. Creates a virtual environment if one does not exist.
-        output_from_result(allow_stderr: Optional[bool]) -> Self:
-            Processes the output of the executed script. Logs stdout and stderr, and optionally raises an error if stderr is present.
-        _log_process_std_output(process_name: str, proc: subprocess.CompletedProcess) -> None:
-            Logs the stdout and stderr of a completed process.
-        _has_venv() -> bool:
-            Checks if a virtual environment exists in the project directory.
-        create_environment(run_kwargs: Optional[dict[str, Any]]) -> subprocess.CompletedProcess:
-            Creates a Python virtual environment using the `uv` tool.
-        _add_uv_project_directory() -> str:
-            Constructs the `--directory` argument for the `uv` command.
-        _add_uv_optional_toml_dependencies() -> str:
-            Constructs the `--extra` arguments for the `uv` command based on optional TOML dependencies.
-        _validate_uv() -> bool:
-            Validates the presence of the `uv` executable. Raises an error if it is not installed.
-    Example:
-        ```python
-        # Create and run a Python script app
-        app = PythonScriptApp(script="my_script.py")
-        app.run()
-        # Create with additional arguments
-        app = PythonScriptApp(script="my_script.py", additional_arguments="foo")
-        ```
+        run: Executes the Python script
+        get_result: Retrieves the result of the script execution
+        add_app_settings: Adds or updates application settings
+        create_environment: Creates or synchronizes the virtual environment
     """
 
     def __init__(
@@ -80,18 +46,19 @@ class PythonScriptApp(App):
         Initializes the PythonScriptApp with the specified parameters.
 
         Args:
-            script (str): The Python script to be executed.
-            additional_arguments (str): Additional arguments to pass to the script.
-            project_directory (os.PathLike): The directory where the project resides.
-            extra_uv_arguments (str): Extra arguments to pass to the `uv` command.
-            optional_toml_dependencies (Optional[list[str]]): Additional TOML dependencies to include.
-            append_python_exe (bool): Whether to append the Python executable to the command.
-            timeout (Optional[float]): Timeout for the script execution.
+            script: The Python script to be executed
+            additional_arguments: Additional arguments to pass to the script. Defaults to empty string
+            project_directory: The directory where the project resides. Defaults to current directory
+            extra_uv_arguments: Extra arguments to pass to the uv command. Defaults to empty string
+            optional_toml_dependencies: Additional TOML dependencies to include. Defaults to None
+            append_python_exe: Whether to append the Python executable to the command. Defaults to False
+            timeout: Timeout for the script execution. Defaults to None
 
         Example:
             ```python
             # Initialize with basic script
             app = PythonScriptApp(script="test.py")
+
             # Initialize with dependencies and arguments
             app = PythonScriptApp(
                 script="test.py",
@@ -109,39 +76,57 @@ class PythonScriptApp(App):
         self._additional_arguments = additional_arguments
         self._extra_uv_arguments = extra_uv_arguments
 
-        self._result: Optional[subprocess.CompletedProcess] = None
+        self._completed_process: Optional[subprocess.CompletedProcess] = None
 
     @override
     def add_app_settings(self, **kwargs) -> Self:
-        """Adds settings to the application"""
+        """
+        Adds application-specific settings to the script execution.
+
+        Args:
+            **kwargs: Additional keyword arguments to pass to the script
+
+        Returns:
+            Self: The updated instance
+
+        Example:
+            ```python
+            app.add_app_settings(verbose=True, output="results.json")
+            ```
+        """
         self._additional_arguments = " ".join([self._additional_arguments] + [f"--{k} {v}" for k, v in kwargs.items()])
         return self
 
-    @property
-    def result(self) -> subprocess.CompletedProcess:
+    def get_result(self, *, allow_stderr: bool = True) -> subprocess.CompletedProcess:
         """
         Retrieves the result of the executed script.
 
+        Args:
+            allow_stderr: Whether to allow stderr in the output. Defaults to True
+
         Returns:
-            subprocess.CompletedProcess: The result of the executed script.
+            subprocess.CompletedProcess: The result of the executed script
 
         Raises:
-            RuntimeError: If the script has not been run yet.
+            RuntimeError: If the script has not been run yet
         """
-        if self._result is None:
+        if self._completed_process is None:
             raise RuntimeError("The app has not been run yet.")
-        return self._result
+        return self._process_process_output(allow_stderr=allow_stderr)
 
     @override
-    def run(self) -> subprocess.CompletedProcess:
+    def run(self) -> Self:
         """
         Executes the Python script within the managed environment.
 
+        Creates a virtual environment if one doesn't exist, then runs the script
+        using uv with the configured settings and dependencies.
+
         Returns:
-            subprocess.CompletedProcess: The result of the executed script.
+            Self: The updated instance
 
         Raises:
-            subprocess.CalledProcessError: If the script execution fails.
+            subprocess.CalledProcessError: If the script execution fails
         """
         logger.info("Starting python script %s...", self._script)
 
@@ -167,24 +152,27 @@ class PythonScriptApp(App):
             raise
 
         logger.info("Python script completed.")
-        self._result = proc
-        return proc
+        self._completed_process = proc
+        return self
 
-    @override
-    def output_from_result(self, *, allow_stderr: Optional[bool] = True) -> Self:
+    def _process_process_output(self, *, allow_stderr: Optional[bool] = True) -> subprocess.CompletedProcess:
         """
         Processes the output of the executed script.
 
         Args:
-            allow_stderr (Optional[bool]): Whether to allow stderr in the output.
+            allow_stderr: Whether to allow stderr in the output. Defaults to True
 
         Returns:
-            Self: The current instance.
+            subprocess.CompletedProcess: The completed process result
 
         Raises:
-            subprocess.CalledProcessError: If the script execution fails or stderr is present when not allowed.
+            RuntimeError: If the app has not been run yet
+            subprocess.CalledProcessError: If the script execution fails or stderr is present when not allowed
         """
-        proc = self.result
+        proc = self._completed_process
+        if proc is None:
+            raise RuntimeError("The app has not been run yet.")
+
         try:
             proc.check_returncode()
         except subprocess.CalledProcessError:
@@ -194,7 +182,7 @@ class PythonScriptApp(App):
             self._log_process_std_output(self._script, proc)
             if len(proc.stderr) > 0 and allow_stderr is False:
                 raise subprocess.CalledProcessError(1, proc.args)
-        return self
+        return proc
 
     @staticmethod
     def _log_process_std_output(process_name: str, proc: subprocess.CompletedProcess) -> None:
@@ -202,8 +190,8 @@ class PythonScriptApp(App):
         Logs the stdout and stderr of a completed process.
 
         Args:
-            process_name (str): The name of the process.
-            proc (subprocess.CompletedProcess): The completed process.
+            process_name: The name of the process
+            proc: The completed process
         """
         if len(proc.stdout) > 0:
             logger.info("%s full stdout dump: \n%s", process_name, proc.stdout)
@@ -215,27 +203,28 @@ class PythonScriptApp(App):
         Checks if a virtual environment exists in the project directory.
 
         Returns:
-            bool: True if a virtual environment exists, False otherwise.
+            bool: True if a virtual environment exists, False otherwise
         """
         return (Path(self._project_directory) / ".venv").exists()
 
     def create_environment(self, run_kwargs: Optional[dict[str, Any]] = None) -> subprocess.CompletedProcess:
         """
-        Creates a Python virtual environment using the `uv` tool.
+        Creates a Python virtual environment using the uv tool.
 
         Args:
-            run_kwargs (Optional[dict[str, Any]]): Additional arguments for the `subprocess.run` call.
+            run_kwargs: Additional arguments for the subprocess.run call. Defaults to None
 
         Returns:
-            subprocess.CompletedProcess: The result of the environment creation process.
+            subprocess.CompletedProcess: The result of the environment creation process
 
         Raises:
-            subprocess.CalledProcessError: If the environment creation fails.
+            subprocess.CalledProcessError: If the environment creation fails
 
         Example:
             ```python
             # Create a virtual environment
             app.create_environment()
+
             # Create with custom run kwargs
             app.create_environment(run_kwargs={"timeout": 30})
             ```
@@ -260,32 +249,32 @@ class PythonScriptApp(App):
 
     def _add_uv_project_directory(self) -> str:
         """
-        Constructs the `--directory` argument for the `uv` command.
+        Constructs the --directory argument for the uv command.
 
         Returns:
-            str: The `--directory` argument.
+            str: The --directory argument
         """
         return f" --directory {Path(self._project_directory).resolve()}"
 
     def _add_uv_optional_toml_dependencies(self) -> str:
         """
-        Constructs the `--extra` arguments for the `uv` command based on optional TOML dependencies.
+        Constructs the --extra arguments for the uv command based on optional TOML dependencies.
 
         Returns:
-            str: The `--extra` arguments.
+            str: The --extra arguments
         """
         return " ".join([f"--extra {dep}" for dep in self._optional_toml_dependencies])
 
     @staticmethod
     def _validate_uv() -> bool:
         """
-        Validates the presence of the `uv` executable.
+        Validates the presence of the uv executable.
 
         Returns:
-            bool: True if `uv` is installed.
+            bool: True if uv is installed
 
         Raises:
-            RuntimeError: If `uv` is not installed.
+            RuntimeError: If uv is not installed
         """
         if not _HAS_UV:
             logger.error("uv executable not detected.")
@@ -293,28 +282,3 @@ class PythonScriptApp(App):
                 "uv is not installed in this computer. Please install uv. see https://docs.astral.sh/uv/getting-started/installation/"
             )
         return True
-
-    def build_runner(self, allow_std_error: bool = False) -> Callable[[Launcher], Self]:
-        """
-        Builds a runner function for the application.
-
-        This method returns a callable that can be executed by the launcher to run the application.
-
-        Args:
-            allow_std_error (bool): Whether to allow stderr in the output. Defaults to False.
-
-        Returns:
-            Callable[[Launcher], Self]: A callable that takes a launcher instance and returns the application instance.
-        """
-
-        def _run(launcher: Launcher):
-            """Internal wrapper function"""
-            try:
-                self.run()
-                result = self.output_from_result(allow_stderr=allow_std_error)
-            except subprocess.CalledProcessError as e:
-                logger.error(f"App {self.__class__.__name__} failed with error: {e}")
-                raise
-            return result
-
-        return _run

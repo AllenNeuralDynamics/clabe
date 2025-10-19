@@ -20,13 +20,8 @@ class RobocopySettings(ServiceSettings):
     """
     Settings for the RobocopyService.
 
-    Attributes:
-        destination (PathLike): The destination path for the data transfer.
-        log (Optional[PathLike]): The path to the log file.
-        extra_args (str): Extra arguments to pass to Robocopy.
-        delete_src (bool): Whether to delete the source files after copying.
-        overwrite (bool): Whether to overwrite existing files.
-        force_dir (bool): Whether to create the destination directory if it does not exist.
+    Configuration for Robocopy file transfer including destination, logging, and
+    copy options.
     """
 
     __yml_section__: ClassVar[str] = "robocopy"
@@ -41,42 +36,15 @@ class RobocopySettings(ServiceSettings):
 
 class RobocopyService(DataTransfer[RobocopySettings]):
     """
-    A data transfer service that uses the Robocopy command-line utility to copy files
-    between source and destination directories.
+    A data transfer service that uses Robocopy to copy files between directories.
 
-    This service provides a wrapper around the Windows Robocopy utility with configurable
-    options for file copying, logging, and directory management.
+    Provides a wrapper around the Windows Robocopy utility with configurable options
+    for file copying, logging, and directory management.
 
-    Attributes:
-        source (PathLike): Source directory or file path
-        _settings (RobocopySettings): Service settings containing destination, options, etc.
-        _ui_helper (ui.UiHelper): UI helper for user prompts
-
-    Example:
-        ```python
-        # Basic file copying:
-        settings = RobocopySettings(destination="D:/backup/experiment1")
-        service = RobocopyService(
-            source="C:/data/experiment1",
-            settings=settings
-        )
-        service.transfer()
-
-        # Copy with custom options:
-        settings = RobocopySettings(
-            destination="D:/backup/experiment1",
-            delete_src=True,
-            overwrite=True,
-            log="copy_log.txt",
-            extra_args="/E /DCOPY:DAT /R:50 /W:5"
-        )
-        service = RobocopyService(
-            source="C:/data/experiment1",
-            settings=settings
-        )
-        if service.validate():
-            service.transfer()
-        ```
+    Methods:
+        transfer: Executes the Robocopy file transfer
+        validate: Validates the Robocopy service configuration
+        prompt_input: Prompts the user to confirm the file transfer
     """
 
     def __init__(

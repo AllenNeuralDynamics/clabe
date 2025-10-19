@@ -86,9 +86,6 @@ def mock_base_launcher(mock_rig, mock_session, mock_task_logic, mock_ui_helper, 
     ):
         mock_git.return_value.working_dir = launcher_args.data_dir
         launcher = Launcher(
-            rig=mock_rig,
-            session=mock_session,
-            task_logic=mock_task_logic,
             ui_helper=mock_ui_helper,
             settings=launcher_args,
         )

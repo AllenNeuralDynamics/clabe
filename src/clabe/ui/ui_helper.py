@@ -18,12 +18,16 @@ class _UiHelperBase(abc.ABC):
     """
     Abstract base class for UI helpers that provide methods for user interaction.
 
-    This class defines the interface for user interface helpers that handle various
-    types of user input and interaction patterns in a consistent manner.
+    Defines the interface for user interface helpers that handle various types of
+    user input and interaction patterns.
 
-    Attributes:
-        _print (_PrintFunc): Function used for printing messages to the user
-        _input (_InputFunc): Function used for receiving input from the user
+    Methods:
+        print: Prints a message to the user
+        input: Prompts the user for input
+        prompt_pick_from_list: Prompts the user to pick an item from a list
+        prompt_yes_no_question: Prompts the user with a yes/no question
+        prompt_text: Prompts the user for generic text input
+        prompt_float: Prompts the user for a float input
     """
 
     @abc.abstractmethod
@@ -137,26 +141,16 @@ class DefaultUIHelper(_UiHelperBase):
     """
     Default implementation of the UI helper for user interaction.
 
-    This class provides a concrete implementation of the UI helper interface
-    using standard console input/output for user interactions.
+    Provides a concrete implementation using standard console input/output for
+    user interactions.
 
-    Example:
-        ```python
-        helper = DefaultUIHelper()
-
-        # Get user choice from list
-        options = ["Option A", "Option B", "Option C"]
-        choice = helper.prompt_pick_from_list(options, "Choose an option:")
-
-        # Ask yes/no question
-        proceed = helper.prompt_yes_no_question("Continue with operation?")
-
-        # Get text input
-        name = helper.prompt_text("Enter your name: ")
-
-        # Get numeric input
-        value = helper.prompt_float("Enter a number: ")
-        ```
+    Methods:
+        print: Prints a message to the console
+        input: Prompts the user for input from the console
+        prompt_pick_from_list: Prompts the user to select from a list
+        prompt_yes_no_question: Prompts the user with a yes/no question
+        prompt_text: Prompts the user for text input
+        prompt_float: Prompts the user for a floating-point number
     """
 
     def __init__(
