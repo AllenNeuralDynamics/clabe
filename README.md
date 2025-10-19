@@ -14,7 +14,7 @@ Command-line-interface Launcher for AIND Behavior Experiments
 
 
 [![Documentation](https://camo.githubusercontent.com/d7111793c727ad754311b21d4f083d842f5071163a74f406822a63eb0fb2af69/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f446f63756d656e746174696f6e2d626c75653f636f6c6f723d344138424431266c696e6b3d6874747073253341253246253246616c6c656e6e657572616c64796e616d6963732e6769746875622e696f253246426f6e7361692e416c6c656e4e657572616c44796e616d696373253246)](https://allenneuraldynamics.github.io/clabe/)
-![CI](https://github.com/AllenNeuralDynamics/Aind.Behavior.ExperimentLauncher/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/AllenNeuralDynamics/Aind.Behavior.ExperimentLauncher/actions/workflows/clabe.yml/badge.svg)
 [![PyPI - Version](https://img.shields.io/pypi/v/aind-clabe)](https://pypi.org/project/aind-clabe/)
 [![License](https://img.shields.io/badge/license-MIT-brightgreen)](LICENSE)
 [![ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
@@ -24,7 +24,7 @@ Command-line-interface Launcher for AIND Behavior Experiments
 
 A library for building workflows for behavior experiments.
 
-> ⚠️ **Caution:**  
+> ⚠️ **Caution:**
 > This repository is currently under active development and is subject to frequent changes. Features and APIs may evolve without prior notice.
 
 ## Installing and Upgrading
@@ -68,7 +68,7 @@ We use [ruff](https://docs.astral.sh/ruff/) as our primary linting tool.
 ### Testing
 
 Attempt to add tests when new features are added.
-To run the currently available tests, run `uv run -m unittest` from the root of the repository.
+To run the currently available tests, run `uv run pytest` from the root of the repository.
 
 ### Lock files
 
