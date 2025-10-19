@@ -270,7 +270,7 @@ class Launcher:
             code: The exit code to use. Defaults to 0
             _force: Whether to force exit without user prompt. Defaults to False
         """
-        logger.info("Exiting with code %s", code)
+        logger.debug("Exiting with code %s", code)
         if logger is not None:
             logging_helper.shutdown_logger(logger)
         if not _force:
