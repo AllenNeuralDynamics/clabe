@@ -148,7 +148,11 @@ class PythonScriptApp(App[subprocess.CompletedProcess]):
                 cwd=Path(self._project_directory).resolve(),
             )
         except subprocess.CalledProcessError as e:
-            logger.error("Error running the Python script. %s", e)
+            logger.error(
+                "Error running the Python script. %s\nProcess stderr: %s",
+                e,
+                e.stderr if e.stderr else "No stderr output",
+            )
             raise
 
         logger.info("Python script completed.")
@@ -254,7 +258,7 @@ class PythonScriptApp(App[subprocess.CompletedProcess]):
         Returns:
             str: The --directory argument
         """
-        return f" --directory {Path(self._project_directory).resolve()}"
+        return f"--directory {Path(self._project_directory).resolve()}"
 
     def _add_uv_optional_toml_dependencies(self) -> str:
         """
@@ -263,6 +267,8 @@ class PythonScriptApp(App[subprocess.CompletedProcess]):
         Returns:
             str: The --extra arguments
         """
+        if not self._optional_toml_dependencies:
+            return ""
         return " ".join([f"--extra {dep}" for dep in self._optional_toml_dependencies])
 
     @staticmethod

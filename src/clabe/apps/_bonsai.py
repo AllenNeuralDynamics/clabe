@@ -183,16 +183,22 @@ class BonsaiApp(App[None]):
         if self.settings.is_editor_mode:
             logger.warning("Bonsai is running in editor mode. Cannot assert successful completion.")
         logger.info("Bonsai process running...")
-        proc = run_bonsai_process(
-            workflow_file=self.settings.workflow,
-            bonsai_exe=self.settings.executable,
-            is_editor_mode=self.settings.is_editor_mode,
-            is_start_flag=self.settings.is_start_flag,
-            additional_properties=self.settings.additional_properties,
-            cwd=self.settings.cwd,
-            timeout=self.settings.timeout,
-            print_cmd=self.settings.print_cmd,
-        )
+        try:
+            proc = run_bonsai_process(
+                workflow_file=self.settings.workflow,
+                bonsai_exe=self.settings.executable,
+                is_editor_mode=self.settings.is_editor_mode,
+                is_start_flag=self.settings.is_start_flag,
+                additional_properties=self.settings.additional_properties,
+                cwd=self.settings.cwd,
+                timeout=self.settings.timeout,
+                print_cmd=self.settings.print_cmd,
+            )
+        except subprocess.CalledProcessError as e:
+            logger.error(
+                "Error running Bonsai process. %s\nProcess stderr: %s", e, e.stderr if e.stderr else "No stderr output"
+            )
+            raise
         self._completed_process = proc
         logger.info("Bonsai process completed.")
         return self
