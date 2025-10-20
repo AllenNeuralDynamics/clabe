@@ -578,7 +578,10 @@ class DataversePicker(DefaultBehaviorPicker):
         assert self._trainer_state is not None
         if not self._trainer_state.is_on_curriculum:
             logging.warning("Deserialized TrainerState is NOT on curriculum.")
-        return (self.trainer_state, task_logic_model.model_validate(self.trainer_state.stage.task.model_dump()))
+        return (
+            self.trainer_state,
+            task_logic_model.model_validate_json(self.trainer_state.stage.task.model_dump_json()),
+        )
 
     def push_new_suggestion(self, trainer_state: TrainerState) -> None:
         """
