@@ -1,9 +1,9 @@
+import asyncio
 import datetime
 import logging
 import os
-import subprocess
 from pathlib import Path
-from typing import Any, Dict, Literal, Optional, Self, Union
+from typing import Any, Dict, Literal, Optional, Union
 
 import git
 from aind_behavior_curriculum import Stage, TrainerState
@@ -14,7 +14,7 @@ from pydantic import Field
 from pydantic_settings import CliApp
 
 from clabe import resource_monitor
-from clabe.apps import App, CurriculumApp, CurriculumSettings
+from clabe.apps import CurriculumApp, CurriculumSettings, PythonScriptApp
 from clabe.data_mapper import DataMapper
 from clabe.launcher import (
     Launcher,
@@ -93,57 +93,7 @@ class DemoAindDataSchemaSessionDataMapper(DataMapper[MockAindDataSchemaSession])
         return self._mapped
 
 
-class EchoApp(App[None]):
-    def __init__(self, value: str) -> None:
-        self._value = value
-        self._completed_process = None
-
-    def run(self) -> Self:
-        logger.info("Running EchoApp...")
-        command = ["cmd", "/c", "echo", self._value]
-
-        try:
-            proc = subprocess.run(
-                command,
-                shell=True,
-                capture_output=True,
-                text=True,
-                check=True,
-            )
-        except subprocess.CalledProcessError as e:
-            logger.error("%s", e)
-            raise
-        self._completed_process = proc
-        logger.info("EchoApp completed.")
-        return self
-
-    def _process_process_output(self, allow_stderr: Optional[bool]) -> Self:
-        proc = self._completed_process
-        if proc is None:
-            raise RuntimeError("The app has not been run yet.")
-        try:
-            proc.check_returncode()
-        except subprocess.CalledProcessError:
-            self._log_process_std_output("echo", proc)
-            raise
-        else:
-            self._log_process_std_output("echo", proc)
-            if len(proc.stdout) > 0 and allow_stderr is False:
-                raise subprocess.CalledProcessError(1, proc.args)
-        return self
-
-    def _log_process_std_output(self, process_name: str, proc: subprocess.CompletedProcess) -> None:
-        if len(proc.stdout) > 0:
-            logger.info("%s full stdout dump: \n%s", process_name, proc.stdout)
-        if len(proc.stderr) > 0:
-            logger.error("%s full stderr dump: \n%s", process_name, proc.stderr)
-
-    def get_result(self, *, allow_stderr: bool = True) -> None:
-        self._process_process_output(allow_stderr=allow_stderr)
-        return
-
-
-def experiment(launcher: Launcher) -> None:
+async def experiment(launcher: Launcher) -> None:
     monitor = resource_monitor.ResourceMonitor(
         constrains=[
             resource_monitor.available_storage_constraint_factory(launcher.settings.data_dir, 2e11),
@@ -165,8 +115,16 @@ def experiment(launcher: Launcher) -> None:
 
     monitor.run()
 
-    app = EchoApp("Hello World!")
-    app.run().get_result(allow_stderr=True)
+    def fmt(value: str) -> str:
+        return f"python -c \"import time; print('Hello {value}'); time.sleep(10); print('DONE')\""
+
+    app_1 = PythonScriptApp(script=fmt("Behavior"), timeout=2)
+    app_2 = PythonScriptApp(script=fmt("Physiology"), timeout=2)
+
+    await asyncio.gather(app_1.run_async(), app_2.run_async())
+
+    app_1.get_result()
+    app_2.get_result()
 
     suggestion = (
         CurriculumApp(
@@ -216,7 +174,15 @@ def main():
     create_fake_rig()
     behavior_cli_args = CliApp.run(
         LauncherCliArgs,
-        cli_args=["--temp-dir", "./local/.temp", "--allow-dirty", "--skip-hardware-validation", "--data-dir", "."],
+        cli_args=[
+            "--debug-mode",
+            "--temp-dir",
+            "./local/.temp",
+            "--allow-dirty",
+            "--skip-hardware-validation",
+            "--data-dir",
+            "./local",
+        ],
     )
 
     launcher = Launcher(settings=behavior_cli_args)
