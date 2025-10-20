@@ -36,7 +36,6 @@ class BonsaiAppSettings(ServiceSettings):
     additional_properties: Dict[str, str] = pydantic.Field(default_factory=dict)
     cwd: Optional[os.PathLike] = None
     timeout: Optional[float] = None
-    print_cmd: bool = False
 
     @pydantic.field_validator("workflow", "executable", mode="after", check_fields=True)
     @classmethod
