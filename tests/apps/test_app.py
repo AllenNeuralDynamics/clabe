@@ -108,7 +108,7 @@ class TestPythonScriptApp:
 
     def test_add_uv_project_directory(self, python_script_app: PythonScriptApp) -> None:
         """Test add uv project directory."""
-        assert python_script_app._add_uv_project_directory() == f" --directory {Path('/test/project').resolve()}"
+        assert python_script_app._add_uv_project_directory() == f"--directory {Path('/test/project').resolve()}"
 
     def test_add_uv_optional_toml_dependencies(self, python_script_app: PythonScriptApp) -> None:
         """Test add uv optional toml dependencies."""
