@@ -2,6 +2,7 @@ import logging
 import os
 import subprocess
 from pathlib import Path
+from os import PathLike
 from typing import ClassVar, Dict, Optional, Self
 
 import pydantic
@@ -184,16 +185,17 @@ class BonsaiApp(App[None]):
             logger.warning("Bonsai is running in editor mode. Cannot assert successful completion.")
         logger.info("Bonsai process running...")
         try:
-            proc = run_bonsai_process(
+            __cmd = _build_bonsai_process_command(
                 workflow_file=self.settings.workflow,
                 bonsai_exe=self.settings.executable,
                 is_editor_mode=self.settings.is_editor_mode,
                 is_start_flag=self.settings.is_start_flag,
                 additional_properties=self.settings.additional_properties,
-                cwd=self.settings.cwd,
-                timeout=self.settings.timeout,
-                print_cmd=self.settings.print_cmd,
-            )
+                )
+            logger.debug("Launching Bonsai with %s", __cmd)
+            cwd = self.settings.cwd or os.getcwd()
+
+            proc = subprocess.run(__cmd, cwd=cwd, check=True, timeout=self.settings.timeout, capture_output=True)
         except subprocess.CalledProcessError as e:
             logger.error(
                 "Error running Bonsai process. %s\nProcess stderr: %s", e, e.stderr if e.stderr else "No stderr output"
@@ -302,3 +304,24 @@ class AindBehaviorServicesBonsaiApp(BonsaiApp):
 
         settings.update(kwargs)
         return super().add_app_settings(*args, **settings)
+
+
+def _build_bonsai_process_command(
+    workflow_file: PathLike | str,
+    bonsai_exe: PathLike | str = "bonsai/bonsai.exe",
+    is_editor_mode: bool = True,
+    is_start_flag: bool = True,
+    additional_properties: Optional[Dict[str, str]] = None,
+) -> str:
+    output_cmd: str = f'"{bonsai_exe}" "{workflow_file}"'
+    if is_editor_mode:
+        if is_start_flag:
+            output_cmd += " --start"
+    else:
+        output_cmd += " --no-editor"
+
+    if additional_properties:
+        for param, value in additional_properties.items():
+            output_cmd += f' -p:"{param}"="{value}"'
+
+    return output_cmd
