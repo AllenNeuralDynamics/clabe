@@ -20,15 +20,15 @@ def bonsai_app(mock_ui_helper) -> BonsaiApp:
 class TestBonsaiApp:
     """Test BonsaiApp."""
 
-    @patch("clabe.apps._bonsai.run_bonsai_process")
+    @patch("subprocess.run")
     @patch("pathlib.Path.exists", return_value=True)
-    def test_run(self, mock_pathlib: MagicMock, mock_run_bonsai_process: MagicMock, bonsai_app: BonsaiApp) -> None:
+    def test_run(self, mock_pathlib: MagicMock, mock_subprocess_run: MagicMock, bonsai_app: BonsaiApp) -> None:
         """Test run."""
         mock_result = MagicMock(spec=subprocess.CompletedProcess)
-        mock_run_bonsai_process.return_value = mock_result
+        mock_subprocess_run.return_value = mock_result
         result = bonsai_app.run()._completed_process
         assert result == mock_result
-        mock_run_bonsai_process.assert_called_once()
+        mock_subprocess_run.assert_called_once()
 
     def test_validate(self, bonsai_app: BonsaiApp) -> None:
         """Test validate."""
