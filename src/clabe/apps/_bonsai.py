@@ -1,13 +1,13 @@
+import asyncio
 import logging
 import os
 import subprocess
-from pathlib import Path
 from os import PathLike
+from pathlib import Path
 from typing import ClassVar, Dict, Optional, Self
 
 import pydantic
 from aind_behavior_services import AindBehaviorRigModel, AindBehaviorSessionModel, AindBehaviorTaskLogicModel
-from aind_behavior_services.utils import run_bonsai_process
 from typing_extensions import override
 
 from clabe.launcher._base import Launcher
@@ -185,13 +185,13 @@ class BonsaiApp(App[None]):
             logger.warning("Bonsai is running in editor mode. Cannot assert successful completion.")
         logger.info("Bonsai process running...")
         try:
-            __cmd = _build_bonsai_process_command(
+            __cmd = self._build_bonsai_process_command(
                 workflow_file=self.settings.workflow,
                 bonsai_exe=self.settings.executable,
                 is_editor_mode=self.settings.is_editor_mode,
                 is_start_flag=self.settings.is_start_flag,
                 additional_properties=self.settings.additional_properties,
-                )
+            )
             logger.debug("Launching Bonsai with %s", __cmd)
             cwd = self.settings.cwd or os.getcwd()
 
@@ -202,6 +202,93 @@ class BonsaiApp(App[None]):
             )
             raise
         self._completed_process = proc
+        logger.info("Bonsai process completed.")
+        return self
+
+    async def run_async(self) -> Self:
+        """
+        Runs the Bonsai process asynchronously without blocking.
+
+        This method executes the Bonsai workflow in a non-blocking manner,
+        allowing other async operations to run concurrently.
+
+        Returns:
+            Self: The updated instance
+
+        Raises:
+            FileNotFoundError: If validation fails
+            subprocess.CalledProcessError: If the Bonsai process fails
+
+        Example:
+            ```python
+            app = BonsaiApp(settings=BonsaiAppSettings(workflow="workflow.bonsai"))
+            await app.run_async()
+            ```
+        """
+        self.validate()
+
+        if self.settings.is_editor_mode:
+            logger.warning("Bonsai is running in editor mode. Cannot assert successful completion.")
+        logger.info("Bonsai process running asynchronously...")
+
+        __cmd = self._build_bonsai_process_command(
+            workflow_file=self.settings.workflow,
+            bonsai_exe=self.settings.executable,
+            is_editor_mode=self.settings.is_editor_mode,
+            is_start_flag=self.settings.is_start_flag,
+            additional_properties=self.settings.additional_properties,
+        )
+        logger.debug("Launching Bonsai asynchronously with %s", __cmd)
+        cwd = self.settings.cwd or os.getcwd()
+
+        process = await asyncio.create_subprocess_shell(
+            __cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            cwd=cwd,
+        )
+
+        try:
+            if self.settings.timeout is not None:
+                stdout, stderr = await asyncio.wait_for(
+                    process.communicate(),
+                    timeout=self.settings.timeout,
+                )
+            else:
+                stdout, stderr = await process.communicate()
+        except asyncio.TimeoutError as err:
+            process.kill()
+            await process.wait()
+            raise subprocess.TimeoutExpired(
+                cmd=__cmd,
+                timeout=self.settings.timeout or 0,
+                output=None,
+                stderr=None,
+            ) from err
+
+        # Unfortunately the asyncio implementation does not return a CompletedProcess
+        # So, we mock one
+        returncode = process.returncode if process.returncode is not None else -1
+        self._completed_process = subprocess.CompletedProcess(
+            args=__cmd,
+            returncode=returncode,
+            stdout=stdout.decode() if stdout else "",
+            stderr=stderr.decode() if stderr else "",
+        )
+
+        if returncode != 0:
+            logger.error(
+                "Error running Bonsai process. Return code: %s\nProcess stderr: %s",
+                returncode,
+                self._completed_process.stderr if self._completed_process.stderr else "No stderr output",
+            )
+            raise subprocess.CalledProcessError(
+                returncode=returncode,
+                cmd=__cmd,
+                output=self._completed_process.stdout,
+                stderr=self._completed_process.stderr,
+            )
+
         logger.info("Bonsai process completed.")
         return self
 
@@ -250,6 +337,27 @@ class BonsaiApp(App[None]):
             logger.info("%s full stdout dump: \n%s", process_name, proc.stdout)
         if len(proc.stderr) > 0:
             logger.error("%s full stderr dump: \n%s", process_name, proc.stderr)
+
+    @staticmethod
+    def _build_bonsai_process_command(
+        workflow_file: PathLike | str,
+        bonsai_exe: PathLike | str = "bonsai/bonsai.exe",
+        is_editor_mode: bool = True,
+        is_start_flag: bool = True,
+        additional_properties: Optional[Dict[str, str]] = None,
+    ) -> str:
+        output_cmd: str = f'"{bonsai_exe}" "{workflow_file}"'
+        if is_editor_mode:
+            if is_start_flag:
+                output_cmd += " --start"
+        else:
+            output_cmd += " --no-editor"
+
+        if additional_properties:
+            for param, value in additional_properties.items():
+                output_cmd += f' -p:"{param}"="{value}"'
+
+        return output_cmd
 
 
 class AindBehaviorServicesBonsaiApp(BonsaiApp):
@@ -304,24 +412,3 @@ class AindBehaviorServicesBonsaiApp(BonsaiApp):
 
         settings.update(kwargs)
         return super().add_app_settings(*args, **settings)
-
-
-def _build_bonsai_process_command(
-    workflow_file: PathLike | str,
-    bonsai_exe: PathLike | str = "bonsai/bonsai.exe",
-    is_editor_mode: bool = True,
-    is_start_flag: bool = True,
-    additional_properties: Optional[Dict[str, str]] = None,
-) -> str:
-    output_cmd: str = f'"{bonsai_exe}" "{workflow_file}"'
-    if is_editor_mode:
-        if is_start_flag:
-            output_cmd += " --start"
-    else:
-        output_cmd += " --no-editor"
-
-    if additional_properties:
-        for param, value in additional_properties.items():
-            output_cmd += f' -p:"{param}"="{value}"'
-
-    return output_cmd
