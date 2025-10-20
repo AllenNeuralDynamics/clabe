@@ -342,7 +342,10 @@ class DefaultBehaviorPicker:
             logging.warning("Deserialized TrainerState is NOT on curriculum.")
 
         assert self._trainer_state.stage is not None
-        return (self.trainer_state, task_logic_model.model_validate(self.trainer_state.stage.task.model_dump()))
+        return (
+            self.trainer_state,
+            task_logic_model.model_validate_json(self.trainer_state.stage.task.model_dump_json()),
+        )
 
     def choose_subject(self, directory: str | os.PathLike) -> str:
         """
