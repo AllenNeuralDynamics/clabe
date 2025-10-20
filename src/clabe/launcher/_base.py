@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 import os
+import random
 import shutil
 import threading
 from pathlib import Path
@@ -417,7 +419,11 @@ class Launcher:
         """
         directory = Path(directory) if directory is not None else Path(self.temp_dir)
         os.makedirs(directory, exist_ok=True)
-        fname = model.__class__.__name__ + ".json"
+
+        random_data = str(random.random()).encode("utf-8")
+        sha_hash = hashlib.sha256(random_data).hexdigest()[:8]
+
+        fname = f"{model.__class__.__name__}_{sha_hash}.json"
         fpath = os.path.join(directory, fname)
         with open(fpath, "w+", encoding="utf-8") as f:
             f.write(model.model_dump_json(indent=2))

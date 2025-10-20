@@ -345,6 +345,7 @@ class BonsaiApp(App[None]):
         is_start_flag: bool = True,
         additional_properties: Optional[Dict[str, str]] = None,
     ) -> str:
+        """Builds a shell command that can be used to run a Bonsai workflow via subprocess"""
         output_cmd: str = f'"{bonsai_exe}" "{workflow_file}"'
         if is_editor_mode:
             if is_start_flag:
