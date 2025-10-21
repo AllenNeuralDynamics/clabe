@@ -1,5 +1,4 @@
-from __future__ import annotations
-
+import asyncio
 import logging
 import os
 import shutil
@@ -159,6 +158,91 @@ class PythonScriptApp(App[subprocess.CompletedProcess]):
         self._completed_process = proc
         return self
 
+    async def run_async(self) -> Self:
+        """
+        Executes the Python script asynchronously without blocking.
+
+        Creates a virtual environment if one doesn't exist, then runs the script
+        using uv with the configured settings and dependencies in a non-blocking manner.
+
+        Returns:
+            Self: The updated instance
+
+        Raises:
+            subprocess.CalledProcessError: If the script execution fails
+
+        Example:
+            ```python
+            app = PythonScriptApp(script="test.py")
+            await app.run_async()
+            ```
+        """
+        logger.info("Starting python script asynchronously %s...", self._script)
+
+        if not self._has_venv():
+            logger.warning("Python environment not found. Creating one...")
+            self.create_environment()
+
+        _script = f"{self._script} {self._additional_arguments}"
+        _python_exe = "python" if self._append_python_exe else ""
+        command = (
+            f"uv run {self._extra_uv_arguments} {self._add_uv_optional_toml_dependencies()} "
+            f"{self._add_uv_project_directory()} {_python_exe} {_script}"
+        )
+        logger.debug("Running Python script asynchronously with command: %s", command)
+
+        cwd = Path(self._project_directory).resolve()
+
+        process = await asyncio.create_subprocess_shell(
+            command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            cwd=cwd,
+        )
+
+        try:
+            if self._timeout is not None:
+                stdout, stderr = await asyncio.wait_for(
+                    process.communicate(),
+                    timeout=self._timeout,
+                )
+            else:
+                stdout, stderr = await process.communicate()
+        except asyncio.TimeoutError as err:
+            process.kill()
+            await process.wait()
+            raise subprocess.TimeoutExpired(
+                cmd=command,
+                timeout=self._timeout or 0,
+                output=None,
+                stderr=None,
+            ) from err
+
+        # Create a CompletedProcess object for consistency with the sync version
+        returncode = process.returncode if process.returncode is not None else -1
+        self._completed_process = subprocess.CompletedProcess(
+            args=command,
+            returncode=returncode,
+            stdout=stdout.decode() if stdout else "",
+            stderr=stderr.decode() if stderr else "",
+        )
+
+        if returncode != 0:
+            logger.error(
+                "Error running the Python script. Return code: %s\nProcess stderr: %s",
+                returncode,
+                self._completed_process.stderr if self._completed_process.stderr else "No stderr output",
+            )
+            raise subprocess.CalledProcessError(
+                returncode=returncode,
+                cmd=command,
+                output=self._completed_process.stdout,
+                stderr=self._completed_process.stderr,
+            )
+
+        logger.info("Python script completed.")
+        return self
+
     def _process_process_output(self, *, allow_stderr: Optional[bool] = True) -> subprocess.CompletedProcess:
         """
         Processes the output of the executed script.
@@ -285,6 +369,7 @@ class PythonScriptApp(App[subprocess.CompletedProcess]):
         if not _HAS_UV:
             logger.error("uv executable not detected.")
             raise RuntimeError(
-                "uv is not installed in this computer. Please install uv. see https://docs.astral.sh/uv/getting-started/installation/"
+                "uv is not installed in this computer. Please install uv. "
+                "see https://docs.astral.sh/uv/getting-started/installation/"
             )
         return True

@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import asyncio
+import hashlib
 import logging
 import os
+import random
 import shutil
 import threading
 from pathlib import Path
-from typing import Callable, Optional, Self, TypeVar
+from typing import Awaitable, Callable, Optional, Self, TypeVar, Union
 
 import pydantic
 from aind_behavior_services import (
@@ -126,7 +129,7 @@ class Launcher:
         else:
             return self._session
 
-    def run_experiment(self, experiment: Callable[[Self], None]) -> None:
+    def run_experiment(self, experiment: Union[Callable[[Self], None], Callable[[Self], Awaitable[None]]]) -> None:
         """
         Main entry point for the launcher execution.
 
@@ -134,7 +137,7 @@ class Launcher:
         experiment execution, and cleanup.
 
         Args:
-            experiment: A callable that takes the launcher as an argument and runs the experiment
+            experiment: A callable or async callable that takes the launcher as an argument and runs the experiment
 
         Example:
             ```python
@@ -142,8 +145,13 @@ class Launcher:
                 # Experiment logic here
                 pass
 
+            async def my_async_experiment(launcher: Launcher):
+                # Async experiment logic here
+                pass
+
             launcher = Launcher(...)
             launcher.run_experiment(my_experiment)
+            launcher.run_experiment(my_async_experiment)
             ```
         """
         _code = 0
@@ -155,7 +163,9 @@ class Launcher:
             if not self.settings.debug_mode:
                 self.validate()
 
-            experiment(self)
+            result = experiment(self)
+            if asyncio.iscoroutine(result):
+                asyncio.run(result)
 
         except KeyboardInterrupt:
             logger.error("User interrupted the process.")
@@ -409,7 +419,11 @@ class Launcher:
         """
         directory = Path(directory) if directory is not None else Path(self.temp_dir)
         os.makedirs(directory, exist_ok=True)
-        fname = model.__class__.__name__ + ".json"
+
+        random_data = str(random.random()).encode("utf-8")
+        sha_hash = hashlib.sha256(random_data).hexdigest()[:8]
+
+        fname = f"{model.__class__.__name__}_{sha_hash}.json"
         fpath = os.path.join(directory, fname)
         with open(fpath, "w+", encoding="utf-8") as f:
             f.write(model.model_dump_json(indent=2))
