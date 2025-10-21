@@ -113,25 +113,24 @@ _REQUEST_TIMEOUT = 5
 class _DataverseRestClient:
     """Client for basic CRUD operations on Dataverse entities."""
 
-    _REFRESH_TOKEN_SECONDS: ClassVar[int] = 50 * 60  # Refresh token every 50 minutes
-
     def __init__(self, config: _DataverseRestClientSettings):
         """
         Initialize the DataverseRestClient with configuration.
-
-        Acquires an authentication token and sets up request headers.
 
         Args:
             config: Config object with credentials and URLs
         """
         self.config = config
-        self._last_token_acquired = None
-        self._token = self._acquire_token()
+        self._msal_app = msal.PublicClientApplication(
+            client_id=self.config.client_id,
+            authority=self.config.authority,
+            client_credential=None,
+        )
 
     @property
     def headers(self) -> dict:
         return {
-            "Authorization": f"Bearer {self.token['access_token']}",
+            "Authorization": f"Bearer {self._get_access_token()}",
             "OData-MaxVersion": "4.0",
             "OData-Version": "4.0",
             "Accept": "application/json",
@@ -139,47 +138,33 @@ class _DataverseRestClient:
             "Content-Type": "application/json",
         }
 
-    @property
-    def token(self) -> dict:
+    def _get_access_token(self) -> str:
         """
-        Get the current authentication token.
+        Get a valid access token.
 
         Returns:
-            dict: Token dictionary containing access_token
-        """
-        if (
-            self._last_token_acquired is None
-            or (datetime.now() - self._last_token_acquired).total_seconds() > self._REFRESH_TOKEN_SECONDS
-        ):
-            self._token = self._acquire_token()
-        return self._token
-
-    def _acquire_token(self):
-        """
-        Acquire an access token using MSAL and user credentials.
-
-        Returns:
-            dict: Token dictionary containing access_token
+            str: Valid access token
 
         Raises:
             ValueError: If token acquisition fails
         """
-        app = msal.PublicClientApplication(
-            client_id=self.config.client_id,
-            authority=self.config.authority,
-            client_credential=None,
-        )
+        accounts = self._msal_app.get_accounts(username=self.config.username_at_domain)
 
-        token = app.acquire_token_by_username_password(
-            self.config.username_at_domain,
-            self.config.password.get_secret_value(),
+        if accounts:
+            result = self._msal_app.acquire_token_silent(scopes=[self.config.scope], account=accounts[0])
+            if result and "access_token" in result:
+                return result["access_token"]
+
+        result = self._msal_app.acquire_token_by_username_password(
+            username=self.config.username_at_domain,
+            password=self.config.password.get_secret_value(),
             scopes=[self.config.scope],
         )
-        if "access_token" in token:
-            self._last_token_acquired = datetime.now()
-            return token
+
+        if "access_token" in result:
+            return result["access_token"]
         else:
-            raise ValueError(f"Error acquiring token: {token.get('error')} : {token.get('error_description')}")
+            raise ValueError(f"Error acquiring token: {result.get('error')} : {result.get('error_description')}")
 
     @staticmethod
     def _format_queries(
