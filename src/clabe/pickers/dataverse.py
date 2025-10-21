@@ -129,6 +129,7 @@ class _DataverseRestClient:
 
     @property
     def headers(self) -> dict:
+        """Get the headers for Dataverse API requests."""
         return {
             "Authorization": f"Bearer {self._get_access_token()}",
             "OData-MaxVersion": "4.0",
