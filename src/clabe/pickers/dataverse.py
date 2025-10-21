@@ -127,7 +127,10 @@ class _DataverseRestClient:
         self.config = config
         self._last_token_acquired = None
         self._token = self._acquire_token()
-        self.headers = {
+
+    @property
+    def headers(self) -> dict:
+        return {
             "Authorization": f"Bearer {self.token['access_token']}",
             "OData-MaxVersion": "4.0",
             "OData-Version": "4.0",
