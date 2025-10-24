@@ -109,6 +109,8 @@ class Launcher:
         """
         if self._session is None:
             self._session = session
+            logger.debug("Creating session directory at: %s", self.session_directory)
+            self.session_directory.mkdir(parents=True, exist_ok=True)
         else:
             raise ValueError("Session already registered.")
         return self
