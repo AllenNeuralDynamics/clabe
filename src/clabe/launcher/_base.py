@@ -86,8 +86,6 @@ class Launcher:
 
         repository_dir = Path(self.settings.repository_dir) if self.settings.repository_dir is not None else None
         self.repository = GitRepository() if repository_dir is None else GitRepository(path=repository_dir)
-        self._cwd = self.repository.working_dir
-        os.chdir(self._cwd)
 
         self._ensure_directory_structure()
 
@@ -96,7 +94,8 @@ class Launcher:
 
     def register_session(self, session: AindBehaviorSessionModel) -> Self:
         """
-        Registers the session model with the launcher.
+        Registers the session model with the launcher and creates the session
+        data directory structure.
 
         Args:
             session: The session model to register
@@ -306,7 +305,7 @@ class Launcher:
             "Temporary Directory: %s\n"
             "Settings: %s\n"
             "-------------------------------",
-            self._cwd,
+            os.getcwd(),
             self.repository.working_dir,
             self.computer_name,
             self.settings.data_dir,
