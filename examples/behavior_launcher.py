@@ -116,10 +116,10 @@ async def experiment(launcher: Launcher) -> None:
     monitor.run()
 
     def fmt(value: str) -> str:
-        return f"python -c \"import time; print('Hello {value}'); time.sleep(10); print('DONE')\""
+        return f"python -c \"import time; print('Hello {value}'); time.sleep(2); print('DONE')\""
 
-    app_1 = PythonScriptApp(script=fmt("Behavior"), timeout=2)
-    app_2 = PythonScriptApp(script=fmt("Physiology"), timeout=2)
+    app_1 = PythonScriptApp(script=fmt("Behavior"))
+    app_2 = PythonScriptApp(script=fmt("Physiology"))
 
     await asyncio.gather(app_1.run_async(), app_2.run_async())
 
