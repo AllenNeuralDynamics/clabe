@@ -433,6 +433,7 @@ class _OpenEphysGuiClient:
 
     @property
     def base_url(self) -> str:
+        """Base URL for the API."""
         return f"http://{self._host}:{self._port}/api"
 
     def _get(self, endpoint: str) -> dict[str, Any]:
