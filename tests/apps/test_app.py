@@ -10,45 +10,9 @@ import subprocess
 from pathlib import Path
 
 import pytest
+import requests
 
-from clabe.apps import (
-    AsyncExecutor,
-    BonsaiApp,
-    Command,
-    CommandResult,
-    Executor,
-    PythonScriptApp,
-    identity_parser,
-)
-from clabe.apps._executors import AsyncLocalExecutor, LocalExecutor
-
-# ============================================================================
-# Test Fixtures
-# ============================================================================
-
-
-@pytest.fixture
-def simple_command() -> Command[CommandResult]:
-    """A simple command that echoes text."""
-    return Command[CommandResult](
-        cmd="python -c \"print('hello')\"",
-        output_parser=identity_parser,
-    )
-
-
-@pytest.fixture
-def failing_command() -> Command[CommandResult]:
-    """A command that fails."""
-    return Command[CommandResult](
-        cmd='python -c "import sys; sys.exit(1)"',
-        output_parser=identity_parser,
-    )
-
-
-@pytest.fixture
-def local_executor() -> LocalExecutor:
-    """A local executor for running commands."""
-    return LocalExecutor()
+from clabe.apps import BonsaiApp, BonsaiAppSettings, PythonScriptApp
 
 
 @pytest.fixture
@@ -569,24 +533,10 @@ class TestEdgeCases:
         with pytest.raises(RuntimeError, match="Result has already been set"):
             cmd._set_result(result2, override=False)
 
-    def test_executor_with_none_cwd(self):
-        """Test executor with None as cwd falls back to current directory."""
-        executor = LocalExecutor(cwd=None)
-        # Should use os.getcwd() as default
-        import os
+    def test_add_uv_project_directory(self, python_script_app: PythonScriptApp) -> None:
+        """Test add uv project directory."""
+        assert python_script_app._add_uv_project_directory() == f"--directory {Path('/test/project').resolve()}"
 
-        assert executor.cwd == os.getcwd()
-
-    def test_python_script_app_with_empty_additional_arguments(self, tmp_path: Path):
-        """Test PythonScriptApp filters out empty arguments."""
-        venv_path = tmp_path / ".venv"
-        venv_path.mkdir()
-
-        app = PythonScriptApp(
-            script="test.py",
-            additional_arguments="",  # Empty string
-            project_directory=tmp_path,
-        )
-
-        # Command should still be valid
-        assert "test.py" in app.command.cmd
+    def test_add_uv_optional_toml_dependencies(self, python_script_app: PythonScriptApp) -> None:
+        """Test add uv optional toml dependencies."""
+        assert python_script_app._add_uv_optional_toml_dependencies() == "--extra dep1 --extra dep2"
