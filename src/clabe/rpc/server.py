@@ -46,6 +46,7 @@ class RpcServer:
         server.register_function(self.require_auth(self.submit_command), "run")
         server.register_function(self.require_auth(self.get_result), "result")
         server.register_function(self.require_auth(self.list_jobs), "jobs")
+        server.register_function(self.require_auth(self.is_running), "is_running")
 
         logger.info(f"Authentication token: {settings.token.get_secret_value()}")
         logger.info(f"XML-RPC server running on {settings.address}:{settings.port}...")
@@ -96,6 +97,12 @@ class RpcServer:
         result = future.result()
         del self.jobs[job_id]  # cleanup finished job
         return {"status": "done", "result": result}
+
+    def is_running(self, job_id):
+        """Check if a job is still running"""
+        if job_id not in self.jobs:
+            return False
+        return not self.jobs[job_id].done()
 
     def list_jobs(self):
         """List all running jobs"""
