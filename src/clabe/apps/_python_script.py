@@ -1,21 +1,18 @@
-import asyncio
 import logging
 import os
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Any, Optional, Self
+from typing import Any, Optional
 
-from typing_extensions import override
-
-from ._base import App
+from ..apps._base import Command, CommandResult, ExecutableApp, identity_parser
 
 logger = logging.getLogger(__name__)
 
 _HAS_UV = shutil.which("uv") is not None
 
 
-class PythonScriptApp(App[subprocess.CompletedProcess]):
+class PythonScriptApp(ExecutableApp):
     """
     Application class for running Python scripts within a managed uv environment.
 
@@ -39,7 +36,7 @@ class PythonScriptApp(App[subprocess.CompletedProcess]):
         extra_uv_arguments: str = "",
         optional_toml_dependencies: Optional[list[str]] = None,
         append_python_exe: bool = False,
-        timeout: Optional[float] = None,
+        skip_validation: bool = False,
     ) -> None:
         """
         Initializes the PythonScriptApp with the specified parameters.
@@ -51,7 +48,6 @@ class PythonScriptApp(App[subprocess.CompletedProcess]):
             extra_uv_arguments: Extra arguments to pass to the uv command. Defaults to empty string
             optional_toml_dependencies: Additional TOML dependencies to include. Defaults to None
             append_python_exe: Whether to append the Python executable to the command. Defaults to False
-            timeout: Timeout for the script execution. Defaults to None
 
         Example:
             ```python
@@ -66,236 +62,44 @@ class PythonScriptApp(App[subprocess.CompletedProcess]):
             )
             ```
         """
-        self._validate_uv()
-        self._script = script
-        self._project_directory = project_directory
-        self._timeout = timeout
-        self._optional_toml_dependencies = optional_toml_dependencies if optional_toml_dependencies else []
-        self._append_python_exe = append_python_exe
-        self._additional_arguments = additional_arguments
-        self._extra_uv_arguments = extra_uv_arguments
+        if not skip_validation:
+            self._validate_uv()
+            if not self._has_venv(project_directory):
+                logger.warning("Python environment not found. Creating one...")
+                self.create_environment(project_directory)
 
-        self._completed_process: Optional[subprocess.CompletedProcess] = None
-
-    @override
-    def add_app_settings(self, **kwargs) -> Self:
-        """
-        Adds application-specific settings to the script execution.
-
-        Args:
-            **kwargs: Additional keyword arguments to pass to the script
-
-        Returns:
-            Self: The updated instance
-
-        Example:
-            ```python
-            app.add_app_settings(verbose=True, output="results.json")
-            ```
-        """
-        self._additional_arguments = " ".join([self._additional_arguments] + [f"--{k} {v}" for k, v in kwargs.items()])
-        return self
-
-    def get_result(self, *, allow_stderr: bool = True) -> subprocess.CompletedProcess:
-        """
-        Retrieves the result of the executed script.
-
-        Args:
-            allow_stderr: Whether to allow stderr in the output. Defaults to True
-
-        Returns:
-            subprocess.CompletedProcess: The result of the executed script
-
-        Raises:
-            RuntimeError: If the script has not been run yet
-        """
-        if self._completed_process is None:
-            raise RuntimeError("The app has not been run yet.")
-        return self._process_process_output(allow_stderr=allow_stderr)
-
-    @override
-    def run(self) -> Self:
-        """
-        Executes the Python script within the managed environment.
-
-        Creates a virtual environment if one doesn't exist, then runs the script
-        using uv with the configured settings and dependencies.
-
-        Returns:
-            Self: The updated instance
-
-        Raises:
-            subprocess.CalledProcessError: If the script execution fails
-        """
-        logger.info("Starting python script %s...", self._script)
-
-        if not self._has_venv():
-            logger.warning("Python environment not found. Creating one...")
-            self.create_environment()
-
-        _script = f"{self._script} {self._additional_arguments}"
-        _python_exe = "python" if self._append_python_exe else ""
-        command = f"uv run {self._extra_uv_arguments} {self._add_uv_optional_toml_dependencies()} {self._add_uv_project_directory()} {_python_exe} {_script}"
-
-        try:
-            proc = subprocess.run(
-                command,
-                shell=False,
-                capture_output=True,
-                text=True,
-                check=True,
-                cwd=Path(self._project_directory).resolve(),
-            )
-        except subprocess.CalledProcessError as e:
-            logger.error(
-                "Error running the Python script. %s\nProcess stderr: %s",
-                e,
-                e.stderr if e.stderr else "No stderr output",
-            )
-            raise
-
-        logger.info("Python script completed.")
-        self._completed_process = proc
-        return self
-
-    async def run_async(self) -> Self:
-        """
-        Executes the Python script asynchronously without blocking.
-
-        Creates a virtual environment if one doesn't exist, then runs the script
-        using uv with the configured settings and dependencies in a non-blocking manner.
-
-        Returns:
-            Self: The updated instance
-
-        Raises:
-            subprocess.CalledProcessError: If the script execution fails
-
-        Example:
-            ```python
-            app = PythonScriptApp(script="test.py")
-            await app.run_async()
-            ```
-        """
-        logger.info("Starting python script asynchronously %s...", self._script)
-
-        if not self._has_venv():
-            logger.warning("Python environment not found. Creating one...")
-            self.create_environment()
-
-        _script = f"{self._script} {self._additional_arguments}"
-        _python_exe = "python" if self._append_python_exe else ""
-        command = (
-            f"uv run {self._extra_uv_arguments} {self._add_uv_optional_toml_dependencies()} "
-            f"{self._add_uv_project_directory()} {_python_exe} {_script}"
-        )
-        logger.debug("Running Python script asynchronously with command: %s", command)
-
-        cwd = Path(self._project_directory).resolve()
-
-        process = await asyncio.create_subprocess_shell(
-            command,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            cwd=cwd,
+        self._command = Command[CommandResult](cmd="", output_parser=identity_parser)
+        self.command.append_arg(
+            [
+                "uv run",
+                extra_uv_arguments,
+                self._make_uv_optional_toml_dependencies(optional_toml_dependencies or []),
+                self._make_uv_project_directory(project_directory),
+                "python" if append_python_exe else "",
+                script,
+                additional_arguments,
+            ]
         )
 
-        try:
-            if self._timeout is not None:
-                stdout, stderr = await asyncio.wait_for(
-                    process.communicate(),
-                    timeout=self._timeout,
-                )
-            else:
-                stdout, stderr = await process.communicate()
-        except asyncio.TimeoutError as err:
-            process.kill()
-            await process.wait()
-            raise subprocess.TimeoutExpired(
-                cmd=command,
-                timeout=self._timeout or 0,
-                output=None,
-                stderr=None,
-            ) from err
-
-        # Create a CompletedProcess object for consistency with the sync version
-        returncode = process.returncode if process.returncode is not None else -1
-        self._completed_process = subprocess.CompletedProcess(
-            args=command,
-            returncode=returncode,
-            stdout=stdout.decode() if stdout else "",
-            stderr=stderr.decode() if stderr else "",
-        )
-
-        if returncode != 0:
-            logger.error(
-                "Error running the Python script. Return code: %s\nProcess stderr: %s",
-                returncode,
-                self._completed_process.stderr if self._completed_process.stderr else "No stderr output",
-            )
-            raise subprocess.CalledProcessError(
-                returncode=returncode,
-                cmd=command,
-                output=self._completed_process.stdout,
-                stderr=self._completed_process.stderr,
-            )
-
-        logger.info("Python script completed.")
-        return self
-
-    def _process_process_output(self, *, allow_stderr: Optional[bool] = True) -> subprocess.CompletedProcess:
-        """
-        Processes the output of the executed script.
-
-        Args:
-            allow_stderr: Whether to allow stderr in the output. Defaults to True
-
-        Returns:
-            subprocess.CompletedProcess: The completed process result
-
-        Raises:
-            RuntimeError: If the app has not been run yet
-            subprocess.CalledProcessError: If the script execution fails or stderr is present when not allowed
-        """
-        proc = self._completed_process
-        if proc is None:
-            raise RuntimeError("The app has not been run yet.")
-
-        try:
-            proc.check_returncode()
-        except subprocess.CalledProcessError:
-            self._log_process_std_output(self._script, proc)
-            raise
-        else:
-            self._log_process_std_output(self._script, proc)
-            if len(proc.stderr) > 0 and allow_stderr is False:
-                raise subprocess.CalledProcessError(1, proc.args)
-        return proc
+    @property
+    def command(self) -> Command[CommandResult]:
+        """Get the command to execute."""
+        return self._command
 
     @staticmethod
-    def _log_process_std_output(process_name: str, proc: subprocess.CompletedProcess) -> None:
-        """
-        Logs the stdout and stderr of a completed process.
-
-        Args:
-            process_name: The name of the process
-            proc: The completed process
-        """
-        if len(proc.stdout) > 0:
-            logger.info("%s full stdout dump: \n%s", process_name, proc.stdout)
-        if len(proc.stderr) > 0:
-            logger.error("%s full stderr dump: \n%s", process_name, proc.stderr)
-
-    def _has_venv(self) -> bool:
+    def _has_venv(project_directory: os.PathLike) -> bool:
         """
         Checks if a virtual environment exists in the project directory.
 
         Returns:
             bool: True if a virtual environment exists, False otherwise
         """
-        return (Path(self._project_directory) / ".venv").exists()
+        return (Path(project_directory) / ".venv").exists()
 
-    def create_environment(self, run_kwargs: Optional[dict[str, Any]] = None) -> subprocess.CompletedProcess:
+    @classmethod
+    def create_environment(
+        cls, project_directory: os.PathLike, run_kwargs: Optional[dict[str, Any]] = None
+    ) -> subprocess.CompletedProcess:
         """
         Creates a Python virtual environment using the uv tool.
 
@@ -317,16 +121,16 @@ class PythonScriptApp(App[subprocess.CompletedProcess]):
             app.create_environment(run_kwargs={"timeout": 30})
             ```
         """
-        logger.info("Creating Python environment with uv venv at %s...", self._project_directory)
+        logger.info("Creating Python environment with uv venv at %s...", project_directory)
         run_kwargs = run_kwargs or {}
         try:
             proc = subprocess.run(
-                f"uv venv {self._add_uv_project_directory()} ",
+                f"uv venv {cls._make_uv_project_directory(project_directory)} ",
                 shell=False,
                 capture_output=True,
                 text=True,
                 check=True,
-                cwd=self._project_directory,
+                cwd=project_directory,
                 **run_kwargs,
             )
             proc.check_returncode()
@@ -335,28 +139,31 @@ class PythonScriptApp(App[subprocess.CompletedProcess]):
             raise
         return proc
 
-    def _add_uv_project_directory(self) -> str:
+    @staticmethod
+    def _make_uv_project_directory(project_directory: str | os.PathLike) -> str:
         """
         Constructs the --directory argument for the uv command.
 
         Returns:
             str: The --directory argument
         """
-        return f"--directory {Path(self._project_directory).resolve()}"
 
-    def _add_uv_optional_toml_dependencies(self) -> str:
+        return f"--directory {Path(project_directory).resolve()}"
+
+    @staticmethod
+    def _make_uv_optional_toml_dependencies(optional_toml_dependencies: list[str]) -> str:
         """
         Constructs the --extra arguments for the uv command based on optional TOML dependencies.
 
         Returns:
             str: The --extra arguments
         """
-        if not self._optional_toml_dependencies:
+        if not optional_toml_dependencies:
             return ""
-        return " ".join([f"--extra {dep}" for dep in self._optional_toml_dependencies])
+        return " ".join([f"--extra {dep}" for dep in optional_toml_dependencies])
 
     @staticmethod
-    def _validate_uv() -> bool:
+    def _validate_uv() -> None:
         """
         Validates the presence of the uv executable.
 
@@ -372,4 +179,3 @@ class PythonScriptApp(App[subprocess.CompletedProcess]):
                 "uv is not installed in this computer. Please install uv. "
                 "see https://docs.astral.sh/uv/getting-started/installation/"
             )
-        return True

@@ -57,9 +57,12 @@ class Command(Generic[TOutput]):
         """Get the command string."""
         return self._cmd
 
-    def append_arg(self, arg: str) -> Self:
+    def append_arg(self, args: str | list[str]) -> Self:
         """Append an argument to the command."""
-        self._cmd += f" {arg}"
+        if isinstance(args, str):
+            args = [args]
+        args = [arg for arg in args if arg]
+        self._cmd += f" {' '.join(args)}"
         return self
 
     def execute(self, executor: Executor) -> TOutput:
