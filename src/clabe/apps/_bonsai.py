@@ -1,20 +1,16 @@
-import asyncio
 import logging
 import os
-import subprocess
 from os import PathLike
 from pathlib import Path
 from typing import ClassVar, Dict, Optional, Self
 
 import pydantic
 from aind_behavior_services import AindBehaviorRigModel, AindBehaviorSessionModel, AindBehaviorTaskLogicModel
-from typing_extensions import override
 
 from clabe.launcher._base import Launcher
 
+from ..apps._base import Command, CommandResult, ExecutableApp, identity_parser
 from ..services import ServiceSettings
-from ..ui import DefaultUIHelper, UiHelper
-from ._base import App
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +23,7 @@ class BonsaiAppSettings(ServiceSettings):
     execution parameters.
     """
 
-    __yml_section__: ClassVar[Optional[str]] = "bonsai_app"
+    __yml_section__: ClassVar[Optional[str]] = "bonsai"
 
     workflow: os.PathLike
     executable: os.PathLike = Path("./bonsai/bonsai.exe")
@@ -63,7 +59,7 @@ class BonsaiAppSettings(ServiceSettings):
         return self
 
 
-class BonsaiApp(App[None]):
+class BonsaiApp(ExecutableApp):
     """
     A class to manage the execution of Bonsai workflows.
 
@@ -78,19 +74,13 @@ class BonsaiApp(App[None]):
     """
 
     def __init__(
-        self,
-        /,
-        settings: BonsaiAppSettings,
-        ui_helper: Optional[UiHelper] = None,
-        **kwargs,
+        self, settings: BonsaiAppSettings, *, additional_externalized_properties: dict[str, str] | None = None
     ) -> None:
         """
         Initializes the BonsaiApp instance.
 
         Args:
             settings: Settings for the Bonsai App
-            ui_helper: UI helper instance. Defaults to DefaultUIHelper
-            **kwargs: Additional keyword arguments
 
         Example:
             ```python
@@ -105,55 +95,27 @@ class BonsaiApp(App[None]):
                     is_editor_mode=False,
                 )
             )
+            app.run()
             ```
         """
         self.settings = settings
-        self._completed_process: Optional[subprocess.CompletedProcess] = None
-        self.ui_helper = ui_helper if ui_helper is not None else DefaultUIHelper()
+        self.validate()
+        __cmd = self._build_bonsai_process_command(
+            workflow_file=self.settings.workflow,
+            bonsai_exe=self.settings.executable,
+            is_editor_mode=self.settings.is_editor_mode,
+            is_start_flag=self.settings.is_start_flag,
+            additional_properties=self.settings.additional_properties | (additional_externalized_properties or {}),
+        )
+        self._command = Command[CommandResult](cmd=__cmd, output_parser=identity_parser)
 
-    def get_result(self, *, allow_stderr: bool = True) -> None:
+    @property
+    def command(self) -> Command[CommandResult]:
+        """Get the command to execute."""
+        return self._command
+
+    def validate(self) -> None:
         """
-        Returns the result of the Bonsai process execution.
-
-        Args:
-            allow_stderr: Whether to allow stderr in the output. Defaults to True
-
-        Returns:
-            None
-
-        Raises:
-            RuntimeError: If the app has not been run yet
-        """
-        if self._completed_process is None:
-            raise RuntimeError("The app has not been run yet.")
-        return self._process_process_output(allow_stderr=allow_stderr)
-
-    def add_app_settings(self, *args, **kwargs):
-        """
-        Adds application-specific settings to the additional properties.
-
-        Args:
-            *args: Positional arguments (unused)
-            **kwargs: Additional keyword arguments to add to settings
-
-        Returns:
-            Self: The updated instance of BonsaiApp
-        """
-
-        if self.settings.additional_properties is not None:
-            self.settings.additional_properties.update(**kwargs)
-        else:
-            self.settings.additional_properties = kwargs
-        return self
-
-    def validate(self, *args, **kwargs) -> bool:
-        """
-        Validates the existence of required files and directories.
-
-        Args:
-            *args: Additional positional arguments (unused)
-            **kwargs: Additional keyword arguments (unused)
-
         Returns:
             bool: True if validation is successful
 
@@ -164,178 +126,8 @@ class BonsaiApp(App[None]):
             raise FileNotFoundError(f"Executable not found: {self.settings.executable}")
         if not Path(self.settings.workflow).exists():
             raise FileNotFoundError(f"Workflow file not found: {self.settings.workflow}")
-        return True
-
-    @override
-    def run(self) -> Self:
-        """
-        Runs the Bonsai process.
-
-        Returns:
-            Self: The updated instance
-
-        Raises:
-            FileNotFoundError: If validation fails
-            subprocess.CalledProcessError: If the Bonsai process fails
-        """
-        self.validate()
-
         if self.settings.is_editor_mode:
-            logger.warning("Bonsai is running in editor mode. Cannot assert successful completion.")
-        logger.info("Bonsai process running...")
-        try:
-            __cmd = self._build_bonsai_process_command(
-                workflow_file=self.settings.workflow,
-                bonsai_exe=self.settings.executable,
-                is_editor_mode=self.settings.is_editor_mode,
-                is_start_flag=self.settings.is_start_flag,
-                additional_properties=self.settings.additional_properties,
-            )
-            logger.debug("Launching Bonsai with %s", __cmd)
-            cwd = self.settings.cwd or os.getcwd()
-
-            proc = subprocess.run(__cmd, cwd=cwd, check=True, timeout=self.settings.timeout, capture_output=True)
-        except subprocess.CalledProcessError as e:
-            logger.error(
-                "Error running Bonsai process. %s\nProcess stderr: %s", e, e.stderr if e.stderr else "No stderr output"
-            )
-            raise
-        self._completed_process = proc
-        logger.info("Bonsai process completed.")
-        return self
-
-    async def run_async(self) -> Self:
-        """
-        Runs the Bonsai process asynchronously without blocking.
-
-        This method executes the Bonsai workflow in a non-blocking manner,
-        allowing other async operations to run concurrently.
-
-        Returns:
-            Self: The updated instance
-
-        Raises:
-            FileNotFoundError: If validation fails
-            subprocess.CalledProcessError: If the Bonsai process fails
-
-        Example:
-            ```python
-            app = BonsaiApp(settings=BonsaiAppSettings(workflow="workflow.bonsai"))
-            await app.run_async()
-            ```
-        """
-        self.validate()
-
-        if self.settings.is_editor_mode:
-            logger.warning("Bonsai is running in editor mode. Cannot assert successful completion.")
-        logger.info("Bonsai process running asynchronously...")
-
-        __cmd = self._build_bonsai_process_command(
-            workflow_file=self.settings.workflow,
-            bonsai_exe=self.settings.executable,
-            is_editor_mode=self.settings.is_editor_mode,
-            is_start_flag=self.settings.is_start_flag,
-            additional_properties=self.settings.additional_properties,
-        )
-        logger.debug("Launching Bonsai asynchronously with %s", __cmd)
-        cwd = self.settings.cwd or os.getcwd()
-
-        process = await asyncio.create_subprocess_shell(
-            __cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            cwd=cwd,
-        )
-
-        try:
-            if self.settings.timeout is not None:
-                stdout, stderr = await asyncio.wait_for(
-                    process.communicate(),
-                    timeout=self.settings.timeout,
-                )
-            else:
-                stdout, stderr = await process.communicate()
-        except asyncio.TimeoutError as err:
-            process.kill()
-            await process.wait()
-            raise subprocess.TimeoutExpired(
-                cmd=__cmd,
-                timeout=self.settings.timeout or 0,
-                output=None,
-                stderr=None,
-            ) from err
-
-        # Unfortunately the asyncio implementation does not return a CompletedProcess
-        # So, we mock one
-        returncode = process.returncode if process.returncode is not None else -1
-        self._completed_process = subprocess.CompletedProcess(
-            args=__cmd,
-            returncode=returncode,
-            stdout=stdout.decode() if stdout else "",
-            stderr=stderr.decode() if stderr else "",
-        )
-
-        if returncode != 0:
-            logger.error(
-                "Error running Bonsai process. Return code: %s\nProcess stderr: %s",
-                returncode,
-                self._completed_process.stderr if self._completed_process.stderr else "No stderr output",
-            )
-            raise subprocess.CalledProcessError(
-                returncode=returncode,
-                cmd=__cmd,
-                output=self._completed_process.stdout,
-                stderr=self._completed_process.stderr,
-            )
-
-        logger.info("Bonsai process completed.")
-        return self
-
-    def _process_process_output(self, *, allow_stderr: Optional[bool]) -> None:
-        """
-        Processes the output from the Bonsai process result.
-
-        Args:
-            allow_stderr: Whether to allow stderr output. If None, prompts user
-
-        Returns:
-            None
-
-        Raises:
-            RuntimeError: If the app has not been run yet
-            subprocess.CalledProcessError: If the process exits with an error
-        """
-        proc = self._completed_process
-        if proc is None:
-            raise RuntimeError("The app has not been run yet.")
-
-        try:
-            proc.check_returncode()
-        except subprocess.CalledProcessError:
-            self._log_process_std_output("Bonsai", proc)
-            raise
-        else:
-            self._log_process_std_output("Bonsai", proc)
-            if len(proc.stderr) > 0:
-                logger.error("Bonsai process finished with errors.")
-                if allow_stderr is None:
-                    allow_stderr = self.ui_helper.prompt_yes_no_question("Would you like to see the error message?")
-                if allow_stderr is False:
-                    raise subprocess.CalledProcessError(1, proc.args)
-        return
-
-    def _log_process_std_output(self, process_name: str, proc: subprocess.CompletedProcess) -> None:
-        """
-        Logs the standard output and error of a process.
-
-        Args:
-            process_name: Name of the process
-            proc: The process result
-        """
-        if len(proc.stdout) > 0:
-            logger.info("%s full stdout dump: \n%s", process_name, proc.stdout)
-        if len(proc.stderr) > 0:
-            logger.error("%s full stderr dump: \n%s", process_name, proc.stderr)
+            logger.warning("Bonsai will run in editor mode. Will probably not be able to assert successful completion.")
 
     @staticmethod
     def _build_bonsai_process_command(
@@ -376,15 +168,16 @@ class AindBehaviorServicesBonsaiApp(BonsaiApp):
         ```
     """
 
-    def add_app_settings(
+    def __init__(
         self,
+        settings: BonsaiAppSettings,
+        *,
         launcher: Launcher,
-        *args,
+        additional_externalized_properties: dict[str, str] | None = None,
         rig: Optional[AindBehaviorRigModel] = None,
         session: Optional[AindBehaviorSessionModel] = None,
         task_logic: Optional[AindBehaviorTaskLogicModel] = None,
-        **kwargs,
-    ) -> Self:  # type: ignore[override]
+    ) -> None:
         """
         Adds AIND behavior services settings to the Bonsai workflow.
 
@@ -402,13 +195,17 @@ class AindBehaviorServicesBonsaiApp(BonsaiApp):
         Returns:
             Self: The updated instance
         """
-        settings = {}
+        additional_externalized_properties = additional_externalized_properties or {}
         if rig:
-            settings["RigPath"] = os.path.abspath(launcher.save_temp_model(model=rig))
+            additional_externalized_properties["RigPath"] = os.path.abspath(launcher.save_temp_model(model=rig))
         if session:
-            settings["SessionPath"] = os.path.abspath(launcher.save_temp_model(model=session))
+            additional_externalized_properties["SessionPath"] = os.path.abspath(launcher.save_temp_model(model=session))
         if task_logic:
-            settings["TaskLogicPath"] = os.path.abspath(launcher.save_temp_model(model=task_logic))
-
-        settings.update(kwargs)
-        return super().add_app_settings(*args, **settings)
+            additional_externalized_properties["TaskLogicPath"] = os.path.abspath(
+                launcher.save_temp_model(model=task_logic)
+            )
+        super().__init__(
+            settings=settings,
+            additional_externalized_properties=additional_externalized_properties,
+        )
+        self._launcher = launcher
