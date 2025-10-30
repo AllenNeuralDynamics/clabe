@@ -1,11 +1,58 @@
 import abc
 import logging
-from typing import Any, Generic, Self, TypeVar
-
+from typing import Any, Generic, Optional, Self, TypeVar, Protocol, runtime_checkable
+from pydantic import BaseModel
 from ..services import Service
 
 logger = logging.getLogger(__name__)
 
+
+class ProcessResult(BaseModel):
+    """Represents the result of a process execution."""
+    stdout: Optional[str]
+    stderr: Optional[str]
+    exit_code: int
+
+    @property
+    def ok(self) -> bool:
+        return self.exit_code == 0
+
+
+@runtime_checkable
+class Executor(Protocol):
+    def run(self, cmd: "Command") -> ProcessResult: ...
+
+
+@runtime_checkable
+class AsyncExecutor(Protocol):
+    async def run_async(self, cmd: "Command") -> ProcessResult: ...
+
+
+TOutput = TypeVar("TOutput")
+
+class Command(Generic[TOutput], abc.ABC):
+
+    _cmd: str
+    
+    def append_arg(self, arg: str) -> Self:
+        """Append an argument to the command."""
+        self._cmd += f" {arg}"
+        return self
+
+    def execute(self, executor: Executor) -> TOutput:
+        """Execute using a synchronous executor."""
+        result = executor.run(self)
+        return self.parse_output(result)
+
+    async def execute_async(self, executor: AsyncExecutor) -> TOutput:
+        """Execute using an async executor."""
+        result = await executor.run_async(self)
+        return self.parse_output(result)
+
+    @abc.abstractmethod
+    def parse_output(self, result: ProcessResult) -> TOutput:
+        """Parse the output of the command."""
+        ...
 
 TApp = TypeVar("TApp", bound="App")
 TResult = TypeVar("TResult", bound=Any)
