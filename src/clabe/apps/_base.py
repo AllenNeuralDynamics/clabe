@@ -1,5 +1,5 @@
 import logging
-from typing import Callable, Generic, Optional, Protocol, Self, TypeVar, runtime_checkable
+from typing import Callable, Generic, Optional, Protocol, Self, TypeAlias, TypeVar, runtime_checkable
 
 from pydantic import BaseModel
 
@@ -38,9 +38,11 @@ class AsyncExecutor(Protocol):
 
 TOutput = TypeVar("TOutput")
 
+OutputParser: TypeAlias = Callable[[CommandResult], TOutput]
+
 
 class Command(Generic[TOutput]):
-    def __init__(self, cmd: str, output_parser: Callable[[CommandResult], TOutput]) -> None:
+    def __init__(self, cmd: str, output_parser: OutputParser[TOutput]) -> None:
         self._cmd = cmd
         self._output_parser = output_parser
         self._result: Optional[CommandResult] = None

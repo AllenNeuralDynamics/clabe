@@ -9,8 +9,6 @@ from ..apps._base import Command, CommandResult, ExecutableApp, identity_parser
 
 logger = logging.getLogger(__name__)
 
-_HAS_UV = shutil.which("uv") is not None
-
 
 class PythonScriptApp(ExecutableApp):
     """
@@ -69,6 +67,7 @@ class PythonScriptApp(ExecutableApp):
                 self.create_environment(project_directory)
 
         self._command = Command[CommandResult](cmd="", output_parser=identity_parser)
+
         self.command.append_arg(
             [
                 "uv run",
@@ -173,7 +172,7 @@ class PythonScriptApp(ExecutableApp):
         Raises:
             RuntimeError: If uv is not installed
         """
-        if not _HAS_UV:
+        if not shutil.which("uv") is not None:
             logger.error("uv executable not detected.")
             raise RuntimeError(
                 "uv is not installed in this computer. Please install uv. "
