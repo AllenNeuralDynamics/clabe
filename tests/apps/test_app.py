@@ -6,6 +6,7 @@ Tests prioritize readability and minimize mocking where possible.
 """
 
 import asyncio
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -216,10 +217,8 @@ class TestLocalExecutor:
 
     def test_local_executor_handles_failing_command(self, local_executor: LocalExecutor, failing_command: Command):
         """Test that LocalExecutor properly handles failing commands."""
-        result = failing_command.execute(local_executor)
-
-        assert result.ok is False
-        assert result.exit_code != 0
+        with pytest.raises(subprocess.CalledProcessError):
+            failing_command.execute(local_executor)
 
     def test_local_executor_with_custom_cwd(self, tmp_path: Path):
         """Test LocalExecutor with a custom working directory."""
@@ -252,10 +251,8 @@ class TestAsyncLocalExecutor:
         self, async_local_executor: AsyncLocalExecutor, failing_command: Command
     ):
         """Test that AsyncLocalExecutor properly handles failing commands."""
-        result = await failing_command.execute_async(async_local_executor)
-
-        assert result.ok is False
-        assert result.exit_code != 0
+        with pytest.raises(subprocess.CalledProcessError):
+            await failing_command.execute_async(async_local_executor)
 
     @pytest.mark.asyncio
     async def test_async_executor_concurrent_execution(self, async_local_executor: AsyncLocalExecutor):

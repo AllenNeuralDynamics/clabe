@@ -24,7 +24,7 @@ def curriculum_app() -> CurriculumApp:
     )
 
 
-def test_curriculum_run(self, curriculum_app: CurriculumApp) -> None:
+def test_curriculum_run(curriculum_app: CurriculumApp) -> None:
     """Tests that the curriculum can be run."""
 
     curriculum_app.run()

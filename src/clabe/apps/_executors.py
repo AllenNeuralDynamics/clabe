@@ -12,7 +12,8 @@ class LocalExecutor(Executor):
         self.env = env
 
     def run(self, command: Command[Any]) -> CommandResult:
-        proc = subprocess.run(command.cmd, cwd=self.cwd, env=self.env, text=True, capture_output=True)
+        proc = subprocess.run(command.cmd, cwd=self.cwd, env=self.env, text=True, capture_output=True, check=False)
+        proc.check_returncode()
         return CommandResult(stdout=proc.stdout, stderr=proc.stderr, exit_code=proc.returncode)
 
 
@@ -33,7 +34,13 @@ class AsyncLocalExecutor(AsyncExecutor):
 
         if proc.returncode is None:
             raise RuntimeError("Process did not complete successfully and returned no return code.")
-
+        if proc.returncode != 0:
+            raise subprocess.CalledProcessError(
+                returncode=proc.returncode,
+                cmd=command.cmd,
+                output=stdout,
+                stderr=stderr,
+            )
         return CommandResult(
             stdout=stdout.decode(),
             stderr=stderr.decode(),

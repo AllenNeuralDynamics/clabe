@@ -64,7 +64,7 @@ class Command(Generic[TOutput]):
         if isinstance(args, str):
             args = [args]
         args = [arg for arg in args if arg]
-        self._cmd += f" {' '.join(args)}"
+        self._cmd = (self.cmd + f" {' '.join(args)}").strip()
         return self
 
     def execute(self, executor: Executor) -> TOutput:
