@@ -1,15 +1,10 @@
-"""
-Unit tests for the refactored apps module.
-
-This module tests the separation between Command (what to run) and Executor (how/where to run).
-Tests prioritize readability and minimize mocking where possible.
-"""
-
 import asyncio
 import subprocess
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
+import requests
 
 from clabe.apps import (
     AsyncExecutor,
@@ -21,6 +16,7 @@ from clabe.apps import (
     identity_parser,
 )
 from clabe.apps._executors import AsyncLocalExecutor, LocalExecutor
+from clabe.apps.open_ephys import OpenEphysApp, Status, _OpenEphysGuiClient
 
 # ============================================================================
 # Test Fixtures
@@ -324,7 +320,7 @@ class TestBonsaiApp:
         app = BonsaiApp(
             executable=temp_bonsai_files["exe"],
             workflow=temp_bonsai_files["workflow"],
-            additional_properties={"param1": "value1", "param2": "value2"},
+            additional_externalized_properties={"param1": "value1", "param2": "value2"},
         )
         cmd = app.command.cmd
         assert '-p:"param1"="value1"' in cmd
@@ -590,3 +586,82 @@ class TestEdgeCases:
 
         # Command should still be valid
         assert "test.py" in app.command.cmd
+
+
+@pytest.fixture
+def open_ephys_app() -> OpenEphysApp:
+    """OpenEphysApp fixture."""
+    signal_chain = Path("test_signal_chain.xml")
+    executable = Path(".open_ephys/open_ephys.exe")
+    mock_client = MagicMock(spec=_OpenEphysGuiClient)
+    app = OpenEphysApp(signal_chain=signal_chain, executable=executable, client=mock_client)
+    return app
+
+
+class TestOpenEphysGuiClient:
+    """Test _OpenEphysGuiClient."""
+
+    @pytest.fixture
+    def client(self) -> _OpenEphysGuiClient:
+        """Create a client instance."""
+        return _OpenEphysGuiClient(host="localhost", port=37497, timeout=5.0)
+
+    def test_client_init(self, client: _OpenEphysGuiClient) -> None:
+        """Test client initialization."""
+        assert client.base_url == "http://localhost:37497/api"
+        assert client._timeout == 5.0
+
+    @patch("requests.get")
+    def test_get(self, mock_get: MagicMock, client: _OpenEphysGuiClient) -> None:
+        """Test generic GET request."""
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"mode": "IDLE"}
+        mock_response.raise_for_status = MagicMock()
+        mock_get.return_value = mock_response
+
+        result = client._get("/status")
+
+        assert result == {"mode": "IDLE"}
+        mock_get.assert_called_once_with("http://localhost:37497/api/status", timeout=5.0)
+        mock_response.raise_for_status.assert_called_once()
+
+    @patch("requests.put")
+    def test_put(self, mock_put: MagicMock, client: _OpenEphysGuiClient) -> None:
+        """Test generic PUT request with Pydantic model."""
+        from clabe.apps.open_ephys import StatusRequest
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"mode": "ACQUIRE"}
+        mock_response.raise_for_status = MagicMock()
+        mock_put.return_value = mock_response
+
+        request = StatusRequest(mode=Status.ACQUIRE)
+        result = client._put("/status", request)
+
+        assert result == {"mode": "ACQUIRE"}
+        mock_put.assert_called_once()
+        call_args = mock_put.call_args
+        assert call_args[0][0] == "http://localhost:37497/api/status"
+        assert "json" in call_args[1]
+        assert call_args[1]["json"] == {"mode": "ACQUIRE"}
+        assert call_args[1]["timeout"] == 5.0
+        mock_response.raise_for_status.assert_called_once()
+
+    @patch("requests.get")
+    def test_get_request_exception(self, mock_get: MagicMock, client: _OpenEphysGuiClient) -> None:
+        """Test GET request with request exception."""
+        mock_get.side_effect = requests.RequestException("Connection error")
+
+        with pytest.raises(requests.RequestException):
+            client._get("/status")
+
+    @patch("requests.put")
+    def test_put_request_exception(self, mock_put: MagicMock, client: _OpenEphysGuiClient) -> None:
+        """Test PUT request with request exception."""
+        from clabe.apps.open_ephys import StatusRequest
+
+        mock_put.side_effect = requests.RequestException("Connection error")
+
+        with pytest.raises(requests.RequestException):
+            request = StatusRequest(mode=Status.IDLE)
+            client._put("/status", request)
