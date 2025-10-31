@@ -74,6 +74,11 @@ class OpenEphysApp(ExecutableApp, _DefaultExecutorMixin):
         if not Path(self.signal_chain).exists():
             raise FileNotFoundError(f"Signal chain file not found: {self.signal_chain}")
 
+    @property
+    def command(self) -> Command[CommandResult]:
+        """Get the command to execute."""
+        return self._command
+
 
 class Status(str, Enum):
     """GUI acquisition/recording mode."""
