@@ -58,6 +58,7 @@ dev = [
     "coverage",
     'pytest',
     'pytest-cov',
+    'pytest-asyncio',
     'interrogate',
     "aind-clabe[aind-services]",
 ]
@@ -98,6 +99,9 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+markers = [
+    "asyncio: mark test as requiring asyncio",
+]
 
 
 [tool.interrogate]
