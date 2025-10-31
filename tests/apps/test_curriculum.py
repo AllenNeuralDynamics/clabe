@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from clabe.apps import CurriculumApp, CurriculumSettings, PythonScriptApp
+from clabe.apps import CurriculumApp, CurriculumSettings
 
 from .. import TESTS_ASSETS, SubmoduleManager
 
@@ -23,11 +23,9 @@ def curriculum_app() -> CurriculumApp:
         )
     )
 
-class TestCurriculumIntegration:
-    """Tests the integration with the aind-behavior-curriculum submodule."""
 
-    def test_curriculum_run(self, curriculum_app: CurriculumApp) -> None:
-        """Tests that the curriculum can be run."""
+def test_curriculum_run(self, curriculum_app: CurriculumApp) -> None:
+    """Tests that the curriculum can be run."""
 
-        curriculum_app.run()
-        curriculum_app.process_suggestion()
+    curriculum_app.run()
+    curriculum_app.process_suggestion()

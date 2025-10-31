@@ -6,9 +6,7 @@ Tests prioritize readability and minimize mocking where possible.
 """
 
 import asyncio
-import subprocess
 from pathlib import Path
-from typing import Any
 
 import pytest
 
@@ -23,7 +21,6 @@ from clabe.apps import (
 )
 from clabe.apps._executors import AsyncLocalExecutor, LocalExecutor
 
-
 # ============================================================================
 # Test Fixtures
 # ============================================================================
@@ -33,7 +30,7 @@ from clabe.apps._executors import AsyncLocalExecutor, LocalExecutor
 def simple_command() -> Command[CommandResult]:
     """A simple command that echoes text."""
     return Command[CommandResult](
-        cmd='python -c "print(\'hello\')"',
+        cmd="python -c \"print('hello')\"",
         output_parser=identity_parser,
     )
 
@@ -201,7 +198,7 @@ class TestLocalExecutor:
 
     def test_local_executor_runs_simple_command(self, local_executor: LocalExecutor):
         """Test that LocalExecutor can run a simple command."""
-        cmd = Command[CommandResult](cmd='python -c "print(\'test\')"', output_parser=identity_parser)
+        cmd = Command[CommandResult](cmd="python -c \"print('test')\"", output_parser=identity_parser)
         result = cmd.execute(local_executor)
 
         assert result.ok is True
@@ -210,7 +207,7 @@ class TestLocalExecutor:
     def test_local_executor_captures_stderr(self, local_executor: LocalExecutor):
         """Test that LocalExecutor captures stderr."""
         cmd = Command[CommandResult](
-            cmd='python -c "import sys; sys.stderr.write(\'error\')"', output_parser=identity_parser
+            cmd="python -c \"import sys; sys.stderr.write('error')\"", output_parser=identity_parser
         )
         result = cmd.execute(local_executor)
 
@@ -244,7 +241,7 @@ class TestAsyncLocalExecutor:
     @pytest.mark.asyncio
     async def test_async_executor_runs_simple_command(self, async_local_executor: AsyncLocalExecutor):
         """Test that AsyncLocalExecutor can run a simple command."""
-        cmd = Command[CommandResult](cmd='python -c "print(\'async test\')"', output_parser=identity_parser)
+        cmd = Command[CommandResult](cmd="python -c \"print('async test')\"", output_parser=identity_parser)
         result = await cmd.execute_async(async_local_executor)
 
         assert result.ok is True
@@ -263,10 +260,12 @@ class TestAsyncLocalExecutor:
     @pytest.mark.asyncio
     async def test_async_executor_concurrent_execution(self, async_local_executor: AsyncLocalExecutor):
         """Test running multiple commands concurrently."""
-        cmd1 = Command[CommandResult](cmd='python -c "print(\'cmd1\')"', output_parser=identity_parser)
-        cmd2 = Command[CommandResult](cmd='python -c "print(\'cmd2\')"', output_parser=identity_parser)
+        cmd1 = Command[CommandResult](cmd="python -c \"print('cmd1')\"", output_parser=identity_parser)
+        cmd2 = Command[CommandResult](cmd="python -c \"print('cmd2')\"", output_parser=identity_parser)
 
-        results = await asyncio.gather(cmd1.execute_async(async_local_executor), cmd2.execute_async(async_local_executor))
+        results = await asyncio.gather(
+            cmd1.execute_async(async_local_executor), cmd2.execute_async(async_local_executor)
+        )
 
         assert all(r.ok for r in results)
         assert "cmd1" in (results[0].stdout or "")
@@ -501,7 +500,7 @@ class TestIntegration:
 
     def test_same_command_different_executors(self, tmp_path: Path):
         """Test that the same command can be run with different executors."""
-        cmd = Command[CommandResult](cmd='python -c "print(\'hello\')"', output_parser=identity_parser)
+        cmd = Command[CommandResult](cmd="python -c \"print('hello')\"", output_parser=identity_parser)
 
         # Run with first executor
         executor1 = MockExecutor(CommandResult(stdout="output1", stderr="", exit_code=0))
@@ -534,8 +533,8 @@ class TestIntegration:
     async def test_async_and_sync_executors_with_same_command_type(self):
         """Test that both sync and async executors can work with commands."""
         # Note: We use different command instances since they store results
-        sync_cmd = Command[CommandResult](cmd='python -c "print(\'sync\')"', output_parser=identity_parser)
-        async_cmd = Command[CommandResult](cmd='python -c "print(\'async\')"', output_parser=identity_parser)
+        sync_cmd = Command[CommandResult](cmd="python -c \"print('sync')\"", output_parser=identity_parser)
+        async_cmd = Command[CommandResult](cmd="python -c \"print('async')\"", output_parser=identity_parser)
 
         sync_executor = MockExecutor(CommandResult(stdout="sync output", stderr="", exit_code=0))
         async_executor = MockAsyncExecutor(CommandResult(stdout="async output", stderr="", exit_code=0))
@@ -562,7 +561,6 @@ class TestEdgeCases:
 
     def test_command_result_multiple_override_warning(self):
         """Test that overriding result logs a warning."""
-        import logging
 
         cmd = Command[CommandResult](cmd="echo test", output_parser=identity_parser)
         result1 = CommandResult(stdout="first", stderr="", exit_code=0)
