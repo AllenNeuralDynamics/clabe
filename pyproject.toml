@@ -25,6 +25,7 @@ dependencies = [
     "pydantic>=2.7",
     "pydantic-settings",
     "gitpython",
+    "requests",
     "semver",
     "rich",
     "aind_behavior_services < 1",

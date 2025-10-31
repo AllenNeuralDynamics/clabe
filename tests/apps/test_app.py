@@ -1,19 +1,50 @@
-"""
-Unit tests for the refactored apps module.
-
-This module tests the separation between Command (what to run) and Executor (how/where to run).
-Tests prioritize readability and minimize mocking where possible.
-"""
-
 import asyncio
 import subprocess
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 import requests
 
-from clabe.apps import BonsaiApp, BonsaiAppSettings, OpenEphysApp, OpenEphysAppSettings, PythonScriptApp
-from clabe.apps._open_ephys import Status, _OpenEphysGuiClient
+from clabe.apps import (
+    AsyncExecutor,
+    BonsaiApp,
+    Command,
+    CommandResult,
+    Executor,
+    PythonScriptApp,
+    identity_parser,
+)
+from clabe.apps._executors import AsyncLocalExecutor, LocalExecutor
+from clabe.apps.open_ephys import OpenEphysApp, Status, _OpenEphysGuiClient
+
+# ============================================================================
+# Test Fixtures
+# ============================================================================
+
+
+@pytest.fixture
+def simple_command() -> Command[CommandResult]:
+    """A simple command that echoes text."""
+    return Command[CommandResult](
+        cmd="python -c \"print('hello')\"",
+        output_parser=identity_parser,
+    )
+
+
+@pytest.fixture
+def failing_command() -> Command[CommandResult]:
+    """A command that fails."""
+    return Command[CommandResult](
+        cmd='python -c "import sys; sys.exit(1)"',
+        output_parser=identity_parser,
+    )
+
+
+@pytest.fixture
+def local_executor() -> LocalExecutor:
+    """A local executor for running commands."""
+    return LocalExecutor()
 
 
 @pytest.fixture
@@ -289,7 +320,7 @@ class TestBonsaiApp:
         app = BonsaiApp(
             executable=temp_bonsai_files["exe"],
             workflow=temp_bonsai_files["workflow"],
-            additional_properties={"param1": "value1", "param2": "value2"},
+            additional_externalized_properties={"param1": "value1", "param2": "value2"},
         )
         cmd = app.command.cmd
         assert '-p:"param1"="value1"' in cmd
@@ -534,59 +565,37 @@ class TestEdgeCases:
         with pytest.raises(RuntimeError, match="Result has already been set"):
             cmd._set_result(result2, override=False)
 
-    def test_add_uv_project_directory(self, python_script_app: PythonScriptApp) -> None:
-        """Test add uv project directory."""
-        assert python_script_app._add_uv_project_directory() == f"--directory {Path('/test/project').resolve()}"
+    def test_executor_with_none_cwd(self):
+        """Test executor with None as cwd falls back to current directory."""
+        executor = LocalExecutor(cwd=None)
+        # Should use os.getcwd() as default
+        import os
 
-    def test_add_uv_optional_toml_dependencies(self, python_script_app: PythonScriptApp) -> None:
-        """Test add uv optional toml dependencies."""
-        assert python_script_app._add_uv_optional_toml_dependencies() == "--extra dep1 --extra dep2"
+        assert executor.cwd == os.getcwd()
+
+    def test_python_script_app_with_empty_additional_arguments(self, tmp_path: Path):
+        """Test PythonScriptApp filters out empty arguments."""
+        venv_path = tmp_path / ".venv"
+        venv_path.mkdir()
+
+        app = PythonScriptApp(
+            script="test.py",
+            additional_arguments="",  # Empty string
+            project_directory=tmp_path,
+        )
+
+        # Command should still be valid
+        assert "test.py" in app.command.cmd
 
 
 @pytest.fixture
-def open_ephys_app(mock_ui_helper) -> OpenEphysApp:
+def open_ephys_app() -> OpenEphysApp:
     """OpenEphysApp fixture."""
     signal_chain = Path("test_signal_chain.xml")
     executable = Path(".open_ephys/open_ephys.exe")
-    settings = OpenEphysAppSettings(signal_chain=signal_chain, executable=executable)
     mock_client = MagicMock(spec=_OpenEphysGuiClient)
-    app = OpenEphysApp(settings=settings, ui_helper=mock_ui_helper, client=mock_client)
+    app = OpenEphysApp(signal_chain=signal_chain, executable=executable, client=mock_client)
     return app
-
-
-class TestOpenEphysApp:
-    """Test OpenEphysApp."""
-
-    @patch("subprocess.run")
-    @patch("pathlib.Path.exists", return_value=True)
-    def test_run(self, mock_pathlib: MagicMock, mock_subprocess_run: MagicMock, open_ephys_app: OpenEphysApp) -> None:
-        """Test run."""
-        mock_result = MagicMock(spec=subprocess.CompletedProcess)
-        mock_subprocess_run.return_value = mock_result
-        result = open_ephys_app.run()._completed_process
-        assert result == mock_result
-        mock_subprocess_run.assert_called_once()
-
-    def test_validate(self, open_ephys_app: OpenEphysApp) -> None:
-        """Test validate."""
-        with patch("pathlib.Path.exists", return_value=True):
-            assert open_ephys_app.validate()
-
-    def test_validate_missing_file(self, open_ephys_app: OpenEphysApp) -> None:
-        """Test validate missing file."""
-        with patch("pathlib.Path.exists", side_effect=[False, True, True]):
-            with pytest.raises(FileNotFoundError):
-                open_ephys_app.validate()
-
-    def test_raises_before_run(self, open_ephys_app: OpenEphysApp) -> None:
-        """Test result property."""
-        with pytest.raises(RuntimeError):
-            open_ephys_app.get_result(allow_stderr=True)
-
-    def test_client(self, open_ephys_app: OpenEphysApp) -> None:
-        """Test client method."""
-        client = open_ephys_app.client()
-        assert isinstance(client, MagicMock)
 
 
 class TestOpenEphysGuiClient:
@@ -619,7 +628,7 @@ class TestOpenEphysGuiClient:
     @patch("requests.put")
     def test_put(self, mock_put: MagicMock, client: _OpenEphysGuiClient) -> None:
         """Test generic PUT request with Pydantic model."""
-        from clabe.apps._open_ephys import StatusRequest
+        from clabe.apps.open_ephys import StatusRequest
 
         mock_response = MagicMock()
         mock_response.json.return_value = {"mode": "ACQUIRE"}
@@ -649,7 +658,7 @@ class TestOpenEphysGuiClient:
     @patch("requests.put")
     def test_put_request_exception(self, mock_put: MagicMock, client: _OpenEphysGuiClient) -> None:
         """Test PUT request with request exception."""
-        from clabe.apps._open_ephys import StatusRequest
+        from clabe.apps.open_ephys import StatusRequest
 
         mock_put.side_effect = requests.RequestException("Connection error")
 

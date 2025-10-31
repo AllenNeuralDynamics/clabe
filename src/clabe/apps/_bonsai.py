@@ -35,10 +35,8 @@ class BonsaiApp(ExecutableApp, _DefaultExecutorMixin):
         executable: os.PathLike = Path("./bonsai/bonsai.exe"),
         is_editor_mode: bool = True,
         is_start_flag: bool = True,
-        additional_properties: Optional[Dict[str, str]] = None,
-        cwd: Optional[os.PathLike] = None,
-        timeout: Optional[float] = None,
         additional_externalized_properties: dict[str, str] | None = None,
+        skip_validation: bool = False,
     ) -> None:
         """
         Initializes the BonsaiApp instance.
@@ -48,9 +46,6 @@ class BonsaiApp(ExecutableApp, _DefaultExecutorMixin):
             executable: Path to the Bonsai executable. Defaults to "./bonsai/bonsai.exe"
             is_editor_mode: Whether to run in editor mode. Defaults to True
             is_start_flag: Whether to use the start flag. Defaults to True
-            additional_properties: Additional properties to pass to Bonsai. Defaults to None
-            cwd: Working directory for the process. Defaults to None
-            timeout: Timeout for process execution. Defaults to None
             additional_externalized_properties: Additional externalized properties. Defaults to None
 
         Example:
@@ -72,17 +67,16 @@ class BonsaiApp(ExecutableApp, _DefaultExecutorMixin):
         self.executable = Path(executable).resolve()
         self.is_editor_mode = is_editor_mode
         self.is_start_flag = is_start_flag if not is_editor_mode else True
-        self.additional_properties = additional_properties or {}
-        self.cwd = cwd
-        self.timeout = timeout
 
-        self.validate()
+        if not skip_validation:
+            self.validate()
+
         __cmd = self._build_bonsai_process_command(
             workflow_file=self.workflow,
             bonsai_exe=self.executable,
             is_editor_mode=self.is_editor_mode,
             is_start_flag=self.is_start_flag,
-            additional_properties=self.additional_properties | (additional_externalized_properties or {}),
+            additional_properties=additional_externalized_properties or {},
         )
         self._command = Command[CommandResult](cmd=__cmd, output_parser=identity_parser)
 

@@ -35,7 +35,9 @@ class LocalExecutor(Executor):
         ```
     """
 
-    def __init__(self, cwd: os.PathLike | None = None, env: dict[str, str] | None = None) -> None:
+    def __init__(
+        self, cwd: os.PathLike | None = None, env: dict[str, str] | None = None, timeout: float | None = None
+    ) -> None:
         """Initialize the local executor.
 
         Args:
@@ -45,6 +47,7 @@ class LocalExecutor(Executor):
         """
         self.cwd = cwd or os.getcwd()
         self.env = env
+        self.timeout = timeout
 
     def run(self, command: Command[Any]) -> CommandResult:
         """Execute the command and return the result.
@@ -57,7 +60,9 @@ class LocalExecutor(Executor):
             result = executor.run(cmd)
             ```
         """
-        proc = subprocess.run(command.cmd, cwd=self.cwd, env=self.env, text=True, capture_output=True, check=False)
+        proc = subprocess.run(
+            command.cmd, cwd=self.cwd, env=self.env, text=True, capture_output=True, check=False, timeout=self.timeout
+        )
         proc.check_returncode()
         return CommandResult(stdout=proc.stdout, stderr=proc.stderr, exit_code=proc.returncode)
 
@@ -94,7 +99,9 @@ class AsyncLocalExecutor(AsyncExecutor):
         ```
     """
 
-    def __init__(self, cwd: os.PathLike | None = None, env: dict[str, str] | None = None) -> None:
+    def __init__(
+        self, cwd: os.PathLike | None = None, env: dict[str, str] | None = None, timeout: float | None = None
+    ) -> None:
         """Initialize the asynchronous local executor.
 
         Args:
@@ -104,6 +111,7 @@ class AsyncLocalExecutor(AsyncExecutor):
         """
         self.cwd = cwd or os.getcwd()
         self.env = env
+        self.timeout = timeout
 
     async def run_async(self, command: Command) -> CommandResult:
         """Execute the command asynchronously and return the result.
@@ -125,7 +133,14 @@ class AsyncLocalExecutor(AsyncExecutor):
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        stdout, stderr = await proc.communicate()
+
+        try:
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=self.timeout)
+        except asyncio.TimeoutError:
+            proc.kill()
+            await proc.wait()
+            assert self.timeout is not None
+            raise subprocess.TimeoutExpired(command.cmd, self.timeout)
 
         if proc.returncode is None:
             raise RuntimeError("Process did not complete successfully and returned no return code.")
