@@ -5,12 +5,13 @@ import subprocess
 from pathlib import Path
 from typing import Any, Optional
 
-from ..apps._base import Command, CommandResult, ExecutableApp, identity_parser
+from ._base import Command, CommandResult, ExecutableApp, identity_parser
+from ._executors import _DefaultExecutorMixin
 
 logger = logging.getLogger(__name__)
 
 
-class PythonScriptApp(ExecutableApp):
+class PythonScriptApp(ExecutableApp, _DefaultExecutorMixin):
     """
     Application class for running Python scripts within a managed uv environment.
 
@@ -166,13 +167,10 @@ class PythonScriptApp(ExecutableApp):
         """
         Validates the presence of the uv executable.
 
-        Returns:
-            bool: True if uv is installed
-
         Raises:
             RuntimeError: If uv is not installed
         """
-        if not shutil.which("uv") is not None:
+        if shutil.which("uv") is None:
             logger.error("uv executable not detected.")
             raise RuntimeError(
                 "uv is not installed in this computer. Please install uv. "

@@ -28,12 +28,12 @@ class ExecutableApp(Protocol):
 
 @runtime_checkable
 class Executor(Protocol):
-    def run(self, cmd: "Command") -> CommandResult: ...
+    def run(self, command: "Command") -> CommandResult: ...
 
 
 @runtime_checkable
 class AsyncExecutor(Protocol):
-    async def run_async(self, cmd: "Command") -> CommandResult: ...
+    async def run_async(self, command: "Command") -> CommandResult: ...
 
 
 TOutput = TypeVar("TOutput")

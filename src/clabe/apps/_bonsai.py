@@ -8,12 +8,13 @@ from aind_behavior_services import AindBehaviorRigModel, AindBehaviorSessionMode
 
 from clabe.launcher._base import Launcher
 
-from ..apps._base import Command, CommandResult, ExecutableApp, identity_parser
+from ._base import Command, CommandResult, ExecutableApp, identity_parser
+from ._executors import _DefaultExecutorMixin
 
 logger = logging.getLogger(__name__)
 
 
-class BonsaiApp(ExecutableApp):
+class BonsaiApp(ExecutableApp, _DefaultExecutorMixin):
     """
     A class to manage the execution of Bonsai workflows.
 

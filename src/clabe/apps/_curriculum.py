@@ -8,6 +8,7 @@ import pydantic
 
 from ..services import ServiceSettings
 from ._base import Command, ExecutableApp
+from ._executors import _DefaultExecutorMixin
 from ._python_script import PythonScriptApp
 
 logger = logging.getLogger(__name__)
@@ -50,7 +51,7 @@ class CurriculumSettings(ServiceSettings):
     curriculum: t.Optional[str] = None
 
 
-class CurriculumApp(ExecutableApp):
+class CurriculumApp(ExecutableApp, _DefaultExecutorMixin):
     """
     A curriculum application that manages the execution of behavior curriculum scripts.
 
