@@ -104,6 +104,7 @@ class CurriculumApp(ExecutableApp, _DefaultExecutorMixin):
             script=settings.script,
             project_directory=settings.project_directory,
             extra_uv_arguments="-q",
+            additional_arguments=" ".join(f"--{key} {value}" for key, value in kwargs.items()),
             **python_script_app_kwargs,
         )
 
