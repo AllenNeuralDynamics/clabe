@@ -501,7 +501,7 @@ class TestIntegration:
 
         # Run with first executor
         executor1 = MockExecutor(CommandResult(stdout="output1", stderr="", exit_code=0))
-        result1 = cmd.execute(executor1)
+        cmd.execute(executor1)
 
         # The command now has a result, so we need to override it
         executor2 = MockExecutor(CommandResult(stdout="output2", stderr="", exit_code=0))
