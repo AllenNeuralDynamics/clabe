@@ -31,7 +31,9 @@ class RpcServerSettings(ServiceSettings):
     port: int = Field(default=8000, description="Port to listen on")
     max_workers: int = Field(default=4, description="Maximum number of concurrent RPC commands")
     max_file_size: int = Field(default=5 * 1024 * 1024, description="Maximum file size in bytes (default 5MB)")
-    file_transfer_dir: Path = Field(default_factory=lambda: Path(os.environ.get("TEMP", "temp")), description="Directory for file transfers")
+    file_transfer_dir: Path = Field(
+        default_factory=lambda: Path(os.environ.get("TEMP", "temp")), description="Directory for file transfers"
+    )
 
 
 def get_local_ip():
@@ -144,7 +146,7 @@ class RpcServer:
             with open("myfile.txt", "rb") as f:
                 data = base64.b64encode(f.read()).decode('utf-8')
             result = server.upload_file(token, "myfile.txt", data)
-            
+
             # Or prevent overwriting
             result = server.upload_file(token, "myfile.txt", data, False)
             ```
@@ -164,7 +166,7 @@ class RpcServer:
             if len(file_data) > self.settings.max_file_size:
                 return {
                     "error": f"File too large. Maximum size: {self.settings.max_file_size} bytes "
-                    f"({self.settings.max_file_size / (1024*1024):.1f} MB)"
+                    f"({self.settings.max_file_size / (1024 * 1024):.1f} MB)"
                 }
 
             file_path.write_bytes(file_data)
@@ -218,7 +220,7 @@ class RpcServer:
             if file_size > self.settings.max_file_size:
                 return {
                     "error": f"File too large. Maximum size: {self.settings.max_file_size} bytes "
-                    f"({self.settings.max_file_size / (1024*1024):.1f} MB)"
+                    f"({self.settings.max_file_size / (1024 * 1024):.1f} MB)"
                 }
 
             file_data = file_path.read_bytes()
