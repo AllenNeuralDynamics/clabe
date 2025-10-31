@@ -39,10 +39,35 @@ class CurriculumSettings(ServiceSettings):
     Settings for the CurriculumApp.
 
     Configuration for curriculum execution including script path, project directory,
-    and data handling.
+    trainer state input, data handling, and curriculum selection.
+
+    Attributes:
+        script: The curriculum script/command to execute. Defaults to "curriculum run"
+        project_directory: Root directory of the curriculum project. Defaults to current directory
+        input_trainer_state: Path to the input trainer state file
+        data_directory: Directory containing session data for curriculum processing
+        curriculum: Optional specific curriculum name to use
+
+    Example:
+        ```python
+        # Basic settings
+        settings = CurriculumSettings(
+            input_trainer_state="/path/to/trainer_state.json",
+            data_directory="/data/session"
+        )
+        
+        # Settings with custom curriculum
+        settings = CurriculumSettings(
+            script="curriculum run",
+            project_directory="/path/to/curricula",
+            input_trainer_state="/path/to/trainer_state.json",
+            data_directory="/data/session",
+            curriculum="advanced_training"
+        )
+        ```
     """
 
-    __yml_section__: t.ClassVar[t.Literal["curriculum"]] = "curriculum"
+    __yml_section__: t.ClassVar[t.Optional[str]] = "curriculum"
 
     script: str = "curriculum run"
     project_directory: os.PathLike = Path(".")
@@ -56,12 +81,27 @@ class CurriculumApp(ExecutableApp, _DefaultExecutorMixin):
     A curriculum application that manages the execution of behavior curriculum scripts.
 
     Facilitates running curriculum modules within a managed Python environment, handling
-    trainer state input/output and data directory management.
+    trainer state input/output and data directory management. The app processes session
+    data through curriculum logic and generates suggestions for subsequent training stages.
 
-    Methods:
-        run: Executes the curriculum script
-        get_result: Retrieves the curriculum suggestion result
-        add_app_settings: Adds or updates application settings
+    Attributes:
+        command: The underlying command that will be executed
+
+    Example:
+        ```python
+        # Create and run curriculum app
+        settings = CurriculumSettings(
+            input_trainer_state="/path/to/trainer_state.json",
+            data_directory="/data/session_123"
+        )
+        app = CurriculumApp(settings)
+        app.run()
+        suggestion = app.process_suggestion()
+        
+        # Access the updated trainer state
+        new_state = suggestion.trainer_state
+        metrics = suggestion.metrics
+        ```
     """
 
     def __init__(
@@ -70,19 +110,31 @@ class CurriculumApp(ExecutableApp, _DefaultExecutorMixin):
         """
         Initializes the CurriculumApp with the specified settings.
 
+        Configures the curriculum application by setting up the Python script runner
+        with appropriate arguments for data directory, trainer state input, and
+        optional curriculum selection.
+
         Args:
             settings: Configuration settings for the curriculum application
+            python_script_app_kwargs: Optional keyword arguments to pass to PythonScriptApp
 
         Raises:
-            FileNotFoundError: If pyproject.toml cannot be found in parent directories
+            ValueError: If input_trainer_state or data_directory is not set in settings
 
         Example:
             ```python
+            # Basic initialization
             settings = CurriculumSettings(
-                entry_point="/path/to/curriculum/module",
+                input_trainer_state="/path/to/state.json",
                 data_directory="/data/session"
             )
             app = CurriculumApp(settings)
+            
+            # With custom Python script app kwargs
+            app = CurriculumApp(
+                settings,
+                python_script_app_kwargs={"skip_validation": True}
+            )
             ```
         """
         self._settings = settings
@@ -109,6 +161,26 @@ class CurriculumApp(ExecutableApp, _DefaultExecutorMixin):
         )
 
     def process_suggestion(self) -> CurriculumSuggestion:
+        """
+        Process and parse the curriculum command output into a CurriculumSuggestion.
+
+        Extracts the trainer state, metrics, and version information from the
+        command execution stdout.
+
+        Returns:
+            CurriculumSuggestion: Parsed curriculum suggestion with trainer state and metrics
+
+        Raises:
+            ValueError: If no stdout is available from command execution or if parsing fails
+
+        Example:
+            ```python
+            app = CurriculumApp(settings)
+            app.run()
+            suggestion = app.process_suggestion()
+            print(suggestion.trainer_state.stage.name)
+            ```
+        """
         if self._python_script_app.command.result.stdout is None:
             raise ValueError("No stdout from curriculum command execution.")
         return CurriculumSuggestion.model_validate_json(self._python_script_app.command.result.stdout)

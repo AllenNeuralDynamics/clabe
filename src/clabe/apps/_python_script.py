@@ -17,13 +17,37 @@ class PythonScriptApp(ExecutableApp, _DefaultExecutorMixin):
 
     Facilitates running Python scripts with automatic virtual environment management,
     dependency handling, and script execution. Uses the uv tool for environment and
-    dependency management.
+    dependency management, ensuring isolated and reproducible Python environments.
 
-    Methods:
-        run: Executes the Python script
-        get_result: Retrieves the result of the script execution
-        add_app_settings: Adds or updates application settings
-        create_environment: Creates or synchronizes the virtual environment
+    The app automatically validates uv installation, creates virtual environments if
+    needed, and constructs proper uv run commands with all necessary flags and arguments.
+
+    Attributes:
+        command: The underlying command that will be executed
+
+    Example:
+        ```python
+        # Simple script execution
+        app = PythonScriptApp(script="analyze_data.py")
+        result = app.run()
+        
+        # With project dependencies
+        app = PythonScriptApp(
+            script="process.py",
+            project_directory="/path/to/project",
+            optional_toml_dependencies=["data", "viz"]
+        )
+        
+        # Module execution with arguments
+        app = PythonScriptApp(
+            script="-m pytest",
+            additional_arguments="tests/ -v --cov",
+            extra_uv_arguments="-q"
+        )
+        
+        # Async execution
+        result = await app.run_async()
+        ```
     """
 
     def __init__(
@@ -40,24 +64,43 @@ class PythonScriptApp(ExecutableApp, _DefaultExecutorMixin):
         """
         Initializes the PythonScriptApp with the specified parameters.
 
+        Automatically validates the presence of uv and creates a virtual environment
+        if one doesn't exist (unless skip_validation is True). Constructs the full
+        uv run command with all specified arguments.
+
         Args:
-            script: The Python script to be executed
+            script: The Python script command to be executed (e.g., "my_module.py" or "my_package run")
             additional_arguments: Additional arguments to pass to the script. Defaults to empty string
             project_directory: The directory where the project resides. Defaults to current directory
-            extra_uv_arguments: Extra arguments to pass to the uv command. Defaults to empty string
-            optional_toml_dependencies: Additional TOML dependencies to include. Defaults to None
-            append_python_exe: Whether to append the Python executable to the command. Defaults to False
+            extra_uv_arguments: Extra arguments to pass to the uv command (e.g., "-q" for quiet). Defaults to empty string
+            optional_toml_dependencies: Additional TOML dependency groups to include (e.g., ["dev", "test"]). Defaults to None
+            append_python_exe: Whether to append "python" before the script command. Defaults to False
+            skip_validation: Skip uv validation and environment checks. Defaults to False
+
+        Raises:
+            RuntimeError: If uv is not installed (unless skip_validation=True)
 
         Example:
             ```python
-            # Initialize with basic script
+            # Basic script execution
             app = PythonScriptApp(script="test.py")
-
-            # Initialize with dependencies and arguments
+            app.run()
+            
+            # Script with module syntax
+            app = PythonScriptApp(script="-m pytest tests/")
+            
+            # With dependencies and arguments
             app = PythonScriptApp(
-                script="test.py",
-                additional_arguments="--verbose",
+                script="my_module.py",
+                additional_arguments="--verbose --output results.json",
                 optional_toml_dependencies=["dev", "test"]
+            )
+            
+            # With Python explicitly prepended
+            app = PythonScriptApp(
+                script="script.py",
+                append_python_exe=True,
+                project_directory="/path/to/project"
             )
             ```
         """
@@ -91,8 +134,19 @@ class PythonScriptApp(ExecutableApp, _DefaultExecutorMixin):
         """
         Checks if a virtual environment exists in the project directory.
 
+        Looks for a .venv directory within the specified project directory.
+
+        Args:
+            project_directory: The directory to check for a virtual environment
+
         Returns:
             bool: True if a virtual environment exists, False otherwise
+
+        Example:
+            ```python
+            if PythonScriptApp._has_venv("/my/project"):
+                print("Virtual environment found")
+            ```
         """
         return (Path(project_directory) / ".venv").exists()
 
@@ -103,8 +157,13 @@ class PythonScriptApp(ExecutableApp, _DefaultExecutorMixin):
         """
         Creates a Python virtual environment using the uv tool.
 
+        Executes 'uv venv' to create a .venv directory in the specified project
+        directory. This method is automatically called during initialization if
+        no virtual environment is detected.
+
         Args:
-            run_kwargs: Additional arguments for the subprocess.run call. Defaults to None
+            project_directory: Directory where the virtual environment will be created
+            run_kwargs: Additional keyword arguments for subprocess.run. Defaults to None
 
         Returns:
             subprocess.CompletedProcess: The result of the environment creation process
@@ -115,10 +174,13 @@ class PythonScriptApp(ExecutableApp, _DefaultExecutorMixin):
         Example:
             ```python
             # Create a virtual environment
-            app.create_environment()
+            PythonScriptApp.create_environment("/path/to/project")
 
-            # Create with custom run kwargs
-            app.create_environment(run_kwargs={"timeout": 30})
+            # Create with custom timeout
+            PythonScriptApp.create_environment(
+                "/path/to/project",
+                run_kwargs={"timeout": 60}
+            )
             ```
         """
         logger.info("Creating Python environment with uv venv at %s...", project_directory)
@@ -144,8 +206,20 @@ class PythonScriptApp(ExecutableApp, _DefaultExecutorMixin):
         """
         Constructs the --directory argument for the uv command.
 
+        Converts the project directory path to an absolute path and formats it
+        as a uv command-line argument.
+
+        Args:
+            project_directory: The project directory path
+
         Returns:
-            str: The --directory argument
+            str: The formatted --directory argument string
+
+        Example:
+            ```python
+            arg = PythonScriptApp._make_uv_project_directory("/my/project")
+            # Returns: "--directory /my/project"
+            ```
         """
 
         return f"--directory {Path(project_directory).resolve()}"
@@ -155,8 +229,23 @@ class PythonScriptApp(ExecutableApp, _DefaultExecutorMixin):
         """
         Constructs the --extra arguments for the uv command based on optional TOML dependencies.
 
+        Formats dependency groups defined in pyproject.toml [project.optional-dependencies]
+        as uv command-line arguments.
+
+        Args:
+            optional_toml_dependencies: List of optional dependency group names
+
         Returns:
-            str: The --extra arguments
+            str: The formatted --extra arguments string, or empty string if no dependencies
+
+        Example:
+            ```python
+            args = PythonScriptApp._make_uv_optional_toml_dependencies(["dev", "test"])
+            # Returns: "--extra dev --extra test"
+            
+            args = PythonScriptApp._make_uv_optional_toml_dependencies([])
+            # Returns: ""
+            ```
         """
         if not optional_toml_dependencies:
             return ""
@@ -165,10 +254,22 @@ class PythonScriptApp(ExecutableApp, _DefaultExecutorMixin):
     @staticmethod
     def _validate_uv() -> None:
         """
-        Validates the presence of the uv executable.
+        Validates the presence of the uv executable in the system PATH.
+
+        Checks if the uv tool is installed and accessible. This is called during
+        initialization unless skip_validation is True.
 
         Raises:
-            RuntimeError: If uv is not installed
+            RuntimeError: If uv is not installed or not found in PATH
+
+        Example:
+            ```python
+            try:
+                PythonScriptApp._validate_uv()
+                print("uv is installed")
+            except RuntimeError as e:
+                print(f"uv not found: {e}")
+            ```
         """
         if shutil.which("uv") is None:
             logger.error("uv executable not detected.")

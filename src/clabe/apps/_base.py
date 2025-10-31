@@ -20,6 +20,22 @@ class CommandResult(BaseModel):
 
 @runtime_checkable
 class ExecutableApp(Protocol):
+    """
+    Protocol defining the interface for executable applications.
+
+    Any class implementing this protocol must provide a `command` property that
+    returns a Command object, enabling standardized execution across different
+    application types.
+
+    Example:
+        ```python
+        class MyApp(ExecutableApp):
+            @property
+            def command(self) -> Command:
+                return Command(cmd="echo hello", output_parser=identity_parser)
+        ```
+    """
+
     @property
     def command(self) -> "Command":
         """Get the command to execute."""
@@ -28,11 +44,44 @@ class ExecutableApp(Protocol):
 
 @runtime_checkable
 class Executor(Protocol):
+    """
+    Protocol for synchronous command execution.
+
+    Defines the interface for executing commands synchronously and obtaining
+    results. Implementations should handle process execution, output capture,
+    and error handling.
+
+    Example:
+        ```python
+        class CustomExecutor(Executor):
+            def run(self, command: Command) -> CommandResult:
+                # Custom execution logic
+                return CommandResult(stdout="output", stderr="", exit_code=0)
+        ```
+    """
+
     def run(self, command: "Command") -> CommandResult: ...
 
 
 @runtime_checkable
 class AsyncExecutor(Protocol):
+    """
+    Protocol for asynchronous command execution.
+
+    Defines the interface for executing commands asynchronously using async/await
+    patterns. Implementations should handle asynchronous process execution, output
+    capture, and error handling.
+
+    Example:
+        ```python
+        class CustomAsyncExecutor(AsyncExecutor):
+            async def run_async(self, command: Command) -> CommandResult:
+                # Custom async execution logic
+                await asyncio.sleep(1)
+                return CommandResult(stdout="output", stderr="", exit_code=0)
+        ```
+    """
+
     async def run_async(self, command: "Command") -> CommandResult: ...
 
 
@@ -42,6 +91,35 @@ OutputParser: TypeAlias = Callable[[CommandResult], TOutput]
 
 
 class Command(Generic[TOutput]):
+    """
+    Represents a command to be executed with customizable output parsing.
+
+    Encapsulates command execution logic, result management, and output parsing.
+    Supports both synchronous and asynchronous execution patterns with type-safe
+    output parsing.
+
+    Attributes:
+        cmd: The command string to execute
+        result: The result of command execution (available after execution)
+
+    Example:
+        ```python
+        # Create a simple command
+        cmd = Command(cmd="echo hello", output_parser=identity_parser)
+        
+        # Execute with a synchronous executor
+        executor = LocalExecutor()
+        result = cmd.execute(executor)
+        
+        # Create a command with custom output parser
+        def parse_json(result: CommandResult) -> dict:
+            return json.loads(result.stdout)
+        
+        cmd = Command(cmd="get-data --json", output_parser=parse_json)
+        data = cmd.execute(executor)
+        ```
+    """
+
     def __init__(self, cmd: str, output_parser: OutputParser[TOutput]) -> None:
         self._cmd = cmd
         self._output_parser = output_parser

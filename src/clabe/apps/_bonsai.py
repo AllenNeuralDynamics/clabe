@@ -93,11 +93,19 @@ class BonsaiApp(ExecutableApp, _DefaultExecutorMixin):
 
     def validate(self) -> None:
         """
-        Returns:
-            bool: True if validation is successful
+        Validates the Bonsai application configuration.
+
+        Checks that the Bonsai executable and workflow file exist. Issues a warning
+        if editor mode is enabled, as it may prevent proper completion detection.
 
         Raises:
-            FileNotFoundError: If any required file or directory is missing
+            FileNotFoundError: If the executable or workflow file is not found
+
+        Example:
+            ```python
+            app = BonsaiApp(workflow="workflow.bonsai", executable="bonsai.exe")
+            app.validate()  # Called automatically during __init__
+            ```
         """
         if not Path(self.executable).exists():
             raise FileNotFoundError(f"Executable not found: {self.executable}")
@@ -114,7 +122,33 @@ class BonsaiApp(ExecutableApp, _DefaultExecutorMixin):
         is_start_flag: bool = True,
         additional_properties: Optional[Dict[str, str]] = None,
     ) -> str:
-        """Builds a shell command that can be used to run a Bonsai workflow via subprocess"""
+        """
+        Builds a shell command for running a Bonsai workflow via subprocess.
+
+        Constructs the complete command string with all necessary flags and properties
+        for executing a Bonsai workflow. Handles editor mode, start flag, and
+        externalized properties.
+
+        Args:
+            workflow_file: Path to the Bonsai workflow file
+            bonsai_exe: Path to the Bonsai executable. Defaults to "bonsai/bonsai.exe"
+            is_editor_mode: Whether to run in editor mode. Defaults to True
+            is_start_flag: Whether to include the --start flag. Defaults to True
+            additional_properties: Dictionary of externalized properties to pass. Defaults to None
+
+        Returns:
+            str: The complete command string
+
+        Example:
+            ```python
+            cmd = BonsaiApp._build_bonsai_process_command(
+                workflow_file="workflow.bonsai",
+                is_editor_mode=False,
+                additional_properties={"SubjectName": "Mouse123"}
+            )
+            # Returns: '"bonsai.exe" "workflow.bonsai" --no-editor -p:"SubjectName"="Mouse123"'
+            ```
+        """
         output_cmd: str = f'"{bonsai_exe}" "{workflow_file}"'
         if is_editor_mode:
             if is_start_flag:
@@ -156,27 +190,51 @@ class AindBehaviorServicesBonsaiApp(BonsaiApp):
         **kwargs,
     ) -> None:
         """
-        Adds AIND behavior services settings to the Bonsai workflow.
+        Initializes the AIND behavior services Bonsai app with automatic model configuration.
 
         Automatically configures RigPath, SessionPath, and TaskLogicPath properties
-        for the Bonsai workflow based on the provided models.
+        for the Bonsai workflow by saving provided models to temporary files and
+        passing their paths as externalized properties.
 
+        Attention: This class requires a local executor since it saves temporary files.
         Args:
             workflow: Path to the Bonsai workflow file
             launcher: The launcher instance for saving temporary models
-            executable: Path to the Bonsai executable. Defaults to "./bonsai/bonsai.exe"
-            is_editor_mode: Whether to run in editor mode. Defaults to True
-            is_start_flag: Whether to use the start flag. Defaults to True
-            additional_properties: Additional properties to pass to Bonsai. Defaults to None
-            cwd: Working directory for the process. Defaults to None
-            timeout: Timeout for process execution. Defaults to None
-            additional_externalized_properties: Additional externalized properties. Defaults to None
             rig: Optional rig model to configure. Defaults to None
             session: Optional session model to configure. Defaults to None
             task_logic: Optional task logic model to configure. Defaults to None
+            **kwargs: Additional keyword arguments passed to BonsaiApp (executable,
+                is_editor_mode, is_start_flag, additional_properties, cwd, timeout,
+                additional_externalized_properties)
 
-        Returns:
-            Self: The updated instance
+        Example:
+            ```python
+            from aind_behavior_services import (
+                AindBehaviorRigModel,
+                AindBehaviorSessionModel,
+                AindBehaviorTaskLogicModel
+            )
+            
+            # Create models
+            rig = AindBehaviorRigModel(...)
+            session = AindBehaviorSessionModel(...)
+            task_logic = AindBehaviorTaskLogicModel(...)
+            
+            # Create app with automatic configuration
+            app = AindBehaviorServicesBonsaiApp(
+                workflow="behavior_workflow.bonsai",
+                launcher=my_launcher,
+                rig=rig,
+                session=session,
+                task_logic=task_logic
+            )
+            app.run()
+            
+            # The workflow will receive:
+            # -p:"RigPath"="/tmp/rig_temp.json"
+            # -p:"SessionPath"="/tmp/session_temp.json"
+            # -p:"TaskLogicPath"="/tmp/task_logic_temp.json"
+            ```
         """
         additional_externalized_properties = kwargs.pop("additional_externalized_properties", {}) or {}
         if rig:
