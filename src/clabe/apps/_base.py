@@ -15,7 +15,13 @@ class CommandResult(BaseModel):
 
     @property
     def ok(self) -> bool:
+        """Check if the command executed successfully by examining the exit code."""
         return self.exit_code == 0
+
+    def check_returncode(self) -> None:
+        """Raise an error if the exit code indicates failure."""
+        if not self.ok:
+            raise RuntimeError(f"Command failed with exit code {self.exit_code}:\n{self.stderr}")
 
 
 @runtime_checkable
@@ -60,7 +66,9 @@ class Executor(Protocol):
         ```
     """
 
-    def run(self, command: "Command") -> CommandResult: ...
+    def run(self, command: "Command") -> CommandResult:
+        """Execute the command and return the result."""
+        ...
 
 
 @runtime_checkable
@@ -82,7 +90,9 @@ class AsyncExecutor(Protocol):
         ```
     """
 
-    async def run_async(self, command: "Command") -> CommandResult: ...
+    async def run_async(self, command: "Command") -> CommandResult:
+        """Execute the command asynchronously and return the result."""
+        ...
 
 
 TOutput = TypeVar("TOutput")
@@ -106,21 +116,32 @@ class Command(Generic[TOutput]):
         ```python
         # Create a simple command
         cmd = Command(cmd="echo hello", output_parser=identity_parser)
-        
+
         # Execute with a synchronous executor
         executor = LocalExecutor()
         result = cmd.execute(executor)
-        
+
         # Create a command with custom output parser
         def parse_json(result: CommandResult) -> dict:
             return json.loads(result.stdout)
-        
+
         cmd = Command(cmd="get-data --json", output_parser=parse_json)
         data = cmd.execute(executor)
         ```
     """
 
     def __init__(self, cmd: str, output_parser: OutputParser[TOutput]) -> None:
+        """Initialize the Command instance.
+        Args:
+            cmd: The command string to execute
+            output_parser: Function to parse the command result into desired output type
+
+        Example:
+            ```python
+            # Create a simple command
+            cmd = Command(cmd="echo hello", output_parser=identity_parser)
+            ```
+        """
         self._cmd = cmd
         self._output_parser = output_parser
         self._result: Optional[CommandResult] = None
@@ -173,4 +194,5 @@ class Command(Generic[TOutput]):
 
 
 def identity_parser(result: CommandResult) -> CommandResult:
+    """Helper parser that returns the CommandResult as-is."""
     return result

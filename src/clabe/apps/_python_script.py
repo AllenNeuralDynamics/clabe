@@ -30,21 +30,21 @@ class PythonScriptApp(ExecutableApp, _DefaultExecutorMixin):
         # Simple script execution
         app = PythonScriptApp(script="analyze_data.py")
         result = app.run()
-        
+
         # With project dependencies
         app = PythonScriptApp(
             script="process.py",
             project_directory="/path/to/project",
             optional_toml_dependencies=["data", "viz"]
         )
-        
+
         # Module execution with arguments
         app = PythonScriptApp(
             script="-m pytest",
             additional_arguments="tests/ -v --cov",
             extra_uv_arguments="-q"
         )
-        
+
         # Async execution
         result = await app.run_async()
         ```
@@ -85,17 +85,17 @@ class PythonScriptApp(ExecutableApp, _DefaultExecutorMixin):
             # Basic script execution
             app = PythonScriptApp(script="test.py")
             app.run()
-            
+
             # Script with module syntax
             app = PythonScriptApp(script="-m pytest tests/")
-            
+
             # With dependencies and arguments
             app = PythonScriptApp(
                 script="my_module.py",
                 additional_arguments="--verbose --output results.json",
                 optional_toml_dependencies=["dev", "test"]
             )
-            
+
             # With Python explicitly prepended
             app = PythonScriptApp(
                 script="script.py",
@@ -242,7 +242,7 @@ class PythonScriptApp(ExecutableApp, _DefaultExecutorMixin):
             ```python
             args = PythonScriptApp._make_uv_optional_toml_dependencies(["dev", "test"])
             # Returns: "--extra dev --extra test"
-            
+
             args = PythonScriptApp._make_uv_optional_toml_dependencies([])
             # Returns: ""
             ```

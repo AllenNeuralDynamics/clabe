@@ -22,13 +22,13 @@ class LocalExecutor(Executor):
         ```python
         # Create executor with default settings
         executor = LocalExecutor()
-        
+
         # Create executor with custom working directory
         executor = LocalExecutor(cwd="/path/to/workdir")
-        
+
         # Create executor with custom environment
         executor = LocalExecutor(env={"KEY": "value"})
-        
+
         # Execute a command
         cmd = Command(cmd="echo hello", output_parser=identity_parser)
         result = executor.run(cmd)
@@ -36,10 +36,27 @@ class LocalExecutor(Executor):
     """
 
     def __init__(self, cwd: os.PathLike | None = None, env: dict[str, str] | None = None) -> None:
+        """Initialize the local executor.
+
+        Args:
+            cwd: Working directory for command execution
+            env: Environment variables for the subprocess
+
+        """
         self.cwd = cwd or os.getcwd()
         self.env = env
 
     def run(self, command: Command[Any]) -> CommandResult:
+        """Execute the command and return the result.
+        Args:
+            command: The command to execute
+        Example:
+            ```python
+            executor = LocalExecutor()
+            cmd = Command(cmd="echo hello", output_parser=identity_parser)
+            result = executor.run(cmd)
+            ```
+        """
         proc = subprocess.run(command.cmd, cwd=self.cwd, env=self.env, text=True, capture_output=True, check=False)
         proc.check_returncode()
         return CommandResult(stdout=proc.stdout, stderr=proc.stderr, exit_code=proc.returncode)
@@ -61,11 +78,11 @@ class AsyncLocalExecutor(AsyncExecutor):
         ```python
         # Create async executor
         executor = AsyncLocalExecutor()
-        
+
         # Execute a command asynchronously
         cmd = Command(cmd="echo hello", output_parser=identity_parser)
         result = await executor.run_async(cmd)
-        
+
         # Run multiple commands concurrently
         executor = AsyncLocalExecutor(cwd="/workdir")
         cmd1 = Command(cmd="task1", output_parser=identity_parser)
@@ -78,10 +95,29 @@ class AsyncLocalExecutor(AsyncExecutor):
     """
 
     def __init__(self, cwd: os.PathLike | None = None, env: dict[str, str] | None = None) -> None:
+        """Initialize the asynchronous local executor.
+
+        Args:
+            cwd: Working directory for command execution
+            env: Environment variables for the subprocess
+
+        """
         self.cwd = cwd or os.getcwd()
         self.env = env
 
     async def run_async(self, command: Command) -> CommandResult:
+        """Execute the command asynchronously and return the result.
+
+        Args:
+            command: The command to execute
+
+        Example:
+            ```python
+            executor = AsyncLocalExecutor()
+            cmd = Command(cmd="echo hello", output_parser=identity_parser)
+            result = await executor.run_async(cmd)
+            ```
+        """
         proc = await asyncio.create_subprocess_shell(
             command.cmd,
             cwd=self.cwd,
@@ -121,15 +157,15 @@ class _DefaultExecutorMixin:
             @property
             def command(self) -> Command:
                 return Command(cmd="echo hello", output_parser=identity_parser)
-        
+
         app = MyApp()
-        
+
         # Run synchronously with default executor
         result = app.run()
-        
+
         # Run asynchronously
         result = await app.run_async()
-        
+
         # Run with custom executor kwargs
         result = app.run(executor_kwargs={"cwd": "/custom/path"})
         ```

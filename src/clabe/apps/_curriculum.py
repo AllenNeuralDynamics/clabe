@@ -55,7 +55,7 @@ class CurriculumSettings(ServiceSettings):
             input_trainer_state="/path/to/trainer_state.json",
             data_directory="/data/session"
         )
-        
+
         # Settings with custom curriculum
         settings = CurriculumSettings(
             script="curriculum run",
@@ -97,7 +97,7 @@ class CurriculumApp(ExecutableApp, _DefaultExecutorMixin):
         app = CurriculumApp(settings)
         app.run()
         suggestion = app.process_suggestion()
-        
+
         # Access the updated trainer state
         new_state = suggestion.trainer_state
         metrics = suggestion.metrics
@@ -129,7 +129,7 @@ class CurriculumApp(ExecutableApp, _DefaultExecutorMixin):
                 data_directory="/data/session"
             )
             app = CurriculumApp(settings)
-            
+
             # With custom Python script app kwargs
             app = CurriculumApp(
                 settings,

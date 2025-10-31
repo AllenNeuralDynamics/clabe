@@ -214,12 +214,12 @@ class AindBehaviorServicesBonsaiApp(BonsaiApp):
                 AindBehaviorSessionModel,
                 AindBehaviorTaskLogicModel
             )
-            
+
             # Create models
             rig = AindBehaviorRigModel(...)
             session = AindBehaviorSessionModel(...)
             task_logic = AindBehaviorTaskLogicModel(...)
-            
+
             # Create app with automatic configuration
             app = AindBehaviorServicesBonsaiApp(
                 workflow="behavior_workflow.bonsai",
@@ -229,7 +229,7 @@ class AindBehaviorServicesBonsaiApp(BonsaiApp):
                 task_logic=task_logic
             )
             app.run()
-            
+
             # The workflow will receive:
             # -p:"RigPath"="/tmp/rig_temp.json"
             # -p:"SessionPath"="/tmp/session_temp.json"
