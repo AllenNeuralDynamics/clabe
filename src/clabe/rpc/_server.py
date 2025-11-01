@@ -33,10 +33,12 @@ logger = logging.getLogger(__name__)
 
 
 def _default_token() -> SecretStr:
+    """Generate a default authentication token."""
     return SecretStr(secrets.token_urlsafe(32))
 
 
 class RpcServerSettings(ServiceSettings):
+    """Settings configuration for the RPC server."""
     __yaml_section__: ClassVar[str] = "rpc_server"
 
     token: SecretStr = Field(default_factory=_default_token, description="Authentication token for RPC access")
@@ -57,6 +59,8 @@ def get_local_ip():
 
 
 class RpcServer:
+    """XML-RPC server for remote command execution and file transfer."""
+    
     def __init__(self, settings: RpcServerSettings):
         self.settings = settings
         self.executor = ThreadPoolExecutor(max_workers=settings.max_workers)
@@ -407,7 +411,10 @@ class RpcServer:
 
 
 class _RpcServerCli(RpcServerSettings):
+    """CLI application wrapper for the RPC server."""
+    
     def cli_cmd(self):
+        """Start the RPC server and run it until interrupted."""
         server = RpcServer(settings=self)
         try:
             server.server.serve_forever()
