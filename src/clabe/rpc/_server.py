@@ -123,15 +123,17 @@ class RpcServer:
         if job_id not in self.jobs:
             return JobStatusResponse(
                 success=False, error="Invalid job_id", job_id=job_id, status=JobStatus.ERROR
-            ).model_dump()
+            ).model_dump(mode="json")
 
         future = self.jobs[job_id]
         if not future.done():
-            return JobStatusResponse(success=True, job_id=job_id, status=JobStatus.RUNNING).model_dump()
+            return JobStatusResponse(success=True, job_id=job_id, status=JobStatus.RUNNING).model_dump(mode="json")
 
         result = future.result()
         del self.jobs[job_id]  # cleanup finished job
-        return JobStatusResponse(success=True, job_id=job_id, status=JobStatus.DONE, result=result).model_dump()
+        return JobStatusResponse(success=True, job_id=job_id, status=JobStatus.DONE, result=result).model_dump(
+            mode="json"
+        )
 
     def is_running(self, job_id):
         """Check if a job is still running"""
@@ -143,7 +145,7 @@ class RpcServer:
         """List all running jobs"""
         running_jobs = [jid for jid, fut in self.jobs.items() if not fut.done()]
         finished_jobs = [jid for jid, fut in self.jobs.items() if fut.done()]
-        return JobListResponse(success=True, running=running_jobs, finished=finished_jobs).model_dump()
+        return JobListResponse(success=True, running=running_jobs, finished=finished_jobs).model_dump(mode="json")
 
     def upload_file(self, filename: str, data_base64: str, overwrite: bool = True) -> dict:
         """
@@ -236,7 +238,7 @@ class RpcServer:
                     size=None,
                     data=None,
                 )
-                return response.model_dump()
+                return response.model_dump(mode="json")
 
             file_path = self.settings.file_transfer_dir / safe_filename
 
@@ -244,13 +246,13 @@ class RpcServer:
                 response = FileDownloadResponse(
                     success=False, error=f"File not found: {safe_filename}", filename=None, size=None, data=None
                 )
-                return response.model_dump()
+                return response.model_dump(mode="json")
 
             if not file_path.is_file():
                 response = FileDownloadResponse(
                     success=False, error=f"Not a file: {safe_filename}", filename=None, size=None, data=None
                 )
-                return response.model_dump()
+                return response.model_dump(mode="json")
 
             file_size = file_path.stat().st_size
             if file_size > self.settings.max_file_size:
@@ -262,20 +264,25 @@ class RpcServer:
                     size=None,
                     data=None,
                 )
-                return response.model_dump()
+                return response.model_dump(mode="json")
 
             file_data = file_path.read_bytes()
 
+            # Base64 encode the data for Base64Bytes field
+            import base64
+
+            base64_encoded_data = base64.b64encode(file_data)
+
             logger.info(f"File downloaded: {safe_filename} ({len(file_data)} bytes)")
             response = FileDownloadResponse(
-                success=True, error=None, filename=safe_filename, size=len(file_data), data=file_data
+                success=True, error=None, filename=safe_filename, size=len(file_data), data=base64_encoded_data
             )
-            return response.model_dump()
+            return response.model_dump(mode="json")
 
         except Exception as e:
             logger.error(f"Error downloading file: {e}")
             response = FileDownloadResponse(success=False, error=str(e), filename=None, size=None, data=None)
-            return response.model_dump()
+            return response.model_dump(mode="json")
 
     def list_files(self) -> dict:
         """

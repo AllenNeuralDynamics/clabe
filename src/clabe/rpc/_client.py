@@ -102,11 +102,11 @@ class RpcClient:
         """
         result = self._call_with_auth("result", job_id)
 
-        if result["status"] == JobStatus.RUNNING:
+        if result["status"] == JobStatus.RUNNING.value:
             return JobResult(
                 job_id=job_id, status=JobStatus.RUNNING, stdout=None, stderr=None, returncode=None, error=None
             )
-        elif result["status"] == JobStatus.DONE:
+        elif result["status"] == JobStatus.DONE.value:
             job_result = result["result"]
             return JobResult(
                 job_id=job_id,
@@ -288,6 +288,13 @@ class RpcClient:
 
         result = self._call_with_auth("download_file", remote_filename)
 
+        # Handle XML-RPC Binary object conversion
+        import xmlrpc.client
+
+        if "data" in result and result["data"] is not None and isinstance(result["data"], xmlrpc.client.Binary):
+            # XML-RPC Binary object contains raw bytes - convert to bytes
+            result["data"] = result["data"].data
+
         # Use Pydantic model to parse response
         response = FileDownloadResponse(**result)
 
@@ -300,7 +307,8 @@ class RpcClient:
         if response.data is None:
             raise Exception("No file data received from server")
 
-        file_data = base64.b64decode(response.data)
+        # Base64Bytes automatically decodes to raw bytes when accessed
+        file_data = response.data
         local_path.write_bytes(file_data)
 
         logger.info(f"Successfully downloaded {remote_filename} ({response.size} bytes)")
