@@ -7,7 +7,17 @@ from xmlrpc.client import ServerProxy
 
 from pydantic import BaseModel, Field, HttpUrl, SecretStr
 
-from .models import FileDownloadResponse, FileInfo, JobResult, JobStatus
+from .models import (
+    FileBulkDeleteResponse,
+    FileDeleteResponse,
+    FileDownloadResponse,
+    FileInfo,
+    FileUploadResponse,
+    JobListResponse,
+    JobResult,
+    JobStatus,
+    JobSubmissionResponse,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +71,7 @@ class RpcClient:
 
         return result
 
-    def submit_command(self, cmd_args: list[str]) -> str:
+    def submit_command(self, cmd_args: list[str]) -> JobSubmissionResponse:
         """
         Submit a command for background execution.
 
@@ -69,18 +79,19 @@ class RpcClient:
             cmd_args: List of command arguments (e.g., ["python", "-c", "print('hello')"])
 
         Returns:
-            Job ID for tracking the command execution
+            JobSubmissionResponse with job ID and success status
 
         Example:
             ```python
             client = RpcClient(settings)
-            job_id = client.submit_command(["echo", "hello world"])
+            response = client.submit_command(["echo", "hello world"])
+            job_id = response.job_id
             ```
         """
         result = self._call_with_auth("run", cmd_args)
-        job_id = result["job_id"]
-        logger.info(f"Submitted command {cmd_args} with job ID: {job_id}")
-        return job_id
+        response = JobSubmissionResponse(**result)
+        logger.info(f"Submitted command {cmd_args} with job ID: {response.job_id}")
+        return response
 
     def get_result(self, job_id: str) -> JobResult:
         """
@@ -170,8 +181,10 @@ class RpcClient:
             print(f"Python version: {result.stdout.strip()}")
             ```
         """
-        job_id = self.submit_command(cmd_args)
-        return self.wait_for_result(job_id, timeout)
+        submission = self.submit_command(cmd_args)
+        if submission.job_id is None:
+            raise Exception("Job submission failed: no job ID returned")
+        return self.wait_for_result(submission.job_id, timeout)
 
     def is_running(self, job_id: str) -> bool:
         """
@@ -191,27 +204,29 @@ class RpcClient:
                 print("Job has completed")
             ```
         """
-        return self._call_with_auth("is_running", job_id)
+        result = self._call_with_auth("is_running", job_id)
+        return bool(result)
 
-    def list_jobs(self) -> dict[str, list[str]]:
+    def list_jobs(self) -> JobListResponse:
         """
         List all running and finished jobs.
 
         Returns:
-            Dictionary with 'running' and 'finished' lists of job IDs
+            JobListResponse with lists of running and finished job IDs
 
         Example:
             ```python
             jobs = client.list_jobs()
-            print(f"Running jobs: {jobs['running']}")
-            print(f"Finished jobs: {jobs['finished']}")
+            print(f"Running jobs: {jobs.running}")
+            print(f"Finished jobs: {jobs.finished}")
             ```
         """
-        return self._call_with_auth("jobs")
+        result = self._call_with_auth("jobs")
+        return JobListResponse(**result)
 
     def upload_file(
         self, local_path: Union[str, Path], remote_filename: Optional[str] = None, overwrite: bool = True
-    ) -> dict:
+    ) -> FileUploadResponse:
         """
         Upload a file to the server.
 
@@ -221,7 +236,7 @@ class RpcClient:
             overwrite: Whether to overwrite existing files
 
         Returns:
-            Dictionary with upload result information
+            FileUploadResponse with upload result information
 
         Raises:
             FileNotFoundError: If the local file doesn't exist
@@ -230,7 +245,7 @@ class RpcClient:
         Example:
             ```python
             result = client.upload_file("./local_file.txt", "remote_file.txt")
-            print(f"Uploaded {result['size']} bytes")
+            print(f"Uploaded {result.size} bytes")
             ```
         """
         local_path = Path(local_path)
@@ -258,13 +273,12 @@ class RpcClient:
         logger.info(f"Uploading file {local_path} as {remote_filename} ({file_size} bytes)")
 
         result = self._call_with_auth("upload_file", remote_filename, data_base64, overwrite)
+        response = FileUploadResponse(**result)
 
         logger.info(f"Successfully uploaded {remote_filename}")
-        return result
+        return response
 
-    def upload_model(
-        self, model: BaseModel, remote_filename: str, overwrite: bool = True
-    ) -> dict:
+    def upload_model(self, model: BaseModel, remote_filename: str, overwrite: bool = True) -> FileUploadResponse:
         """
         Upload a Pydantic model to the server as a JSON file.
 
@@ -274,7 +288,7 @@ class RpcClient:
             overwrite: Whether to overwrite existing files
 
         Returns:
-            Dictionary with upload result information
+            FileUploadResponse with upload result information
 
         Raises:
             Exception: If the serialized data is too large or upload fails
@@ -282,19 +296,19 @@ class RpcClient:
         Example:
             ```python
             from pydantic import BaseModel
-            
+
             class MyModel(BaseModel):
                 name: str
                 value: int
-            
+
             my_data = MyModel(name="test", value=42)
             result = client.upload_model(my_data, "config.json")
-            print(f"Uploaded {result['size']} bytes")
+            print(f"Uploaded {result.size} bytes")
             ```
         """
         json_data = model.model_dump_json()
         json_bytes = json_data.encode("utf-8")
-        
+
         data_size = len(json_bytes)
         if data_size > self.settings.max_file_size:
             raise Exception(
@@ -308,9 +322,10 @@ class RpcClient:
         logger.info(f"Uploading model as {remote_filename} ({data_size} bytes)")
 
         result = self._call_with_auth("upload_file", remote_filename, data_base64, overwrite)
+        response = FileUploadResponse(**result)
 
         logger.info(f"Successfully uploaded model as {remote_filename}")
-        return result
+        return response
 
     def download_file(self, remote_filename: str, local_path: Optional[Union[str, Path]] = None) -> Path:
         """
@@ -381,7 +396,7 @@ class RpcClient:
         result = self._call_with_auth("list_files")
         return [FileInfo(**file_data) for file_data in result["files"]]
 
-    def delete_file(self, remote_filename: str) -> dict:
+    def delete_file(self, remote_filename: str) -> FileDeleteResponse:
         """
         Delete a file from the server.
 
@@ -389,36 +404,38 @@ class RpcClient:
             remote_filename: Name of the file to delete
 
         Returns:
-            Dictionary with deletion result
+            FileDeleteResponse with deletion result
 
         Example:
             ```python
             result = client.delete_file("unwanted_file.txt")
-            print(f"Deleted: {result['filename']}")
+            print(f"Deleted: {result.filename}")
             ```
         """
         logger.info(f"Deleting file {remote_filename}")
         result = self._call_with_auth("delete_file", remote_filename)
+        response = FileDeleteResponse(**result)
         logger.info(f"Successfully deleted {remote_filename}")
-        return result
+        return response
 
-    def delete_all_files(self) -> dict:
+    def delete_all_files(self) -> FileBulkDeleteResponse:
         """
         Delete all files from the server.
 
         Returns:
-            Dictionary with deletion results including count and list of deleted files
+            FileBulkDeleteResponse with deletion results including count and list of deleted files
 
         Example:
             ```python
             result = client.delete_all_files()
-            print(f"Deleted {result['deleted_count']} files")
+            print(f"Deleted {result.deleted_count} files")
             ```
         """
         logger.info("Deleting all files from server")
         result = self._call_with_auth("delete_all_files")
-        logger.info(f"Successfully deleted {result['deleted_count']} files")
-        return result
+        response = FileBulkDeleteResponse(**result)
+        logger.info(f"Successfully deleted {response.deleted_count} files")
+        return response
 
     def ping(self) -> bool:
         """
