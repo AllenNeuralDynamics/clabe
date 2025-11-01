@@ -39,6 +39,7 @@ def _default_token() -> SecretStr:
 
 class RpcServerSettings(ServiceSettings):
     """Settings configuration for the RPC server."""
+
     __yaml_section__: ClassVar[str] = "rpc_server"
 
     token: SecretStr = Field(default_factory=_default_token, description="Authentication token for RPC access")
@@ -60,7 +61,7 @@ def get_local_ip():
 
 class RpcServer:
     """XML-RPC server for remote command execution and file transfer."""
-    
+
     def __init__(self, settings: RpcServerSettings):
         self.settings = settings
         self.executor = ThreadPoolExecutor(max_workers=settings.max_workers)
@@ -410,9 +411,9 @@ class RpcServer:
             return response.model_dump()
 
 
-class _RpcServerCli(RpcServerSettings):
+class _RpcServerStartCli(RpcServerSettings):
     """CLI application wrapper for the RPC server."""
-    
+
     def cli_cmd(self):
         """Start the RPC server and run it until interrupted."""
         server = RpcServer(settings=self)
@@ -423,4 +424,4 @@ class _RpcServerCli(RpcServerSettings):
 
 
 if __name__ == "__main__":
-    CliApp().run(_RpcServerCli)
+    CliApp().run(_RpcServerStartCli)
