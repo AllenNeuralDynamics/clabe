@@ -262,6 +262,56 @@ class RpcClient:
         logger.info(f"Successfully uploaded {remote_filename}")
         return result
 
+    def upload_model(
+        self, model: BaseModel, remote_filename: str, overwrite: bool = True
+    ) -> dict:
+        """
+        Upload a Pydantic model to the server as a JSON file.
+
+        Args:
+            model: Any Pydantic BaseModel or its subclass to upload
+            remote_filename: Name to use on the server for the JSON file
+            overwrite: Whether to overwrite existing files
+
+        Returns:
+            Dictionary with upload result information
+
+        Raises:
+            Exception: If the serialized data is too large or upload fails
+
+        Example:
+            ```python
+            from pydantic import BaseModel
+            
+            class MyModel(BaseModel):
+                name: str
+                value: int
+            
+            my_data = MyModel(name="test", value=42)
+            result = client.upload_model(my_data, "config.json")
+            print(f"Uploaded {result['size']} bytes")
+            ```
+        """
+        json_data = model.model_dump_json()
+        json_bytes = json_data.encode("utf-8")
+        
+        data_size = len(json_bytes)
+        if data_size > self.settings.max_file_size:
+            raise Exception(
+                f"Serialized model too large: {data_size} bytes. Maximum: {self.settings.max_file_size} bytes "
+                f"({self.settings.max_file_size / (1024 * 1024):.1f} MB)"
+            )
+
+        # Encode for transport
+        data_base64 = base64.b64encode(json_bytes).decode("utf-8")
+
+        logger.info(f"Uploading model as {remote_filename} ({data_size} bytes)")
+
+        result = self._call_with_auth("upload_file", remote_filename, data_base64, overwrite)
+
+        logger.info(f"Successfully uploaded model as {remote_filename}")
+        return result
+
     def download_file(self, remote_filename: str, local_path: Optional[Union[str, Path]] = None) -> Path:
         """
         Download a file from the server.

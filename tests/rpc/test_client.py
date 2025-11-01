@@ -334,6 +334,38 @@ class TestFileOperations:
 
         assert result["filename"] == "default_name.txt"
 
+    def test_upload_model_success(self, rpc_client):
+        """Test successful model upload."""
+        from pydantic import BaseModel
+
+        class TestModel(BaseModel):
+            name: str
+            value: int
+            active: bool
+
+        test_model = TestModel(name="test_config", value=42, active=True)
+        result = rpc_client.upload_model(test_model, "test_model.json")
+
+        assert result["success"] is True
+        assert result["filename"] == "test_model.json"
+        # The size should match the JSON serialized size
+        expected_json = test_model.model_dump_json()
+        assert result["size"] == len(expected_json.encode("utf-8"))
+
+    def test_upload_model_too_large(self, rpc_client):
+        """Test uploading model that serializes to data larger than limit."""
+        from pydantic import BaseModel
+
+        class LargeModel(BaseModel):
+            large_data: str
+
+        # Create a model with data that exceeds the 1MB limit when serialized
+        large_data = "x" * (2 * 1024 * 1024)  # 2MB string
+        large_model = LargeModel(large_data=large_data)
+
+        with pytest.raises(Exception, match="Serialized model too large"):
+            rpc_client.upload_model(large_model, "large_model.json")
+
     def test_download_file_success(self, rpc_client, tmp_path):
         """Test successful file download."""
         # First upload a file
