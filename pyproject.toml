@@ -11,7 +11,7 @@ authors = [
 license = "MIT"
 license-files = ["LICENSE"]
 requires-python = ">=3.11"
-version = "0.8.3"
+version = "0.9.0rc0"
 readme = {file = "README.md", content-type = "text/markdown"}
 
 classifiers = [
@@ -72,6 +72,9 @@ docs = [
     'pymdown-extensions',
     'ruff',
 ]
+
+[project.scripts]
+clabe = "clabe.cli:main"
 
 [tool.uv]
 default-groups = ['dev']
