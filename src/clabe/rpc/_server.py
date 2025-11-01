@@ -16,6 +16,19 @@ from pydantic_settings import CliApp
 
 from clabe.services import ServiceSettings
 
+from .models import (
+    FileBulkDeleteResponse,
+    FileDeleteResponse,
+    FileDownloadResponse,
+    FileInfo,
+    FileListResponse,
+    FileUploadResponse,
+    JobListResponse,
+    JobStatus,
+    JobStatusResponse,
+    JobSubmissionResponse,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -102,18 +115,23 @@ class RpcServer:
         future = self.executor.submit(self._run_command_sync, cmd_args)
         self.jobs[job_id] = future
         logger.info(f"Submitted job {job_id}: {cmd_args}")
-        return {"job_id": job_id}
+        response = JobSubmissionResponse(success=True, job_id=job_id)
+        return response.model_dump()
 
     def get_result(self, job_id):
         """Fetch the result of a finished command"""
         if job_id not in self.jobs:
-            return {"error": "Invalid job_id"}
+            return JobStatusResponse(
+                success=False, error="Invalid job_id", job_id=job_id, status=JobStatus.ERROR
+            ).model_dump()
+
         future = self.jobs[job_id]
         if not future.done():
-            return {"status": "running"}
+            return JobStatusResponse(success=True, job_id=job_id, status=JobStatus.RUNNING).model_dump()
+
         result = future.result()
         del self.jobs[job_id]  # cleanup finished job
-        return {"status": "done", "result": result}
+        return JobStatusResponse(success=True, job_id=job_id, status=JobStatus.DONE, result=result).model_dump()
 
     def is_running(self, job_id):
         """Check if a job is still running"""
@@ -123,10 +141,9 @@ class RpcServer:
 
     def list_jobs(self):
         """List all running jobs"""
-        return {
-            "running": [jid for jid, fut in self.jobs.items() if not fut.done()],
-            "finished": [jid for jid, fut in self.jobs.items() if fut.done()],
-        }
+        running_jobs = [jid for jid, fut in self.jobs.items() if not fut.done()]
+        finished_jobs = [jid for jid, fut in self.jobs.items() if fut.done()]
+        return JobListResponse(success=True, running=running_jobs, finished=finished_jobs).model_dump()
 
     def upload_file(self, filename: str, data_base64: str, overwrite: bool = True) -> dict:
         """
@@ -155,33 +172,39 @@ class RpcServer:
             # For now lets force simple filenames to avoid directory traversal
             safe_filename = Path(filename).name
             if safe_filename != filename or ".." in filename:
-                return {"error": "Invalid filename - only simple filenames allowed, no paths"}
+                return FileUploadResponse(
+                    success=False, error="Invalid filename - only simple filenames allowed, no paths"
+                ).model_dump()
 
             file_path = self.settings.file_transfer_dir / safe_filename
+            overwritten = file_path.exists()
             if file_path.exists() and not overwrite:
-                return {"error": f"File already exists: {safe_filename}. Set overwrite=True to replace."}
+                return FileUploadResponse(
+                    success=False, error=f"File already exists: {safe_filename}. Set overwrite=True to replace."
+                ).model_dump()
 
             file_data = base64.b64decode(data_base64)
 
             if len(file_data) > self.settings.max_file_size:
-                return {
-                    "error": f"File too large. Maximum size: {self.settings.max_file_size} bytes "
-                    f"({self.settings.max_file_size / (1024 * 1024):.1f} MB)"
-                }
+                return FileUploadResponse(
+                    success=False,
+                    error=f"File too large. Maximum size: {self.settings.max_file_size} bytes "
+                    f"({self.settings.max_file_size / (1024 * 1024):.1f} MB)",
+                ).model_dump()
 
             file_path.write_bytes(file_data)
 
             logger.info(f"File uploaded: {safe_filename} ({len(file_data)} bytes)")
-            return {
-                "success": True,
-                "filename": safe_filename,
-                "size": len(file_data),
-                "overwritten": file_path.exists(),
-            }
+            return FileUploadResponse(
+                success=True,
+                filename=safe_filename,
+                size=len(file_data),
+                overwritten=overwritten,
+            ).model_dump()
 
         except Exception as e:
             logger.error(f"Error uploading file: {e}")
-            return {"error": str(e)}
+            return FileUploadResponse(success=False, error=str(e)).model_dump()
 
     def download_file(self, filename: str) -> dict:
         """
@@ -206,32 +229,53 @@ class RpcServer:
         try:
             safe_filename = Path(filename).name
             if safe_filename != filename or ".." in filename:
-                return {"error": "Invalid filename - only simple filenames allowed, no paths"}
+                response = FileDownloadResponse(
+                    success=False,
+                    error="Invalid filename - only simple filenames allowed, no paths",
+                    filename=None,
+                    size=None,
+                    data=None,
+                )
+                return response.model_dump()
 
             file_path = self.settings.file_transfer_dir / safe_filename
 
             if not file_path.exists():
-                return {"error": f"File not found: {safe_filename}"}
+                response = FileDownloadResponse(
+                    success=False, error=f"File not found: {safe_filename}", filename=None, size=None, data=None
+                )
+                return response.model_dump()
 
             if not file_path.is_file():
-                return {"error": f"Not a file: {safe_filename}"}
+                response = FileDownloadResponse(
+                    success=False, error=f"Not a file: {safe_filename}", filename=None, size=None, data=None
+                )
+                return response.model_dump()
 
             file_size = file_path.stat().st_size
             if file_size > self.settings.max_file_size:
-                return {
-                    "error": f"File too large. Maximum size: {self.settings.max_file_size} bytes "
-                    f"({self.settings.max_file_size / (1024 * 1024):.1f} MB)"
-                }
+                response = FileDownloadResponse(
+                    success=False,
+                    error=f"File too large. Maximum size: {self.settings.max_file_size} bytes "
+                    f"({self.settings.max_file_size / (1024 * 1024):.1f} MB)",
+                    filename=None,
+                    size=None,
+                    data=None,
+                )
+                return response.model_dump()
 
             file_data = file_path.read_bytes()
-            data_base64 = base64.b64encode(file_data).decode("utf-8")
 
             logger.info(f"File downloaded: {safe_filename} ({len(file_data)} bytes)")
-            return {"success": True, "filename": safe_filename, "size": len(file_data), "data": data_base64}
+            response = FileDownloadResponse(
+                success=True, error=None, filename=safe_filename, size=len(file_data), data=file_data
+            )
+            return response.model_dump()
 
         except Exception as e:
             logger.error(f"Error downloading file: {e}")
-            return {"error": str(e)}
+            response = FileDownloadResponse(success=False, error=str(e), filename=None, size=None, data=None)
+            return response.model_dump()
 
     def list_files(self) -> dict:
         """
@@ -249,24 +293,25 @@ class RpcServer:
             ```
         """
         try:
-            files = []
+            file_infos = []
             for file_path in self.settings.file_transfer_dir.iterdir():
                 if file_path.is_file():
                     stat = file_path.stat()
-                    files.append(
-                        {
-                            "name": file_path.name,
-                            "size": stat.st_size,
-                            "modified": stat.st_mtime,
-                        }
+                    file_info = FileInfo(
+                        name=file_path.name,
+                        size=stat.st_size,
+                        modified=stat.st_mtime,
                     )
+                    file_infos.append(file_info)
 
-            files.sort(key=lambda x: x["name"])
-            return {"success": True, "files": files, "count": len(files)}
+            file_infos.sort(key=lambda x: x.name)
+            response = FileListResponse(success=True, error=None, files=file_infos, count=len(file_infos))
+            return response.model_dump()
 
         except Exception as e:
             logger.error(f"Error listing files: {e}")
-            return {"error": str(e)}
+            response = FileListResponse(success=False, error=str(e), files=[], count=0)
+            return response.model_dump()
 
     def delete_file(self, filename: str) -> dict:
         """
@@ -287,23 +332,30 @@ class RpcServer:
         try:
             safe_filename = Path(filename).name
             if safe_filename != filename or ".." in filename:
-                return {"error": "Invalid filename - only simple filenames allowed, no paths"}
+                response = FileDeleteResponse(
+                    success=False, error="Invalid filename - only simple filenames allowed, no paths", filename=None
+                )
+                return response.model_dump()
 
             file_path = self.settings.file_transfer_dir / safe_filename
 
             if not file_path.exists():
-                return {"error": f"File not found: {safe_filename}"}
+                response = FileDeleteResponse(success=False, error=f"File not found: {safe_filename}", filename=None)
+                return response.model_dump()
 
             if not file_path.is_file():
-                return {"error": f"Not a file: {safe_filename}"}
+                response = FileDeleteResponse(success=False, error=f"Not a file: {safe_filename}", filename=None)
+                return response.model_dump()
 
             file_path.unlink()
             logger.info(f"File deleted: {safe_filename}")
-            return {"success": True, "filename": safe_filename}
+            response = FileDeleteResponse(success=True, error=None, filename=safe_filename)
+            return response.model_dump()
 
         except Exception as e:
             logger.error(f"Error deleting file: {e}")
-            return {"error": str(e)}
+            response = FileDeleteResponse(success=False, error=str(e), filename=None)
+            return response.model_dump()
 
     def delete_all_files(self) -> dict:
         """
@@ -333,15 +385,18 @@ class RpcServer:
                         logger.warning(f"Failed to delete {file_path.name}: {e}")
 
             logger.info(f"Deleted all files: {deleted_count} file(s) removed")
-            return {
-                "success": True,
-                "deleted_count": deleted_count,
-                "deleted_files": deleted_files,
-            }
+            response = FileBulkDeleteResponse(
+                success=True,
+                error=None,
+                deleted_count=deleted_count,
+                deleted_files=deleted_files,
+            )
+            return response.model_dump()
 
         except Exception as e:
             logger.error(f"Error deleting all files: {e}")
-            return {"error": str(e)}
+            response = FileBulkDeleteResponse(success=False, error=str(e), deleted_count=0, deleted_files=[])
+            return response.model_dump()
 
 
 class _RpcServerCli(RpcServerSettings):
