@@ -164,7 +164,10 @@ class TestRpcServer:
         client, token = rpc_client
 
         result = client.result(token, "invalid-job-id")
-        assert result == {"error": "Invalid job_id"}
+        assert result["success"] is False
+        assert result["error"] == "Invalid job_id"
+        assert result["job_id"] == "invalid-job-id"
+        assert result["status"] == "error"
 
     def test_is_running(self, rpc_client):
         """Test checking if job is running."""

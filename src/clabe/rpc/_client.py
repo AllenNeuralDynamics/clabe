@@ -384,3 +384,12 @@ class RpcClient:
         except Exception as e:
             logger.warning(f"Server ping failed: {e}")
             return False
+
+    def __enter__(self):
+        """Enter the runtime context."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Exit the runtime context."""
+        logger.info("RPC client context exited")
+        return False

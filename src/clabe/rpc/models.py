@@ -22,26 +22,26 @@ class JobStatus(str, Enum):
 class JobResult(BaseModel):
     """Represents the result of a command execution."""
 
-    job_id: str = Field(..., description="Unique identifier for the job")
-    status: JobStatus = Field(..., description="Job status")
-    stdout: Optional[str] = Field(None, description="Standard output from the command")
-    stderr: Optional[str] = Field(None, description="Standard error from the command")
-    returncode: Optional[int] = Field(None, description="Exit code of the command")
-    error: Optional[str] = Field(None, description="Error message if command failed")
+    job_id: str = Field(description="Unique identifier for the job")
+    status: JobStatus = Field(description="Job status")
+    stdout: Optional[str] = Field(default=None, description="Standard output from the command")
+    stderr: Optional[str] = Field(default=None, description="Standard error from the command")
+    returncode: Optional[int] = Field(default=None, description="Exit code of the command")
+    error: Optional[str] = Field(default=None, description="Error message if command failed")
 
 
 class FileInfo(BaseModel):
     """Represents information about a file on the server."""
 
-    name: str = Field(..., description="Name of the file")
-    size: int = Field(..., description="Size of the file in bytes")
-    modified: float = Field(..., description="Last modified time as Unix timestamp")
+    name: str = Field(description="Name of the file")
+    size: int = Field(description="Size of the file in bytes")
+    modified: float = Field(description="Last modified time as Unix timestamp")
 
 
 class RpcResponse(BaseModel):
     """Base response model for RPC operations."""
 
-    success: bool = Field(..., description="Whether the operation was successful")
+    success: bool = Field(description="Whether the operation was successful")
     error: Optional[str] = Field(default=None, description="Error message if operation failed")
 
 
@@ -54,8 +54,8 @@ class JobSubmissionResponse(RpcResponse):
 class JobStatusResponse(RpcResponse):
     """Response model for job status queries."""
 
-    job_id: str = Field(..., description="Job identifier")
-    status: JobStatus = Field(..., description="Current job status")
+    job_id: str = Field(description="Job identifier")
+    status: JobStatus = Field(description="Current job status")
     result: Optional[dict] = Field(default=None, description="Job result if completed")
 
 
