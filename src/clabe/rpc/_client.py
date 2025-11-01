@@ -71,7 +71,7 @@ class RpcClient:
 
         return result
 
-    def submit_command(self, cmd_args: list[str]) -> JobSubmissionResponse:
+    def submit_command(self, cmd_args: list[str] | str) -> JobSubmissionResponse:
         """
         Submit a command for background execution.
 
@@ -88,6 +88,8 @@ class RpcClient:
             job_id = response.job_id
             ```
         """
+        if isinstance(cmd_args, str):
+            cmd_args = [cmd_args]
         result = self._call_with_auth("run", cmd_args)
         response = JobSubmissionResponse(**result)
         logger.info(f"Submitted command {cmd_args} with job ID: {response.job_id}")
@@ -164,7 +166,7 @@ class RpcClient:
 
         raise TimeoutError(f"Job {job_id} did not complete within {timeout} seconds")
 
-    def run_command(self, cmd_args: list[str], timeout: Optional[float] = None) -> JobResult:
+    def run_command(self, cmd_args: list[str] | str, timeout: Optional[float] = None) -> JobResult:
         """
         Submit a command and wait for it to complete.
 
