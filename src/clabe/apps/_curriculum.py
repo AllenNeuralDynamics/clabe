@@ -7,7 +7,8 @@ import aind_behavior_curriculum.trainer
 import pydantic
 
 from ..services import ServiceSettings
-from ._base import App
+from ._base import Command, ExecutableApp
+from ._executors import _DefaultExecutorMixin
 from ._python_script import PythonScriptApp
 
 logger = logging.getLogger(__name__)
@@ -38,10 +39,35 @@ class CurriculumSettings(ServiceSettings):
     Settings for the CurriculumApp.
 
     Configuration for curriculum execution including script path, project directory,
-    and data handling.
+    trainer state input, data handling, and curriculum selection.
+
+    Attributes:
+        script: The curriculum script/command to execute. Defaults to "curriculum run"
+        project_directory: Root directory of the curriculum project. Defaults to current directory
+        input_trainer_state: Path to the input trainer state file
+        data_directory: Directory containing session data for curriculum processing
+        curriculum: Optional specific curriculum name to use
+
+    Example:
+        ```python
+        # Basic settings
+        settings = CurriculumSettings(
+            input_trainer_state="/path/to/trainer_state.json",
+            data_directory="/data/session"
+        )
+
+        # Settings with custom curriculum
+        settings = CurriculumSettings(
+            script="curriculum run",
+            project_directory="/path/to/curricula",
+            input_trainer_state="/path/to/trainer_state.json",
+            data_directory="/data/session",
+            curriculum="advanced_training"
+        )
+        ```
     """
 
-    __yml_section__: t.ClassVar[t.Literal["curriculum"]] = "curriculum"
+    __yml_section__: t.ClassVar[t.Optional[str]] = "curriculum"
 
     script: str = "curriculum run"
     project_directory: os.PathLike = Path(".")
@@ -50,63 +76,69 @@ class CurriculumSettings(ServiceSettings):
     curriculum: t.Optional[str] = None
 
 
-class CurriculumApp(App[CurriculumSuggestion]):
+class CurriculumApp(ExecutableApp, _DefaultExecutorMixin):
     """
     A curriculum application that manages the execution of behavior curriculum scripts.
 
     Facilitates running curriculum modules within a managed Python environment, handling
-    trainer state input/output and data directory management.
+    trainer state input/output and data directory management. The app processes session
+    data through curriculum logic and generates suggestions for subsequent training stages.
 
-    Methods:
-        run: Executes the curriculum script
-        get_result: Retrieves the curriculum suggestion result
-        add_app_settings: Adds or updates application settings
+    Attributes:
+        command: The underlying command that will be executed
+
+    Example:
+        ```python
+        # Create and run curriculum app
+        settings = CurriculumSettings(
+            input_trainer_state="/path/to/trainer_state.json",
+            data_directory="/data/session_123"
+        )
+        app = CurriculumApp(settings)
+        app.run()
+        suggestion = app.process_suggestion()
+
+        # Access the updated trainer state
+        new_state = suggestion.trainer_state
+        metrics = suggestion.metrics
+        ```
     """
 
-    def __init__(self, settings: CurriculumSettings):
+    def __init__(
+        self, settings: CurriculumSettings, *, python_script_app_kwargs: dict[str, t.Any] | None = None
+    ) -> None:
         """
         Initializes the CurriculumApp with the specified settings.
 
+        Configures the curriculum application by setting up the Python script runner
+        with appropriate arguments for data directory, trainer state input, and
+        optional curriculum selection.
+
         Args:
             settings: Configuration settings for the curriculum application
+            python_script_app_kwargs: Optional keyword arguments to pass to PythonScriptApp
 
         Raises:
-            FileNotFoundError: If pyproject.toml cannot be found in parent directories
+            ValueError: If input_trainer_state or data_directory is not set in settings
 
         Example:
             ```python
+            # Basic initialization
             settings = CurriculumSettings(
-                entry_point="/path/to/curriculum/module",
+                input_trainer_state="/path/to/state.json",
                 data_directory="/data/session"
             )
             app = CurriculumApp(settings)
+
+            # With custom Python script app kwargs
+            app = CurriculumApp(
+                settings,
+                python_script_app_kwargs={"skip_validation": True}
+            )
             ```
         """
         self._settings = settings
 
-        self._python_script_app = PythonScriptApp(
-            script=settings.script, project_directory=settings.project_directory, extra_uv_arguments="-q"
-        )
-
-    def run(self) -> t.Self:
-        """
-        Executes the curriculum module with the configured settings.
-
-        Returns:
-            Self: The updated instance
-
-        Raises:
-            ValueError: If input_trainer_state or data_directory is not set
-            subprocess.CalledProcessError: If the curriculum script execution fails
-
-        Example:
-            ```python
-            # Set required parameters and run
-            app._settings.input_trainer_state = "/path/to/trainer_state.json"
-            app._settings.data_directory = "/path/to/data"
-            result = app.run()
-            ```
-        """
         if self._settings.input_trainer_state is None:
             raise ValueError("Input trainer state is not set.")
         if self._settings.data_directory is None:
@@ -119,71 +151,41 @@ class CurriculumApp(App[CurriculumSuggestion]):
         if self._settings.curriculum is not None:
             kwargs["curriculum"] = f'"{self._settings.curriculum}"'
 
-        self._python_script_app.add_app_settings(**kwargs)
-        self._python_script_app.run()
-        return self
+        python_script_app_kwargs = python_script_app_kwargs or {}
+        self._python_script_app = PythonScriptApp(
+            script=settings.script,
+            project_directory=settings.project_directory,
+            extra_uv_arguments="-q",
+            additional_arguments=" ".join(f"--{key} {value}" for key, value in kwargs.items()),
+            **python_script_app_kwargs,
+        )
 
-    def get_result(self, *, allow_stderr: bool = True) -> CurriculumSuggestion:
+    def process_suggestion(self) -> CurriculumSuggestion:
         """
-        Retrieves the curriculum suggestion result from the execution.
+        Process and parse the curriculum command output into a CurriculumSuggestion.
 
-        Args:
-            allow_stderr: Whether to allow stderr in the output. Defaults to True
+        Extracts the trainer state, metrics, and version information from the
+        command execution stdout.
 
         Returns:
-            CurriculumSuggestion: The curriculum suggestion with trainer state and metrics
+            CurriculumSuggestion: Parsed curriculum suggestion with trainer state and metrics
 
         Raises:
-            RuntimeError: If the app has not been run yet
-            subprocess.CalledProcessError: If there was an error during execution
-        """
-        return self._process_process_output(allow_stderr=allow_stderr)
-
-    def _process_process_output(self, *, allow_stderr: bool | None = None) -> CurriculumSuggestion:
-        """
-        Processes the output from the curriculum execution result.
-
-        Args:
-            allow_stderr: Whether to allow stderr in the output. If None, uses default behavior
-
-        Returns:
-            CurriculumSuggestion: The parsed curriculum suggestion from stdout
-
-        Raises:
-            subprocess.CalledProcessError: If the process failed or stderr is present when not allowed
+            ValueError: If no stdout is available from command execution or if parsing fails
 
         Example:
             ```python
-            # Process output and handle errors
-            try:
-                suggestion = app._process_process_output(allow_stderr=True)
-                print("Curriculum completed successfully")
-            except subprocess.CalledProcessError as e:
-                print(f"Curriculum failed: {e}")
+            app = CurriculumApp(settings)
+            app.run()
+            suggestion = app.process_suggestion()
+            print(suggestion.trainer_state.stage.name)
             ```
         """
-        out = self._python_script_app._process_process_output(allow_stderr=allow_stderr)
-        return CurriculumSuggestion.model_validate_json(out.stdout)
+        if self._python_script_app.command.result.stdout is None:
+            raise ValueError("No stdout from curriculum command execution.")
+        return CurriculumSuggestion.model_validate_json(self._python_script_app.command.result.stdout)
 
-    def add_app_settings(self, **kwargs) -> t.Self:
-        """
-        Adds application-specific settings to the curriculum execution.
-
-        Args:
-            **kwargs: Additional keyword arguments to pass to the curriculum script
-
-        Returns:
-            Self: The current CurriculumApp instance
-
-        Example:
-            ```python
-            # Add custom settings
-            app.add_app_settings(
-                debug_mode=True,
-                log_level="DEBUG",
-                custom_param="value"
-            )
-            ```
-        """
-        self._python_script_app.add_app_settings(**kwargs)
-        return self
+    @property
+    def command(self) -> Command:
+        """Get the command to execute."""
+        return self._python_script_app.command

@@ -11,7 +11,7 @@ authors = [
 license = "MIT"
 license-files = ["LICENSE"]
 requires-python = ">=3.11"
-version = "0.8.3"
+version = "0.9.0rc0"
 readme = {file = "README.md", content-type = "text/markdown"}
 
 classifiers = [
@@ -25,6 +25,7 @@ dependencies = [
     "pydantic>=2.7",
     "pydantic-settings",
     "gitpython",
+    "requests",
     "semver",
     "rich",
     "aind_behavior_services < 1",
@@ -58,6 +59,7 @@ dev = [
     "coverage",
     'pytest',
     'pytest-cov',
+    'pytest-asyncio',
     'interrogate',
     "aind-clabe[aind-services]",
 ]
@@ -70,6 +72,9 @@ docs = [
     'pymdown-extensions',
     'ruff',
 ]
+
+[project.scripts]
+clabe = "clabe.cli:main"
 
 [tool.uv]
 default-groups = ['dev']
@@ -98,6 +103,9 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+markers = [
+    "asyncio: mark test as requiring asyncio",
+]
 
 
 [tool.interrogate]
