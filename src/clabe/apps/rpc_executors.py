@@ -101,7 +101,7 @@ class RpcExecutor:
         job_result = self.client.run_command(command.cmd, timeout=self.timeout)
 
         result = CommandResult(stdout=job_result.stdout, stderr=job_result.stderr, exit_code=job_result.returncode or 0)
-
+        result.check_returncode()
         logger.info(f"RPC command completed with exit code: {result.exit_code}")
         return result
 
@@ -130,11 +130,12 @@ class RpcExecutor:
         logger.info(f"Executing command asynchronously via RPC: {command.cmd}")
         submission = self.client.submit_command(command.cmd)
         if submission.job_id is None:
-            raise Exception("Job submission failed: no job ID returned")
+            raise RuntimeError("Job submission failed: no job ID returned")
 
         job_result = await self._wait_for_result_async(submission.job_id)
 
         result = CommandResult(stdout=job_result.stdout, stderr=job_result.stderr, exit_code=job_result.returncode or 0)
+        result.check_returncode()
 
         logger.info(f"RPC async command completed with exit code: {result.exit_code}")
         return result
