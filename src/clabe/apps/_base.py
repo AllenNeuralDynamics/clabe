@@ -6,6 +6,64 @@ from pydantic import BaseModel
 logger = logging.getLogger(__name__)
 
 
+class CommandError(Exception):
+    """
+    Exception raised when a command execution fails.
+
+    This exception is raised by CommandResult.check_returncode() when a command
+    exits with a non-zero exit code. It includes detailed information about the
+    command execution failure.
+
+    Attributes:
+        exit_code: The non-zero exit code returned by the command
+        stdout: Standard output from the command (may be None)
+        stderr: Standard error from the command (may be None)
+        message: Human-readable error message
+
+    Example:
+        ```python
+        try:
+            result = CommandResult(stdout="", stderr="File not found", exit_code=1)
+            result.check_returncode()
+        except CommandError as e:
+            print(f"Command failed with exit code {e.exit_code}")
+            print(f"Error output: {e.stderr}")
+        ```
+    """
+
+    def __init__(self, exit_code: int, stdout: Optional[str] = None, stderr: Optional[str] = None):
+        """
+        Initialize the CommandError.
+
+        Args:
+            exit_code: The non-zero exit code from the command
+            stdout: Standard output from the command
+            stderr: Standard error from the command
+        """
+        self.exit_code = exit_code
+        self.stdout = stdout
+        self.stderr = stderr
+
+        # Build detailed error message
+        message_parts = [f"Command failed with exit code {exit_code}"]
+
+        if stderr:
+            message_parts.append(f"stderr: {stderr}")
+        if stdout:
+            message_parts.append(f"stdout: {stdout}")
+
+        self.message = "\n".join(message_parts)
+        super().__init__(self.message)
+
+    def __str__(self) -> str:
+        """Return the error message."""
+        return self.message
+
+    def __repr__(self) -> str:
+        """Return a detailed representation of the error."""
+        return f"CommandError(exit_code={self.exit_code}, stderr={self.stderr!r}, stdout={self.stdout!r})"
+
+
 class CommandResult(BaseModel):
     """Represents the result of a process execution."""
 
@@ -19,9 +77,24 @@ class CommandResult(BaseModel):
         return self.exit_code == 0
 
     def check_returncode(self) -> None:
-        """Raise an error if the exit code indicates failure."""
+        """
+        Raise CommandError if the exit code indicates failure.
+
+        Raises:
+            CommandError: If exit_code is non-zero, includes exit_code, stdout, and stderr
+
+        Example:
+            ```python
+            result = CommandResult(stdout="output", stderr="error", exit_code=1)
+            try:
+                result.check_returncode()
+            except CommandError as e:
+                print(f"Exit code: {e.exit_code}")
+                print(f"Stderr: {e.stderr}")
+            ```
+        """
         if not self.ok:
-            raise RuntimeError(f"Command failed with exit code {self.exit_code}:\n{self.stderr}")
+            raise CommandError(exit_code=self.exit_code, stdout=self.stdout, stderr=self.stderr)
 
 
 @runtime_checkable

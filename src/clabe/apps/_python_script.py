@@ -183,6 +183,7 @@ class PythonScriptApp(ExecutableApp, _DefaultExecutorMixin):
             )
             ```
         """
+        # TODO we should probably add a way to run this through our executors
         logger.info("Creating Python environment with uv venv at %s...", project_directory)
         run_kwargs = run_kwargs or {}
         try:
@@ -195,7 +196,6 @@ class PythonScriptApp(ExecutableApp, _DefaultExecutorMixin):
                 cwd=project_directory,
                 **run_kwargs,
             )
-            proc.check_returncode()
         except subprocess.CalledProcessError as e:
             logger.error("Error creating Python environment. %s", e)
             raise

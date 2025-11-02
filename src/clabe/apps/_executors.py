@@ -63,8 +63,9 @@ class LocalExecutor(Executor):
         proc = subprocess.run(
             command.cmd, cwd=self.cwd, env=self.env, text=True, capture_output=True, check=False, timeout=self.timeout
         )
-        proc.check_returncode()
-        return CommandResult(stdout=proc.stdout, stderr=proc.stderr, exit_code=proc.returncode)
+        result = CommandResult(stdout=proc.stdout, stderr=proc.stderr, exit_code=proc.returncode)
+        result.check_returncode()
+        return result
 
 
 class AsyncLocalExecutor(AsyncExecutor):
@@ -136,26 +137,23 @@ class AsyncLocalExecutor(AsyncExecutor):
 
         try:
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=self.timeout)
-        except asyncio.TimeoutError:
+        except asyncio.TimeoutError as exc:
             proc.kill()
             await proc.wait()
             assert self.timeout is not None
-            raise subprocess.TimeoutExpired(command.cmd, self.timeout)
+            raise subprocess.TimeoutExpired(command.cmd, self.timeout) from exc
 
         if proc.returncode is None:
             raise RuntimeError("Process did not complete successfully and returned no return code.")
-        if proc.returncode != 0:
-            raise subprocess.CalledProcessError(
-                returncode=proc.returncode,
-                cmd=command.cmd,
-                output=stdout,
-                stderr=stderr,
-            )
-        return CommandResult(
+
+        command_result = CommandResult(
             stdout=stdout.decode(),
             stderr=stderr.decode(),
             exit_code=proc.returncode,
         )
+
+        command_result.check_returncode()
+        return command_result
 
 
 class _DefaultExecutorMixin:

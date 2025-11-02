@@ -1,5 +1,4 @@
 import asyncio
-import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -10,6 +9,7 @@ from clabe.apps import (
     AsyncExecutor,
     BonsaiApp,
     Command,
+    CommandError,
     CommandResult,
     Executor,
     PythonScriptApp,
@@ -213,7 +213,7 @@ class TestLocalExecutor:
 
     def test_local_executor_handles_failing_command(self, local_executor: LocalExecutor, failing_command: Command):
         """Test that LocalExecutor properly handles failing commands."""
-        with pytest.raises(subprocess.CalledProcessError):
+        with pytest.raises(CommandError):
             failing_command.execute(local_executor)
 
     def test_local_executor_with_custom_cwd(self, tmp_path: Path):
@@ -247,7 +247,7 @@ class TestAsyncLocalExecutor:
         self, async_local_executor: AsyncLocalExecutor, failing_command: Command
     ):
         """Test that AsyncLocalExecutor properly handles failing commands."""
-        with pytest.raises(subprocess.CalledProcessError):
+        with pytest.raises(CommandError):
             await failing_command.execute_async(async_local_executor)
 
     @pytest.mark.asyncio

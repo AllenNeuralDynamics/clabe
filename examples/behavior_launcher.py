@@ -121,23 +121,16 @@ async def experiment(launcher: Launcher) -> None:
     app_1 = PythonScriptApp(script=fmt("Behavior"))
     app_2 = PythonScriptApp(script=fmt("Physiology"))
 
-    await asyncio.gather(app_1.run_async(), app_2.run_async())
+    app_1_result, app_2_result = await asyncio.gather(app_1.run_async(), app_2.run_async())
 
-    app_1.get_result()
-    app_2.get_result()
-
-    suggestion = (
-        CurriculumApp(
-            settings=CurriculumSettings(
-                curriculum="template",
-                data_directory=Path("demo"),
-                project_directory=Path("./tests/assets/Aind.Behavior.VrForaging.Curricula"),
-                input_trainer_state=_temp_trainer_state_path,
-            )
+    suggestion = CurriculumApp(
+        settings=CurriculumSettings(
+            curriculum="template",
+            data_directory=Path("demo"),
+            project_directory=Path("./tests/assets/Aind.Behavior.VrForaging.Curricula"),
+            input_trainer_state=_temp_trainer_state_path,
         )
-        .run()
-        .get_result(allow_stderr=True)
-    )
+    ).run()
 
     DemoAindDataSchemaSessionDataMapper(
         rig,
