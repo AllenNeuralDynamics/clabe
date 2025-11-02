@@ -1,4 +1,13 @@
-from ._base import AsyncExecutor, Command, CommandResult, ExecutableApp, Executor, OutputParser, identity_parser
+from ._base import (
+    AsyncExecutor,
+    Command,
+    CommandError,
+    CommandResult,
+    ExecutableApp,
+    Executor,
+    OutputParser,
+    identity_parser,
+)
 from ._bonsai import AindBehaviorServicesBonsaiApp, BonsaiApp
 from ._curriculum import CurriculumApp, CurriculumSettings, CurriculumSuggestion
 from ._python_script import PythonScriptApp
@@ -13,6 +22,7 @@ __all__ = [
     "CurriculumSuggestion",
     "Command",
     "CommandResult",
+    "CommandError",
     "AsyncExecutor",
     "Executor",
     "identity_parser",
