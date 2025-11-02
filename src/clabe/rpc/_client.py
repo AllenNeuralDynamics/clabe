@@ -1,9 +1,9 @@
 import base64
 import logging
 import time
+import xmlrpc.client
 from pathlib import Path
 from typing import Optional, Union
-from xmlrpc.client import ServerProxy
 
 from pydantic import BaseModel, Field, HttpUrl, SecretStr
 
@@ -43,7 +43,7 @@ class RpcClient:
             settings: Client configuration settings
         """
         self.settings = settings
-        self._client = ServerProxy(str(settings.server_url), allow_none=True)
+        self._client = xmlrpc.client.ServerProxy(str(settings.server_url), allow_none=True)
         self._token = settings.token.get_secret_value()
 
         logger.info(f"RPC client initialized for server: {settings.server_url}")
@@ -61,13 +61,13 @@ class RpcClient:
             The result from the server method
 
         Raises:
-            Exception: If the server returns an authentication error or other error
+            RuntimeError: If the server returns an authentication error or other error
         """
         method = getattr(self._client, method_name)
         result = method(self._token, *args, **kwargs)
 
         if isinstance(result, dict) and "error" in result and result["error"] is not None:
-            raise Exception(f"Server error: {result['error']}")
+            raise RuntimeError(f"Server error: {result['error']}")
 
         return result
 
@@ -130,7 +130,7 @@ class RpcClient:
                 error=job_result.get("error"),
             )
         else:
-            raise Exception(f"Unknown job status: {result['status']}")
+            raise RuntimeError(f"Unknown job status: {result['status']}")
 
     def wait_for_result(self, job_id: str, timeout: Optional[float] = None) -> JobResult:
         """
@@ -185,7 +185,7 @@ class RpcClient:
         """
         submission = self.submit_command(cmd_args)
         if submission.job_id is None:
-            raise Exception("Job submission failed: no job ID returned")
+            raise RuntimeError("Job submission failed: no job ID returned")
         return self.wait_for_result(submission.job_id, timeout)
 
     def is_running(self, job_id: str) -> bool:
@@ -242,7 +242,7 @@ class RpcClient:
 
         Raises:
             FileNotFoundError: If the local file doesn't exist
-            Exception: If the file is too large or upload fails
+            ValueError: If the file is too large or upload fails
 
         Example:
             ```python
@@ -260,7 +260,7 @@ class RpcClient:
 
         file_size = local_path.stat().st_size
         if file_size > self.settings.max_file_size:
-            raise Exception(
+            raise ValueError(
                 f"File too large: {file_size} bytes. Maximum: {self.settings.max_file_size} bytes "
                 f"({self.settings.max_file_size / (1024 * 1024):.1f} MB)"
             )
@@ -293,7 +293,7 @@ class RpcClient:
             FileUploadResponse with upload result information
 
         Raises:
-            Exception: If the serialized data is too large or upload fails
+            ValueError: If the serialized data is too large or upload fails
 
         Example:
             ```python
@@ -313,7 +313,7 @@ class RpcClient:
 
         data_size = len(json_bytes)
         if data_size > self.settings.max_file_size:
-            raise Exception(
+            raise ValueError(
                 f"Serialized model too large: {data_size} bytes. Maximum: {self.settings.max_file_size} bytes "
                 f"({self.settings.max_file_size / (1024 * 1024):.1f} MB)"
             )
@@ -355,26 +355,19 @@ class RpcClient:
 
         result = self._call_with_auth("download_file", remote_filename)
 
-        # Handle XML-RPC Binary object conversion
-        import xmlrpc.client
-
         if "data" in result and result["data"] is not None and isinstance(result["data"], xmlrpc.client.Binary):
-            # XML-RPC Binary object contains raw bytes - convert to bytes
             result["data"] = result["data"].data
 
-        # Use Pydantic model to parse response
         response = FileDownloadResponse(**result)
 
         if not response.success:
-            raise Exception(f"Download failed: {response.error}")
+            raise RuntimeError(f"Download failed: {response.error}")
 
-        # Create parent directories if needed
         local_path.parent.mkdir(parents=True, exist_ok=True)
 
         if response.data is None:
-            raise Exception("No file data received from server")
+            raise ValueError("No file data received from server")
 
-        # Base64Bytes automatically decodes to raw bytes when accessed
         file_data = response.data
         local_path.write_bytes(file_data)
 
@@ -458,7 +451,7 @@ class RpcClient:
             # Try to list jobs as a simple connectivity test
             self.list_jobs()
             return True
-        except Exception as e:
+        except (RuntimeError, ConnectionError, ValueError) as e:
             logger.warning(f"Server ping failed: {e}")
             return False
 
