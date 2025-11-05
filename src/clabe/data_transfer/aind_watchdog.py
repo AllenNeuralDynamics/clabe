@@ -258,7 +258,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
 
         _manifest_config = ManifestConfig(
             name=self._session.session_name,
-            modalities=_modality_candidates,
+            modalities={m: [Path(p) for p in paths] for m, paths in _modality_candidates.items()},
             subject_id=int(session.subject),
             acquisition_datetime=session.date,
             schemas=[Path(value) for value in self._find_schema_candidates(source)],

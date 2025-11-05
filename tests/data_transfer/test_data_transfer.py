@@ -30,6 +30,9 @@ def source():
         folder_path = temp_dir / folder
         folder_path.mkdir(exist_ok=True)
 
+    # Schema file used by unit tests for _find_schema_candidates
+    (temp_dir / "schema.json").write_text("{}", encoding="utf-8")
+
     yield temp_dir
     import shutil
 
@@ -222,6 +225,7 @@ class TestWatchdogDataTransferService:
         settings.job_type = "not_default"
 
         manifest = watchdog_service._manifest_config
+        assert manifest is not None
         new_watchdog_manifest = watchdog_service._make_transfer_args(
             manifest,
             add_default_tasks=True,
@@ -236,12 +240,18 @@ class TestWatchdogDataTransferService:
         assert "modality_transformation_settings" in tasks
         assert "gather_preliminary_metadata" in tasks
         assert all(task in tasks for task in ["myTask", "nestedTask", "myTaskInterpolated", "nestedTaskInterpolated"])
+        my_task_interpolated = tasks["myTaskInterpolated"]
+        assert isinstance(my_task_interpolated, Task)
         assert (
-            Path(tasks["myTaskInterpolated"].job_settings["input_source"]).resolve()
+            Path(my_task_interpolated.model_dump()["job_settings"]["input_source"]).resolve()
             == Path(f"interpolated/path/{WatchdogDataTransferService._remote_destination_root(manifest)}").resolve()
         )
+        nested_wrapper = tasks["nestedTaskInterpolated"]
+        assert isinstance(nested_wrapper, dict)
+        nested_task = nested_wrapper["nestedTask"]
+        assert isinstance(nested_task, Task)
         assert (
-            Path(tasks["nestedTaskInterpolated"]["nestedTask"].job_settings["input_source"]).resolve()
+            Path(nested_task.model_dump()["job_settings"]["input_source"]).resolve()
             == Path(
                 f"interpolated/path/{WatchdogDataTransferService._remote_destination_root(manifest)}/nested"
             ).resolve()
@@ -268,12 +278,18 @@ class TestWatchdogDataTransferService:
         assert "modality_transformation_settings" in tasks
         assert "gather_preliminary_metadata" in tasks
         assert all(task in tasks for task in ["myTask", "nestedTask", "myTaskInterpolated", "nestedTaskInterpolated"])
+        my_task_interpolated = tasks["myTaskInterpolated"]
+        assert isinstance(my_task_interpolated, Task)
         assert (
-            Path(tasks["myTaskInterpolated"].job_settings["input_source"]).resolve()
+            Path(my_task_interpolated.model_dump()["job_settings"]["input_source"]).resolve()
             == Path(f"interpolated/path/{WatchdogDataTransferService._remote_destination_root(manifest)}").resolve()
         )
+        nested_wrapper = tasks["nestedTaskInterpolated"]
+        assert isinstance(nested_wrapper, dict)
+        nested_task = nested_wrapper["nestedTask"]
+        assert isinstance(nested_task, Task)
         assert (
-            Path(tasks["nestedTaskInterpolated"]["nestedTask"].job_settings["input_source"]).resolve()
+            Path(nested_task.model_dump()["job_settings"]["input_source"]).resolve()
             == Path(
                 f"interpolated/path/{WatchdogDataTransferService._remote_destination_root(manifest)}/nested"
             ).resolve()
@@ -407,6 +423,48 @@ class TestWatchdogDataTransferService:
     )
     def test_is_valid_project_name_invalid(self, mock_get_project_names, watchdog_service):
         assert not watchdog_service.is_valid_project_name()
+
+    def test_remote_destination_root(
+        self, watchdog_service: WatchdogDataTransferService, mock_session: AindBehaviorSessionModel
+    ):
+        manifest = watchdog_service._create_manifest_from_session(mock_session)
+        root = watchdog_service._remote_destination_root(manifest)
+        assert manifest.name is not None
+        expected_root = Path(manifest.destination) / manifest.name
+        assert root == expected_root
+
+    def test_find_modality_candidates(self, watchdog_service: WatchdogDataTransferService, source: Path):
+        candidates = watchdog_service._find_modality_candidates(source)
+        assert set(candidates.keys()) == {"behavior", "behavior-videos"}
+
+    def test_find_schema_candidates(self, watchdog_service: WatchdogDataTransferService, source: Path):
+        schemas = watchdog_service._find_schema_candidates(source)
+        assert any(p.name == "schema.json" for p in schemas)
+
+    def test_interpolate_from_manifest(
+        self, watchdog_service: WatchdogDataTransferService, mock_session: AindBehaviorSessionModel
+    ):
+        watchdog_service._create_manifest_from_session(mock_session)
+        tasks = {"custom": Task(job_settings={"input_source": "{{ destination }}/extra"})}
+        interpolated = watchdog_service._interpolate_from_manifest(tasks, "replacement/value", "{{ destination }}")
+        assert isinstance(interpolated["custom"], Task)
+        assert interpolated["custom"].model_dump()["job_settings"]["input_source"].startswith("replacement/value")
+
+    def test_yaml_dump_and_write_read_yaml(
+        self,
+        watchdog_service: WatchdogDataTransferService,
+        mock_session: AindBehaviorSessionModel,
+        tmp_path: Path,
+    ):
+        manifest = watchdog_service._create_manifest_from_session(mock_session)
+        yaml_str = watchdog_service._yaml_dump(manifest)
+        assert manifest.name is not None
+        assert manifest.name in yaml_str
+        out_path = tmp_path / "manifest.yaml"
+        watchdog_service._write_yaml(manifest, out_path)
+        loaded = watchdog_service._read_yaml(out_path)
+        assert isinstance(loaded, dict)
+        assert loaded.get("name") == manifest.name
 
 
 @pytest.fixture
