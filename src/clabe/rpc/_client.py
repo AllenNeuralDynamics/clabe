@@ -7,6 +7,7 @@ from typing import Optional, Union
 
 from pydantic import BaseModel, Field, HttpUrl, SecretStr
 
+from ..services import ServiceSettings
 from .models import (
     FileBulkDeleteResponse,
     FileDeleteResponse,
@@ -22,11 +23,13 @@ from .models import (
 logger = logging.getLogger(__name__)
 
 
-class RpcClientSettings(BaseModel):
+class RpcClientSettings(ServiceSettings):
     """Settings for RPC client configuration."""
 
-    server_url: HttpUrl = Field(..., description="URL of the RPC server (e.g., http://127.0.0.1:8000)")
-    token: SecretStr = Field(..., description="Authentication token for RPC access")
+    __yml_section__ = "rpc_client"
+
+    server_url: HttpUrl = Field(description="URL of the RPC server (e.g., http://127.0.0.1:8000)")
+    token: SecretStr = Field(description="Authentication token for RPC access")
     timeout: float = Field(default=30.0, description="Default timeout for RPC calls in seconds")
     poll_interval: float = Field(default=0.5, description="Polling interval for job status checks in seconds")
     max_file_size: int = Field(default=5 * 1024 * 1024, description="Maximum file size in bytes (default 5MB)")
