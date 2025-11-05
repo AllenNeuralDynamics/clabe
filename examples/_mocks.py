@@ -1,0 +1,100 @@
+import datetime
+import logging
+import os
+from typing import Any, Dict, Literal, Optional, Union
+
+import git
+from aind_behavior_curriculum import Stage, TrainerState
+from aind_behavior_services.rig import AindBehaviorRigModel
+from aind_behavior_services.session import AindBehaviorSessionModel
+from aind_behavior_services.task_logic import AindBehaviorTaskLogicModel
+from pydantic import Field
+
+from clabe.data_mapper import DataMapper
+
+logger = logging.getLogger(__name__)
+
+TASK_NAME = "RandomTask"
+LIB_CONFIG = rf"local\AindBehavior.db\{TASK_NAME}"
+
+
+### Task-specific definitions
+class RigModel(AindBehaviorRigModel):
+    rig_name: str = Field(default="TestRig", description="Rig name")
+    version: Literal["0.0.0"] = "0.0.0"
+
+
+class TaskLogicModel(AindBehaviorTaskLogicModel):
+    version: Literal["0.0.0"] = "0.0.0"
+    name: Literal[TASK_NAME] = TASK_NAME
+
+
+mock_trainer_state = TrainerState[Any](
+    curriculum=None,
+    is_on_curriculum=False,
+    stage=Stage(name="TestStage", task=TaskLogicModel(name=TASK_NAME, task_parameters={"foo": "bar"})),
+)
+
+
+class MockAindDataSchemaSession:
+    def __init__(
+        self,
+        computer_name: Optional[str] = None,
+        repository: Optional[Union[os.PathLike, git.Repo]] = None,
+        task_name: Optional[str] = None,
+    ):
+        self.computer_name = computer_name
+        self.repository = repository
+        self.task_name = task_name
+
+    def __str__(self) -> str:
+        return f"MockAindDataSchemaSession(computer_name={self.computer_name}, repository={self.repository}, task_name={self.task_name})"
+
+
+class DemoAindDataSchemaSessionDataMapper(DataMapper[MockAindDataSchemaSession]):
+    def __init__(
+        self,
+        rig_model: RigModel,
+        session_model: AindBehaviorSessionModel,
+        task_logic_model: TaskLogicModel,
+        repository: Union[os.PathLike, git.Repo],
+        script_path: os.PathLike,
+        session_end_time: Optional[datetime.datetime] = None,
+        output_parameters: Optional[Dict] = None,
+    ):
+        super().__init__()
+        self.session_model = session_model
+        self.rig_model = rig_model
+        self.task_logic_model = task_logic_model
+        self.repository = repository
+        self.script_path = script_path
+        self.session_end_time = session_end_time
+        self.output_parameters = output_parameters
+        self._mapped: Optional[MockAindDataSchemaSession] = None
+
+    def map(self) -> MockAindDataSchemaSession:
+        self._mapped = MockAindDataSchemaSession(
+            computer_name=self.rig_model.computer_name, repository=self.repository, task_name=self.task_logic_model.name
+        )
+        print("#" * 50)
+        print("THIS IS MAPPED DATA!")
+        print("#" * 50)
+        print(self._mapped)
+        return self._mapped
+
+
+def create_fake_subjects():
+    subjects = ["00000", "123456"]
+    for subject in subjects:
+        os.makedirs(f"{LIB_CONFIG}/Subjects/{subject}", exist_ok=True)
+        with open(f"{LIB_CONFIG}/Subjects/{subject}/task_logic.json", "w", encoding="utf-8") as f:
+            f.write(TaskLogicModel(task_parameters={"subject": subject}).model_dump_json(indent=2))
+        with open(f"{LIB_CONFIG}/Subjects/{subject}/trainer_state.json", "w", encoding="utf-8") as f:
+            f.write(mock_trainer_state.model_dump_json(indent=2))
+
+
+def create_fake_rig():
+    computer_name = os.getenv("COMPUTERNAME")
+    os.makedirs(_dir := f"{LIB_CONFIG}/Rig/{computer_name}", exist_ok=True)
+    with open(f"{_dir}/rig1.json", "w", encoding="utf-8") as f:
+        f.write(RigModel().model_dump_json(indent=2))
