@@ -193,7 +193,7 @@ class TestWatchdogDataTransferService:
         source = "mock_source_path"
         expected_files = [Path(source) / f"{file}.json" for file in CORE_FILES]
 
-        result = WatchdogDataTransferService._find_ads_schemas(Path(source))
+        result = WatchdogDataTransferService._find_schema_candidates(Path(source))
         assert result == expected_files
 
     @patch("clabe.data_transfer.aind_watchdog.Path.mkdir")

@@ -1,57 +1,34 @@
-import importlib.util
-
-if importlib.util.find_spec("aind_data_transfer_service") is None:
-    raise ImportError(
-        "The 'aind_data_transfer_service' package is required to use this module. \
-            Install the optional dependencies defined in `project.toml' \
-                by running `pip install .[aind-services]`"
-    )
-
 import datetime
-import importlib.metadata
 import json
 import logging
 import os
 import subprocess
 from os import PathLike
 from pathlib import Path, PurePosixPath
-from typing import TYPE_CHECKING, Any, Callable, ClassVar, Dict, List, Optional, Union
+from typing import Callable, ClassVar, Dict, List, Literal, Optional, Union
 
 import aind_data_transfer_service.models.core
 import pydantic
 import requests
-import semver
 import yaml
-from aind_data_schema.core.metadata import CORE_FILES
+from aind_behavior_services import AindBehaviorSessionModel
 from pydantic import BaseModel, SerializeAsAny, TypeAdapter
 from requests.exceptions import HTTPError
-from typing_extensions import deprecated
 
-from .. import ui
 from ..services import ServiceSettings
 from ._aind_watchdog_models import (
     DEFAULT_TRANSFER_ENDPOINT,
     BucketType,
     ManifestConfig,
-    Modality,
-    Platform,
     WatchConfig,
 )
 from ._base import DataTransfer
-
-if TYPE_CHECKING:
-    from ..data_mapper.aind_data_schema import Session
-else:
-    Session = Any
-
 
 logger = logging.getLogger(__name__)
 
 TransferServiceTask = Dict[
     str, Union[aind_data_transfer_service.models.core.Task, Dict[str, aind_data_transfer_service.models.core.Task]]
 ]
-
-_AIND_DATA_SCHEMA_PKG_VERSION = semver.Version.parse(importlib.metadata.version("aind_data_schema"))
 
 
 class WatchdogSettings(ServiceSettings):
@@ -67,18 +44,20 @@ class WatchdogSettings(ServiceSettings):
     destination: Path
     schedule_time: Optional[datetime.time] = datetime.time(hour=20)
     project_name: str
-    platform: Platform = "behavior"
-    capsule_id: Optional[str] = None
-    script: Optional[Dict[str, List[str]]] = None
     s3_bucket: BucketType = "private"
-    mount: Optional[str] = None
-    force_cloud_sync: bool = True
+    force_cloud_sync: bool = False
     transfer_endpoint: str = DEFAULT_TRANSFER_ENDPOINT
     delete_modalities_source_after_success: bool = False
     extra_identifying_info: Optional[dict] = None
     upload_tasks: Optional[SerializeAsAny[TransferServiceTask]] = None
     job_type: str = "default"
-    extra_modalities: Optional[List[Modality]] = None
+    extra_modality_data: Optional[Dict[str, List[Path]]] = pydantic.Field(
+        None, description="Additional modality data to include in the transfer"
+    )
+    mount: Optional[None] = pydantic.Field(default=None, deprecated=True)
+    platform: Literal["behavior"] = pydantic.Field(default="behavior", deprecated=True)
+    capsule_id: Optional[None] = pydantic.Field(default=None, deprecated=True)
+    script: Optional[Dict[str, List[str]]] = pydantic.Field(default=None, deprecated=True)
 
 
 class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
@@ -103,11 +82,9 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         self,
         source: PathLike,
         settings: WatchdogSettings,
-        aind_data_schema_session: Session,
+        session: AindBehaviorSessionModel,
         *,
         validate: bool = True,
-        session_name: Optional[str] = None,
-        ui_helper: Optional[ui.UiHelper] = None,
         email_from_experimenter_builder: Optional[
             Callable[[str], str]
         ] = lambda user_name: f"{user_name}@alleninstitute.org",
@@ -118,16 +95,15 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         Args:
             source: The source directory or file to monitor
             settings: Configuration for the watchdog service
-            aind_data_schema_session: The session data schema
+            session: The session data from aind-behavior-services
             validate: Whether to validate the project name
             session_name: Name of the session
-            ui_helper: UI helper for user prompts
             email_from_experimenter_builder: Function to build email from experimenter name
         """
         self._settings = settings
         self._source = source
 
-        self._aind_data_schema_session: Session = aind_data_schema_session
+        self._session = session
 
         _default_exe = os.environ.get("WATCHDOG_EXE", None)
         _default_config = os.environ.get("WATCHDOG_CONFIG", None)
@@ -148,8 +124,6 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
 
         self._watch_config = WatchConfig.model_validate(self._read_yaml(self.config_path))
 
-        self._ui_helper = ui_helper or ui.DefaultUIHelper()
-        self._session_name = session_name
         self._email_from_experimenter_builder = email_from_experimenter_builder
 
     def transfer(self) -> None:
@@ -176,23 +150,10 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
 
             logger.debug("Creating watchdog manifest config.")
 
-            if _AIND_DATA_SCHEMA_PKG_VERSION.major < 2:
-                logger.warning(
-                    "Using deprecated AIND data schema version %s. Consider upgrading.", _AIND_DATA_SCHEMA_PKG_VERSION
-                )
-                self._manifest_config = self._create_manifest_config_from_ads_session(
-                    ads_session=self._aind_data_schema_session,
-                    session_name=self._session_name,
-                )
-            else:
-                self._manifest_config = self._create_manifest_config_from_ads_acquisition(
-                    ads_session=self._aind_data_schema_session,
-                    session_name=self._session_name,
-                )
-
             if self._watch_config is None:
                 raise ValueError("Watchdog config is not set.")
 
+            self._manifest_config = self._create_manifest_from_session(session=self._session)
             assert self._manifest_config.name is not None, "Manifest config name must be set."
             _manifest_path = self.dump_manifest_config(
                 path=Path(self._watch_config.flag_dir) / self._manifest_config.name
@@ -255,21 +216,15 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         project_names = self._get_project_names()
         return self._settings.project_name in project_names
 
-    def _create_manifest_config_from_ads_acquisition(
-        self,
-        ads_session: Session,
-        ads_schemas: Optional[List[os.PathLike]] = None,
-        session_name: Optional[str] = None,
-    ) -> ManifestConfig:
+    def _create_manifest_from_session(self, session: AindBehaviorSessionModel) -> ManifestConfig:
         """
-        Creates a ManifestConfig from an aind-data-schema acquisition.
+        Creates a ManifestConfig from an aind-behavior-services session.
 
-        For aind-data-schema versions >= 2.0. Converts acquisition metadata into
+         Converts session metadata into
         a manifest configuration for the watchdog service.
 
         Args:
-            ads_session: The aind-data-schema acquisition data
-            ads_schemas: Optional list of schema files
+            session: The aind-behavior-services session data
             session_name: Name of the session
 
         Returns:
@@ -278,10 +233,9 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         Raises:
             ValueError: If the project name is invalid
         """
-        processor_full_name = ",".join(ads_session.experimenters) or os.environ.get("USERNAME", "unknown")
 
-        if (len(ads_session.experimenters) > 0) and self._email_from_experimenter_builder is not None:
-            user_email = self._email_from_experimenter_builder(ads_session.experimenters[0])
+        if (len(session.experimenter) > 0) and self._email_from_experimenter_builder is not None:
+            user_email = self._email_from_experimenter_builder(session.experimenter[0])
         else:
             user_email = None
 
@@ -293,97 +247,24 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
             if self._settings.project_name not in project_names:
                 raise ValueError(f"Project name {self._settings.project_name} not found in {project_names}")
 
-        ads_schemas = self._find_ads_schemas(source) if ads_schemas is None else ads_schemas
-        modalities = {
-            str(modality.abbreviation): [Path(path.resolve()) for path in [source / str(modality.abbreviation)]]
-            for modality in ads_session.data_streams[0].modalities
-        }
-        if self._settings.extra_modalities is not None:
-            for modality in self._settings.extra_modalities:
-                modalities[str(modality)] = [Path(path.resolve()) for path in [source / str(modality)]]
+        _modality_candidates = self._find_modality_candidates(source)
+
+        if self._settings.extra_modality_data is not None:
+            for modality, paths in self._settings.extra_modality_data.items():
+                if modality in _modality_candidates:
+                    _modality_candidates[modality].extend(paths)
+                else:
+                    _modality_candidates[modality] = paths
 
         _manifest_config = ManifestConfig(
-            name=session_name,
-            modalities=modalities,
-            subject_id=int(ads_session.subject_id),
-            acquisition_datetime=ads_session.acquisition_start_time,
-            schemas=[Path(value) for value in ads_schemas],
+            name=self._session.session_name,
+            modalities=_modality_candidates,
+            subject_id=int(session.subject),
+            acquisition_datetime=session.date,
+            schemas=[Path(value) for value in self._find_schema_candidates(source)],
             destination=Path(destination),
             mount=self._settings.mount,
-            processor_full_name=processor_full_name,
-            project_name=self._settings.project_name,
-            schedule_time=self._settings.schedule_time,
-            platform=self._settings.platform,
-            capsule_id=self._settings.capsule_id,
-            s3_bucket=self._settings.s3_bucket,
-            script=self._settings.script if self._settings.script else {},
-            force_cloud_sync=self._settings.force_cloud_sync,
-            transfer_endpoint=self._settings.transfer_endpoint,
-            delete_modalities_source_after_success=self._settings.delete_modalities_source_after_success,
-            extra_identifying_info=self._settings.extra_identifying_info,
-        )
-
-        _manifest_config = self._make_transfer_args(
-            _manifest_config,
-            add_default_tasks=True,
-            extra_tasks=self._settings.upload_tasks or {},
-            job_type=self._settings.job_type,
-            user_email=user_email,
-        )
-        return _manifest_config
-
-    @deprecated("Use _create_manifest_config_from_ads_acquisition instead. This will be removed in a future release.")
-    def _create_manifest_config_from_ads_session(
-        self,
-        ads_session: Session,
-        ads_schemas: Optional[List[os.PathLike]] = None,
-        session_name: Optional[str] = None,
-    ) -> ManifestConfig:
-        """
-        Creates a ManifestConfig from an aind-data-schema session.
-
-        Deprecated: Use _create_manifest_config_from_ads_acquisition instead.
-
-        Args:
-            ads_session: The aind-data-schema session data
-            ads_schemas: Optional list of schema files
-            session_name: Name of the session
-
-        Returns:
-            A ManifestConfig object
-
-        Raises:
-            ValueError: If the project name is invalid
-        """
-        processor_full_name = ",".join(ads_session.experimenter_full_name) or os.environ.get("USERNAME", "unknown")
-
-        if (len(ads_session.experimenter_full_name) > 0) and self._email_from_experimenter_builder is not None:
-            user_email = self._email_from_experimenter_builder(ads_session.experimenter_full_name[0])
-        else:
-            user_email = None
-
-        destination = Path(self._settings.destination).resolve()
-        source = Path(self._source).resolve()
-
-        if self._validate_project_name:
-            project_names = self._get_project_names()
-            if self._settings.project_name not in project_names:
-                raise ValueError(f"Project name {self._settings.project_name} not found in {project_names}")
-
-        ads_schemas = self._find_ads_schemas(source) if ads_schemas is None else ads_schemas
-
-        _manifest_config = ManifestConfig(
-            name=session_name,
-            modalities={
-                str(modality.abbreviation): [Path(path.resolve()) for path in [source / str(modality.abbreviation)]]
-                for modality in ads_session.data_streams[0].stream_modalities
-            },
-            subject_id=int(ads_session.subject_id),
-            acquisition_datetime=ads_session.session_start_time,
-            schemas=[Path(value) for value in ads_schemas],
-            destination=Path(destination),
-            mount=self._settings.mount,
-            processor_full_name=processor_full_name,
+            processor_full_name=",".join(session.experimenter),
             project_name=self._settings.project_name,
             schedule_time=self._settings.schedule_time,
             platform=self._settings.platform,
@@ -509,9 +390,9 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         return _adapter.validate_json(updated_literal)
 
     @staticmethod
-    def _find_ads_schemas(source: PathLike) -> List[PathLike]:
+    def _find_schema_candidates(source: PathLike) -> List[Path]:
         """
-        Finds aind-data-schema schema files in the source directory.
+        Finds json files in the source directory
 
         Args:
             source: The source directory to search
@@ -520,11 +401,30 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
             A list of schema file paths
         """
         json_files = []
-        for core_file in CORE_FILES:
-            json_file = Path(source) / f"{core_file}.json"
-            if json_file.exists():
-                json_files.append(json_file)
-        return [path for path in json_files]
+        for file in Path(source).glob("*.json"):
+            json_files.append(file)
+        return json_files
+
+    @staticmethod
+    def _find_modality_candidates(source: PathLike) -> Dict[str, List[Path]]:
+        """
+        Finds modality files in the source directory.
+
+        Args:
+            source: The source directory to search
+        Returns:
+            A list of modality directory paths
+        """
+        # The assumption is that the modality directories are named after the modality abbreviations
+        _candidates = aind_data_transfer_service.models.core.Modality.abbreviation_map.keys()
+        modality_dirs = {}
+        for _dir in Path(source).iterdir():
+            if _dir.is_dir() and _dir.name in _candidates:
+                modality_dirs[_dir.name] = [_dir.resolve()]
+                continue
+            if _dir.is_dir():
+                logger.warning("Directory %s is not a recognized modality directory. Will not be appended", _dir.name)
+        return modality_dirs
 
     @staticmethod
     def _get_project_names(
@@ -660,12 +560,3 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         """
         with open(path, "r", encoding="utf-8") as f:
             return yaml.safe_load(f)
-
-    def prompt_input(self) -> bool:
-        """
-        Prompts the user to confirm whether to generate a manifest.
-
-        Returns:
-            True if the user confirms, False otherwise
-        """
-        return self._ui_helper.prompt_yes_no_question("Would you like to generate a watchdog manifest (Y/N)?")
