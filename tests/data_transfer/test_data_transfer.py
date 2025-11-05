@@ -1,16 +1,16 @@
 import os
 import subprocess
+import tempfile
 from datetime import datetime, time
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+from aind_behavior_services import AindBehaviorSessionModel
 from aind_data_transfer_service.models.core import Task
 from requests.exceptions import HTTPError
 
-from clabe.data_mapper.aind_data_schema import Session
 from clabe.data_transfer.aind_watchdog import (
-    CORE_FILES,
     ManifestConfig,
     WatchConfig,
     WatchdogDataTransferService,
@@ -22,30 +22,18 @@ from tests import TESTS_ASSETS
 
 @pytest.fixture
 def source():
-    return Path("source_path")
+    """Create a temporary directory with test folder structure."""
+    temp_dir = Path(tempfile.mkdtemp(prefix="source_path"))
 
+    folders = ["behavior", "not_a_modality", "behavior-videos"]
+    for folder in folders:
+        folder_path = temp_dir / folder
+        folder_path.mkdir(exist_ok=True)
 
-@pytest.fixture
-def ads_session():
-    """Mock Session for testing create_manifest_config_from_ads_session method."""
-    mock_session = MagicMock(spec=Session)
-    mock_session.experimenter_full_name = ["john.doe", "jane.smith"]
-    mock_session.subject_id = "12345"
-    mock_session.session_start_time = datetime(2023, 1, 1, 10, 0, 0)
+    yield temp_dir
+    import shutil
 
-    # Mock data streams with modalities
-    mock_modality = MagicMock()
-    mock_modality.abbreviation = "behavior"
-
-    mock_data_stream = MagicMock()
-    mock_session.data_streams = [mock_data_stream]
-    mock_session.data_streams[0].stream_modalities = [mock_modality]
-
-    # Mock aind-data-schema v2 attributes because someone did not care about backward compatibility...
-    mock_session.experimenters = mock_session.experimenter_full_name
-    mock_session.acquisition_start_time = mock_session.session_start_time
-    mock_session.data_streams[0].modalities = mock_session.data_streams[0].stream_modalities
-    return mock_session
+    shutil.rmtree(temp_dir, ignore_errors=True)
 
 
 @pytest.fixture
@@ -55,27 +43,34 @@ def settings():
         schedule_time=time(hour=20),
         project_name="test_project",
         platform="behavior",
-        capsule_id="capsule_id",
         script={"script_key": ["script_value"]},
         s3_bucket="private",
-        mount="mount_path",
         force_cloud_sync=True,
         transfer_endpoint="http://aind-data-transfer-service-dev/api/v2/submit_jobs",
     )
 
 
 @pytest.fixture
-def watchdog_service(mock_ui_helper, source, settings, ads_session):
+def mock_session():
+    return AindBehaviorSessionModel(
+        experiment="mock",
+        subject="007",
+        experiment_version="0.0.0",
+        root_path="mock_path",
+        session_name="mock_session",
+    )
+
+
+@pytest.fixture
+def watchdog_service(mock_ui_helper, source, settings, mock_session):
     os.environ["WATCHDOG_EXE"] = "watchdog.exe"
     os.environ["WATCHDOG_CONFIG"] = str(TESTS_ASSETS / "watch_config.yml")
 
     service = WatchdogDataTransferService(
         source,
         settings=settings,
-        aind_data_schema_session=ads_session,
+        session=mock_session,
         validate=False,
-        ui_helper=mock_ui_helper,
-        session_name="test_session",
     )
 
     service._manifest_config = ManifestConfig(
@@ -112,18 +107,6 @@ def watchdog_service(mock_ui_helper, source, settings, ads_session):
 
 
 class TestWatchdogDataTransferService:
-    def test_initialization(self, watchdog_service, settings):
-        assert watchdog_service._settings.destination == settings.destination
-        assert watchdog_service._settings.project_name == settings.project_name
-        assert watchdog_service._settings.schedule_time == settings.schedule_time
-        assert watchdog_service._settings.platform == settings.platform
-        assert watchdog_service._settings.capsule_id == settings.capsule_id
-        assert watchdog_service._settings.script == settings.script
-        assert watchdog_service._settings.s3_bucket == settings.s3_bucket
-        assert watchdog_service._settings.mount == settings.mount
-        assert watchdog_service._settings.force_cloud_sync == settings.force_cloud_sync
-        assert watchdog_service._settings.transfer_endpoint == settings.transfer_endpoint
-
     @patch("clabe.data_transfer.aind_watchdog.subprocess.check_output")
     def test_is_running(self, mock_check_output, watchdog_service):
         mock_check_output.return_value = (
@@ -180,21 +163,13 @@ class TestWatchdogDataTransferService:
             with pytest.raises(FileNotFoundError):
                 watchdog_service.validate()
 
-    def test_missing_env_variables(self, source, settings, ads_session):
+    def test_missing_env_variables(self, source, settings, mock_session):
         if "WATCHDOG_EXE" in os.environ:
             del os.environ["WATCHDOG_EXE"]
         if "WATCHDOG_CONFIG" in os.environ:
             del os.environ["WATCHDOG_CONFIG"]
         with pytest.raises(ValueError):
-            WatchdogDataTransferService(source, settings=settings, validate=False, aind_data_schema_session=ads_session)
-
-    @patch("clabe.data_transfer.aind_watchdog.Path.exists", return_value=True)
-    def test_find_ads_schemas(self, mock_exists):
-        source = "mock_source_path"
-        expected_files = [Path(source) / f"{file}.json" for file in CORE_FILES]
-
-        result = WatchdogDataTransferService._find_schema_candidates(Path(source))
-        assert result == expected_files
+            WatchdogDataTransferService(source, settings=settings, validate=False, session=mock_session)
 
     @patch("clabe.data_transfer.aind_watchdog.Path.mkdir")
     @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService._write_yaml")
@@ -433,23 +408,6 @@ class TestWatchdogDataTransferService:
     def test_is_valid_project_name_invalid(self, mock_get_project_names, watchdog_service):
         assert not watchdog_service.is_valid_project_name()
 
-    @patch(
-        "clabe.data_transfer.aind_watchdog.WatchdogDataTransferService._get_project_names",
-        return_value=["other_project"],
-    )
-    @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService._find_ads_schemas", return_value=[])
-    def test_create_manifest_config_from_ads_session_invalid_project_name(
-        self, mock_find_ads_schemas, mock_get_project_names, watchdog_service, ads_session
-    ):
-        watchdog_service._validate_project_name = True
-        with pytest.raises(ValueError):
-            watchdog_service._create_manifest_config_from_ads_session(ads_session)
-
-
-@pytest.fixture
-def robocopy_source():
-    return Path("source_path")
-
 
 @pytest.fixture
 def robocopy_settings():
@@ -464,17 +422,17 @@ def robocopy_settings():
 
 
 @pytest.fixture
-def robocopy_service(mock_ui_helper, robocopy_source, robocopy_settings):
+def robocopy_service(mock_ui_helper, source, robocopy_settings):
     return RobocopyService(
-        source=robocopy_source,
+        source=source,
         settings=robocopy_settings,
         ui_helper=mock_ui_helper,
     )
 
 
 class TestRobocopyService:
-    def test_initialization(self, robocopy_service, robocopy_source, robocopy_settings):
-        assert robocopy_service.source == robocopy_source
+    def test_initialization(self, robocopy_service, source, robocopy_settings):
+        assert robocopy_service.source == source
         assert robocopy_service._settings.destination == robocopy_settings.destination
         assert robocopy_service._settings.log == robocopy_settings.log
         assert robocopy_service._settings.extra_args == robocopy_settings.extra_args
@@ -490,15 +448,15 @@ class TestRobocopyService:
             mock_popen.return_value = mock_process
             robocopy_service.transfer()
 
-    def test_solve_src_dst_mapping_single_path(self, robocopy_service, robocopy_source, robocopy_settings):
-        result = robocopy_service._solve_src_dst_mapping(robocopy_source, robocopy_settings.destination)
-        assert result == {Path(robocopy_source): Path(robocopy_settings.destination)}
+    def test_solve_src_dst_mapping_single_path(self, robocopy_service, source, robocopy_settings):
+        result = robocopy_service._solve_src_dst_mapping(source, robocopy_settings.destination)
+        assert result == {Path(source): Path(robocopy_settings.destination)}
 
-    def test_solve_src_dst_mapping_dict(self, robocopy_service, robocopy_source, robocopy_settings):
-        source_dict = {robocopy_source: robocopy_settings.destination}
+    def test_solve_src_dst_mapping_dict(self, robocopy_service, source, robocopy_settings):
+        source_dict = {source: robocopy_settings.destination}
         result = robocopy_service._solve_src_dst_mapping(source_dict, None)
         assert result == source_dict
 
-    def test_solve_src_dst_mapping_invalid(self, robocopy_service, robocopy_source):
+    def test_solve_src_dst_mapping_invalid(self, robocopy_service, source):
         with pytest.raises(ValueError):
-            robocopy_service._solve_src_dst_mapping(robocopy_source, None)
+            robocopy_service._solve_src_dst_mapping(source, None)

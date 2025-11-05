@@ -52,7 +52,7 @@ class WatchdogSettings(ServiceSettings):
     upload_tasks: Optional[SerializeAsAny[TransferServiceTask]] = None
     job_type: str = "default"
     extra_modality_data: Optional[Dict[str, List[Path]]] = pydantic.Field(
-        None, description="Additional modality data to include in the transfer"
+        default=None, description="Additional modality data to include in the transfer"
     )
     mount: Optional[None] = pydantic.Field(default=None, deprecated=True)
     platform: Literal["behavior"] = pydantic.Field(default="behavior", deprecated=True)
