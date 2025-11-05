@@ -1,12 +1,13 @@
+import hashlib
 import logging
 import os
+import random
 from os import PathLike
 from pathlib import Path
 from typing import Dict, Optional
 
+import pydantic
 from aind_behavior_services import AindBehaviorRigModel, AindBehaviorSessionModel, AindBehaviorTaskLogicModel
-
-from clabe.launcher._base import Launcher
 
 from ._base import Command, CommandResult, ExecutableApp, identity_parser
 from ._executors import _DefaultExecutorMixin
@@ -177,7 +178,7 @@ class AindBehaviorServicesBonsaiApp(BonsaiApp):
         self,
         workflow: os.PathLike,
         *,
-        launcher: Launcher,
+        temp_directory: os.PathLike,
         rig: Optional[AindBehaviorRigModel] = None,
         session: Optional[AindBehaviorSessionModel] = None,
         task_logic: Optional[AindBehaviorTaskLogicModel] = None,
@@ -232,14 +233,35 @@ class AindBehaviorServicesBonsaiApp(BonsaiApp):
         """
         additional_externalized_properties = kwargs.pop("additional_externalized_properties", {}) or {}
         if rig:
-            additional_externalized_properties["RigPath"] = os.path.abspath(launcher.save_temp_model(model=rig))
+            additional_externalized_properties["RigPath"] = os.path.abspath(self._save_temp_model(model=rig))
         if session:
-            additional_externalized_properties["SessionPath"] = os.path.abspath(launcher.save_temp_model(model=session))
+            additional_externalized_properties["SessionPath"] = os.path.abspath(self._save_temp_model(model=session))
         if task_logic:
             additional_externalized_properties["TaskLogicPath"] = os.path.abspath(
-                launcher.save_temp_model(model=task_logic)
+                self._save_temp_model(model=task_logic)
             )
         super().__init__(
             workflow=workflow, additional_externalized_properties=additional_externalized_properties, **kwargs
         )
-        self._launcher = launcher
+        self._temp_directory = Path(temp_directory)
+
+    def _save_temp_model(self, model: pydantic.BaseModel) -> Path:
+        """
+        Saves a temporary JSON representation of a pydantic model.
+
+        Args:
+            model: The pydantic model to save
+            directory: The directory to save the file in.
+
+        Returns:
+            Path: The path to the saved file
+        """
+        self._temp_directory.mkdir(parents=True, exist_ok=True)
+
+        random_data = str(random.random()).encode("utf-8")
+        sha_hash = hashlib.sha256(random_data).hexdigest()[:8]
+
+        fpath = self._temp_directory / f"{model.__class__.__name__}_{sha_hash}.json"
+        with open(fpath, "w+", encoding="utf-8") as f:
+            f.write(model.model_dump_json(indent=2))
+        return Path(fpath)
