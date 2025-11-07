@@ -231,6 +231,7 @@ class AindBehaviorServicesBonsaiApp(BonsaiApp):
             # -p:"TaskLogicPath"="/tmp/task_logic_temp.json"
             ```
         """
+        self._temp_directory = Path(temp_directory)
         additional_externalized_properties = kwargs.pop("additional_externalized_properties", {}) or {}
         if rig:
             additional_externalized_properties["RigPath"] = os.path.abspath(self._save_temp_model(model=rig))
@@ -243,7 +244,6 @@ class AindBehaviorServicesBonsaiApp(BonsaiApp):
         super().__init__(
             workflow=workflow, additional_externalized_properties=additional_externalized_properties, **kwargs
         )
-        self._temp_directory = Path(temp_directory)
 
     def _save_temp_model(self, model: pydantic.BaseModel) -> Path:
         """
