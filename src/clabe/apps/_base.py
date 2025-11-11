@@ -266,6 +266,12 @@ class Command(Generic[TOutput]):
         return self._output_parser(result)
 
 
+class StdCommand(Command[CommandResult]):
+    """Standard command that returns the raw CommandResult."""
+    def __init__(self, cmd: str) -> None:
+        super().__init__(cmd, identity_parser)
+
+
 def identity_parser(result: CommandResult) -> CommandResult:
     """Helper parser that returns the CommandResult as-is."""
     return result

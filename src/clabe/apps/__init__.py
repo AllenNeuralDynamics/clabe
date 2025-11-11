@@ -7,6 +7,7 @@ from ._base import (
     Executor,
     OutputParser,
     identity_parser,
+    StdCommand
 )
 from ._bonsai import AindBehaviorServicesBonsaiApp, BonsaiApp
 from ._curriculum import CurriculumApp, CurriculumSettings, CurriculumSuggestion
@@ -28,4 +29,5 @@ __all__ = [
     "OutputParser",
     "PythonScriptApp",
     "ExecutableApp",
+    "StdCommand"
 ]

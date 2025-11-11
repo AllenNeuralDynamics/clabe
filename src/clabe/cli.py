@@ -6,7 +6,7 @@ from .xml_rpc._server import _XmlRpcServerStartCli
 class CliAppSettings(BaseSettings, cli_prog_name="clabe", cli_kebab_case=True):
     """CLI application settings."""
 
-    rpc_server: CliSubCommand[_XmlRpcServerStartCli]
+    xml_rpc_server: CliSubCommand[_XmlRpcServerStartCli]
 
     def cli_cmd(self):
         """Run the selected subcommand."""
