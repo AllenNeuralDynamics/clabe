@@ -38,9 +38,9 @@ def _default_token() -> SecretStr:
 
 
 class XmlRpcServerSettings(ServiceSettings):
-    """Settings configuration for the RPC server."""
+    """Settings configuration for the XML-RPC server."""
 
-    __yaml_section__: ClassVar[str] = "rpc_server"
+    __yml_section__: ClassVar[str] = "xml_rpc_server"
 
     token: SecretStr = Field(default_factory=_default_token, description="Authentication token for RPC access")
     address: IPvAnyAddress = Field(default="0.0.0.0", validate_default=True)
@@ -411,7 +411,7 @@ class XmlRpcServer:
             return response.model_dump()
 
 
-class _RpcServerStartCli(XmlRpcServerSettings):
+class _XmlRpcServerStartCli(XmlRpcServerSettings):
     """CLI application wrapper for the RPC server."""
 
     def cli_cmd(self):
@@ -424,4 +424,4 @@ class _RpcServerStartCli(XmlRpcServerSettings):
 
 
 if __name__ == "__main__":
-    CliApp().run(_RpcServerStartCli)
+    CliApp().run(_XmlRpcServerStartCli)
