@@ -2,15 +2,25 @@ import logging
 import os
 from enum import Enum
 from pathlib import Path
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
 import requests
 from pydantic import BaseModel, Field
 
+from ..services import ServiceSettings
 from ._base import Command, CommandResult, ExecutableApp, identity_parser
 from ._executors import _DefaultExecutorMixin
 
 logger = logging.getLogger(__name__)
+
+
+class OpenEphysAppSettings(ServiceSettings):
+    __yml_section__ = "open_ephys"
+
+    signal_chain: os.PathLike
+    executable: os.PathLike = Path("./.open_ephys/open_ephys.exe")
+    address: str = "localhost"
+    port: int = 37497
 
 
 class OpenEphysApp(ExecutableApp, _DefaultExecutorMixin):
@@ -29,10 +39,7 @@ class OpenEphysApp(ExecutableApp, _DefaultExecutorMixin):
 
     def __init__(
         self,
-        signal_chain: os.PathLike,
-        *,
-        executable: os.PathLike = Path("./.open_ephys/open_ephys.exe"),
-        client: Optional["OpenEphysGuiClient"] = None,
+        settings: OpenEphysAppSettings,
         skip_validation: bool = False,
     ) -> None:
         """
@@ -51,9 +58,10 @@ class OpenEphysApp(ExecutableApp, _DefaultExecutorMixin):
             app.run()
             ```
         """
-        self.signal_chain = Path(signal_chain).resolve()
-        self.executable = Path(executable).resolve()
-        self._client = client or OpenEphysGuiClient()
+        self.settings = settings
+        self.signal_chain = Path(self.settings.signal_chain).resolve()
+        self.executable = Path(self.settings.executable).resolve()
+        self._client = _OpenEphysGuiClient(host=self.settings.address, port=self.settings.port)
 
         if not skip_validation:
             self.validate()
@@ -80,7 +88,7 @@ class OpenEphysApp(ExecutableApp, _DefaultExecutorMixin):
         return self._command
 
     @property
-    def client(self) -> "OpenEphysGuiClient":
+    def client(self) -> "_OpenEphysGuiClient":
         """Get the Open Ephys GUI client."""
         return self._client
 
@@ -187,7 +195,7 @@ class WindowRequest(BaseModel):
     command: Literal["quit"]
 
 
-class OpenEphysGuiClient:
+class _OpenEphysGuiClient:
     """Client for interacting with the Open Ephys GUI HTTP Server.
 
     The Open Ephys HTTP Server runs on port 37497 and provides a RESTful API

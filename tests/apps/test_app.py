@@ -16,7 +16,7 @@ from clabe.apps import (
     identity_parser,
 )
 from clabe.apps._executors import AsyncLocalExecutor, LocalExecutor
-from clabe.apps.open_ephys import OpenEphysApp, OpenEphysGuiClient, Status
+from clabe.apps.open_ephys import OpenEphysApp, Status, _OpenEphysGuiClient
 
 # ============================================================================
 # Test Fixtures
@@ -593,7 +593,7 @@ def open_ephys_app() -> OpenEphysApp:
     """OpenEphysApp fixture."""
     signal_chain = Path("test_signal_chain.xml")
     executable = Path(".open_ephys/open_ephys.exe")
-    mock_client = MagicMock(spec=OpenEphysGuiClient)
+    mock_client = MagicMock(spec=_OpenEphysGuiClient)
     app = OpenEphysApp(signal_chain=signal_chain, executable=executable, client=mock_client)
     return app
 
@@ -602,17 +602,17 @@ class TestOpenEphysGuiClient:
     """Test _OpenEphysGuiClient."""
 
     @pytest.fixture
-    def client(self) -> OpenEphysGuiClient:
+    def client(self) -> _OpenEphysGuiClient:
         """Create a client instance."""
-        return OpenEphysGuiClient(host="localhost", port=37497, timeout=5.0)
+        return _OpenEphysGuiClient(host="localhost", port=37497, timeout=5.0)
 
-    def test_client_init(self, client: OpenEphysGuiClient) -> None:
+    def test_client_init(self, client: _OpenEphysGuiClient) -> None:
         """Test client initialization."""
         assert client.base_url == "http://localhost:37497/api"
         assert client._timeout == 5.0
 
     @patch("requests.get")
-    def test_get(self, mock_get: MagicMock, client: OpenEphysGuiClient) -> None:
+    def test_get(self, mock_get: MagicMock, client: _OpenEphysGuiClient) -> None:
         """Test generic GET request."""
         mock_response = MagicMock()
         mock_response.json.return_value = {"mode": "IDLE"}
@@ -626,7 +626,7 @@ class TestOpenEphysGuiClient:
         mock_response.raise_for_status.assert_called_once()
 
     @patch("requests.put")
-    def test_put(self, mock_put: MagicMock, client: OpenEphysGuiClient) -> None:
+    def test_put(self, mock_put: MagicMock, client: _OpenEphysGuiClient) -> None:
         """Test generic PUT request with Pydantic model."""
         from clabe.apps.open_ephys import StatusRequest
 
@@ -648,7 +648,7 @@ class TestOpenEphysGuiClient:
         mock_response.raise_for_status.assert_called_once()
 
     @patch("requests.get")
-    def test_get_request_exception(self, mock_get: MagicMock, client: OpenEphysGuiClient) -> None:
+    def test_get_request_exception(self, mock_get: MagicMock, client: _OpenEphysGuiClient) -> None:
         """Test GET request with request exception."""
         mock_get.side_effect = requests.RequestException("Connection error")
 
@@ -656,7 +656,7 @@ class TestOpenEphysGuiClient:
             client._get("/status")
 
     @patch("requests.put")
-    def test_put_request_exception(self, mock_put: MagicMock, client: OpenEphysGuiClient) -> None:
+    def test_put_request_exception(self, mock_put: MagicMock, client: _OpenEphysGuiClient) -> None:
         """Test PUT request with request exception."""
         from clabe.apps.open_ephys import StatusRequest
 
