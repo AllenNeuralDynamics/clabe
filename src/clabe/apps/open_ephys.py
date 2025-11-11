@@ -246,7 +246,7 @@ class _OpenEphysGuiClient:
             Current status containing the GUI mode (IDLE, ACQUIRE, or RECORD).
         """
         data = self._get("/status")
-        return Status(**data)
+        return StatusResponse(**data).mode
 
     def set_status(self, mode: Status) -> Status:
         """Set the GUI's acquisition/recording status.
@@ -262,7 +262,7 @@ class _OpenEphysGuiClient:
         """
         request = StatusRequest(mode=mode)
         data = self._put("/status", request)
-        return Status(**data)
+        return StatusResponse(**data).mode
 
     def start_acquisition(self) -> Status:
         """Start data acquisition without recording.
