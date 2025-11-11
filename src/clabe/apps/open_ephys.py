@@ -15,6 +15,8 @@ logger = logging.getLogger(__name__)
 
 
 class OpenEphysAppSettings(ServiceSettings):
+    """Settings for Open Ephys App."""
+
     __yml_section__ = "open_ephys"
 
     signal_chain: os.PathLike

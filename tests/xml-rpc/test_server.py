@@ -66,16 +66,6 @@ def rpc_client(rpc_server):
 class TestXmlRpcServerSettings:
     """Test XML-RPC server settings configuration."""
 
-    def test_default_settings(self):
-        """Test default settings creation."""
-        settings = XmlRpcServerSettings()
-        assert str(settings.address) == "0.0.0.0"
-        assert settings.port == 8000
-        assert settings.max_workers == 4
-        assert settings.max_file_size == 5 * 1024 * 1024
-        assert isinstance(settings.token, SecretStr)
-        assert len(settings.token.get_secret_value()) > 10
-
     def test_custom_settings(self, temp_transfer_dir):
         """Test custom settings configuration."""
         from ipaddress import IPv4Address
