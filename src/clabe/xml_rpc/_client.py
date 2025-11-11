@@ -11,7 +11,7 @@ from clabe.apps import Command
 from clabe.apps._base import CommandResult
 
 from ..services import ServiceSettings
-from ._executor import RpcExecutor
+from ._executor import XmlRpcExecutor
 from .models import (
     FileBulkDeleteResponse,
     FileDeleteResponse,
@@ -27,7 +27,7 @@ from .models import (
 logger = logging.getLogger(__name__)
 
 
-class RpcClientSettings(ServiceSettings):
+class XmlRpcClientSettings(ServiceSettings):
     """Settings for RPC client configuration."""
 
     __yml_section__ = "rpc_client"
@@ -39,10 +39,10 @@ class RpcClientSettings(ServiceSettings):
     max_file_size: int = Field(default=5 * 1024 * 1024, description="Maximum file size in bytes (default 5MB)")
 
 
-class RpcClient:
+class XmlRpcClient:
     """Client for interacting with the RPC server."""
 
-    def __init__(self, settings: RpcClientSettings):
+    def __init__(self, settings: XmlRpcClientSettings):
         """
         Initialize the RPC client.
 
@@ -52,7 +52,7 @@ class RpcClient:
         self.settings = settings
         self._client = xmlrpc.client.ServerProxy(str(settings.server_url), allow_none=True)
         self._token = settings.token.get_secret_value()
-        self._executor = RpcExecutor(self, timeout=settings.timeout, poll_interval=settings.poll_interval)
+        self._executor = XmlRpcExecutor(self, timeout=settings.timeout, poll_interval=settings.poll_interval)
 
         logger.info(f"RPC client initialized for server: {settings.server_url}")
 
@@ -472,7 +472,7 @@ class RpcClient:
         logger.info("RPC client context exited")
         return False
 
-    def executor(self) -> RpcExecutor:
+    def executor(self) -> XmlRpcExecutor:
         """Get the RPC executor for command execution."""
         return self._executor
 

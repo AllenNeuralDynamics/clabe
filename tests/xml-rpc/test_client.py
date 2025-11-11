@@ -8,24 +8,24 @@ from xmlrpc.client import ServerProxy
 import pytest
 from pydantic import HttpUrl, SecretStr
 
-from clabe.rpc._client import (
-    RpcClient,
-    RpcClientSettings,
+from clabe.xml_rpc._client import (
+    XmlRpcClient,
+    XmlRpcClientSettings,
 )
-from clabe.rpc._server import RpcServer, RpcServerSettings
-from clabe.rpc.models import FileInfo, JobResult, JobStatus
+from clabe.xml_rpc._server import XmlRpcServer, XmlRpcServerSettings
+from clabe.xml_rpc.models import FileInfo, JobResult, JobStatus
 
 
 @pytest.fixture
 def client(test_server):
-    """Create an RPC client for the test server."""
+    """Create an XML-RPC client for the test server."""
     _, port, token = test_server
 
-    settings = RpcClientSettings(
+    settings = XmlRpcClientSettings(
         server_url=HttpUrl(f"http://127.0.0.1:{port}"),
         token=SecretStr(token),
     )
-    return RpcClient(settings)
+    return XmlRpcClient(settings)
 
 
 @pytest.fixture
@@ -37,10 +37,10 @@ def temp_transfer_dir():
 
 @pytest.fixture
 def test_server(temp_transfer_dir):
-    """Create and start a test RPC server."""
+    """Create and start a test XML-RPC server."""
     from ipaddress import IPv4Address
 
-    server_settings = RpcServerSettings(
+    server_settings = XmlRpcServerSettings(
         token=SecretStr("test-client-token"),
         address=IPv4Address("127.0.0.1"),
         port=0,  # Let the OS choose a free port
@@ -49,7 +49,7 @@ def test_server(temp_transfer_dir):
         file_transfer_dir=temp_transfer_dir,
     )
 
-    server = RpcServer(server_settings)
+    server = XmlRpcServer(server_settings)
     actual_port = server.server.server_address[1]
 
     server_thread = threading.Thread(target=server.server.serve_forever, daemon=True)
@@ -67,7 +67,7 @@ def test_server(temp_transfer_dir):
 def client_settings(test_server):
     """Create client settings for the test server."""
     server, port, token = test_server
-    return RpcClientSettings(
+    return XmlRpcClientSettings(
         server_url=HttpUrl(f"http://127.0.0.1:{port}"),
         token=SecretStr(token),
         timeout=5.0,
@@ -77,17 +77,16 @@ def client_settings(test_server):
 
 
 @pytest.fixture
-def rpc_client(client_settings) -> RpcClient:
-    """Create an RPC client instance."""
-    return RpcClient(client_settings)
+def rpc_client(client_settings) -> XmlRpcClient:
+    """Create an XML-RPC client instance."""
+    return XmlRpcClient(client_settings)
 
 
-class TestRpcClientSettings:
-    """Test RPC client settings configuration."""
-
+class TestXmlRpcClientSettings:
+    """Test XML-RPC client settings configuration."""
     def test_client_settings_creation(self):
         """Test creating client settings with required parameters."""
-        settings = RpcClientSettings(server_url=HttpUrl("http://localhost:8000"), token=SecretStr("test-token"))
+        settings = XmlRpcClientSettings(server_url=HttpUrl("http://localhost:8000"), token=SecretStr("test-token"))
 
         assert str(settings.server_url) == "http://localhost:8000/"
         assert settings.token.get_secret_value() == "test-token"
@@ -97,7 +96,7 @@ class TestRpcClientSettings:
 
     def test_client_settings_custom_values(self):
         """Test creating client settings with custom values."""
-        settings = RpcClientSettings(
+        settings = XmlRpcClientSettings(
             server_url=HttpUrl("http://192.168.1.100:9000"),
             token=SecretStr("custom-token"),
             timeout=60.0,
@@ -158,33 +157,32 @@ class TestFileInfo:
         assert info.modified == 1640995200.0
 
 
-class TestRpcClient:
-    """Test RPC client functionality."""
+class TestXmlRpcClient:
+    """Test XML-RPC client functionality."""
 
     def test_client_initialization(self, client_settings):
         """Test client initialization."""
-        client = RpcClient(client_settings)
+        client = XmlRpcClient(client_settings)
 
         assert client.settings == client_settings
         assert isinstance(client._client, ServerProxy)
         assert client._token == client_settings.token.get_secret_value()
 
-    def test_ping_success(self, rpc_client: RpcClient):
+    def test_ping_success(self, rpc_client: XmlRpcClient):
         """Test successful server ping."""
         assert rpc_client.ping() is True
 
     def test_ping_failure(self, client_settings):
         """Test server ping failure."""
         # Use invalid port to simulate connection failure
-        bad_settings = RpcClientSettings(
+        bad_settings = XmlRpcClientSettings(
             server_url=HttpUrl("http://127.0.0.1:65535"),  # Valid but likely unused port
             token=client_settings.token,
         )
-        client = RpcClient(bad_settings)
-
+        client = XmlRpcClient(bad_settings)
         assert client.ping() is False
 
-    def test_submit_command(self, rpc_client: RpcClient):
+    def test_submit_command(self, rpc_client: XmlRpcClient):
         """Test command submission."""
         import sys
 
@@ -194,7 +192,7 @@ class TestRpcClient:
         assert isinstance(response.job_id, str)
         assert len(response.job_id) > 0
 
-    def test_get_result_running(self, rpc_client: RpcClient):
+    def test_get_result_running(self, rpc_client: XmlRpcClient):
         """Test getting result of a running job."""
         import sys
 
@@ -207,7 +205,7 @@ class TestRpcClient:
         # Job might complete quickly, so status could be "running" or "done"
         assert result.status in [JobStatus.RUNNING, JobStatus.DONE]
 
-    def test_get_result_completed(self, rpc_client: RpcClient):
+    def test_get_result_completed(self, rpc_client: XmlRpcClient):
         """Test getting result of a completed job."""
         import sys
 
@@ -221,7 +219,7 @@ class TestRpcClient:
         assert result.returncode == 0
         assert "hello world" in result.stdout
 
-    def test_wait_for_result_success(self, rpc_client: RpcClient):
+    def test_wait_for_result_success(self, rpc_client: XmlRpcClient):
         """Test waiting for command completion."""
         import sys
 
@@ -234,7 +232,7 @@ class TestRpcClient:
         assert result.returncode == 0
         assert "completed" in result.stdout
 
-    def test_wait_for_result_timeout(self, rpc_client: RpcClient):
+    def test_wait_for_result_timeout(self, rpc_client: XmlRpcClient):
         """Test timeout when waiting for command completion."""
         import sys
 
@@ -243,7 +241,7 @@ class TestRpcClient:
         with pytest.raises(TimeoutError, match="did not complete within"):
             rpc_client.wait_for_result(submission.job_id, timeout=0.5)
 
-    def test_run_command_success(self, rpc_client: RpcClient):
+    def test_run_command_success(self, rpc_client: XmlRpcClient):
         """Test running a command to completion."""
         import sys
 
@@ -253,7 +251,7 @@ class TestRpcClient:
         assert result.returncode == 0
         assert "direct run" in result.stdout
 
-    def test_is_running(self, rpc_client: RpcClient):
+    def test_is_running(self, rpc_client: XmlRpcClient):
         """Test checking if job is running."""
         import sys
 
@@ -267,7 +265,7 @@ class TestRpcClient:
         is_running_after = rpc_client.is_running(submission.job_id)
         assert is_running_after is False
 
-    def test_list_jobs(self, rpc_client: RpcClient):
+    def test_list_jobs(self, rpc_client: XmlRpcClient):
         """Test listing jobs."""
         # Submit a job
         import sys
@@ -281,12 +279,12 @@ class TestRpcClient:
         assert isinstance(jobs.running, list)
         assert isinstance(jobs.finished, list)
 
-    @patch("clabe.rpc._client.RpcClient._call_with_auth")
+    @patch("clabe.xml_rpc._client.XmlRpcClient._call_with_auth")
     def test_authentication_error(self, mock_call, client_settings):
         """Test handling of authentication errors."""
         mock_call.side_effect = Exception("Server error: Invalid or expired token")
 
-        client = RpcClient(client_settings)
+        client = XmlRpcClient(client_settings)
 
         with pytest.raises(Exception, match="Invalid or expired token"):
             client.submit_command(["echo", "test"])
@@ -295,7 +293,7 @@ class TestRpcClient:
 class TestFileOperations:
     """Test file upload/download operations."""
 
-    def test_upload_file_success(self, rpc_client: RpcClient, tmp_path):
+    def test_upload_file_success(self, rpc_client: XmlRpcClient, tmp_path):
         """Test successful file upload."""
         # Create a test file
         test_file = tmp_path / "upload_test.txt"
@@ -334,7 +332,7 @@ class TestFileOperations:
 
         assert result.filename == "default_name.txt"
 
-    def test_upload_model_success(self, rpc_client: RpcClient):
+    def test_upload_model_success(self, rpc_client: XmlRpcClient):
         """Test successful model upload."""
         from pydantic import BaseModel
 
@@ -352,7 +350,7 @@ class TestFileOperations:
         expected_json = test_model.model_dump_json()
         assert result.size == len(expected_json.encode("utf-8"))
 
-    def test_upload_model_too_large(self, rpc_client: RpcClient):
+    def test_upload_model_too_large(self, rpc_client: XmlRpcClient):
         """Test uploading model that serializes to data larger than limit."""
         from pydantic import BaseModel
 
@@ -366,7 +364,7 @@ class TestFileOperations:
         with pytest.raises(Exception, match="Serialized model too large"):
             rpc_client.upload_model(large_model, "large_model.json")
 
-    def test_download_file_success(self, rpc_client: RpcClient, tmp_path):
+    def test_download_file_success(self, rpc_client: XmlRpcClient, tmp_path):
         """Test successful file download."""
         # First upload a file
         upload_file = tmp_path / "for_download.txt"
@@ -383,7 +381,7 @@ class TestFileOperations:
         assert download_path.exists()
         assert download_path.read_text() == test_content
 
-    def test_download_file_default_path(self, rpc_client: RpcClient, tmp_path):
+    def test_download_file_default_path(self, rpc_client: XmlRpcClient, tmp_path):
         """Test downloading file with default local path."""
         # Upload a file first
         upload_file = tmp_path / "default_download.txt"
@@ -407,7 +405,7 @@ class TestFileOperations:
         finally:
             os.chdir(original_cwd)
 
-    def test_list_files(self, rpc_client: RpcClient, tmp_path):
+    def test_list_files(self, rpc_client: XmlRpcClient, tmp_path):
         """Test listing files on server."""
         # Upload a test file
         test_file = tmp_path / "list_test.txt"
@@ -426,7 +424,7 @@ class TestFileOperations:
         assert our_file.size > 0
         assert our_file.modified > 0
 
-    def test_delete_file(self, rpc_client: RpcClient, tmp_path):
+    def test_delete_file(self, rpc_client: XmlRpcClient, tmp_path):
         """Test deleting a file from server."""
         test_file = tmp_path / "delete_me.txt"
         test_file.write_text("delete this file")
@@ -446,7 +444,7 @@ class TestFileOperations:
         filenames_after = [f.name for f in files_after]
         assert "to_delete.txt" not in filenames_after
 
-    def test_delete_all_files(self, rpc_client: RpcClient, tmp_path):
+    def test_delete_all_files(self, rpc_client: XmlRpcClient, tmp_path):
         """Test deleting all files from server."""
         # Upload multiple files
         for i in range(3):
@@ -465,19 +463,19 @@ class TestFileOperations:
             assert f"bulk_{i}.txt" in result.deleted_files
 
 
-class TestRpcClientContext:
-    """Test RPC client context manager."""
+class TestXmlRpcClientContext:
+    """Test XML RPC client context manager."""
 
     def test_context_manager(self, client_settings):
         """Test using client as context manager."""
-        with RpcClient(client_settings) as client:
-            assert isinstance(client, RpcClient)
+        with XmlRpcClient(client_settings) as client:
+            assert isinstance(client, XmlRpcClient)
             assert client.ping() is True
 
     def test_context_manager_exception_handling(self, client_settings):
         """Test context manager handles exceptions properly."""
         try:
-            with RpcClient(client_settings):
+            with XmlRpcClient(client_settings):
                 # This should not prevent proper cleanup
                 raise ValueError("Test exception")
         except ValueError:
@@ -490,24 +488,24 @@ class TestRpcClientContext:
 class TestClientFixture:
     """Test client fixture functionality."""
 
-    def test_client_fixture(self, client: RpcClient):
+    def test_client_fixture(self, client: XmlRpcClient):
         """Test client fixture creates working client."""
-        assert isinstance(client, RpcClient)
+        assert isinstance(client, XmlRpcClient)
         assert client.ping() is True
 
     def test_client_fixture_with_custom_settings(self, test_server):
         """Test creating client with custom settings."""
         _, port, token = test_server
 
-        settings = RpcClientSettings(
+        settings = XmlRpcClientSettings(
             server_url=HttpUrl(f"http://127.0.0.1:{port}"),
             token=SecretStr(token),
             timeout=10.0,
             poll_interval=0.2,
         )
-        client = RpcClient(settings)
+        client = XmlRpcClient(settings)
 
-        assert isinstance(client, RpcClient)
+        assert isinstance(client, XmlRpcClient)
         assert client.settings.timeout == 10.0
         assert client.settings.poll_interval == 0.2
 
@@ -515,25 +513,25 @@ class TestClientFixture:
 class TestErrorHandling:
     """Test error handling scenarios."""
 
-    @patch("clabe.rpc._client.RpcClient._call_with_auth")
-    def test_server_error_handling(self, mock_call, rpc_client: RpcClient):
+    @patch("clabe.xml_rpc._client.XmlRpcClient._call_with_auth")
+    def test_server_error_handling(self, mock_call, rpc_client: XmlRpcClient):
         """Test handling of server errors."""
         mock_call.side_effect = Exception("Server error: Server internal error")
 
         with pytest.raises(Exception, match="Server internal error"):
             rpc_client.submit_command(["test"])
 
-    def test_invalid_job_id(self, rpc_client: RpcClient):
+    def test_invalid_job_id(self, rpc_client: XmlRpcClient):
         """Test handling of invalid job IDs."""
         with pytest.raises(Exception, match="Invalid job_id"):
             rpc_client.get_result("invalid-job-id-12345")
 
-    def test_file_not_found_download(self, rpc_client: RpcClient):
+    def test_file_not_found_download(self, rpc_client: XmlRpcClient):
         """Test downloading non-existent file."""
         with pytest.raises(Exception, match="File not found"):
             rpc_client.download_file("nonexistent_file.txt")
 
-    def test_file_not_found_delete(self, rpc_client: RpcClient):
+    def test_file_not_found_delete(self, rpc_client: XmlRpcClient):
         """Test deleting non-existent file."""
         with pytest.raises(Exception, match="File not found"):
             rpc_client.delete_file("nonexistent_file.txt")

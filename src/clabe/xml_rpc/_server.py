@@ -37,7 +37,7 @@ def _default_token() -> SecretStr:
     return SecretStr(secrets.token_urlsafe(32))
 
 
-class RpcServerSettings(ServiceSettings):
+class XmlRpcServerSettings(ServiceSettings):
     """Settings configuration for the RPC server."""
 
     __yaml_section__: ClassVar[str] = "rpc_server"
@@ -59,10 +59,10 @@ def get_local_ip():
         return s.getsockname()[0]
 
 
-class RpcServer:
+class XmlRpcServer:
     """XML-RPC server for remote command execution and file transfer."""
 
-    def __init__(self, settings: RpcServerSettings):
+    def __init__(self, settings: XmlRpcServerSettings):
         self.settings = settings
         self.executor = ThreadPoolExecutor(max_workers=settings.max_workers)
         self.jobs: dict[str, Future] = {}
@@ -411,12 +411,12 @@ class RpcServer:
             return response.model_dump()
 
 
-class _RpcServerStartCli(RpcServerSettings):
+class _RpcServerStartCli(XmlRpcServerSettings):
     """CLI application wrapper for the RPC server."""
 
     def cli_cmd(self):
         """Start the RPC server and run it until interrupted."""
-        server = RpcServer(settings=self)
+        server = XmlRpcServer(settings=self)
         try:
             server.server.serve_forever()
         except KeyboardInterrupt:

@@ -3,12 +3,12 @@ from unittest.mock import Mock
 import pytest
 
 from clabe.apps import Command, CommandResult, identity_parser
-from clabe.rpc import RpcExecutor
-from clabe.rpc.models import JobResult, JobStatus, JobSubmissionResponse
+from clabe.xml_rpc import XmlRpcExecutor
+from clabe.xml_rpc.models import JobResult, JobStatus, JobSubmissionResponse
 
 
-class TestRpcExecutor:
-    """Test suite for RpcExecutor class."""
+class TestXmlRpcExecutor:
+    """Test suite for XmlRpcExecutor class."""
 
     @pytest.fixture
     def mock_client(self):
@@ -21,16 +21,15 @@ class TestRpcExecutor:
 
     @pytest.fixture
     def executor(self, mock_client):
-        """Create RpcExecutor with mocked client."""
-        return RpcExecutor(mock_client)
+        """Create XmlRpcExecutor with mocked client."""
+        return XmlRpcExecutor(mock_client)
 
     def test_init(self):
-        """Test RpcExecutor initialization."""
+        """Test XmlRpcExecutor initialization."""
         mock_client = Mock()
         mock_client.settings.server_url = "http://localhost:8000"
 
-        executor = RpcExecutor(mock_client, timeout=60.0, poll_interval=1.0)
-
+        executor = XmlRpcExecutor(mock_client, timeout=60.0, poll_interval=1.0)
         assert executor.client == mock_client
         assert executor.timeout == 60.0
         assert executor.poll_interval == 1.0
