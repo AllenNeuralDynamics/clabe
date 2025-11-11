@@ -268,6 +268,7 @@ class Command(Generic[TOutput]):
 
 class StdCommand(Command[CommandResult]):
     """Standard command that returns the raw CommandResult."""
+
     def __init__(self, cmd: str) -> None:
         super().__init__(cmd, identity_parser)
 

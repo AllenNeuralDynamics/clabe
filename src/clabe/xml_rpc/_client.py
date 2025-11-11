@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 class XmlRpcClientSettings(ServiceSettings):
     """Settings for RPC client configuration."""
 
-    __yml_section__ = "rpc_client"
+    __yml_section__ = "xml_rpc_client"
 
     server_url: HttpUrl = Field(description="URL of the RPC server (e.g., http://127.0.0.1:8000)")
     token: SecretStr = Field(description="Authentication token for RPC access")

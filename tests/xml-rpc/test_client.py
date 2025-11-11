@@ -84,6 +84,7 @@ def rpc_client(client_settings) -> XmlRpcClient:
 
 class TestXmlRpcClientSettings:
     """Test XML-RPC client settings configuration."""
+
     def test_client_settings_creation(self):
         """Test creating client settings with required parameters."""
         settings = XmlRpcClientSettings(server_url=HttpUrl("http://localhost:8000"), token=SecretStr("test-token"))
