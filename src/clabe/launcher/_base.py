@@ -178,7 +178,7 @@ class Launcher:
             try:
                 self.copy_logs()
             except ValueError as ve:  # In the case session_directory fails
-                logger.error("Failed to copy logs: %s", ve)  # we swallow the error
+                logger.error("Failed to copy logs from %s. Error: %s", self.temp_dir, ve)  # we swallow the error
                 self._exit(-1)
             else:
                 self._exit(_code)
