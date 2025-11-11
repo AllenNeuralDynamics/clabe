@@ -16,7 +16,7 @@ from clabe.apps import (
     identity_parser,
 )
 from clabe.apps._executors import AsyncLocalExecutor, LocalExecutor
-from clabe.apps.open_ephys import OpenEphysApp, Status, OpenEphysGuiClient
+from clabe.apps.open_ephys import OpenEphysApp, OpenEphysGuiClient, Status
 
 # ============================================================================
 # Test Fixtures

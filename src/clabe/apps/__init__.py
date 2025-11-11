@@ -11,7 +11,6 @@ from ._base import (
 from ._bonsai import AindBehaviorServicesBonsaiApp, BonsaiApp
 from ._curriculum import CurriculumApp, CurriculumSettings, CurriculumSuggestion
 from ._python_script import PythonScriptApp
-from .rpc_executors import RpcExecutor
 
 __all__ = [
     "BonsaiApp",
@@ -29,5 +28,4 @@ __all__ = [
     "OutputParser",
     "PythonScriptApp",
     "ExecutableApp",
-    "RpcExecutor",
 ]

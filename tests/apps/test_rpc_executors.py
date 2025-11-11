@@ -3,7 +3,7 @@ from unittest.mock import Mock
 import pytest
 
 from clabe.apps import Command, CommandResult, identity_parser
-from clabe.apps.rpc_executors import RpcExecutor
+from clabe.rpc import RpcExecutor
 from clabe.rpc.models import JobResult, JobStatus, JobSubmissionResponse
 
 
