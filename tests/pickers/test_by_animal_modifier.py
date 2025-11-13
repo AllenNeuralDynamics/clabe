@@ -4,7 +4,7 @@ from typing import Optional
 import pydantic
 import pytest
 
-from clabe.pickers.default_behavior import ByAnimalModifier
+from clabe.pickers import ByAnimalModifier
 
 
 class NestedModel(pydantic.BaseModel):
