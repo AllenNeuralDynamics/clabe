@@ -1,5 +1,4 @@
 import os
-from pathlib import Path
 from typing import Optional
 
 from pydantic import Field
@@ -25,7 +24,4 @@ class LauncherCliArgs(ServiceSettings, cli_prog_name="clabe", cli_kebab_case=Tru
     )
     skip_hardware_validation: CliImplicitFlag[bool] = Field(
         default=False, description="Whether to skip hardware validation"
-    )
-    temp_dir: os.PathLike = Field(
-        default=Path("local/.temp"), description="The directory used for the launcher temp files"
     )

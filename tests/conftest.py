@@ -69,11 +69,9 @@ def mock_base_launcher(mock_rig, mock_session, mock_task_logic, mock_ui_helper, 
     os.environ["COMPUTERNAME"] = "TEST_COMPUTER"
     launcher_args = LauncherCliArgs(
         data_dir=tmp_path / "data",
-        temp_dir=tmp_path / "temp",
     )
     # Ensure directories exist for os.chdir
     launcher_args.data_dir.mkdir(parents=True, exist_ok=True)
-    launcher_args.temp_dir.mkdir(parents=True, exist_ok=True)
 
     with (
         patch("clabe.launcher._base.GitRepository") as mock_git,
@@ -89,4 +87,6 @@ def mock_base_launcher(mock_rig, mock_session, mock_task_logic, mock_ui_helper, 
             ui_helper=mock_ui_helper,
             settings=launcher_args,
         )
+        launcher.temp_dir.mkdir(parents=True, exist_ok=True)
+
         return launcher

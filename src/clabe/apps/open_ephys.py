@@ -2,15 +2,27 @@ import logging
 import os
 from enum import Enum
 from pathlib import Path
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
 import requests
 from pydantic import BaseModel, Field
 
+from ..services import ServiceSettings
 from ._base import Command, CommandResult, ExecutableApp, identity_parser
 from ._executors import _DefaultExecutorMixin
 
 logger = logging.getLogger(__name__)
+
+
+class OpenEphysAppSettings(ServiceSettings):
+    """Settings for Open Ephys App."""
+
+    __yml_section__ = "open_ephys"
+
+    signal_chain: os.PathLike
+    executable: os.PathLike = Path("./.open_ephys/open_ephys.exe")
+    address: str = "localhost"
+    port: int = 37497
 
 
 class OpenEphysApp(ExecutableApp, _DefaultExecutorMixin):
@@ -29,10 +41,7 @@ class OpenEphysApp(ExecutableApp, _DefaultExecutorMixin):
 
     def __init__(
         self,
-        signal_chain: os.PathLike,
-        *,
-        executable: os.PathLike = Path("./.open_ephys/open_ephys.exe"),
-        client: Optional["_OpenEphysGuiClient"] = None,
+        settings: OpenEphysAppSettings,
         skip_validation: bool = False,
     ) -> None:
         """
@@ -51,9 +60,10 @@ class OpenEphysApp(ExecutableApp, _DefaultExecutorMixin):
             app.run()
             ```
         """
-        self.signal_chain = Path(signal_chain).resolve()
-        self.executable = Path(executable).resolve()
-        self._client = client or _OpenEphysGuiClient()
+        self.settings = settings
+        self.signal_chain = Path(self.settings.signal_chain).resolve()
+        self.executable = Path(self.settings.executable).resolve()
+        self._client = _OpenEphysGuiClient(host=self.settings.address, port=self.settings.port)
 
         if not skip_validation:
             self.validate()
@@ -78,6 +88,11 @@ class OpenEphysApp(ExecutableApp, _DefaultExecutorMixin):
     def command(self) -> Command[CommandResult]:
         """Get the command to execute."""
         return self._command
+
+    @property
+    def client(self) -> "_OpenEphysGuiClient":
+        """Get the Open Ephys GUI client."""
+        return self._client
 
 
 class Status(str, Enum):
@@ -233,7 +248,7 @@ class _OpenEphysGuiClient:
             Current status containing the GUI mode (IDLE, ACQUIRE, or RECORD).
         """
         data = self._get("/status")
-        return Status(**data)
+        return StatusResponse(**data).mode
 
     def set_status(self, mode: Status) -> Status:
         """Set the GUI's acquisition/recording status.
@@ -249,7 +264,7 @@ class _OpenEphysGuiClient:
         """
         request = StatusRequest(mode=mode)
         data = self._put("/status", request)
-        return Status(**data)
+        return StatusResponse(**data).mode
 
     def start_acquisition(self) -> Status:
         """Start data acquisition without recording.

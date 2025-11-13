@@ -14,8 +14,8 @@ from xmlrpc.server import SimpleXMLRPCServer
 from pydantic import Field, IPvAnyAddress, SecretStr
 from pydantic_settings import CliApp
 
-from clabe.services import ServiceSettings
-
+from ..constants import TMP_DIR
+from ..services import ServiceSettings
 from .models import (
     FileBulkDeleteResponse,
     FileDeleteResponse,
@@ -37,10 +37,10 @@ def _default_token() -> SecretStr:
     return SecretStr(secrets.token_urlsafe(32))
 
 
-class RpcServerSettings(ServiceSettings):
-    """Settings configuration for the RPC server."""
+class XmlRpcServerSettings(ServiceSettings):
+    """Settings configuration for the XML-RPC server."""
 
-    __yaml_section__: ClassVar[str] = "rpc_server"
+    __yml_section__: ClassVar[str] = "xml_rpc_server"
 
     token: SecretStr = Field(default_factory=_default_token, description="Authentication token for RPC access")
     address: IPvAnyAddress = Field(default="0.0.0.0", validate_default=True)
@@ -48,7 +48,7 @@ class RpcServerSettings(ServiceSettings):
     max_workers: int = Field(default=4, description="Maximum number of concurrent RPC commands")
     max_file_size: int = Field(default=5 * 1024 * 1024, description="Maximum file size in bytes (default 5MB)")
     file_transfer_dir: Path = Field(
-        default_factory=lambda: Path(os.environ.get("TEMP", "temp")), description="Directory for file transfers"
+        default_factory=lambda: Path(os.environ.get("TEMP", TMP_DIR)), description="Directory for file transfers"
     )
 
 
@@ -59,10 +59,10 @@ def get_local_ip():
         return s.getsockname()[0]
 
 
-class RpcServer:
+class XmlRpcServer:
     """XML-RPC server for remote command execution and file transfer."""
 
-    def __init__(self, settings: RpcServerSettings):
+    def __init__(self, settings: XmlRpcServerSettings):
         self.settings = settings
         self.executor = ThreadPoolExecutor(max_workers=settings.max_workers)
         self.jobs: dict[str, Future] = {}
@@ -411,12 +411,12 @@ class RpcServer:
             return response.model_dump()
 
 
-class _RpcServerStartCli(RpcServerSettings):
+class _XmlRpcServerStartCli(XmlRpcServerSettings):
     """CLI application wrapper for the RPC server."""
 
     def cli_cmd(self):
         """Start the RPC server and run it until interrupted."""
-        server = RpcServer(settings=self)
+        server = XmlRpcServer(settings=self)
         try:
             server.server.serve_forever()
         except KeyboardInterrupt:
@@ -424,4 +424,4 @@ class _RpcServerStartCli(RpcServerSettings):
 
 
 if __name__ == "__main__":
-    CliApp().run(_RpcServerStartCli)
+    CliApp().run(_XmlRpcServerStartCli)

@@ -16,6 +16,7 @@ from aind_behavior_services import (
 )
 
 from .. import __version__, logging_helper
+from ..constants import TMP_DIR
 from ..git_manager import GitRepository
 from ..ui import DefaultUIHelper, UiHelper
 from ..utils import abspath, format_datetime, utcnow
@@ -68,9 +69,13 @@ class Launcher:
         """
         self._settings = settings
         self.ui_helper = ui_helper
-        self.temp_dir = abspath(settings.temp_dir) / format_datetime(utcnow())
-        self.temp_dir.mkdir(parents=True, exist_ok=True)
+        self.temp_dir = Path(TMP_DIR) / format_datetime(utcnow())
         self.computer_name = os.environ["COMPUTERNAME"]
+
+        repository_dir = Path(self.settings.repository_dir) if self.settings.repository_dir is not None else None
+        self.repository = GitRepository() if repository_dir is None else GitRepository(path=repository_dir)
+
+        self._ensure_directory_structure()
 
         # Solve logger
         if attached_logger:
@@ -83,11 +88,6 @@ class Launcher:
             _logger.setLevel(logging.DEBUG)
 
         self._logger = _logger
-
-        repository_dir = Path(self.settings.repository_dir) if self.settings.repository_dir is not None else None
-        self.repository = GitRepository() if repository_dir is None else GitRepository(path=repository_dir)
-
-        self._ensure_directory_structure()
 
         self._session: Optional[AindBehaviorSessionModel] = None
         self._has_copied_logs = False
@@ -178,7 +178,7 @@ class Launcher:
             try:
                 self.copy_logs()
             except ValueError as ve:  # In the case session_directory fails
-                logger.error("Failed to copy logs: %s", ve)  # we swallow the error
+                logger.error("Failed to copy logs from %s. Error: %s", self.temp_dir, ve)  # we swallow the error
                 self._exit(-1)
             else:
                 self._exit(_code)

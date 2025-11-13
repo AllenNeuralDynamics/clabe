@@ -1,17 +1,18 @@
 import asyncio
 import logging
 import time
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
-from clabe.rpc._client import RpcClient
-from clabe.rpc.models import JobStatus
+from ..apps._base import Command, CommandResult
+from .models import JobStatus
 
-from ._base import Command, CommandResult
+if TYPE_CHECKING:
+    from ._client import XmlRpcClient
 
 logger = logging.getLogger(__name__)
 
 
-class RpcExecutor:
+class XmlRpcExecutor:
     """
     Executor that runs commands remotely via RPC client.
 
@@ -46,7 +47,7 @@ class RpcExecutor:
     """
 
     def __init__(
-        self, client: RpcClient, timeout: Optional[float] = None, poll_interval: Optional[float] = None
+        self, client: "XmlRpcClient", timeout: Optional[float] = None, poll_interval: Optional[float] = None
     ) -> None:
         """
         Initialize the RPC executor.

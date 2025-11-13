@@ -4,7 +4,7 @@ import typing as t
 
 import pydantic_settings as ps
 
-from .utils import KNOWN_CONFIG_FILES
+from .constants import KNOWN_CONFIG_FILES
 
 logger = logging.getLogger(__name__)
 

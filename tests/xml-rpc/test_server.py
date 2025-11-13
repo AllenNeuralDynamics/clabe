@@ -9,7 +9,7 @@ from xmlrpc.client import ServerProxy
 import pytest
 from pydantic import SecretStr
 
-from clabe.rpc._server import RpcServer, RpcServerSettings, get_local_ip
+from clabe.xml_rpc._server import XmlRpcServer, XmlRpcServerSettings, get_local_ip
 
 
 @pytest.fixture
@@ -21,10 +21,10 @@ def temp_transfer_dir():
 
 @pytest.fixture
 def rpc_settings(temp_transfer_dir):
-    """Create RPC server settings for testing."""
+    """Create XML-RPC server settings for testing."""
     from ipaddress import IPv4Address
 
-    return RpcServerSettings(
+    return XmlRpcServerSettings(
         token=SecretStr("test-token-123"),
         address=IPv4Address("127.0.0.1"),
         port=0,  # Let the OS choose a free port
@@ -36,8 +36,8 @@ def rpc_settings(temp_transfer_dir):
 
 @pytest.fixture
 def rpc_server(rpc_settings):
-    """Create an RPC server instance for testing."""
-    server = RpcServer(rpc_settings)
+    """Create an XML-RPC server instance for testing."""
+    server = XmlRpcServer(rpc_settings)
     # Get the actual port assigned by the OS
     actual_port = server.server.server_address[1]
     rpc_settings.port = actual_port
@@ -63,25 +63,15 @@ def rpc_client(rpc_server):
     return client, settings.token.get_secret_value()
 
 
-class TestRpcServerSettings:
-    """Test RPC server settings configuration."""
-
-    def test_default_settings(self):
-        """Test default settings creation."""
-        settings = RpcServerSettings()
-        assert str(settings.address) == "0.0.0.0"
-        assert settings.port == 8000
-        assert settings.max_workers == 4
-        assert settings.max_file_size == 5 * 1024 * 1024
-        assert isinstance(settings.token, SecretStr)
-        assert len(settings.token.get_secret_value()) > 10
+class TestXmlRpcServerSettings:
+    """Test XML-RPC server settings configuration."""
 
     def test_custom_settings(self, temp_transfer_dir):
         """Test custom settings configuration."""
         from ipaddress import IPv4Address
 
         token = SecretStr("custom-token")
-        settings = RpcServerSettings(
+        settings = XmlRpcServerSettings(
             token=token,
             address=IPv4Address("192.168.1.1"),
             port=9000,

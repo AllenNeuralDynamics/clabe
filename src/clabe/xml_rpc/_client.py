@@ -7,7 +7,11 @@ from typing import Optional, Union
 
 from pydantic import BaseModel, Field, HttpUrl, SecretStr
 
+from clabe.apps import Command
+from clabe.apps._base import CommandResult
+
 from ..services import ServiceSettings
+from ._executor import XmlRpcExecutor
 from .models import (
     FileBulkDeleteResponse,
     FileDeleteResponse,
@@ -23,10 +27,10 @@ from .models import (
 logger = logging.getLogger(__name__)
 
 
-class RpcClientSettings(ServiceSettings):
+class XmlRpcClientSettings(ServiceSettings):
     """Settings for RPC client configuration."""
 
-    __yml_section__ = "rpc_client"
+    __yml_section__ = "xml_rpc_client"
 
     server_url: HttpUrl = Field(description="URL of the RPC server (e.g., http://127.0.0.1:8000)")
     token: SecretStr = Field(description="Authentication token for RPC access")
@@ -35,10 +39,10 @@ class RpcClientSettings(ServiceSettings):
     max_file_size: int = Field(default=5 * 1024 * 1024, description="Maximum file size in bytes (default 5MB)")
 
 
-class RpcClient:
+class XmlRpcClient:
     """Client for interacting with the RPC server."""
 
-    def __init__(self, settings: RpcClientSettings):
+    def __init__(self, settings: XmlRpcClientSettings):
         """
         Initialize the RPC client.
 
@@ -48,6 +52,7 @@ class RpcClient:
         self.settings = settings
         self._client = xmlrpc.client.ServerProxy(str(settings.server_url), allow_none=True)
         self._token = settings.token.get_secret_value()
+        self._executor = XmlRpcExecutor(self, timeout=settings.timeout, poll_interval=settings.poll_interval)
 
         logger.info(f"RPC client initialized for server: {settings.server_url}")
 
@@ -466,3 +471,15 @@ class RpcClient:
         """Exit the runtime context."""
         logger.info("RPC client context exited")
         return False
+
+    def executor(self) -> XmlRpcExecutor:
+        """Get the RPC executor for command execution."""
+        return self._executor
+
+    def run(self, command: "Command") -> CommandResult:
+        """Execute the command and return the result."""
+        return self._executor.run(command)
+
+    async def run_async(self, command: "Command") -> CommandResult:
+        """Execute the command asynchronously and return the result."""
+        return await self._executor.run_async(command)
