@@ -11,9 +11,9 @@ from aind_behavior_services.utils import model_from_json_file
 
 from .. import ui
 from .._typing import TRig, TSession, TTaskLogic
+from ..constants import ByAnimalFiles
 from ..launcher import Launcher
 from ..services import ServiceSettings
-from ..utils import ByAnimalFiles
 from ..utils.aind_auth import validate_aind_username
 
 logger = logging.getLogger(__name__)

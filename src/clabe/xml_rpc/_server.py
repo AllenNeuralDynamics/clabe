@@ -14,8 +14,8 @@ from xmlrpc.server import SimpleXMLRPCServer
 from pydantic import Field, IPvAnyAddress, SecretStr
 from pydantic_settings import CliApp
 
-from clabe.services import ServiceSettings
-
+from ..constants import TMP_DIR
+from ..services import ServiceSettings
 from .models import (
     FileBulkDeleteResponse,
     FileDeleteResponse,
@@ -48,7 +48,7 @@ class XmlRpcServerSettings(ServiceSettings):
     max_workers: int = Field(default=4, description="Maximum number of concurrent RPC commands")
     max_file_size: int = Field(default=5 * 1024 * 1024, description="Maximum file size in bytes (default 5MB)")
     file_transfer_dir: Path = Field(
-        default_factory=lambda: Path(os.environ.get("TEMP", "temp")), description="Directory for file transfers"
+        default_factory=lambda: Path(os.environ.get("TEMP", TMP_DIR)), description="Directory for file transfers"
     )
 
 

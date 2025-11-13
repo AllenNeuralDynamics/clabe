@@ -83,8 +83,6 @@ def main():
         LauncherCliArgs,
         cli_args=[
             "--debug-mode",
-            "--temp-dir",
-            "./local/.temp",
             "--allow-dirty",
             "--skip-hardware-validation",
             "--data-dir",
