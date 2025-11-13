@@ -1,13 +1,16 @@
+import abc
+import functools
 import glob
 import logging
 import os
 from pathlib import Path
-from typing import Callable, ClassVar, List, Optional, Type, Union
+from typing import Any, Callable, ClassVar, Generic, List, Optional, Protocol, Type, TypeVar, Union, runtime_checkable
 
 import pydantic
 from aind_behavior_curriculum import TrainerState
 from aind_behavior_services import AindBehaviorRigModel, AindBehaviorSessionModel, AindBehaviorTaskLogicModel
 from aind_behavior_services.utils import model_from_json_file
+from pydantic import TypeAdapter
 
 from .. import ui
 from .._typing import TRig, TSession, TTaskLogic
@@ -17,6 +20,8 @@ from ..services import ServiceSettings
 from ..utils.aind_auth import validate_aind_username
 
 logger = logging.getLogger(__name__)
+T = TypeVar("T")
+TInjectable = TypeVar("TInjectable")
 
 
 class DefaultBehaviorPickerSettings(ServiceSettings):
@@ -115,6 +120,14 @@ class DefaultBehaviorPicker:
         if self._trainer_state is None:
             raise ValueError("Trainer state not set.")
         return self._trainer_state
+
+    @property
+    def session_directory(self) -> Path:
+        return self._launcher.session_directory
+
+    @property
+    def session(self) -> AindBehaviorSessionModel:
+        return self._launcher.session
 
     @property
     def config_library_dir(self) -> Path:
@@ -458,3 +471,66 @@ class DefaultBehaviorPicker:
             f.write(model.model_dump_json(indent=2))
             logger.info("Saved model to %s", path)
         return path
+
+
+@runtime_checkable
+class _IByAnimalModifier(Protocol, Generic[TRig]):
+    def inject(self, rig: TRig) -> TRig: ...
+
+    def dump(self, rig: TRig) -> None: ...
+
+
+class ByAnimalModifier(abc.ABC, _IByAnimalModifier[TRig]):
+    def __init__(self, picker: DefaultBehaviorPicker, model_path: str, model_name: str, **kwargs) -> None:
+        self._picker = picker
+        self._model_path = model_path
+        self._model_name = model_name
+
+    def _process_before_inject(self, deserialized: T) -> T:
+        return deserialized
+
+    @abc.abstractmethod
+    def _process_before_dump(self) -> Any: ...
+
+    def inject(self, rig: TRig) -> TRig:
+        subject = self._picker.session.subject
+        target_folder = self._picker.subject_dir / subject
+        target_file = target_folder / self._model_name
+        if not target_file.exists():
+            logger.warning(f"File not found: {target_file}. Using default.")
+        else:
+            target = rgetattr(rig, self._model_path)
+            deserialized = TypeAdapter(type(target)).validate_json(target_file.read_text(encoding="utf-8"))
+            logger.info(f"Loading {self._model_name} from: {target_file}. Deserialized: {deserialized}")
+            self._process_before_inject(deserialized)
+            rsetattr(rig, self._model_path, deserialized)
+        return rig
+
+    def dump(self, rig: TRig) -> None:
+        subject = self._picker.session.subject
+        target_folder = self._picker.subject_dir / subject
+        target_file = target_folder / self._model_name
+        target = rgetattr(rig, self._model_path)
+        tp = TypeAdapter(type(target))
+
+        try:
+            to_inject = self._process_before_dump()
+            logger.info(f"Saving {self._model_name} to: {target_file}. Serialized: {to_inject}")
+            target_folder.mkdir(parents=True, exist_ok=True)
+            target_file.write_text(tp.dump_json(to_inject, indent=2).decode("utf-8"), encoding="utf-8")
+        except Exception as e:
+            logger.error(f"Failed to process before dumping modifier: {e}")
+            raise
+
+
+# from https://stackoverflow.com/a/31174427
+def rsetattr(obj, attr, val):
+    pre, _, post = attr.rpartition(".")
+    return setattr(rgetattr(obj, pre) if pre else obj, post, val)
+
+
+def rgetattr(obj, attr, *args):
+    def _getattr(obj, attr):
+        return getattr(obj, attr, *args)
+
+    return functools.reduce(_getattr, [obj] + attr.split("."))
