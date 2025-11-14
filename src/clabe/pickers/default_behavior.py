@@ -236,6 +236,7 @@ class DefaultBehaviorPicker:
 
     @staticmethod
     def _load_rig_from_path(path: Path, model: Type[TRig]) -> TRig | None:
+        """Load a rig configuration from a given path."""
         try:
             if not isinstance(path, str):
                 raise ValueError("Invalid choice.")

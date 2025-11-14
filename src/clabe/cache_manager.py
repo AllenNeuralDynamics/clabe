@@ -240,6 +240,7 @@ class CacheManager:
             return self.caches[name].values.copy()
 
     def try_get_cache(self, name: str) -> Any | None:
+        """Attempt to get all values from a named cache, returning None if not found."""
         try:
             return self.get_cache(name)
         except KeyError:
@@ -299,6 +300,7 @@ class _ListCacheCli(BaseSettings):
     """CLI command to list all caches and their contents."""
 
     def cli_cmd(self):
+        """Run the list cache CLI command."""
         manager = CacheManager.get_instance()
         if not manager.caches:
             logger.info("No caches available.")
@@ -310,6 +312,7 @@ class _ResetCacheCli(BaseSettings):
     """CLI command to reset all caches."""
 
     def cli_cmd(self):
+        """Run the reset cache CLI command."""
         CacheManager.get_instance().clear_all_caches()
         logger.info("All caches have been cleared.")
 
@@ -321,4 +324,5 @@ class _CacheManagerCli(BaseSettings):
     list: CliSubCommand[_ListCacheCli]
 
     def cli_cmd(self):
+        """Run the cache manager CLI."""
         CliApp.run_subcommand(self)
