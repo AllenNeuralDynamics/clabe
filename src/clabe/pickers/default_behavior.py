@@ -214,7 +214,7 @@ class DefaultBehaviorPicker:
                 rig = self._load_rig_from_path(Path(rig_path), model)
 
         # Prompt user to select a rig if not already selected
-        while rig is None:
+        while rig_path is None:
             available_rigs = glob.glob(os.path.join(self.rig_dir, "*.json"))
             # We raise if no rigs are found to prevent an infinite loop
             if len(available_rigs) == 0:
