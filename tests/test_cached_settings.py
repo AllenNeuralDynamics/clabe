@@ -3,7 +3,7 @@
 import tempfile
 from pathlib import Path
 
-from clabe.cached_settings import CachedSettings, CacheManager, SyncStrategy
+from clabe.cache_manager import CachedSettings, CacheManager, SyncStrategy
 
 
 class TestCachedSettings:
@@ -118,6 +118,22 @@ class TestCacheManagerManualSync:
 
         assert manager.get_cache("test") == []
 
+    def test_clear_all_caches(self):
+        """Test clearing all caches at once."""
+        manager = CacheManager.get_instance(reset=True, sync_strategy=SyncStrategy.MANUAL)
+        manager.add_to_cache("subjects", "mouse_001")
+        manager.add_to_cache("subjects", "mouse_002")
+        manager.add_to_cache("experimenters", "alice")
+        manager.add_to_cache("projects", "project_a")
+
+        assert len(manager.caches) == 3
+        assert manager.get_cache("subjects") == ["mouse_002", "mouse_001"]
+
+        manager.clear_all_caches()
+
+        assert manager.caches == {}
+        assert len(manager.caches) == 0
+
     def test_singleton_behavior(self):
         """Test that get_instance returns the same instance."""
         manager1 = CacheManager.get_instance(reset=True, sync_strategy=SyncStrategy.MANUAL)
@@ -136,14 +152,11 @@ class TestCacheManagerAutoSync:
         with tempfile.TemporaryDirectory() as tmpdir:
             path = Path(tmpdir) / "cache.json"
 
-            # Create with auto-sync
             manager = CacheManager.get_instance(reset=True, cache_path=path, sync_strategy=SyncStrategy.AUTO)
             manager.add_to_cache("subjects", "mouse_001")
 
-            # Verify file was created automatically
             assert path.exists()
 
-            # Load in a new instance and verify data persisted
             manager2 = CacheManager.get_instance(reset=True, cache_path=path)
             assert manager2.get_cache("subjects") == ["mouse_001"]
 
@@ -159,6 +172,22 @@ class TestCacheManagerAutoSync:
             # Reload and verify clear persisted
             manager2 = CacheManager.get_instance(reset=True, cache_path=path)
             assert manager2.get_cache("test") == []
+
+    def test_auto_sync_on_clear_all(self):
+        """Test that AUTO sync saves after clearing all caches."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "cache.json"
+
+            manager = CacheManager.get_instance(reset=True, cache_path=path, sync_strategy=SyncStrategy.AUTO)
+            manager.add_to_cache("subjects", "mouse_001")
+            manager.add_to_cache("projects", "project_a")
+
+            assert path.exists()
+
+            manager.clear_all_caches()
+
+            manager2 = CacheManager.get_instance(reset=True, cache_path=path)
+            assert manager2.caches == {}
 
     def test_manual_sync_does_not_auto_save(self):
         """Test that MANUAL sync does not save automatically."""
