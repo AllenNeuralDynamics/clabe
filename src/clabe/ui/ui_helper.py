@@ -191,7 +191,7 @@ class DefaultUIHelper(_UiHelperBase):
         return self._input(prompt)
 
     def prompt_pick_from_list(
-        self, value: List[str], prompt: str, allow_0_as_none: bool = True, **kwargs
+        self, value: List[str], prompt: str, *, allow_0_as_none: bool = True, zero_label: str = "None", **kwargs
     ) -> Optional[str]:
         """
         Prompts the user to pick an item from a list.
@@ -223,7 +223,7 @@ class DefaultUIHelper(_UiHelperBase):
             try:
                 self.print(prompt)
                 if allow_0_as_none:
-                    self.print("0: None")
+                    self.print(f"0: {zero_label}")
                 for i, item in enumerate(value):
                     self.print(f"{i + 1}: {item}")
                 choice = int(input("Choice: "))

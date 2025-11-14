@@ -11,6 +11,7 @@ from aind_behavior_services.utils import model_from_json_file
 
 from .. import ui
 from .._typing import TRig, TSession, TTaskLogic
+from ..cache_manager import CacheManager
 from ..constants import ByAnimalFiles
 from ..launcher import Launcher
 from ..services import ServiceSettings
@@ -87,6 +88,7 @@ class DefaultBehaviorPicker:
         self._experimenter_validator = experimenter_validator
         self._trainer_state: Optional[TrainerState] = None
         self._session: Optional[AindBehaviorSessionModel] = None
+        self._cache_manager = CacheManager.get_instance()
 
     @property
     def ui_helper(self) -> ui.UiHelper:
@@ -196,27 +198,54 @@ class DefaultBehaviorPicker:
         Raises:
             ValueError: If no rig configuration files are found or an invalid choice is made
         """
-        available_rigs = glob.glob(os.path.join(self.rig_dir, "*.json"))
-        if len(available_rigs) == 0:
-            logger.error("No rig config files found.")
-            raise ValueError("No rig config files found.")
-        elif len(available_rigs) == 1:
-            logger.info("Found a single rig config file. Using %s.", {available_rigs[0]})
-            rig = model_from_json_file(available_rigs[0], model)
+        rig: TRig | None = None
+        rig_path: str | None = None
+
+        # Check cache for previously used rigs
+        cache = self._cache_manager.try_get_cache("rigs")
+        if cache:
+            rig_path = self.ui_helper.prompt_pick_from_list(
+                cache,
+                prompt="Choose a rig:",
+                allow_0_as_none=True,
+                zero_label="Select from library",
+            )
+            if rig_path is not None:
+                rig = self._load_rig_from_path(Path(rig_path), model)
+
+        # Prompt user to select a rig if not already selected
+        while rig is None:
+            available_rigs = glob.glob(os.path.join(self.rig_dir, "*.json"))
+            # We raise if no rigs are found to prevent an infinite loop
+            if len(available_rigs) == 0:
+                logger.error("No rig config files found.")
+                raise ValueError("No rig config files found.")
+            # Use the single available rig config file
+            elif len(available_rigs) == 1:
+                logger.info("Found a single rig config file. Using %s.", {available_rigs[0]})
+                rig_path = available_rigs[0]
+                rig = model_from_json_file(rig_path, model)
+            else:
+                rig_path = self.ui_helper.prompt_pick_from_list(available_rigs, prompt="Choose a rig:")
+                if rig_path is not None:
+                    rig = self._load_rig_from_path(Path(rig_path), model)
+        assert rig_path is not None
+        # Add the selected rig path to the cache
+        cache = self._cache_manager.add_to_cache("rigs", rig_path)
+        return rig
+
+    @staticmethod
+    def _load_rig_from_path(path: Path, model: Type[TRig]) -> TRig | None:
+        try:
+            if not isinstance(path, str):
+                raise ValueError("Invalid choice.")
+            rig = model_from_json_file(path, model)
+            logger.info("Using %s.", path)
             return rig
-        else:
-            while True:
-                try:
-                    path = self.ui_helper.prompt_pick_from_list(available_rigs, prompt="Choose a rig:")
-                    if not isinstance(path, str):
-                        raise ValueError("Invalid choice.")
-                    rig = model_from_json_file(path, model)
-                    logger.info("Using %s.", path)
-                    return rig
-                except pydantic.ValidationError as e:
-                    logger.error("Failed to validate pydantic model. Try again. %s", e)
-                except ValueError as e:
-                    logger.info("Invalid choice. Try again. %s", e)
+        except pydantic.ValidationError as e:
+            logger.error("Failed to validate pydantic model. Try again. %s", e)
+        except ValueError as e:
+            logger.info("Invalid choice. Try again. %s", e)
 
     def pick_session(self, model: Type[TSession] = AindBehaviorSessionModel) -> TSession:
         """
@@ -378,22 +407,22 @@ class DefaultBehaviorPicker:
             subject = picker.choose_subject("Subjects")
             ```
         """
-        subject = None
+        subjects = self._cache_manager.try_get_cache("subjects")
+        if subjects:
+            subject = self.ui_helper.prompt_pick_from_list(
+                subjects,
+                prompt="Choose a subject:",
+                allow_0_as_none=True,
+                zero_label="Enter manually",
+            )
+        else:
+            subject = None
+
         while subject is None:
             subject = self.ui_helper.input("Enter subject name: ")
             if subject == "":
-                subject = self.ui_helper.prompt_pick_from_list(
-                    [
-                        os.path.basename(folder)
-                        for folder in os.listdir(directory)
-                        if os.path.isdir(os.path.join(directory, folder))
-                    ],
-                    prompt="Choose a subject:",
-                    allow_0_as_none=True,
-                )
-            else:
-                return subject
-
+                subject = None
+        self._cache_manager.add_to_cache("subjects", subject)
         return subject
 
     def prompt_experimenter(self, strict: bool = True) -> Optional[List[str]]:
@@ -416,10 +445,22 @@ class DefaultBehaviorPicker:
             print("Experimenters:", names)
             ```
         """
+        experimenters_cache = self._cache_manager.try_get_cache("experimenters")
         experimenter: Optional[List[str]] = None
+        _picked: str | None = None
         while experimenter is None:
-            _user_input = self.ui_helper.prompt_text("Experimenter name: ")
-            experimenter = _user_input.replace(",", " ").split()
+            if experimenters_cache:
+                _picked = self.ui_helper.prompt_pick_from_list(
+                    experimenters_cache,
+                    prompt="Choose an experimenter:",
+                    allow_0_as_none=True,
+                    zero_label="Enter manually",
+                )
+            if _picked is None:
+                _input = self.ui_helper.prompt_text("Experimenter name: ")
+            else:
+                _input = _picked
+            experimenter = _input.replace(",", " ").split()
             if strict & (len(experimenter) == 0):
                 logger.info("Experimenter name is not valid. Try again.")
                 experimenter = None
@@ -430,6 +471,7 @@ class DefaultBehaviorPicker:
                             logger.warning("Experimenter name: %s, is not valid. Try again", name)
                             experimenter = None
                             break
+        self._cache_manager.add_to_cache("experimenters", ",".join(experimenter))
         return experimenter
 
     def dump_model(

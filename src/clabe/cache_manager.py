@@ -115,7 +115,7 @@ class CacheManager:
     def __init__(
         self,
         cache_path: Path | str | None = None,
-        sync_strategy: SyncStrategy = SyncStrategy.MANUAL,
+        sync_strategy: SyncStrategy = SyncStrategy.AUTO,
     ) -> None:
         """
         Initialize a CacheManager instance.
@@ -133,7 +133,7 @@ class CacheManager:
     def get_instance(
         cls,
         cache_path: Path | str | None = None,
-        sync_strategy: SyncStrategy = SyncStrategy.MANUAL,
+        sync_strategy: SyncStrategy = SyncStrategy.AUTO,
         reset: bool = False,
     ) -> "CacheManager":
         """
@@ -238,6 +238,12 @@ class CacheManager:
             if name not in self.caches:
                 raise KeyError(f"Cache '{name}' not registered.")
             return self.caches[name].values.copy()
+
+    def try_get_cache(self, name: str) -> Any | None:
+        try:
+            return self.get_cache(name)
+        except KeyError:
+            return None
 
     def get_latest(self, name: str) -> Any | None:
         """
