@@ -1,5 +1,3 @@
-"""Local cache manager for maintaining settings history with configurable limits."""
-
 import logging
 import threading
 from enum import Enum
@@ -7,6 +5,7 @@ from pathlib import Path
 from typing import Any, ClassVar, Generic, TypeVar
 
 from pydantic import BaseModel, Field
+from pydantic_settings import BaseSettings, CliApp, CliSubCommand
 
 from .constants import TMP_DIR
 
@@ -273,6 +272,12 @@ class CacheManager:
             self.caches[name].values = []
             self._auto_save()
 
+    def clear_all_caches(self) -> None:
+        """Clear all caches (thread-safe)."""
+        with self._instance_lock:
+            self.caches = {}
+            self._auto_save()
+
     def save(self) -> None:
         """
         Save all caches to disk using Pydantic serialization (thread-safe).
@@ -282,3 +287,32 @@ class CacheManager:
         """
         with self._instance_lock:
             self._save_unlocked()
+
+
+class _ListCacheCli(BaseSettings):
+    """CLI command to list all caches and their contents."""
+
+    def cli_cmd(self):
+        manager = CacheManager.get_instance()
+        if not manager.caches:
+            logger.info("No caches available.")
+        for name, cache in manager.caches.items():
+            logger.info(f"Cache '{name}': {cache.values}")
+
+
+class _ResetCacheCli(BaseSettings):
+    """CLI command to reset all caches."""
+
+    def cli_cmd(self):
+        CacheManager.get_instance().clear_all_caches()
+        logger.info("All caches have been cleared.")
+
+
+class _CacheManagerCli(BaseSettings):
+    """CLI application wrapper for the RPC server."""
+
+    reset: CliSubCommand[_ResetCacheCli]
+    list: CliSubCommand[_ListCacheCli]
+
+    def cli_cmd(self):
+        CliApp.run_subcommand(self)
