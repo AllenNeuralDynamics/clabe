@@ -3,8 +3,8 @@
 import tempfile
 from pathlib import Path
 
-from clabe.cache_manager import CachedSettings, CacheManager, SyncStrategy
-from clabe.cache_manager import _DEFAULT_MAX_HISTORY
+from clabe.cache_manager import _DEFAULT_MAX_HISTORY, CachedSettings, CacheManager, SyncStrategy
+
 
 class TestCachedSettings:
     """Tests for the generic CachedSettings class."""
