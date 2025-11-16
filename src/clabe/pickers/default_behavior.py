@@ -211,6 +211,7 @@ class DefaultBehaviorPicker:
             cache = None
 
         if cache:
+            cache.sort()
             rig_path = self.ui_helper.prompt_pick_from_list(
                 cache,
                 prompt="Choose a rig:",
@@ -420,6 +421,7 @@ class DefaultBehaviorPicker:
         else:
             subjects = None
         if subjects:
+            subjects.sort()
             subject = self.ui_helper.prompt_pick_from_list(
                 subjects,
                 prompt="Choose a subject:",
@@ -464,6 +466,7 @@ class DefaultBehaviorPicker:
         _picked: str | None = None
         while experimenter is None:
             if experimenters_cache:
+                experimenters_cache.sort()
                 _picked = self.ui_helper.prompt_pick_from_list(
                     experimenters_cache,
                     prompt="Choose an experimenter:",

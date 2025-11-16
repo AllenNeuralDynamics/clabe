@@ -33,7 +33,7 @@ def _ask_sync(question):
     """
     try:
         # Check if we're in an async context
-        loop = asyncio.get_running_loop()
+        asyncio.get_running_loop()
         # We are in an async context - use thread pool to avoid nested event loop
         import concurrent.futures
 
@@ -47,6 +47,7 @@ def _ask_sync(question):
 
 class QuestionaryUIHelper(_UiHelperBase):
     """UI helper implementation using Questionary for interactive prompts."""
+
     def __init__(self, style: Optional[questionary.Style] = None) -> None:
         """Initializes the QuestionaryUIHelper with an optional custom style."""
         self.style = style or custom_style
