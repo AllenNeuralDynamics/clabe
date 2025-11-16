@@ -70,9 +70,7 @@ async def experiment(launcher: Launcher) -> None:
         repository=launcher.repository,
         script_path=Path("./mock/script.py"),
         output_parameters={"suggestion": suggestion.model_dump()},
-    )
-    launcher.copy_logs()
-
+    ).map()
     return
 
 
