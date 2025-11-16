@@ -137,7 +137,7 @@ class _UiHelperBase(abc.ABC):
 UiHelper: TypeAlias = _UiHelperBase
 
 
-class DefaultUIHelper(_UiHelperBase):
+class NativeUiHelper(_UiHelperBase):
     """
     Default implementation of the UI helper for user interaction.
 

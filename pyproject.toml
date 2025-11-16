@@ -29,6 +29,7 @@ dependencies = [
     "semver",
     "rich",
     "aind_behavior_services < 1",
+    "questionary",
 ]
 
 [project.urls]
