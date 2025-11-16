@@ -12,6 +12,7 @@ from .constants import TMP_DIR
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
+_DEFAULT_MAX_HISTORY = 9
 
 
 class SyncStrategy(str, Enum):
@@ -40,7 +41,7 @@ class CachedSettings(BaseModel, Generic[T]):
     """
 
     values: list[T] = Field(default_factory=list)
-    max_history: int = Field(default=5, gt=0)
+    max_history: int = Field(default=_DEFAULT_MAX_HISTORY, gt=0)
 
     def add(self, value: T) -> None:
         """
@@ -180,7 +181,7 @@ class CacheManager:
         with self.cache_path.open("w", encoding="utf-8") as f:
             f.write(cache_data.model_dump_json(indent=2))
 
-    def register_cache(self, name: str, max_history: int = 5) -> None:
+    def register_cache(self, name: str, max_history: int = _DEFAULT_MAX_HISTORY) -> None:
         """
         Register a new cache with a specific history limit (thread-safe).
 
@@ -206,7 +207,7 @@ class CacheManager:
         """
         with self._instance_lock:
             if name not in self.caches:
-                self.caches[name] = CachedSettings(max_history=5)
+                self.caches[name] = CachedSettings(max_history=_DEFAULT_MAX_HISTORY)
 
             cache = self.caches[name]
 
