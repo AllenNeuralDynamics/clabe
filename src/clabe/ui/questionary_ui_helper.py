@@ -46,13 +46,17 @@ def _ask_sync(question):
 
 
 class QuestionaryUIHelper(_UiHelperBase):
+    """UI helper implementation using Questionary for interactive prompts."""
     def __init__(self, style: Optional[questionary.Style] = None) -> None:
+        """Initializes the QuestionaryUIHelper with an optional custom style."""
         self.style = style or custom_style
 
     def print(self, message: str) -> None:
+        """Prints a message with custom styling."""
         questionary.print(message, "bold italic")
 
     def input(self, prompt: str) -> str:
+        """Prompts the user for input with custom styling."""
         return _ask_sync(questionary.text(prompt, style=self.style)) or ""
 
     def prompt_pick_from_list(self, value: List[str], prompt: str, **kwargs) -> Optional[str]:
@@ -87,12 +91,15 @@ class QuestionaryUIHelper(_UiHelperBase):
         return result
 
     def prompt_yes_no_question(self, prompt: str) -> bool:
+        """Prompts the user with a yes/no question using custom styling."""
         return _ask_sync(questionary.confirm(prompt, style=self.style)) or False
 
     def prompt_text(self, prompt: str) -> str:
+        """Prompts the user for generic text input using custom styling."""
         return _ask_sync(questionary.text(prompt, style=self.style)) or ""
 
     def prompt_float(self, prompt: str) -> float:
+        """Prompts the user for a float input using custom styling."""
         while True:
             try:
                 value_str = _ask_sync(questionary.text(prompt, style=self.style))
