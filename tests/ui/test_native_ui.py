@@ -2,15 +2,15 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from clabe.ui import DefaultUIHelper
+from clabe.ui import NativeUiHelper
 
 
 @pytest.fixture
 def ui_helper():
-    return DefaultUIHelper(print_func=MagicMock())
+    return NativeUiHelper(print_func=MagicMock())
 
 
-class TestDefaultUiHelper:
+class TestNativeUiHelper:
     @patch("builtins.input", side_effect=["Some notes"])
     def test_prompt_get_text(self, mock_input, ui_helper):
         result = ui_helper.prompt_text("")

@@ -3,7 +3,7 @@
 import tempfile
 from pathlib import Path
 
-from clabe.cache_manager import CachedSettings, CacheManager, SyncStrategy
+from clabe.cache_manager import _DEFAULT_MAX_HISTORY, CachedSettings, CacheManager, SyncStrategy
 
 
 class TestCachedSettings:
@@ -18,7 +18,7 @@ class TestCachedSettings:
 
     def test_add_multiple_values(self):
         """Test adding multiple values maintains order (newest first)."""
-        cache = CachedSettings[str](max_history=5)
+        cache = CachedSettings[str](max_history=_DEFAULT_MAX_HISTORY)
         cache.add("first")
         cache.add("second")
         cache.add("third")
@@ -38,7 +38,7 @@ class TestCachedSettings:
 
     def test_duplicate_values_moved_to_front(self):
         """Test that adding a duplicate moves it to the front."""
-        cache = CachedSettings[str](max_history=5)
+        cache = CachedSettings[str](max_history=_DEFAULT_MAX_HISTORY)
         cache.add("first")
         cache.add("second")
         cache.add("third")

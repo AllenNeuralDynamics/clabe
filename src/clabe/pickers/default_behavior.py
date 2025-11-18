@@ -71,6 +71,7 @@ class DefaultBehaviorPicker:
         launcher: Launcher,
         ui_helper: Optional[ui.UiHelper] = None,
         experimenter_validator: Optional[Callable[[str], bool]] = validate_aind_username,
+        use_cache: bool = True,
     ):
         """
         Initializes the DefaultBehaviorPicker.
@@ -80,6 +81,7 @@ class DefaultBehaviorPicker:
             launcher: The launcher instance for managing experiment execution
             ui_helper: Helper for user interface interactions. If None, uses launcher's ui_helper. Defaults to None
             experimenter_validator: Function to validate the experimenter's username. If None, no validation is performed. Defaults to validate_aind_username
+            use_cache: Whether to use caching for selections. Defaults to True
         """
         self._launcher = launcher
         self._ui_helper = launcher.ui_helper if ui_helper is None else ui_helper
@@ -89,6 +91,7 @@ class DefaultBehaviorPicker:
         self._trainer_state: Optional[TrainerState] = None
         self._session: Optional[AindBehaviorSessionModel] = None
         self._cache_manager = CacheManager.get_instance()
+        self._use_cache = use_cache
 
     @property
     def ui_helper(self) -> ui.UiHelper:
@@ -202,8 +205,13 @@ class DefaultBehaviorPicker:
         rig_path: str | None = None
 
         # Check cache for previously used rigs
-        cache = self._cache_manager.try_get_cache("rigs")
+        if self._use_cache:
+            cache = self._cache_manager.try_get_cache("rigs")
+        else:
+            cache = None
+
         if cache:
+            cache.sort()
             rig_path = self.ui_helper.prompt_pick_from_list(
                 cache,
                 prompt="Choose a rig:",
@@ -214,7 +222,7 @@ class DefaultBehaviorPicker:
                 rig = self._load_rig_from_path(Path(rig_path), model)
 
         # Prompt user to select a rig if not already selected
-        while rig is None:
+        while rig_path is None:
             available_rigs = glob.glob(os.path.join(self.rig_dir, "*.json"))
             # We raise if no rigs are found to prevent an infinite loop
             if len(available_rigs) == 0:
@@ -230,16 +238,15 @@ class DefaultBehaviorPicker:
                 if rig_path is not None:
                     rig = self._load_rig_from_path(Path(rig_path), model)
         assert rig_path is not None
+        assert rig is not None
         # Add the selected rig path to the cache
-        cache = self._cache_manager.add_to_cache("rigs", rig_path)
+        self._cache_manager.add_to_cache("rigs", rig_path)
         return rig
 
     @staticmethod
     def _load_rig_from_path(path: Path, model: Type[TRig]) -> TRig | None:
         """Load a rig configuration from a given path."""
         try:
-            if not isinstance(path, str):
-                raise ValueError("Invalid choice.")
             rig = model_from_json_file(path, model)
             logger.info("Using %s.", path)
             return rig
@@ -247,6 +254,7 @@ class DefaultBehaviorPicker:
             logger.error("Failed to validate pydantic model. Try again. %s", e)
         except ValueError as e:
             logger.info("Invalid choice. Try again. %s", e)
+        return None
 
     def pick_session(self, model: Type[TSession] = AindBehaviorSessionModel) -> TSession:
         """
@@ -408,8 +416,12 @@ class DefaultBehaviorPicker:
             subject = picker.choose_subject("Subjects")
             ```
         """
-        subjects = self._cache_manager.try_get_cache("subjects")
+        if self._use_cache:
+            subjects = self._cache_manager.try_get_cache("subjects")
+        else:
+            subjects = None
         if subjects:
+            subjects.sort()
             subject = self.ui_helper.prompt_pick_from_list(
                 subjects,
                 prompt="Choose a subject:",
@@ -446,11 +458,15 @@ class DefaultBehaviorPicker:
             print("Experimenters:", names)
             ```
         """
-        experimenters_cache = self._cache_manager.try_get_cache("experimenters")
+        if self._use_cache:
+            experimenters_cache = self._cache_manager.try_get_cache("experimenters")
+        else:
+            experimenters_cache = None
         experimenter: Optional[List[str]] = None
         _picked: str | None = None
         while experimenter is None:
             if experimenters_cache:
+                experimenters_cache.sort()
                 _picked = self.ui_helper.prompt_pick_from_list(
                     experimenters_cache,
                     prompt="Choose an experimenter:",
