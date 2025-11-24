@@ -80,7 +80,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
 
     def __init__(
         self,
-        source: PathLike,
+        source: PathLike | list[PathLike],
         settings: WatchdogSettings,
         session: AindBehaviorSessionModel,
         *,
@@ -101,7 +101,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
             email_from_experimenter_builder: Function to build email from experimenter name
         """
         self._settings = settings
-        self._source = source
+        self._sources = source if isinstance(source, list) else [source]
 
         self._session = session
 
@@ -240,15 +240,24 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
             user_email = None
 
         destination = Path(self._settings.destination).resolve()
-        source = Path(self._source).resolve()
+
+        sources = set([Path(s).resolve() for s in self._sources])
 
         if self._validate_project_name:
             project_names = self._get_project_names()
             if self._settings.project_name not in project_names:
                 raise ValueError(f"Project name {self._settings.project_name} not found in {project_names}")
 
-        _modality_candidates = self._find_modality_candidates(source)
+        # Invert so that unique modality names map to lists of paths
+        _modality_candidates: dict[str, list[Path]] = {}
+        for p in sources:
+            for modality, paths in self._find_modality_candidates(p).items():
+                if modality in _modality_candidates:
+                    _modality_candidates[modality].extend(paths)
+                else:
+                    _modality_candidates[modality] = list(paths)
 
+        # Append any extra modality data from settings
         if self._settings.extra_modality_data is not None:
             for modality, paths in self._settings.extra_modality_data.items():
                 if modality in _modality_candidates:
@@ -256,12 +265,18 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
                 else:
                     _modality_candidates[modality] = paths
 
+        # Collect unique schema candidates from all sources
+        schema_candidates: list[Path] = []
+        for p in sources:
+            schema_candidates.extend(self._find_schema_candidates(p))
+        schema_candidates = list(set([s.resolve() for s in schema_candidates]))
+
         _manifest_config = ManifestConfig(
             name=self._session.session_name,
             modalities={m: [Path(p) for p in paths] for m, paths in _modality_candidates.items()},
             subject_id=int(session.subject),
             acquisition_datetime=session.date,
-            schemas=[Path(value) for value in self._find_schema_candidates(source)],
+            schemas=[Path(value) for value in schema_candidates],
             destination=Path(destination),
             mount=self._settings.mount,
             processor_full_name=",".join(session.experimenter),

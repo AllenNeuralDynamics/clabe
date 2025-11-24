@@ -239,7 +239,7 @@ class Launcher:
         if session.session_name is None:
             raise ValueError("session.session_name is not set.")
         else:
-            return Path(session.root_path) / (session.session_name if session.session_name is not None else "")
+            return Path(self.settings.data_dir) / (session.session_name if session.session_name is not None else "")
 
     def make_header(self) -> str:
         """
