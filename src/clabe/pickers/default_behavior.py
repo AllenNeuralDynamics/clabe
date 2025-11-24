@@ -279,7 +279,6 @@ class DefaultBehaviorPicker:
 
         notes = self.ui_helper.prompt_text("Enter notes: ")
         session = model(
-            root_path=str(Path(self._launcher.settings.data_dir).resolve() / subject),
             subject=subject,
             notes=notes,
             experimenter=experimenter if experimenter is not None else [],

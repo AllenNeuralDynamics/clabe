@@ -48,15 +48,13 @@ def mock_session():
     return AindBehaviorSessionModel(
         experiment="mock",
         subject="mock_subject",
-        experiment_version="0.0.0",
-        root_path="mock_path",
         session_name="mock_session",
     )
 
 
 @pytest.fixture
 def mock_rig():
-    return AindBehaviorRigModel(rig_name="mock_rig", version="0.0.0")
+    return AindBehaviorRigModel(rig_name="mock_rig", version="0.0.0", data_directory="mock_data_dir")
 
 
 @pytest.fixture
