@@ -5,7 +5,7 @@ import os
 import subprocess
 from os import PathLike
 from pathlib import Path, PurePosixPath
-from typing import Callable, ClassVar, Dict, List, Literal, Optional, Union
+from typing import Callable, ClassVar, Dict, List, Optional, Union
 
 import aind_data_transfer_service.models.core
 import pydantic
@@ -55,7 +55,6 @@ class WatchdogSettings(ServiceSettings):
         default=None, description="Additional modality data to include in the transfer"
     )
     mount: Optional[None] = pydantic.Field(default=None, deprecated=True)
-    platform: Literal["behavior"] = pydantic.Field(default="behavior", deprecated=True)
     capsule_id: Optional[None] = pydantic.Field(default=None, deprecated=True)
     script: Optional[Dict[str, List[str]]] = pydantic.Field(default=None, deprecated=True)
 
@@ -267,7 +266,6 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
             processor_full_name=",".join(session.experimenter),
             project_name=self._settings.project_name,
             schedule_time=self._settings.schedule_time,
-            platform=self._settings.platform,
             capsule_id=self._settings.capsule_id,
             s3_bucket=self._settings.s3_bucket,
             script=self._settings.script if self._settings.script else {},
@@ -352,7 +350,6 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         upload_job_configs_v2 = aind_data_transfer_service.models.core.UploadJobConfigsV2(
             job_type=job_type,
             project_name=manifest.project_name,
-            platform=aind_data_transfer_service.models.core.Platform.from_abbreviation(manifest.platform),
             modalities=[
                 aind_data_transfer_service.models.core.Modality.from_abbreviation(m) for m in manifest.modalities.keys()
             ],

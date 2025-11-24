@@ -19,7 +19,6 @@ from pydantic import AfterValidator, BaseModel, Field, SerializeAsAny, model_val
 
 Path: TypeAlias = Annotated[Union[pathlib.Path, str], AfterValidator(lambda v: pathlib.Path(v).as_posix())]
 
-Platform: TypeAlias = str
 Modality: TypeAlias = str
 BucketType: TypeAlias = Literal["private", "open", "default"]
 DEFAULT_TRANSFER_ENDPOINT: str = "http://aind-data-transfer-service-dev/api/v2/submit_jobs"
@@ -56,7 +55,6 @@ class ManifestConfig(BaseModel, extra="ignore"):
         description="Transfer endpoint for data transfer",
         title="Transfer endpoint",
     )
-    platform: Platform = Field(description="Platform type", title="Platform type")
     capsule_id: Optional[str] = Field(default=None, description="Capsule ID of pipeline to run", title="Capsule")
     mount: Optional[str] = Field(default=None, description="Mount point for pipeline run", title="Mount point")
     s3_bucket: BucketType = Field(default="private", description="s3 endpoint", title="S3 endpoint")
@@ -98,13 +96,14 @@ class ManifestConfig(BaseModel, extra="ignore"):
             raise ValueError("Both capsule and mount must be provided, or must both be None")
         return self
 
-    @model_validator(mode="after")  # TODO remove this once SciComp allows it...
+    @model_validator(mode="after")
     def set_name(self) -> Self:
         """Construct name"""
         if self.name is None:
+            label = self.subject_id
             self.name = build_data_name(
-                f"{self.platform}_{self.subject_id}",
-                self.acquisition_datetime,
+                label=str(label),
+                creation_datetime=self.acquisition_datetime,
             )
         return self
 
