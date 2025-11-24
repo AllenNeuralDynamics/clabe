@@ -28,7 +28,7 @@ dependencies = [
     "requests",
     "semver",
     "rich",
-    "aind_behavior_services < 1",
+    "aind_behavior_services @git+https://github.com/AllenNeuralDynamics/Aind.Behavior.Services@feat-update-session",
     "questionary",
 ]
 

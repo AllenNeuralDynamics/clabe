@@ -89,7 +89,7 @@ docs = [
 
 [package.metadata]
 requires-dist = [
-    { name = "aind-behavior-services", specifier = "<1" },
+    { name = "aind-behavior-services", git = "https://github.com/AllenNeuralDynamics/Aind.Behavior.Services?rev=feat-update-session" },
     { name = "aind-data-schema", marker = "extra == 'aind-services'" },
     { name = "aind-data-transfer-service", marker = "extra == 'aind-services'" },
     { name = "aind-watchdog-service", marker = "extra == 'aind-services'", specifier = "==0.1.6.dev8" },
