@@ -92,7 +92,7 @@ requires-dist = [
     { name = "aind-behavior-services", specifier = "<1" },
     { name = "aind-data-schema", marker = "extra == 'aind-services'" },
     { name = "aind-data-transfer-service", marker = "extra == 'aind-services'" },
-    { name = "aind-watchdog-service", marker = "extra == 'aind-services'", git = "https://github.com/AllenNeuralDynamics/aind-watchdog-service?rev=dev" },
+    { name = "aind-watchdog-service", marker = "extra == 'aind-services'", specifier = "==0.1.6.dev8" },
     { name = "cryptography", marker = "extra == 'aind-services'" },
     { name = "gitpython" },
     { name = "ldap3", marker = "sys_platform == 'win32' and extra == 'aind-services'" },
@@ -177,10 +177,14 @@ wheels = [
 [[package]]
 name = "aind-watchdog-service"
 version = "0.1.6.dev8"
-source = { git = "https://github.com/AllenNeuralDynamics/aind-watchdog-service?rev=dev#fd4c2746f64900c5741becda3939d71d910530c0" }
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aind-data-transfer-service" },
     { name = "pyyaml" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ce/7a/133583e96793c98b46ed06e7e591b7364bdb96a557b5a647dee4294961c3/aind_watchdog_service-0.1.6.dev8.tar.gz", hash = "sha256:5636372fba8504ab3679678319183a39361c655593d3f6d5c919ca41ace7f8ab", size = 392177, upload-time = "2025-11-25T17:20:21.887Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b8/cd/3607a1b5bfa8af2cc33f5b44a56c16337a09571d6ee29fbb61fef75d3cd7/aind_watchdog_service-0.1.6.dev8-py3-none-any.whl", hash = "sha256:8f15baf43a2ced64384075d7d3eb88a2a8f96460db020dbd38353a1ee4a2fb4c", size = 48580, upload-time = "2025-11-25T17:20:20.575Z" },
 ]
 
 [[package]]
