@@ -40,6 +40,7 @@ Changelog = "https://github.com/AllenNeuralDynamics/clabe/releases"
 
 [project.optional-dependencies]
 aind-services = [
+    "aind-watchdog-service @ git+https://github.com/AllenNeuralDynamics/aind-watchdog-service@dev",
     "aind-data-schema",
     "ms-active-directory",
     "aind-data-transfer-service",

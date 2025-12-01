@@ -12,19 +12,19 @@ import pydantic
 import requests
 import yaml
 from aind_behavior_services import AindBehaviorSessionModel
+from aind_watchdog_service.models import (
+    ManifestConfig,
+)
+from aind_watchdog_service.models.watch_config import WatchConfig
 from pydantic import BaseModel, SerializeAsAny, TypeAdapter
 from requests.exceptions import HTTPError
 
 from ..services import ServiceSettings
-from ._aind_watchdog_models import (
-    DEFAULT_TRANSFER_ENDPOINT,
-    BucketType,
-    ManifestConfig,
-    WatchConfig,
-)
 from ._base import DataTransfer
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_TRANSFER_ENDPOINT: str = "http://aind-data-transfer-service-dev/api/v2/submit_jobs"
 
 TransferServiceTask = Dict[
     str, Union[aind_data_transfer_service.models.core.Task, Dict[str, aind_data_transfer_service.models.core.Task]]
@@ -44,8 +44,6 @@ class WatchdogSettings(ServiceSettings):
     destination: Path
     schedule_time: Optional[datetime.time] = datetime.time(hour=20)
     project_name: str
-    s3_bucket: BucketType = "private"
-    force_cloud_sync: bool = False
     transfer_endpoint: str = DEFAULT_TRANSFER_ENDPOINT
     delete_modalities_source_after_success: bool = False
     extra_identifying_info: Optional[dict] = None
@@ -54,9 +52,6 @@ class WatchdogSettings(ServiceSettings):
     extra_modality_data: Optional[Dict[str, List[Path]]] = pydantic.Field(
         default=None, description="Additional modality data to include in the transfer"
     )
-    mount: Optional[None] = pydantic.Field(default=None, deprecated=True)
-    capsule_id: Optional[None] = pydantic.Field(default=None, deprecated=True)
-    script: Optional[Dict[str, List[str]]] = pydantic.Field(default=None, deprecated=True)
 
 
 class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
@@ -257,22 +252,18 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
 
         _manifest_config = ManifestConfig(
             name=self._session.session_name,
-            modalities={m: [Path(p) for p in paths] for m, paths in _modality_candidates.items()},
+            modalities={m: [str(Path(p)) for p in paths] for m, paths in _modality_candidates.items()},
             subject_id=int(session.subject),
             acquisition_datetime=session.date,
-            schemas=[Path(value) for value in self._find_schema_candidates(source)],
-            destination=Path(destination),
-            mount=self._settings.mount,
-            processor_full_name=",".join(session.experimenter),
+            schemas=[str(Path(value)) for value in self._find_schema_candidates(source)],
+            destination=str(Path(destination)),
             project_name=self._settings.project_name,
             schedule_time=self._settings.schedule_time,
-            capsule_id=self._settings.capsule_id,
-            s3_bucket=self._settings.s3_bucket,
-            script=self._settings.script if self._settings.script else {},
-            force_cloud_sync=self._settings.force_cloud_sync,
             transfer_endpoint=self._settings.transfer_endpoint,
             delete_modalities_source_after_success=self._settings.delete_modalities_source_after_success,
             extra_identifying_info=self._settings.extra_identifying_info,
+            transfer_service_job_type=self._settings.job_type,
+            checksum_mode_override=None,
         )
 
         _manifest_config = self._make_transfer_args(
@@ -356,7 +347,6 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
             subject_id=str(manifest.subject_id),
             acq_datetime=manifest.acquisition_datetime.strftime("%Y-%m-%d %H:%M:%S"),
             tasks=tasks,
-            s3_bucket=manifest.s3_bucket,
             acquisition_datetime=manifest.acquisition_datetime,
         )
 
@@ -510,10 +500,10 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         if make_dir and not path.parent.exists():
             path.parent.mkdir(parents=True, exist_ok=True)
 
-        manifest_config.destination = Path(manifest_config.destination)
-        manifest_config.schemas = [Path(schema) for schema in manifest_config.schemas]
+        manifest_config.destination = str(Path(manifest_config.destination))
+        manifest_config.schemas = [str(Path(schema)) for schema in manifest_config.schemas]
         for modality in manifest_config.modalities:
-            manifest_config.modalities[modality] = [_path for _path in manifest_config.modalities[modality]]
+            manifest_config.modalities[modality] = [str(Path(_path)) for _path in manifest_config.modalities[modality]]
 
         self._write_yaml(manifest_config, path)
         return path
