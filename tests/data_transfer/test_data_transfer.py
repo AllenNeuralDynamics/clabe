@@ -83,15 +83,8 @@ def watchdog_service(mock_ui_helper, source, settings, mock_session):
         acquisition_datetime=datetime(2023, 1, 1, 0, 0, 0),
         schemas=["path/to/schema"],
         destination="path/to/destination",
-        mount="mount_path",
-        processor_full_name="processor_name",
         project_name="test_project",
         schedule_time=settings.schedule_time,
-        platform="behavior",
-        capsule_id="capsule_id",
-        s3_bucket="private",
-        script={"script_key": ["script_value"]},
-        force_cloud_sync=True,
         transfer_endpoint="http://aind-data-transfer-service-dev/api/v2/submit_jobs",
     )
 
