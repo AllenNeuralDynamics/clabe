@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 async def experiment(launcher: Launcher) -> None:
     monitor = resource_monitor.ResourceMonitor(
         constrains=[
-            resource_monitor.available_storage_constraint_factory(launcher.settings.data_dir, 2e11),
+            resource_monitor.available_storage_constraint_factory(launcher.settings.data_directory, 2e11),
             resource_monitor.remote_dir_exists_constraint_factory(Path(r"C:/")),
         ]
     )
@@ -83,7 +83,7 @@ def main():
             "--debug-mode",
             "--allow-dirty",
             "--skip-hardware-validation",
-            "--data-dir",
+            "--data-directory",
             "./local",
         ],
     )

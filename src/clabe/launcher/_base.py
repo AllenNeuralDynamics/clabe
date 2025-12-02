@@ -72,7 +72,9 @@ class Launcher:
         self.temp_dir = Path(TMP_DIR) / format_datetime(utcnow())
         self.computer_name = os.environ["COMPUTERNAME"]
 
-        repository_dir = Path(self.settings.repository_dir) if self.settings.repository_dir is not None else None
+        repository_dir = (
+            Path(self.settings.repository_directory) if self.settings.repository_directory is not None else None
+        )
         self.repository = GitRepository() if repository_dir is None else GitRepository(path=repository_dir)
 
         self._ensure_directory_structure()
@@ -239,7 +241,9 @@ class Launcher:
         if session.session_name is None:
             raise ValueError("session.session_name is not set.")
         else:
-            return Path(self.settings.data_dir) / (session.session_name if session.session_name is not None else "")
+            return Path(self.settings.data_directory) / (
+                session.session_name if session.session_name is not None else ""
+            )
 
     def make_header(self) -> str:
         """
@@ -308,7 +312,7 @@ class Launcher:
             os.getcwd(),
             self.repository.working_dir,
             self.computer_name,
-            self.settings.data_dir,
+            self.settings.data_directory,
             self.temp_dir,
             self.settings,
         )
@@ -349,8 +353,8 @@ class Launcher:
         """
         try:
             # Create data directory if it doesn't exist
-            if not os.path.exists(self.settings.data_dir):
-                self.create_directory(self.settings.data_dir)
+            if not os.path.exists(self.settings.data_directory):
+                self.create_directory(self.settings.data_directory)
 
             # Create temp directory if it doesn't exist
             if not os.path.exists(self.temp_dir):

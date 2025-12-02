@@ -24,11 +24,11 @@ def test_base_launcher_with_attached_logger(
 def test_base_launcher_debug_mode(mock_rig, mock_session, mock_task_logic, mock_ui_helper, tmp_path: Path):
     """Test launcher initialization with debug mode enabled."""
     launcher_args_debug = LauncherCliArgs(
-        data_dir=tmp_path / "data",
+        data_directory=tmp_path / "data",
         debug_mode=True,
     )
     with patch("clabe.launcher._base.GitRepository") as mock_git, patch("os.chdir"), patch("pathlib.Path.mkdir"):
-        mock_git.return_value.working_dir = launcher_args_debug.data_dir
+        mock_git.return_value.working_dir = launcher_args_debug.data_directory
         with patch("clabe.logging_helper.add_file_handler") as mock_add_file_handler:
             mock_logger = MagicMock()
             mock_add_file_handler.return_value = mock_logger
@@ -42,7 +42,7 @@ def test_base_launcher_debug_mode(mock_rig, mock_session, mock_task_logic, mock_
 def test_base_launcher_create_directories(mock_rig, mock_session, mock_task_logic, mock_ui_helper, tmp_path: Path):
     """Test launcher initialization with create_directories option."""
     launcher_args_create_dirs = LauncherCliArgs(
-        data_dir=tmp_path / "data",
+        data_directory=tmp_path / "data",
     )
     with (
         patch("clabe.launcher._base.GitRepository") as mock_git,
@@ -51,7 +51,7 @@ def test_base_launcher_create_directories(mock_rig, mock_session, mock_task_logi
         patch("clabe.logging_helper.add_file_handler") as log_mod,
     ):
         log_mod.return_value = MagicMock()
-        mock_git.return_value.working_dir = launcher_args_create_dirs.data_dir
+        mock_git.return_value.working_dir = launcher_args_create_dirs.data_directory
         with patch("clabe.launcher.Launcher._ensure_directory_structure") as mock_create_dirs:
             Launcher(
                 ui_helper=mock_ui_helper,
@@ -71,7 +71,7 @@ def test_create_directory():
 def test_ensure_directory_structure(mock_rig, mock_session, mock_task_logic, mock_ui_helper, tmp_path: Path):
     """Test that _ensure_directory_structure calls create_directory for data_dir and temp_dir."""
     launcher_args = LauncherCliArgs(
-        data_dir=tmp_path / "data",
+        data_directory=tmp_path / "data",
     )
     with (
         patch("clabe.launcher._base.GitRepository") as mock_git,
@@ -80,7 +80,7 @@ def test_ensure_directory_structure(mock_rig, mock_session, mock_task_logic, moc
         patch("clabe.logging_helper.add_file_handler") as log_mod,
         patch("os.path.exists", return_value=False),
     ):
-        mock_git.return_value.working_dir = launcher_args.data_dir
+        mock_git.return_value.working_dir = launcher_args.data_directory
         log_mod.return_value = MagicMock()
         with patch("clabe.launcher.Launcher.create_directory") as mock_create_directory:
             launcher = Launcher(
@@ -88,6 +88,6 @@ def test_ensure_directory_structure(mock_rig, mock_session, mock_task_logic, moc
                 settings=launcher_args,
                 attached_logger=log_mod.return_value,
             )
-            mock_create_directory.assert_any_call(launcher.settings.data_dir)
+            mock_create_directory.assert_any_call(launcher.settings.data_directory)
             mock_create_directory.assert_any_call(launcher.temp_dir)
             assert mock_create_directory.call_count == 2
