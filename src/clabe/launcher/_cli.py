@@ -16,7 +16,6 @@ class LauncherCliArgs(ServiceSettings, cli_prog_name="clabe", cli_kebab_case=Tru
     Provides command-line argument parsing and validation for launcher operations.
     """
 
-    data_directory: Path = Field(default=Path("C:/data"), description="The data directory where to save the data")
     repository_directory: Optional[Path] = Field(
         default=None, description="The repository root directory. If None will be auto-detected."
     )
