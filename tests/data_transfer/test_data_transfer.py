@@ -58,8 +58,6 @@ def mock_session():
     return AindBehaviorSessionModel(
         experiment="mock",
         subject="007",
-        experiment_version="0.0.0",
-        root_path="mock_path",
         session_name="mock_session",
     )
 
