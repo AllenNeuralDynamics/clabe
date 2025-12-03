@@ -364,7 +364,6 @@ class Launcher:
             if self._data_directory is not None:
                 if not os.path.exists(self._data_directory):
                     # if _data_directory exists, session_directory is guaranteed to exist as well
-                    self.create_directory(self._data_directory)
                     self.create_directory(self.session_directory)
 
             if not os.path.exists(self.temp_dir):

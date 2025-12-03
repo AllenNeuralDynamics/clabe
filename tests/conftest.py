@@ -65,12 +65,8 @@ def mock_task_logic():
 @pytest.fixture
 def mock_base_launcher(mock_rig, mock_session, mock_task_logic, mock_ui_helper, tmp_path: Path):
     os.environ["COMPUTERNAME"] = "TEST_COMPUTER"
-    launcher_args = LauncherCliArgs(
-        data_directory=tmp_path / "data",
-    )
+    launcher_args = LauncherCliArgs()
     # Ensure directories exist for os.chdir
-    launcher_args.data_directory.mkdir(parents=True, exist_ok=True)
-
     with (
         patch("clabe.launcher._base.GitRepository") as mock_git,
         patch("os.chdir"),
@@ -80,7 +76,7 @@ def mock_base_launcher(mock_rig, mock_session, mock_task_logic, mock_ui_helper, 
         patch("clabe.launcher.Launcher.validate", return_value=True),
         patch("os.environ", {"COMPUTERNAME": "TEST_COMPUTER"}),
     ):
-        mock_git.return_value.working_dir = launcher_args.data_directory
+        mock_git.return_value.working_dir = tmp_path / "repo"
         launcher = Launcher(
             ui_helper=mock_ui_helper,
             settings=launcher_args,
