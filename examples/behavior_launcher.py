@@ -39,10 +39,10 @@ async def experiment(launcher: Launcher) -> None:
     )
 
     session = picker.pick_session(AindBehaviorSessionModel)
-    launcher.register_session(session)
+    rig = picker.pick_rig(RigModel)
+    launcher.register_session(session, rig.data_directory)
     trainer_state, task_logic = picker.pick_trainer_state(TaskLogicModel)
     _temp_trainer_state_path = launcher.save_temp_model(trainer_state)
-    rig = picker.pick_rig(RigModel)
 
     monitor.run()
 
