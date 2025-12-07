@@ -2,13 +2,7 @@ import asyncio
 import logging
 from pathlib import Path
 
-from pydantic_settings import CliApp
-
-from clabe import resource_monitor
-from clabe.apps import CurriculumApp, CurriculumSettings, PythonScriptApp
-from clabe.launcher import Launcher, LauncherCliArgs, experiment
-from clabe.pickers import DefaultBehaviorPicker, DefaultBehaviorPickerSettings
-from examples._mocks import (
+from _mocks import (
     LIB_CONFIG,
     AindBehaviorSessionModel,
     DemoAindDataSchemaSessionDataMapper,
@@ -17,6 +11,12 @@ from examples._mocks import (
     create_fake_rig,
     create_fake_subjects,
 )
+from pydantic_settings import CliApp
+
+from clabe import resource_monitor
+from clabe.apps import CurriculumApp, CurriculumSettings, PythonScriptApp
+from clabe.launcher import Launcher, LauncherCliArgs, experiment
+from clabe.pickers import DefaultBehaviorPicker, DefaultBehaviorPickerSettings
 
 logger = logging.getLogger(__name__)
 
