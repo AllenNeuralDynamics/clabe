@@ -110,6 +110,30 @@ def _load_module_from_path(path: Path):
 
 
 def _select_experiment(file_path: Path, ui_helper: IUiHelper | None = None) -> ExperimentMetadata:
+    """Select an experiment callable from a Python module.
+
+    Loads the module at ``file_path``, discovers all callables decorated with
+    :func:`experiment`, and returns the associated :class:`ExperimentMetadata`.
+
+    If a single experiment is found it is returned directly. When multiple
+    experiments are available, the provided ``ui_helper`` is used to prompt the
+    user to choose one. If no UI helper is supplied a :class:`DefaultUIHelper`
+    instance is used.
+
+    Args:
+        file_path: Filesystem path to the Python module to inspect.
+        ui_helper: Optional helper used to interactively choose an experiment
+            when more than one is discovered.
+
+    Returns:
+        ExperimentMetadata: The metadata for the selected experiment.
+
+    Raises:
+        ValueError: If experiment names are not unique within the module.
+        SystemExit: If no experiments are found or the user cancels
+            selection.
+    """
+
     if ui_helper is None:
         ui_helper = DefaultUIHelper()
     module = _load_module_from_path(file_path)

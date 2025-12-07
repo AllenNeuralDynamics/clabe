@@ -15,32 +15,36 @@ _TModel = TypeVar("_TModel", bound=BaseModel)
 
 
 class IUiHelper(Protocol):
-    """
-    Protocol for UI helpers that provide methods for user interaction.
+    """Protocol for helpers that mediate user interaction.
 
-    Defines the interface for user interface helpers that handle various types of
-    user input and interaction patterns.
-
-    Methods:
-        print: Prints a message to the user
-        input: Prompts the user for input
-        prompt_pick_from_list: Prompts the user to pick an item from a list
-        prompt_yes_no_question: Prompts the user with a yes/no question
-        prompt_text: Prompts the user for generic text input
-        prompt_float: Prompts the user for a float input
+    Concrete implementations are responsible for presenting messages,
+    collecting input and offering higher level prompts such as lists or
+    yes/no questions. This protocol is intentionally small so that it can be
+    fulfilled by both interactive console UIs and non-interactive test
+    doubles.
     """
 
-    def print(self, message: str) -> None: ...
+    def print(self, message: str) -> None:
+        """Display a message to the user without expecting a response."""
 
-    def input(self, prompt: str) -> str: ...
+    def input(self, prompt: str) -> str:
+        """Prompt the user for free‑form text input and return the reply."""
 
-    def prompt_pick_from_list(self, value: List[str], prompt: str, **kwargs) -> Optional[str]: ...
+    def prompt_pick_from_list(self, value: List[str], prompt: str, **kwargs) -> Optional[str]:
+        """Prompt the user to pick a single item from ``value``.
 
-    def prompt_yes_no_question(self, prompt: str) -> bool: ...
+        Implementations should return the chosen item or ``None`` when the
+        selection is cancelled.
+        """
 
-    def prompt_text(self, prompt: str) -> str: ...
+    def prompt_yes_no_question(self, prompt: str) -> bool:
+        """Ask the user a yes/no question and return their choice."""
 
-    def prompt_float(self, prompt: str) -> float: ...
+    def prompt_text(self, prompt: str) -> str:
+        """Prompt the user for a short text answer and return it."""
+
+    def prompt_float(self, prompt: str) -> float:
+        """Prompt the user for a floating‑point number and return it."""
 
 
 class _UiHelperBase(abc.ABC):
