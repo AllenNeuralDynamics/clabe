@@ -18,7 +18,7 @@ from aind_behavior_services import (
 from .. import __version__, logging_helper
 from ..constants import TMP_DIR
 from ..git_manager import GitRepository
-from ..ui import DefaultUIHelper, UiHelper
+from ..ui import DefaultUIHelper, IUiHelper
 from ..utils import abspath, format_datetime, utcnow
 from ._cli import LauncherCliArgs
 
@@ -57,7 +57,7 @@ class Launcher:
         *,
         settings: LauncherCliArgs,
         attached_logger: Optional[logging.Logger] = None,
-        ui_helper: UiHelper = DefaultUIHelper(),
+        ui_helper: None | IUiHelper = None,
     ) -> None:
         """
         Initializes the Launcher instance.
@@ -68,7 +68,7 @@ class Launcher:
             ui_helper: The UI helper for user interactions. Defaults to DefaultUIHelper
         """
         self._settings = settings
-        self.ui_helper = ui_helper
+        self.ui_helper = ui_helper or DefaultUIHelper()
         self.temp_dir = Path(TMP_DIR) / format_datetime(utcnow())
         self.computer_name = os.environ["COMPUTERNAME"]
         self._data_directory: Path | None = None
@@ -160,7 +160,7 @@ class Launcher:
         else:
             return self._session
 
-    def run_experiment(self, experiment: Union[Callable[[Self], None], Callable[[Self], Awaitable[None]]]) -> None:
+    def run_experiment(self, experiment: Callable[["Launcher"], Union[None, Awaitable[None]]]) -> None:
         """
         Main entry point for the launcher execution.
 
