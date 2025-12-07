@@ -1,6 +1,6 @@
 import abc
 import logging
-from typing import Any, Callable, List, Optional, Type, TypeAlias, TypeVar
+from typing import Any, Callable, List, Optional, Protocol, Type, TypeAlias, TypeVar
 
 from pydantic import BaseModel, TypeAdapter
 
@@ -12,6 +12,39 @@ _DEFAULT_PRINT_FUNC: _PrintFunc = print
 _DEFAULT_INPUT_FUNC: _InputFunc = input
 _T = TypeVar("_T", bound=Any)
 _TModel = TypeVar("_TModel", bound=BaseModel)
+
+
+class IUiHelper(Protocol):
+    """Protocol for helpers that mediate user interaction.
+
+    Concrete implementations are responsible for presenting messages,
+    collecting input and offering higher level prompts such as lists or
+    yes/no questions. This protocol is intentionally small so that it can be
+    fulfilled by both interactive console UIs and non-interactive test
+    doubles.
+    """
+
+    def print(self, message: str) -> None:
+        """Display a message to the user without expecting a response."""
+
+    def input(self, prompt: str) -> str:
+        """Prompt the user for free‑form text input and return the reply."""
+
+    def prompt_pick_from_list(self, value: List[str], prompt: str, **kwargs) -> Optional[str]:
+        """Prompt the user to pick a single item from ``value``.
+
+        Implementations should return the chosen item or ``None`` when the
+        selection is cancelled.
+        """
+
+    def prompt_yes_no_question(self, prompt: str) -> bool:
+        """Ask the user a yes/no question and return their choice."""
+
+    def prompt_text(self, prompt: str) -> str:
+        """Prompt the user for a short text answer and return it."""
+
+    def prompt_float(self, prompt: str) -> float:
+        """Prompt the user for a floating‑point number and return it."""
 
 
 class _UiHelperBase(abc.ABC):

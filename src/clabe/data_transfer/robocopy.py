@@ -52,7 +52,7 @@ class RobocopyService(DataTransfer[RobocopySettings]):
         source: PathLike,
         settings: RobocopySettings,
         *,
-        ui_helper: Optional[ui.UiHelper] = None,
+        ui_helper: Optional[ui.IUiHelper] = None,
     ):
         """
         Initializes the RobocopyService.
