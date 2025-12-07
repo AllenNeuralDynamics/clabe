@@ -31,6 +31,8 @@ class _IExperiment(Protocol):
 
     def __call__(self, launcher: Launcher, *args: Any, **kwargs: Any) -> Any: ...
 
+    __name__: str
+
 
 class _ITaggedExperiment(_IExperiment, Protocol):
     """Protocol for experiments tagged with metadata."""
@@ -55,7 +57,7 @@ def experiment(
         from clabe.launcher import experiment
 
 
-        @experiment(name="super_duper_experiment", clabe_yml=Path("./clabe.yml"))
+        @experiment(name="super_duper_experiment")
         async def vr_foraging_with_photometry(launcher: Launcher) -> None:
             ...
         ```
@@ -84,6 +86,19 @@ def collect_clabe_experiments(module: ModuleType) -> Iterable[ExperimentMetadata
 
 
 def _load_module_from_path(path: Path):
+    """Load a module from a filesystem path.
+
+    The directory containing the script is prepended to ``sys.path`` so that
+    local imports (for example ``from sibling import foo`` or
+    ``from package.module import bar`` rooted at that directory) resolve when
+    the module is loaded via its file path.
+    """
+
+    script_dir = path.parent
+    script_dir_str = str(script_dir)
+    if script_dir_str not in sys.path:
+        sys.path.insert(0, script_dir_str)
+
     spec = importlib.util.spec_from_file_location(path.stem, path)
     if spec is None or spec.loader is None:
         msg = f"Cannot load module from {path}"

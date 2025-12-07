@@ -40,3 +40,12 @@ class CliAppSettings(BaseSettings, cli_prog_name="clabe", cli_kebab_case=True):
     def cli_cmd(self):
         """Run the selected subcommand."""
         CliApp.run_subcommand(self)
+
+
+def main():
+    """Entry point for the CLABE CLI application."""
+    return CliApp().run(CliAppSettings)
+
+
+if __name__ == "__main__":
+    main()
