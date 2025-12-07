@@ -1,6 +1,6 @@
-from clabe.launcher import Launcher, clabeable
+from clabe.launcher import Launcher, experiment
 
 
-@clabeable(name="simple_experiment")
+@experiment(name="simple_experiment")
 async def simple_experiment(launcher: Launcher) -> None:
     launcher.logger.info("running simple_experiment")

@@ -2,14 +2,14 @@ from ._base import Launcher
 from ._cli import LauncherCliArgs
 from ._experiments import (
     ExperimentMetadata,
-    clabeable,
     collect_clabe_experiments,
+    experiment,
 )
 
 __all__ = [
     "Launcher",
     "LauncherCliArgs",
     "ExperimentMetadata",
-    "clabeable",
+    "experiment",
     "collect_clabe_experiments",
 ]

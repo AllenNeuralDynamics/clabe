@@ -38,7 +38,7 @@ class _ITaggedExperiment(_IExperiment, Protocol):
     __clabe_experiment_metadata__: ExperimentMetadata
 
 
-def clabeable(
+def experiment(
     *,
     name: Optional[str] = None,
 ) -> Callable[[_IExperiment], _IExperiment]:
@@ -52,10 +52,10 @@ def clabeable(
         from pathlib import Path
 
         from clabe.launcher import Launcher
-        from clabe.launcher import clabeable
+        from clabe.launcher import experiment
 
 
-        @clabeable(name="super_duper_experiment", clabe_yml=Path("./clabe.yml"))
+        @experiment(name="super_duper_experiment", clabe_yml=Path("./clabe.yml"))
         async def vr_foraging_with_photometry(launcher: Launcher) -> None:
             ...
         ```
@@ -74,7 +74,7 @@ def clabeable(
 
 
 def collect_clabe_experiments(module: ModuleType) -> Iterable[ExperimentMetadata]:
-    """Yield all `@clabeable` experiments defined in the target module."""
+    """Yield all `@experiment` experiments defined in the target module."""
 
     for _, value in vars(module).items():
         metadata = getattr(value, "__clabe_experiment_metadata__", None)
@@ -104,7 +104,7 @@ def _select_experiment(file_path: Path, ui_helper: IUiHelper | None = None) -> E
         raise ValueError("Experiment names must be unique within a module.")
 
     if not experiments:
-        msg = f"No @clabeable experiments found in {file_path}"
+        msg = f"No @experiment experiments found in {file_path}"
         raise SystemExit(msg)
 
     if len(experiments) == 1:
