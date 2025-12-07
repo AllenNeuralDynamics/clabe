@@ -69,7 +69,7 @@ class DefaultBehaviorPicker:
         self,
         settings: DefaultBehaviorPickerSettings,
         launcher: Launcher,
-        ui_helper: Optional[ui.UiHelper] = None,
+        ui_helper: Optional[ui.IUiHelper] = None,
         experimenter_validator: Optional[Callable[[str], bool]] = validate_aind_username,
         use_cache: bool = True,
     ):
@@ -94,7 +94,7 @@ class DefaultBehaviorPicker:
         self._use_cache = use_cache
 
     @property
-    def ui_helper(self) -> ui.UiHelper:
+    def ui_helper(self) -> ui.IUiHelper:
         """
         Retrieves the registered UI helper.
 

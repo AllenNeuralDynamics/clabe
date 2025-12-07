@@ -1,6 +1,6 @@
 import abc
 import logging
-from typing import Any, Callable, List, Optional, Type, TypeAlias, TypeVar
+from typing import Any, Callable, List, Optional, Protocol, Type, TypeAlias, TypeVar
 
 from pydantic import BaseModel, TypeAdapter
 
@@ -12,6 +12,35 @@ _DEFAULT_PRINT_FUNC: _PrintFunc = print
 _DEFAULT_INPUT_FUNC: _InputFunc = input
 _T = TypeVar("_T", bound=Any)
 _TModel = TypeVar("_TModel", bound=BaseModel)
+
+
+class IUiHelper(Protocol):
+    """
+    Protocol for UI helpers that provide methods for user interaction.
+
+    Defines the interface for user interface helpers that handle various types of
+    user input and interaction patterns.
+
+    Methods:
+        print: Prints a message to the user
+        input: Prompts the user for input
+        prompt_pick_from_list: Prompts the user to pick an item from a list
+        prompt_yes_no_question: Prompts the user with a yes/no question
+        prompt_text: Prompts the user for generic text input
+        prompt_float: Prompts the user for a float input
+    """
+
+    def print(self, message: str) -> None: ...
+
+    def input(self, prompt: str) -> str: ...
+
+    def prompt_pick_from_list(self, value: List[str], prompt: str, **kwargs) -> Optional[str]: ...
+
+    def prompt_yes_no_question(self, prompt: str) -> bool: ...
+
+    def prompt_text(self, prompt: str) -> str: ...
+
+    def prompt_float(self, prompt: str) -> float: ...
 
 
 class _UiHelperBase(abc.ABC):
