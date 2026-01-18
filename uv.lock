@@ -39,7 +39,7 @@ wheels = [
 
 [[package]]
 name = "aind-clabe"
-version = "0.9.1rc1"
+version = "0.10.0rc0"
 source = { editable = "." }
 dependencies = [
     { name = "aind-behavior-services" },
@@ -89,9 +89,9 @@ docs = [
 
 [package.metadata]
 requires-dist = [
-    { name = "aind-behavior-services", specifier = ">0.13rc0" },
+    { name = "aind-behavior-services", specifier = ">=0.13rc0" },
     { name = "aind-data-schema", marker = "extra == 'aind-services'" },
-    { name = "aind-data-transfer-service", marker = "extra == 'aind-services'" },
+    { name = "aind-data-transfer-service", marker = "extra == 'aind-services'", specifier = ">=1.22.0" },
     { name = "aind-watchdog-service", marker = "extra == 'aind-services'", specifier = ">=0.1.6.dev8" },
     { name = "cryptography", marker = "extra == 'aind-services'" },
     { name = "gitpython" },
