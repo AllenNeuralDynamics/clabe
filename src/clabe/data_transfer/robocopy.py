@@ -53,7 +53,7 @@ class RobocopyService(DataTransfer[RobocopySettings], _DefaultExecutorMixin, Exe
 
     def __init__(
         self,
-        source: PathLike,
+        source: PathLike | Dict[PathLike, PathLike],
         settings: RobocopySettings,
     ):
         """
@@ -100,8 +100,6 @@ class RobocopyService(DataTransfer[RobocopySettings], _DefaultExecutorMixin, Exe
             ValueError: If source and destination mapping cannot be resolved
         """
         src_dst = self._solve_src_dst_mapping(self.source, self._settings.destination)
-        if src_dst is None:
-            raise ValueError("Source and destination should be provided.")
 
         commands = []
         for src, dst in src_dst.items():
@@ -145,8 +143,8 @@ class RobocopyService(DataTransfer[RobocopySettings], _DefaultExecutorMixin, Exe
 
     @staticmethod
     def _solve_src_dst_mapping(
-        source: Optional[PathLike | Dict[PathLike, PathLike]], destination: Optional[PathLike]
-    ) -> Optional[Dict[PathLike, PathLike]]:
+        source: PathLike | Dict[PathLike, PathLike], destination: Optional[PathLike]
+    ) -> Dict[PathLike, PathLike]:
         """
         Resolves the mapping between source and destination paths.
 
@@ -163,8 +161,6 @@ class RobocopyService(DataTransfer[RobocopySettings], _DefaultExecutorMixin, Exe
         Raises:
             ValueError: If the input arguments are invalid or inconsistent
         """
-        if source is None:
-            return None
         if isinstance(source, dict):
             if destination:
                 raise ValueError("Destination should not be provided when source is a dictionary.")
