@@ -1,11 +1,12 @@
 import logging
 import shutil
-import subprocess
 from os import PathLike, makedirs
 from pathlib import Path
 from typing import ClassVar, Dict, Optional
 
-from .. import ui
+from ..apps import ExecutableApp
+from ..apps._base import Command, CommandResult, identity_parser
+from ..apps._executors import _DefaultExecutorMixin
 from ..services import ServiceSettings
 from ._base import DataTransfer
 
@@ -24,7 +25,7 @@ class RobocopySettings(ServiceSettings):
     copy options.
     """
 
-    __yml_section__: ClassVar[str] = "robocopy"
+    __yml_section__: ClassVar[Optional[str]] = "robocopy"
 
     destination: PathLike
     log: Optional[PathLike] = None
@@ -34,12 +35,15 @@ class RobocopySettings(ServiceSettings):
     force_dir: bool = True
 
 
-class RobocopyService(DataTransfer[RobocopySettings]):
+class RobocopyService(DataTransfer[RobocopySettings], _DefaultExecutorMixin, ExecutableApp):
     """
     A data transfer service that uses Robocopy to copy files between directories.
 
     Provides a wrapper around the Windows Robocopy utility with configurable options
     for file copying, logging, and directory management.
+
+    Attributes:
+        command: The underlying robocopy command that will be executed
 
     Methods:
         transfer: Executes the Robocopy file transfer
@@ -51,8 +55,6 @@ class RobocopyService(DataTransfer[RobocopySettings]):
         self,
         source: PathLike,
         settings: RobocopySettings,
-        *,
-        ui_helper: Optional[ui.IUiHelper] = None,
     ):
         """
         Initializes the RobocopyService.
@@ -60,7 +62,6 @@ class RobocopyService(DataTransfer[RobocopySettings]):
         Args:
             source: The source directory or file to copy
             settings: RobocopySettings containing destination and options
-            ui_helper: UI helper for user prompts. Default is None
 
         Example:
             ```python
@@ -81,47 +82,66 @@ class RobocopyService(DataTransfer[RobocopySettings]):
 
         self.source = source
         self._settings = settings
-        self._ui_helper = ui_helper or ui.DefaultUIHelper()
+        self._command = self._build_command()
 
-    def transfer(
-        self,
-    ) -> None:
+    @property
+    def command(self) -> Command[CommandResult]:
+        """Returns the robocopy command to be executed."""
+        return self._command
+
+    def _build_command(self) -> Command[CommandResult]:
+        """
+        Builds the robocopy command based on settings.
+
+        Returns:
+            A Command object ready for execution
+
+        Raises:
+            ValueError: If source and destination mapping cannot be resolved
+        """
+        src_dst = self._solve_src_dst_mapping(self.source, self._settings.destination)
+        if src_dst is None:
+            raise ValueError("Source and destination should be provided.")
+
+        commands = []
+        for src, dst in src_dst.items():
+            dst = Path(dst)
+            src = Path(src)
+
+            if self._settings.force_dir:
+                makedirs(dst, exist_ok=True)
+
+            cmd_parts = ["robocopy", f'"{src.as_posix()}"', f'"{dst.as_posix()}"', self._settings.extra_args]
+
+            if self._settings.log:
+                cmd_parts.append(f'/LOG:"{Path(dst) / self._settings.log}"')
+            if self._settings.delete_src:
+                cmd_parts.append("/MOV")
+            if self._settings.overwrite:
+                cmd_parts.append("/IS")
+
+            commands.append(" ".join(cmd_parts))
+
+        # TODO there may be a better way to chain with robocopy
+        full_command = " && ".join(commands)
+        return Command(cmd=full_command, output_parser=identity_parser)
+
+    def transfer(self) -> None:
         """
         Executes the data transfer using Robocopy.
 
-        Processes source-destination mappings and executes Robocopy commands
-        for each pair, handling logging and error reporting.
+        Uses the command executor pattern to run robocopy with configured settings.
+
+        Example:
+            ```python
+            settings = RobocopySettings(destination="D:/backup")
+            service = RobocopyService("C:/data", settings)
+            service.transfer()
+            ```
         """
-
-        # Loop through each source-destination pair and call robocopy'
         logger.info("Starting robocopy transfer service.")
-        src_dist = self._solve_src_dst_mapping(self.source, self._settings.destination)
-        if src_dist is None:
-            raise ValueError("Source and destination should be provided.")
-
-        for src, dst in src_dist.items():
-            dst = Path(dst)
-            src = Path(src)
-            try:
-                command = ["robocopy", f"{src.as_posix()}", f"{dst.as_posix()}", self._settings.extra_args]
-                if self._settings.log:
-                    command.append(f'/LOG:"{Path(dst) / self._settings.log}"')
-                if self._settings.delete_src:
-                    command.append("/MOV")
-                if self._settings.overwrite:
-                    command.append("/IS")
-                if self._settings.force_dir:
-                    makedirs(dst, exist_ok=True)
-                cmd = " ".join(command)
-                logger.info("Running Robocopy command: %s", cmd)
-                with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True) as process:
-                    if process.stdout:
-                        for line in process.stdout:
-                            logger.info(line.strip())
-                _ = process.wait()
-                logger.info("Successfully copied from %s to %s:\n", src, dst)
-            except subprocess.CalledProcessError as e:
-                logger.error("Error copying from %s to %s:\n%s", src, dst, e.stdout)
+        self.run()
+        logger.info("Robocopy transfer completed.")
 
     @staticmethod
     def _solve_src_dst_mapping(
@@ -167,24 +187,3 @@ class RobocopyService(DataTransfer[RobocopySettings]):
             logger.warning("Robocopy command is not available on this system.")
             return False
         return True
-
-    def prompt_input(self) -> bool:
-        """
-        Prompts the user to confirm whether to trigger the Robocopy transfer.
-
-        Returns:
-            True if the user confirms, False otherwise
-
-        Example:
-            ```python
-            # Interactive transfer confirmation:
-            settings = RobocopySettings(destination="D:/backup")
-            service = RobocopyService("C:/data", settings)
-            if service.prompt_input():
-                service.transfer()
-                # User confirmed, transfer proceeds
-            else:
-                print("Transfer cancelled by user")
-            ```
-        """
-        return self._ui_helper.prompt_yes_no_question("Would you like to trigger robocopy (Y/N)?")

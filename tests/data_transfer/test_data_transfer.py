@@ -63,7 +63,7 @@ def mock_session():
 
 
 @pytest.fixture
-def watchdog_service(mock_ui_helper, source, settings, mock_session):
+def watchdog_service(source, settings, mock_session):
     os.environ["WATCHDOG_EXE"] = "watchdog.exe"
     os.environ["WATCHDOG_CONFIG"] = str(TESTS_ASSETS / "watch_config.yml")
 
@@ -471,11 +471,10 @@ def robocopy_settings():
 
 
 @pytest.fixture
-def robocopy_service(mock_ui_helper, source, robocopy_settings):
+def robocopy_service(source, robocopy_settings):
     return RobocopyService(
         source=source,
         settings=robocopy_settings,
-        ui_helper=mock_ui_helper,
     )
 
 
@@ -489,13 +488,18 @@ class TestRobocopyService:
         assert robocopy_service._settings.overwrite
         assert not robocopy_service._settings.force_dir
 
-    def test_transfer(self, mock_ui_helper, robocopy_service):
-        with patch("src.clabe.data_transfer.robocopy.subprocess.Popen") as mock_popen:
-            mock_ui_helper._prompt_yes_no_question.return_value = True
-            mock_process = MagicMock()
-            mock_process.wait.return_value = 0
-            mock_popen.return_value = mock_process
+    def test_transfer(self, robocopy_service):
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(stdout="output", stderr="", returncode=0)
             robocopy_service.transfer()
+            mock_run.assert_called_once()
+
+    def test_run(self, robocopy_service):
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(stdout="output", stderr="", returncode=0)
+            result = robocopy_service.run()
+            assert result.ok is True
+            mock_run.assert_called_once()
 
     def test_solve_src_dst_mapping_single_path(self, robocopy_service, source, robocopy_settings):
         result = robocopy_service._solve_src_dst_mapping(source, robocopy_settings.destination)
