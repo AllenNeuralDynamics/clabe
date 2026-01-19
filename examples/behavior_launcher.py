@@ -15,23 +15,15 @@ from pydantic_settings import CliApp
 
 from clabe import resource_monitor
 from clabe.apps import CurriculumApp, CurriculumSettings, PythonScriptApp
-from clabe.launcher import (
-    Launcher,
-    LauncherCliArgs,
-)
+from clabe.launcher import Launcher, LauncherCliArgs, experiment
 from clabe.pickers import DefaultBehaviorPicker, DefaultBehaviorPickerSettings
 
 logger = logging.getLogger(__name__)
 
 
-async def experiment(launcher: Launcher) -> None:
-    monitor = resource_monitor.ResourceMonitor(
-        constrains=[
-            resource_monitor.available_storage_constraint_factory(launcher.settings.data_dir, 2e11),
-            resource_monitor.remote_dir_exists_constraint_factory(Path(r"C:/")),
-        ]
-    )
-
+@experiment()
+async def demo_experiment(launcher: Launcher) -> None:
+    """Demo experiment showcasing CLABE functionality."""
     picker = DefaultBehaviorPicker(
         launcher=launcher,
         settings=DefaultBehaviorPickerSettings(config_library_dir=LIB_CONFIG),
@@ -39,12 +31,16 @@ async def experiment(launcher: Launcher) -> None:
     )
 
     session = picker.pick_session(AindBehaviorSessionModel)
-    launcher.register_session(session)
+    rig = picker.pick_rig(RigModel)
+    launcher.register_session(session, rig.data_directory)
     trainer_state, task_logic = picker.pick_trainer_state(TaskLogicModel)
     _temp_trainer_state_path = launcher.save_temp_model(trainer_state)
-    rig = picker.pick_rig(RigModel)
 
-    monitor.run()
+    resource_monitor.ResourceMonitor(
+        constrains=[
+            resource_monitor.available_storage_constraint_factory_from_rig(rig, 2e11),
+        ]
+    ).run()
 
     def fmt(value: str) -> str:
         return f"python -c \"import time; print('Hello {value}'); time.sleep(2); print('DONE')\""
@@ -83,13 +79,13 @@ def main():
             "--debug-mode",
             "--allow-dirty",
             "--skip-hardware-validation",
-            "--data-dir",
+            "--data-directory",
             "./local",
         ],
     )
 
     launcher = Launcher(settings=behavior_cli_args)
-    launcher.run_experiment(experiment)
+    launcher.run_experiment(demo_experiment)
     return None
 
 

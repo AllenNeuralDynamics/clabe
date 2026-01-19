@@ -207,7 +207,7 @@ class GitRepository(Repo):
         _ = [GitRepository(str(sub.abspath)).full_reset() for sub in self.submodules]
         return self
 
-    def try_prompt_full_reset(self, ui_helper: ui.UiHelper, force_reset: bool = False) -> Self:
+    def try_prompt_full_reset(self, ui_helper: ui.IUiHelper, force_reset: bool = False) -> Self:
         """
         Prompts the user to perform a full reset if the repository is dirty.
 

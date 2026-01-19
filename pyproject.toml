@@ -5,20 +5,18 @@ build-backend = "uv_build"
 [project]
 name = "aind-clabe"
 description = "A library for a minimal framework that can be used to build experimental interfaces."
-authors = [
-    { name = "Bruno Cruz", email = "bruno.cruz@alleninstitute.org" }
-]
+authors = [{ name = "Bruno Cruz", email = "bruno.cruz@alleninstitute.org" }]
 license = "MIT"
 license-files = ["LICENSE"]
 requires-python = ">=3.11"
-version = "0.9.1"
-readme = {file = "README.md", content-type = "text/markdown"}
+version = "0.10.0rc0"
+readme = { file = "README.md", content-type = "text/markdown" }
 
 classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
-    "Operating System :: Microsoft :: Windows"
+    "Operating System :: Microsoft :: Windows",
 ]
 
 dependencies = [
@@ -28,7 +26,7 @@ dependencies = [
     "requests",
     "semver",
     "rich",
-    "aind_behavior_services < 1",
+    "aind_behavior_services >= 0.13rc0",
     "questionary",
 ]
 
@@ -40,10 +38,10 @@ Changelog = "https://github.com/AllenNeuralDynamics/clabe/releases"
 
 [project.optional-dependencies]
 aind-services = [
-    "aind-watchdog-service==0.1.6.dev8",
+    "aind-watchdog-service >= 0.1.6.dev8",
     "aind-data-schema",
     "ms-active-directory",
-    "aind-data-transfer-service",
+    "aind-data-transfer-service >= 1.22.0",
     "cryptography",
     "winkerberos; sys_platform == 'win32'",
     "ldap3; sys_platform == 'win32'",
@@ -105,17 +103,23 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-markers = [
-    "asyncio: mark test as requiring asyncio",
-]
+markers = ["asyncio: mark test as requiring asyncio"]
 
 
 [tool.interrogate]
 ignore-init-method = true
 ignore-magic = true
 ignore_module = true
-ignore_nested_functions=true
-ignore_overloaded_functions=true
+ignore_nested_functions = true
+ignore_overloaded_functions = true
 ignore-private = true
 fail-under = 100
-exclude = ["__init__.py", "tests", "docs", "build", "setup.py", "examples", "site"]
+exclude = [
+    "__init__.py",
+    "tests",
+    "docs",
+    "build",
+    "setup.py",
+    "examples",
+    "site",
+]

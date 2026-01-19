@@ -18,7 +18,7 @@ from aind_behavior_services import (
 from .. import __version__, logging_helper
 from ..constants import TMP_DIR
 from ..git_manager import GitRepository
-from ..ui import DefaultUIHelper, UiHelper
+from ..ui import DefaultUIHelper, IUiHelper
 from ..utils import abspath, format_datetime, utcnow
 from ._cli import LauncherCliArgs
 
@@ -57,7 +57,7 @@ class Launcher:
         *,
         settings: LauncherCliArgs,
         attached_logger: Optional[logging.Logger] = None,
-        ui_helper: UiHelper = DefaultUIHelper(),
+        ui_helper: None | IUiHelper = None,
     ) -> None:
         """
         Initializes the Launcher instance.
@@ -68,11 +68,13 @@ class Launcher:
             ui_helper: The UI helper for user interactions. Defaults to DefaultUIHelper
         """
         self._settings = settings
-        self.ui_helper = ui_helper
+        self.ui_helper = ui_helper or DefaultUIHelper()
         self.temp_dir = Path(TMP_DIR) / format_datetime(utcnow())
         self.computer_name = os.environ["COMPUTERNAME"]
-
-        repository_dir = Path(self.settings.repository_dir) if self.settings.repository_dir is not None else None
+        self._data_directory: Path | None = None
+        repository_dir = (
+            Path(self.settings.repository_directory) if self.settings.repository_directory is not None else None
+        )
         self.repository = GitRepository() if repository_dir is None else GitRepository(path=repository_dir)
 
         self._ensure_directory_structure()
@@ -92,13 +94,40 @@ class Launcher:
         self._session: Optional[AindBehaviorSessionModel] = None
         self._has_copied_logs = False
 
-    def register_session(self, session: AindBehaviorSessionModel) -> Self:
+    @property
+    def data_directory(self) -> Path:
+        """
+        Returns the root data directory path.
+        """
+        if self._data_directory is None:
+            raise ValueError("Data directory is not set.")
+        return self._data_directory
+
+    @property
+    def session_directory(self) -> Path:
+        """
+        Returns the session directory path.
+
+        Returns:
+            Path: The session directory path
+
+        Raises:
+            ValueError: If session_name is not set in the session schema
+        """
+        session = self.session
+        if session.session_name is None:
+            raise ValueError("session.session_name is not set.")
+        else:
+            return Path(self.data_directory) / (session.session_name if session.session_name is not None else "")
+
+    def register_session(self, session: AindBehaviorSessionModel, data_directory: os.PathLike) -> Self:
         """
         Registers the session model with the launcher and creates the session
         data directory structure.
 
         Args:
             session: The session model to register
+            data_directory: The root data directory for the session
 
         Returns:
             Self: The updated instance
@@ -108,8 +137,9 @@ class Launcher:
         """
         if self._session is None:
             self._session = session
+            self._data_directory = Path(data_directory)
+            self._ensure_directory_structure()
             logger.debug("Creating session directory at: %s", self.session_directory)
-            self.session_directory.mkdir(parents=True, exist_ok=True)
         else:
             raise ValueError("Session already registered.")
         return self
@@ -130,7 +160,7 @@ class Launcher:
         else:
             return self._session
 
-    def run_experiment(self, experiment: Union[Callable[[Self], None], Callable[[Self], Awaitable[None]]]) -> None:
+    def run_experiment(self, experiment: Callable[["Launcher"], Union[None, Awaitable[None]]]) -> None:
         """
         Main entry point for the launcher execution.
 
@@ -171,7 +201,7 @@ class Launcher:
         except KeyboardInterrupt:
             logger.error("User interrupted the process.")
             _code = -1
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-except
             logger.error("Launcher failed: %s", e, exc_info=True)
             _code = -1
         finally:
@@ -223,23 +253,6 @@ class Launcher:
             LauncherCliArgs: The launcher settings
         """
         return self._settings
-
-    @property
-    def session_directory(self) -> Path:
-        """
-        Returns the session directory path.
-
-        Returns:
-            Path: The session directory path
-
-        Raises:
-            ValueError: If session_name is not set in the session schema
-        """
-        session = self.session
-        if session.session_name is None:
-            raise ValueError("session.session_name is not set.")
-        else:
-            return Path(session.root_path) / (session.session_name if session.session_name is not None else "")
 
     def make_header(self) -> str:
         """
@@ -301,14 +314,12 @@ class Launcher:
             "Current Directory: %s\n"
             "Repository: %s\n"
             "Computer Name: %s\n"
-            "Data Directory: %s\n"
             "Temporary Directory: %s\n"
             "Settings: %s\n"
             "-------------------------------",
             os.getcwd(),
             self.repository.working_dir,
             self.computer_name,
-            self.settings.data_dir,
             self.temp_dir,
             self.settings,
         )
@@ -347,16 +358,18 @@ class Launcher:
         Creates data and temporary directories needed for launcher operation,
         exiting with an error code if creation fails.
         """
-        try:
-            # Create data directory if it doesn't exist
-            if not os.path.exists(self.settings.data_dir):
-                self.create_directory(self.settings.data_dir)
+        # Note: This function should be idempotent!!!
 
-            # Create temp directory if it doesn't exist
+        try:
+            if self._data_directory is not None:
+                if not os.path.exists(self._data_directory):
+                    # if _data_directory exists, session_directory is guaranteed to exist as well
+                    self.create_directory(self.session_directory)
+
             if not os.path.exists(self.temp_dir):
                 self.create_directory(self.temp_dir)
 
-        except OSError as e:
+        except (OSError, TimeoutError) as e:
             logger.error("Failed to create directory structure: %s", e)
             raise
 

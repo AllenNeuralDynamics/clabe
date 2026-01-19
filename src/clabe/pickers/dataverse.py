@@ -497,7 +497,7 @@ class DataversePicker(DefaultBehaviorPicker):
         dataverse_client: Optional[_DataverseRestClient] = None,
         settings: DefaultBehaviorPickerSettings,
         launcher: Launcher,
-        ui_helper: Optional[ui.UiHelper] = None,
+        ui_helper: Optional[ui.IUiHelper] = None,
         experimenter_validator: Optional[Callable[[str], bool]] = validate_aind_username,
     ):
         """
