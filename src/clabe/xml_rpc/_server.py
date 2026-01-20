@@ -207,6 +207,7 @@ class XmlRpcServer:
                 filename=safe_filename,
                 size=len(file_data),
                 overwritten=overwritten,
+                path=str(file_path.resolve()),
             ).model_dump()
 
         except Exception as e:
@@ -280,7 +281,11 @@ class XmlRpcServer:
 
             logger.info(f"File downloaded: {safe_filename} ({len(file_data)} bytes)")
             response = FileDownloadResponse(
-                success=True, error=None, filename=safe_filename, size=len(file_data), data=base64_encoded_data
+                success=True,
+                error=None,
+                filename=safe_filename,
+                size=len(file_data),
+                data=base64_encoded_data,
             )
             return response.model_dump(mode="json")
 
@@ -313,6 +318,7 @@ class XmlRpcServer:
                         name=file_path.name,
                         size=stat.st_size,
                         modified=stat.st_mtime,
+                        path=str(file_path.resolve()),
                     )
                     file_infos.append(file_info)
 

@@ -36,6 +36,7 @@ class FileInfo(BaseModel):
     name: str = Field(description="Name of the file")
     size: int = Field(description="Size of the file in bytes")
     modified: float = Field(description="Last modified time as Unix timestamp")
+    path: str = Field(description="Full path of the file on the server")
 
 
 class RpcResponse(BaseModel):
@@ -72,6 +73,7 @@ class FileUploadResponse(RpcResponse):
     filename: Optional[str] = Field(default=None, description="Name of the uploaded file")
     size: Optional[int] = Field(default=None, description="Size of the uploaded file in bytes")
     overwritten: bool = Field(default=False, description="Whether an existing file was overwritten")
+    path: Optional[str] = Field(default=None, description="Full path of the uploaded file on the server")
 
 
 class FileDownloadResponse(RpcResponse):
