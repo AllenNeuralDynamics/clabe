@@ -225,6 +225,9 @@ class TestFileTransfer:
         assert result["success"] is True
         assert result["filename"] == "test.txt"
         assert result["size"] == len(test_data)
+        assert "path" in result
+        assert result["path"].endswith("test.txt")
+        assert Path(result["path"]).name == "test.txt"
 
     def test_upload_file_invalid_filename(self, rpc_client):
         """Test file upload with invalid filename."""
@@ -320,7 +323,10 @@ class TestFileTransfer:
         our_file = next(f for f in result["files"] if f["name"] == "list_test.txt")
         assert "size" in our_file
         assert "modified" in our_file
+        assert "path" in our_file
         assert our_file["size"] == len(test_data)
+        assert our_file["path"].endswith("list_test.txt")
+        assert Path(our_file["path"]).name == "list_test.txt"
 
     def test_delete_file_success(self, rpc_client):
         """Test successful file deletion."""

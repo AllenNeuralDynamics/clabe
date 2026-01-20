@@ -151,11 +151,12 @@ class TestFileInfo:
 
     def test_file_info_creation(self):
         """Test creating FileInfo objects."""
-        info = FileInfo(name="test.txt", size=1024, modified=1640995200.0)
+        info = FileInfo(name="test.txt", size=1024, modified=1640995200.0, path="/files/test.txt")
 
         assert info.name == "test.txt"
         assert info.size == 1024
         assert info.modified == 1640995200.0
+        assert info.path == "/files/test.txt"
 
 
 class TestXmlRpcClient:
