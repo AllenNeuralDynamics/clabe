@@ -320,7 +320,7 @@ class Launcher:
             [
                 separator,
                 f"Current Directory: {os.getcwd()}",
-                f"Repository: {self.repository.working_dir}",
+                f"Repository Directory: {self.repository.working_dir}",
                 f"Repository Branch: {branch}",
                 f"Repository SHA: {self.repository.head.commit.hexsha}",
                 f"Repository Tag: {tag}",
