@@ -10,6 +10,7 @@ import threading
 from pathlib import Path
 from typing import Awaitable, Callable, Optional, Self, TypeVar, Union
 
+import git.exc
 import pydantic
 from aind_behavior_services import (
     AindBehaviorSessionModel,
@@ -188,8 +189,7 @@ class Launcher:
         _code = 0
         try:
             logger.info(self.make_header())
-            if self.settings.debug_mode:
-                self._print_debug()
+            logger.info(self._generate_diagnostic_info())
 
             if not self.settings.debug_mode:
                 self.validate()
@@ -300,28 +300,35 @@ class Launcher:
         if not _force:
             self.ui_helper.input("Press any key to exit...")
 
-    def _print_debug(self) -> None:
+    def _generate_diagnostic_info(self) -> str:
         """
-        Prints diagnostic information for debugging purposes.
+        Generates diagnostic information for debugging purposes.
 
         Outputs detailed information about the launcher state including
         directories, settings, and configuration for troubleshooting.
         """
-        logger.debug(
-            "-------------------------------\n"
-            "Diagnosis:\n"
-            "-------------------------------\n"
-            "Current Directory: %s\n"
-            "Repository: %s\n"
-            "Computer Name: %s\n"
-            "Temporary Directory: %s\n"
-            "Settings: %s\n"
-            "-------------------------------",
-            os.getcwd(),
-            self.repository.working_dir,
-            self.computer_name,
-            self.temp_dir,
-            self.settings,
+
+        try:
+            tag = str(self.repository.git.describe("--tags"))
+        except git.exc.GitCommandError:
+            tag = None
+
+        branch = self.repository.active_branch.name if not self.repository.head.is_detached else "DETACHED"
+        separator = "-------------------------------"
+
+        return "\n".join(
+            [
+                separator,
+                f"Current Directory: {os.getcwd()}",
+                f"Repository Directory: {self.repository.working_dir}",
+                f"Repository Branch: {branch}",
+                f"Repository SHA: {self.repository.head.commit.hexsha}",
+                f"Repository Tag: {tag}",
+                f"Computer Name: {self.computer_name}",
+                f"Temporary Directory: {self.temp_dir}",
+                f"Settings: {self.settings}",
+                separator,
+            ]
         )
 
     def validate(self) -> None:
