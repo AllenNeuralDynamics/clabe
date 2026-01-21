@@ -25,11 +25,18 @@ custom_style = Style(
 )
 
 
-def _ask_sync(question):
+def _ask_sync(question: questionary.Question):
+    # TODO: We should just implement an async version of the UIHelper and avoid this complexity.
     """Ask question, handling both sync and async contexts.
 
     When in an async context, runs the questionary prompt in a thread pool
     to avoid the "asyncio.run() cannot be called from a running event loop" error.
+
+    Uses unsafe_ask() to ensure KeyboardInterrupt is raised instead of being
+    caught and converted to None with "Cancelled by user" message.
+
+    Raises:
+        KeyboardInterrupt: If user presses Ctrl+C to terminate
     """
     try:
         # Check if we're in an async context
@@ -38,11 +45,13 @@ def _ask_sync(question):
         import concurrent.futures
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(question.ask)
+            # Use unsafe_ask() to propagate KeyboardInterrupt instead of catching it
+            future = executor.submit(question.unsafe_ask)
             return future.result()
+
     except RuntimeError:
-        # No running loop - use normal ask()
-        return question.ask()
+        # No running loop - use unsafe_ask() to propagate KeyboardInterrupt
+        return question.unsafe_ask()
 
 
 class QuestionaryUIHelper(_UiHelperBase):
