@@ -44,7 +44,7 @@ class CliAppSettings(BaseSettings, cli_prog_name="clabe", cli_kebab_case=True):
 
 def main():
     """Entry point for the CLABE CLI application."""
-    return CliApp().run(CliAppSettings)
+    CliApp().run(CliAppSettings)
 
 
 if __name__ == "__main__":
