@@ -206,7 +206,7 @@ class DefaultBehaviorPicker:
 
         # Check cache for previously used rigs
         if self._use_cache:
-            cache = self._cache_manager.try_get_cache("rigs")
+            cache = self._cache_manager.try_get_cache(model.__name__)
         else:
             cache = None
 
@@ -214,7 +214,7 @@ class DefaultBehaviorPicker:
             cache.sort()
             rig_path = self.ui_helper.prompt_pick_from_list(
                 cache,
-                prompt="Choose a rig:",
+                prompt=f"Choose a rig for {model.__name__}:",
                 allow_0_as_none=True,
                 zero_label="Select from library",
             )
