@@ -24,7 +24,7 @@ class GitRepository(Repo):
         clean_repo: Cleans the repository by removing untracked files
         is_dirty_with_submodules: Checks if the repository or submodules are dirty
         uncommitted_changes: Returns a list of uncommitted changes
-        force_update_submodules: Forces an update of all submodules
+        init_and_update_submodules: Initializes and updates all submodules recursively
         submodules_sync: Synchronizes submodules
         full_reset: Performs a full reset of the repository and submodules
         try_prompt_full_reset: Prompts the user to perform a full reset
@@ -148,23 +148,41 @@ class GitRepository(Repo):
             untracked_files.extend(submodule.repo.untracked_files)
         return list(set(changes + untracked_files))
 
-    def force_update_submodules(self) -> Self:
+    def init_and_update_submodules(self, force: bool = True) -> Self:
         """
-        Updates all submodules to their latest state.
+        Initializes and updates all submodules recursively.
 
-        Forces an update of all Git submodules to match the commit specified
-        in the parent repository.
+        Executes `git submodule update --init --recursive` to ensure all submodules,
+        including nested ones, are initialized and updated to the commit specified
+        in the parent repository. This is idempotent - if submodules are already
+        up to date, no changes are made.
+
+        Args:
+            force: If True, passes --force flag to checkout even if local changes
+                would be overwritten in submodules. Defaults to True.
 
         Returns:
             Self: The current instance for method chaining.
 
+        Raises:
+            git.GitCommandError: If the git command fails (e.g., network error,
+                invalid submodule configuration).
+
         Example:
             ```python
             repo = GitRepository("/path/to/repo")
-            repo.force_update_submodules()  # Updates all submodules
+            repo.init_and_update_submodules()  # Init and update all submodules
+            repo.init_and_update_submodules(force=False)  # Without forcing checkout
             ```
         """
-        self.submodule_update()
+        if not self.submodules:
+            logger.debug("No submodules found in repository: %s", self.working_dir)
+            return self
+
+        args = ["update", "--init", "--recursive"]
+        if force:
+            args.append("--force")
+        self.git.submodule(*args)
         return self
 
     def submodules_sync(self) -> Self:
@@ -203,7 +221,7 @@ class GitRepository(Repo):
             repo.full_reset()  # Complete cleanup of repo and submodules
             ```
         """
-        self.reset_repo().submodules_sync().force_update_submodules().clean_repo()
+        self.reset_repo().submodules_sync().init_and_update_submodules().clean_repo()
         _ = [GitRepository(str(sub.abspath)).full_reset() for sub in self.submodules]
         return self
 
