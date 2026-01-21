@@ -1,7 +1,8 @@
+import ast
 import logging
 import shutil
 from pathlib import Path
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import yaml
 
@@ -153,6 +154,94 @@ def copy_assets() -> None:
             log.warning(f"Source: {file_or_dir} not found, skipping.")
 
 
+def find_service_settings_classes(src_dir: Path) -> List[Tuple[str, Optional[str]]]:  # noqa: C901
+    """
+    Scan all Python files in the source directory to find classes that inherit from ServiceSettings.
+
+    Returns a list of tuples: (class_name, yml_section_value)
+    """
+    service_settings: List[Tuple[str, Optional[str]]] = []
+
+    for py_file in src_dir.rglob("*.py"):
+        try:
+            with open(py_file, "r", encoding="utf-8") as f:
+                tree = ast.parse(f.read(), filename=str(py_file))
+
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ClassDef):
+                    # Check if class inherits from ServiceSettings
+                    inherits_from_service_settings = False
+                    for base in node.bases:
+                        if isinstance(base, ast.Name) and base.id == "ServiceSettings":
+                            inherits_from_service_settings = True
+                            break
+
+                    if not inherits_from_service_settings:
+                        continue
+
+                    # Look for __yml_section__ attribute
+                    yml_section: Optional[str] = None
+                    for item in node.body:
+                        # Handle annotated assignments: __yml_section__: ClassVar[str] = "value"
+                        if isinstance(item, ast.AnnAssign):
+                            if isinstance(item.target, ast.Name) and item.target.id == "__yml_section__":
+                                if item.value and isinstance(item.value, ast.Constant):
+                                    yml_section = item.value.value
+                                break
+                        # Handle simple assignments: __yml_section__ = "value"
+                        elif isinstance(item, ast.Assign):
+                            for target in item.targets:
+                                if isinstance(target, ast.Name) and target.id == "__yml_section__":
+                                    if isinstance(item.value, ast.Constant):
+                                        yml_section = item.value.value
+                                    break
+                            if yml_section is not None:
+                                break
+
+                    service_settings.append((node.name, yml_section))
+
+        except Exception as e:
+            log.warning(f"Failed to parse {py_file}: {e}")
+
+    return sorted(service_settings, key=lambda x: x[0])
+
+
+def generate_service_settings_table() -> None:
+    """
+    Generate a markdown table of ServiceSettings classes and their yml_section values.
+    """
+    log.info("Generating service settings documentation...")
+
+    service_settings = find_service_settings_classes(SRC_DIR)
+
+    if not service_settings:
+        log.warning("No ServiceSettings classes found.")
+        return
+
+    # Build markdown content
+    content = [
+        "# Service Settings",
+        "",
+        "This table lists all service settings classes and their YAML section names.",
+        "",
+    ]
+    content.append("| Class Name | YAML Section |")
+    content.append("|------------|--------------|")
+
+    for class_name, yml_section in service_settings:
+        section_display = yml_section if yml_section else "None"
+        content.append(f"| `{class_name}` | `{section_display}` |")
+
+    # Write to file in articles directory
+    articles_dir = DOCS_DIR / "articles"
+    articles_dir.mkdir(exist_ok=True)
+    output_path = articles_dir / "service_settings.md"
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(content))
+
+    log.info(f"Service settings documentation written to {output_path}")
+
+
 def main() -> None:
     log.info("Starting API documentation regeneration...")
     copy_assets()
@@ -162,6 +251,9 @@ def main() -> None:
 
     # Update mkdocs.yml
     update_mkdocs_yml(api_structure)
+
+    # Generate service settings table
+    generate_service_settings_table()
 
     log.info("API documentation regenerated successfully.")
 
