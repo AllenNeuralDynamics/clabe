@@ -38,7 +38,7 @@ class XmlRpcExecutor:
         executor = RpcExecutor(client)
 
         # Use as synchronous executor
-        cmd = Command(cmd="echo hello", output_parser=identity_parser)
+        cmd = Command(cmd=["echo", "hello"], output_parser=identity_parser)
         result = executor.run(cmd)
 
         # Use as asynchronous executor
@@ -80,7 +80,7 @@ class XmlRpcExecutor:
         Execute the command synchronously via RPC and return the result.
 
         Args:
-            command: The command to execute remotely
+            command: The command to execute remotely (as a list of strings)
 
         Returns:
             CommandResult with execution output and exit code
@@ -92,7 +92,7 @@ class XmlRpcExecutor:
         Example:
             ```python
             executor = RpcExecutor(settings)
-            cmd = Command(cmd="python --version", output_parser=identity_parser)
+            cmd = Command(cmd=["python", "--version"], output_parser=identity_parser)
             result = executor.run(cmd)
             print(f"Output: {result.stdout}")
             ```
@@ -111,7 +111,7 @@ class XmlRpcExecutor:
         Execute the command asynchronously via RPC and return the result.
 
         Args:
-            command: The command to execute remotely
+            command: The command to execute remotely (as a list of strings)
 
         Returns:
             CommandResult with execution output and exit code
@@ -123,7 +123,7 @@ class XmlRpcExecutor:
         Example:
             ```python
             executor = RpcExecutor(settings)
-            cmd = Command(cmd="sleep 5 && echo done", output_parser=identity_parser)
+            cmd = Command(cmd=["python", "-c", "print('done')"], output_parser=identity_parser)
             result = await executor.run_async(cmd)
             print(f"Output: {result.stdout}")
             ```

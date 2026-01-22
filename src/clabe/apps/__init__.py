@@ -5,8 +5,8 @@ from ._base import (
     CommandResult,
     ExecutableApp,
     Executor,
-    OutputParser,
     StdCommand,
+    _OutputParser,
     identity_parser,
 )
 from ._bonsai import AindBehaviorServicesBonsaiApp, BonsaiApp
@@ -26,7 +26,7 @@ __all__ = [
     "AsyncExecutor",
     "Executor",
     "identity_parser",
-    "OutputParser",
+    "_OutputParser",
     "PythonScriptApp",
     "ExecutableApp",
     "StdCommand",

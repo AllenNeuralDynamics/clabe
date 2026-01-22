@@ -14,9 +14,14 @@ class LocalExecutor(Executor):
     and environment variables. Captures both stdout and stderr, and enforces
     return code checking.
 
+    Commands are executed directly without shell interpretation (shell=False),
+    which avoids shell injection vulnerabilities and handles arguments with
+    spaces correctly.
+
     Attributes:
         cwd: Working directory for command execution
         env: Environment variables for the subprocess
+        timeout: Maximum execution time in seconds
 
     Example:
         ```python
@@ -30,7 +35,7 @@ class LocalExecutor(Executor):
         executor = LocalExecutor(env={"KEY": "value"})
 
         # Execute a command
-        cmd = Command(cmd="echo hello", output_parser=identity_parser)
+        cmd = Command(cmd=["echo", "hello"], output_parser=identity_parser)
         result = executor.run(cmd)
         ```
     """
@@ -43,6 +48,7 @@ class LocalExecutor(Executor):
         Args:
             cwd: Working directory for command execution
             env: Environment variables for the subprocess
+            timeout: Maximum execution time in seconds
 
         """
         self.cwd = cwd or os.getcwd()
@@ -51,17 +57,32 @@ class LocalExecutor(Executor):
 
     def run(self, command: Command[Any]) -> CommandResult:
         """Execute the command and return the result.
+
         Args:
-            command: The command to execute
+            command: The command to execute (as a list of strings)
+
+        Returns:
+            CommandResult with stdout, stderr, and exit code
+
+        Raises:
+            CommandError: If the command exits with non-zero exit code
+
         Example:
             ```python
             executor = LocalExecutor()
-            cmd = Command(cmd="echo hello", output_parser=identity_parser)
+            cmd = Command(cmd=["echo", "hello"], output_parser=identity_parser)
             result = executor.run(cmd)
             ```
         """
         proc = subprocess.run(
-            command.cmd, cwd=self.cwd, env=self.env, text=True, capture_output=True, check=False, timeout=self.timeout
+            command.cmd,
+            cwd=self.cwd,
+            env=self.env,
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=self.timeout,
+            shell=False,
         )
         result = CommandResult(stdout=proc.stdout, stderr=proc.stderr, exit_code=proc.returncode)
         result.check_returncode()
@@ -72,13 +93,17 @@ class AsyncLocalExecutor(AsyncExecutor):
     """
     Asynchronous executor for running commands on the local system.
 
-    Executes commands asynchronously using asyncio.create_subprocess_shell with
+    Executes commands asynchronously using asyncio subprocess functions with
     configurable working directory and environment variables. Ideal for long-running
     processes or when multiple commands need to run concurrently.
+
+    Commands are executed directly without shell interpretation, which avoids
+    shell injection vulnerabilities and handles arguments with spaces correctly.
 
     Attributes:
         cwd: Working directory for command execution
         env: Environment variables for the subprocess
+        timeout: Maximum execution time in seconds
 
     Example:
         ```python
@@ -86,13 +111,13 @@ class AsyncLocalExecutor(AsyncExecutor):
         executor = AsyncLocalExecutor()
 
         # Execute a command asynchronously
-        cmd = Command(cmd="echo hello", output_parser=identity_parser)
+        cmd = Command(cmd=["echo", "hello"], output_parser=identity_parser)
         result = await executor.run_async(cmd)
 
         # Run multiple commands concurrently
         executor = AsyncLocalExecutor(cwd="/workdir")
-        cmd1 = Command(cmd="task1", output_parser=identity_parser)
-        cmd2 = Command(cmd="task2", output_parser=identity_parser)
+        cmd1 = Command(cmd=["task1"], output_parser=identity_parser)
+        cmd2 = Command(cmd=["task2"], output_parser=identity_parser)
         results = await asyncio.gather(
             executor.run_async(cmd1),
             executor.run_async(cmd2)
@@ -108,6 +133,7 @@ class AsyncLocalExecutor(AsyncExecutor):
         Args:
             cwd: Working directory for command execution
             env: Environment variables for the subprocess
+            timeout: Maximum execution time in seconds
 
         """
         self.cwd = cwd or os.getcwd()
@@ -118,17 +144,24 @@ class AsyncLocalExecutor(AsyncExecutor):
         """Execute the command asynchronously and return the result.
 
         Args:
-            command: The command to execute
+            command: The command to execute (as a list of strings)
+
+        Returns:
+            CommandResult with stdout, stderr, and exit code
+
+        Raises:
+            CommandError: If the command exits with non-zero exit code
+            TimeoutError: If the command exceeds the timeout
 
         Example:
             ```python
             executor = AsyncLocalExecutor()
-            cmd = Command(cmd="echo hello", output_parser=identity_parser)
+            cmd = Command(cmd=["echo", "hello"], output_parser=identity_parser)
             result = await executor.run_async(cmd)
             ```
         """
-        proc = await asyncio.create_subprocess_shell(
-            command.cmd,
+        proc = await asyncio.create_subprocess_exec(
+            *command.cmd,
             cwd=self.cwd,
             env=self.env,
             stdout=asyncio.subprocess.PIPE,
@@ -141,7 +174,7 @@ class AsyncLocalExecutor(AsyncExecutor):
             proc.kill()
             await proc.wait()
             assert self.timeout is not None
-            raise subprocess.TimeoutExpired(command.cmd, self.timeout) from exc
+            raise subprocess.TimeoutExpired(" ".join(command.cmd), self.timeout) from exc
 
         if proc.returncode is None:
             raise RuntimeError("Process did not complete successfully and returned no return code.")
@@ -169,7 +202,7 @@ class _DefaultExecutorMixin:
         class MyApp(ExecutableApp, _DefaultExecutorMixin):
             @property
             def command(self) -> Command:
-                return Command(cmd="echo hello", output_parser=identity_parser)
+                return Command(cmd=["echo", "hello"], output_parser=identity_parser)
 
         app = MyApp()
 

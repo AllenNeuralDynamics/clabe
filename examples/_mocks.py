@@ -97,4 +97,4 @@ def create_fake_rig():
     computer_name = os.getenv("COMPUTERNAME")
     os.makedirs(_dir := f"{LIB_CONFIG}/Rig/{computer_name}", exist_ok=True)
     with open(f"{_dir}/rig1.json", "w", encoding="utf-8") as f:
-        f.write(RigModel().model_dump_json(indent=2))
+        f.write(RigModel(data_directory=r"./local/data").model_dump_json(indent=2))

@@ -2,7 +2,7 @@ import logging
 import shutil
 from os import PathLike, makedirs
 from pathlib import Path
-from typing import ClassVar, Dict, Optional
+from typing import ClassVar, Dict, List, Optional
 
 from ..apps import ExecutableApp
 from ..apps._base import Command, CommandResult, identity_parser
@@ -40,15 +40,15 @@ class RobocopyService(DataTransfer[RobocopySettings], _DefaultExecutorMixin, Exe
     A data transfer service that uses Robocopy to copy files between directories.
 
     Provides a wrapper around the Windows Robocopy utility with configurable options
-    for file copying, logging, and directory management.
+    for file copying, logging, and directory management. Supports both single
+    source-destination pairs and multiple mappings via a dictionary.
 
     Attributes:
-        command: The underlying robocopy command that will be executed
+        command: The robocopy command to be executed
 
     Methods:
         transfer: Executes the Robocopy file transfer
         validate: Validates the Robocopy service configuration
-        prompt_input: Prompts the user to confirm the file transfer
     """
 
     def __init__(
@@ -60,26 +60,22 @@ class RobocopyService(DataTransfer[RobocopySettings], _DefaultExecutorMixin, Exe
         Initializes the RobocopyService.
 
         Args:
-            source: The source directory or file to copy
-            settings: RobocopySettings containing destination and options
+            source: The source directory/file to copy, or a dict mapping sources to destinations
+            settings: RobocopySettings containing options
 
         Example:
             ```python
-            # Initialize with basic parameters:
+            # Single source-destination:
             settings = RobocopySettings(destination="D:/destination")
             service = RobocopyService("C:/source", settings)
 
-            # Initialize with logging and move operation:
-            settings = RobocopySettings(
-                destination="D:/archive/data",
-                log="transfer.log",
-                delete_src=True,
-                extra_args="/E /COPY:DAT /R:10"
-            )
-            service = RobocopyService("C:/temp/data", settings)
+            # Multiple source-destination mappings:
+            service = RobocopyService({
+                "C:/data1": "D:/backup1",
+                "C:/data2": "D:/backup2",
+            }, settings)
             ```
         """
-
         self.source = source
         self._settings = settings
         self._command = self._build_command()
@@ -91,38 +87,45 @@ class RobocopyService(DataTransfer[RobocopySettings], _DefaultExecutorMixin, Exe
 
     def _build_command(self) -> Command[CommandResult]:
         """
-        Builds the robocopy command based on settings.
+        Builds a single command that executes all robocopy operations.
+
+        For single source-destination, returns a direct robocopy command.
+        For multiple mappings, chains commands using `cmd /c`.
 
         Returns:
-            A Command object ready for execution
-
-        Raises:
-            ValueError: If source and destination mapping cannot be resolved
+            A Command object ready for execution.
         """
-        src_dst = self._solve_src_dst_mapping(self.source, self._settings.destination)
+        if isinstance(self.source, dict):
+            src_dst_pairs = [(Path(src), Path(dst)) for src, dst in self.source.items()]
+        else:
+            src_dst_pairs = [(Path(self.source), Path(self._settings.destination))]
 
-        commands = []
-        for src, dst in src_dst.items():
-            dst = Path(dst)
-            src = Path(src)
-
+        robocopy_cmds: List[str] = []
+        for src, dst in src_dst_pairs:
             if self._settings.force_dir:
                 makedirs(dst, exist_ok=True)
 
-            cmd_parts = ["robocopy", f'"{src.as_posix()}"', f'"{dst.as_posix()}"', self._settings.extra_args]
+            cmd_parts: List[str] = ["robocopy", f"{src.as_posix()}", f"{dst.as_posix()}"]
+
+            if self._settings.extra_args:
+                cmd_parts.extend(self._settings.extra_args.split())
 
             if self._settings.log:
-                cmd_parts.append(f'/LOG:"{Path(dst) / self._settings.log}"')
+                cmd_parts.append(f"/LOG:{dst / self._settings.log}")
             if self._settings.delete_src:
                 cmd_parts.append("/MOV")
             if self._settings.overwrite:
                 cmd_parts.append("/IS")
 
-            commands.append(" ".join(cmd_parts))
+            robocopy_cmds.append(" ".join(cmd_parts))
 
-        # TODO there may be a better way to chain with robocopy
-        full_command = " && ".join(commands)
-        return Command(cmd=full_command, output_parser=identity_parser)
+        if len(robocopy_cmds) == 1:
+            # Single command: split back to list for direct execution
+            return Command(cmd=robocopy_cmds[0].split(), output_parser=identity_parser)
+
+        # Multiple commands: use cmd /c to chain with & (robocopy is Windows-only)
+        chained = " & ".join(robocopy_cmds)
+        return Command(cmd=["cmd", "/c", chained], output_parser=identity_parser)
 
     def transfer(self) -> None:
         """
@@ -140,37 +143,6 @@ class RobocopyService(DataTransfer[RobocopySettings], _DefaultExecutorMixin, Exe
         logger.info("Starting robocopy transfer service.")
         self.run()
         logger.info("Robocopy transfer completed.")
-
-    @staticmethod
-    def _solve_src_dst_mapping(
-        source: PathLike | Dict[PathLike, PathLike], destination: Optional[PathLike]
-    ) -> Dict[PathLike, PathLike]:
-        """
-        Resolves the mapping between source and destination paths.
-
-        Handles both single path mappings and dictionary-based multiple mappings
-        to create a consistent source-to-destination mapping structure.
-
-        Args:
-            source: A single source path or a dictionary mapping sources to destinations
-            destination: The destination path if the source is a single path
-
-        Returns:
-            A dictionary mapping source paths to destination paths
-
-        Raises:
-            ValueError: If the input arguments are invalid or inconsistent
-        """
-        if isinstance(source, dict):
-            if destination:
-                raise ValueError("Destination should not be provided when source is a dictionary.")
-            else:
-                return source
-        else:
-            source = Path(source)
-            if not destination:
-                raise ValueError("Destination should be provided when source is a single path.")
-            return {source: Path(destination)}
 
     def validate(self) -> bool:
         """

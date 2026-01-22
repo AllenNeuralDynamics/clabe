@@ -27,7 +27,7 @@ from clabe.apps.open_ephys import OpenEphysApp, Status, _OpenEphysGuiClient
 def simple_command() -> Command[CommandResult]:
     """A simple command that echoes text."""
     return Command[CommandResult](
-        cmd="python -c \"print('hello')\"",
+        cmd=["python", "-c", "print('hello')"],
         output_parser=identity_parser,
     )
 
@@ -36,7 +36,7 @@ def simple_command() -> Command[CommandResult]:
 def failing_command() -> Command[CommandResult]:
     """A command that fails."""
     return Command[CommandResult](
-        cmd='python -c "import sys; sys.exit(1)"',
+        cmd=["python", "-c", "import sys; sys.exit(1)"],
         output_parser=identity_parser,
     )
 
@@ -58,7 +58,7 @@ class MockExecutor(Executor):
 
     def __init__(self, return_value: CommandResult):
         self.return_value = return_value
-        self.executed_commands: list[str] = []
+        self.executed_commands: list[list[str]] = []
 
     def run(self, command: Command) -> CommandResult:
         self.executed_commands.append(command.cmd)
@@ -70,7 +70,7 @@ class MockAsyncExecutor(AsyncExecutor):
 
     def __init__(self, return_value: CommandResult):
         self.return_value = return_value
-        self.executed_commands: list[str] = []
+        self.executed_commands: list[list[str]] = []
 
     async def run_async(self, command: Command) -> CommandResult:
         self.executed_commands.append(command.cmd)
@@ -112,38 +112,38 @@ class TestCommand:
     """Tests for Command class."""
 
     def test_command_initialization(self):
-        """Test basic command initialization."""
-        cmd = Command[str](cmd="echo hello", output_parser=lambda r: r.stdout or "")
-        assert cmd.cmd == "echo hello"
+        """Test basic command initialization with list."""
+        cmd = Command[str](cmd=["echo", "hello"], output_parser=lambda r: r.stdout or "")
+        assert cmd.cmd == ["echo", "hello"]
 
     def test_command_append_arg_single_string(self):
         """Test appending a single argument."""
-        cmd = Command[CommandResult](cmd="echo", output_parser=identity_parser)
+        cmd = Command[CommandResult](cmd=["echo"], output_parser=identity_parser)
         cmd.append_arg("hello")
-        assert cmd.cmd == "echo hello"
+        assert cmd.cmd == ["echo", "hello"]
 
     def test_command_append_arg_list(self):
         """Test appending multiple arguments as a list."""
-        cmd = Command[CommandResult](cmd="echo", output_parser=identity_parser)
+        cmd = Command[CommandResult](cmd=["echo"], output_parser=identity_parser)
         cmd.append_arg(["hello", "world"])
-        assert cmd.cmd == "echo hello world"
+        assert cmd.cmd == ["echo", "hello", "world"]
 
     def test_command_append_arg_filters_empty_strings(self):
         """Test that empty strings are filtered out when appending args."""
-        cmd = Command[CommandResult](cmd="echo", output_parser=identity_parser)
+        cmd = Command[CommandResult](cmd=["echo"], output_parser=identity_parser)
         cmd.append_arg(["hello", "", "world"])
-        assert cmd.cmd == "echo hello world"
+        assert cmd.cmd == ["echo", "hello", "world"]
 
     def test_command_append_arg_chaining(self):
         """Test that append_arg returns self for chaining."""
-        cmd = Command[CommandResult](cmd="echo", output_parser=identity_parser)
+        cmd = Command[CommandResult](cmd=["echo"], output_parser=identity_parser)
         result = cmd.append_arg("hello").append_arg("world")
         assert result is cmd
-        assert cmd.cmd == "echo hello world"
+        assert cmd.cmd == ["echo", "hello", "world"]
 
     def test_command_result_property_before_execution_raises(self):
         """Test that accessing result before execution raises RuntimeError."""
-        cmd = Command[CommandResult](cmd="echo hello", output_parser=identity_parser)
+        cmd = Command[CommandResult](cmd=["echo", "hello"], output_parser=identity_parser)
         with pytest.raises(RuntimeError, match="Command has not been executed yet"):
             _ = cmd.result
 
@@ -152,11 +152,11 @@ class TestCommand:
         expected_result = CommandResult(stdout="output", stderr="", exit_code=0)
         executor = MockExecutor(return_value=expected_result)
 
-        cmd = Command[CommandResult](cmd="echo hello", output_parser=identity_parser)
+        cmd = Command[CommandResult](cmd=["echo", "hello"], output_parser=identity_parser)
         result = cmd.execute(executor)
 
         assert result == expected_result
-        assert "echo hello" in executor.executed_commands
+        assert ["echo", "hello"] in executor.executed_commands
         assert cmd.result == expected_result
 
     @pytest.mark.asyncio
@@ -165,11 +165,11 @@ class TestCommand:
         expected_result = CommandResult(stdout="output", stderr="", exit_code=0)
         executor = MockAsyncExecutor(return_value=expected_result)
 
-        cmd = Command[CommandResult](cmd="echo hello", output_parser=identity_parser)
+        cmd = Command[CommandResult](cmd=["echo", "hello"], output_parser=identity_parser)
         result = await cmd.execute_async(executor)
 
         assert result == expected_result
-        assert "echo hello" in executor.executed_commands
+        assert ["echo", "hello"] in executor.executed_commands
         assert cmd.result == expected_result
 
     def test_command_custom_output_parser(self):
@@ -178,7 +178,7 @@ class TestCommand:
         def parse_int(result: CommandResult) -> int:
             return int(result.stdout.strip()) if result.stdout else 0
 
-        cmd = Command[int](cmd='python -c "print(42)"', output_parser=parse_int)
+        cmd = Command[int](cmd=["python", "-c", "print(42)"], output_parser=parse_int)
         executor = MockExecutor(CommandResult(stdout="42\n", stderr="", exit_code=0))
 
         result = cmd.execute(executor)
@@ -195,7 +195,7 @@ class TestLocalExecutor:
 
     def test_local_executor_runs_simple_command(self, local_executor: LocalExecutor):
         """Test that LocalExecutor can run a simple command."""
-        cmd = Command[CommandResult](cmd="python -c \"print('test')\"", output_parser=identity_parser)
+        cmd = Command[CommandResult](cmd=["python", "-c", "print('test')"], output_parser=identity_parser)
         result = cmd.execute(local_executor)
 
         assert result.ok is True
@@ -204,7 +204,7 @@ class TestLocalExecutor:
     def test_local_executor_captures_stderr(self, local_executor: LocalExecutor):
         """Test that LocalExecutor captures stderr."""
         cmd = Command[CommandResult](
-            cmd="python -c \"import sys; sys.stderr.write('error')\"", output_parser=identity_parser
+            cmd=["python", "-c", "import sys; sys.stderr.write('error')"], output_parser=identity_parser
         )
         result = cmd.execute(local_executor)
 
@@ -220,7 +220,7 @@ class TestLocalExecutor:
         """Test LocalExecutor with a custom working directory."""
         executor = LocalExecutor(cwd=tmp_path)
         cmd = Command[CommandResult](
-            cmd='python -c "import os; print(os.getcwd())"',
+            cmd=["python", "-c", "import os; print(os.getcwd())"],
             output_parser=identity_parser,
         )
         result = cmd.execute(executor)
@@ -236,7 +236,7 @@ class TestAsyncLocalExecutor:
     @pytest.mark.asyncio
     async def test_async_executor_runs_simple_command(self, async_local_executor: AsyncLocalExecutor):
         """Test that AsyncLocalExecutor can run a simple command."""
-        cmd = Command[CommandResult](cmd="python -c \"print('async test')\"", output_parser=identity_parser)
+        cmd = Command[CommandResult](cmd=["python", "-c", "print('async test')"], output_parser=identity_parser)
         result = await cmd.execute_async(async_local_executor)
 
         assert result.ok is True
@@ -253,8 +253,8 @@ class TestAsyncLocalExecutor:
     @pytest.mark.asyncio
     async def test_async_executor_concurrent_execution(self, async_local_executor: AsyncLocalExecutor):
         """Test running multiple commands concurrently."""
-        cmd1 = Command[CommandResult](cmd="python -c \"print('cmd1')\"", output_parser=identity_parser)
-        cmd2 = Command[CommandResult](cmd="python -c \"print('cmd2')\"", output_parser=identity_parser)
+        cmd1 = Command[CommandResult](cmd=["python", "-c", "print('cmd1')"], output_parser=identity_parser)
+        cmd2 = Command[CommandResult](cmd=["python", "-c", "print('cmd2')"], output_parser=identity_parser)
 
         results = await asyncio.gather(
             cmd1.execute_async(async_local_executor), cmd2.execute_async(async_local_executor)
@@ -300,8 +300,11 @@ class TestBonsaiApp:
             is_start_flag=True,
         )
         cmd = app.command.cmd
-        assert str(temp_bonsai_files["exe"]) in cmd
-        assert str(temp_bonsai_files["workflow"]) in cmd
+        # Command is now a list
+        assert isinstance(cmd, list)
+        cmd_str = " ".join(cmd)
+        assert str(temp_bonsai_files["exe"]) in cmd_str
+        assert str(temp_bonsai_files["workflow"]) in cmd_str
         assert "--start" in cmd
 
     def test_bonsai_app_no_editor_mode(self, temp_bonsai_files):
@@ -312,6 +315,7 @@ class TestBonsaiApp:
             is_editor_mode=False,
         )
         cmd = app.command.cmd
+        assert isinstance(cmd, list)
         assert "--no-editor" in cmd
         assert "--start" not in cmd
 
@@ -323,8 +327,10 @@ class TestBonsaiApp:
             additional_externalized_properties={"param1": "value1", "param2": "value2"},
         )
         cmd = app.command.cmd
-        assert '-p:"param1"="value1"' in cmd
-        assert '-p:"param2"="value2"' in cmd
+        assert isinstance(cmd, list)
+        # Properties are now in format -p:param1=value1 (without quotes)
+        assert "-p:param1=value1" in cmd
+        assert "-p:param2=value2" in cmd
 
     def test_bonsai_app_validates_executable_exists(self, tmp_path: Path):
         """Test that BonsaiApp validation fails if executable doesn't exist."""
@@ -398,8 +404,12 @@ class TestPythonScriptApp:
             project_directory=tmp_path,
         )
 
-        assert "uv run" in app.command.cmd
-        assert "test_script.py" in app.command.cmd
+        cmd = app.command.cmd
+        # Command is now a list
+        assert isinstance(cmd, list)
+        assert "uv" in cmd
+        assert "run" in cmd
+        assert "test_script.py" in cmd
 
     def test_python_script_app_with_additional_arguments(self, tmp_path: Path):
         """Test PythonScriptApp with additional arguments."""
@@ -408,11 +418,12 @@ class TestPythonScriptApp:
 
         app = PythonScriptApp(
             script="test.py",
-            additional_arguments="--verbose --debug",
+            additional_arguments=["--verbose", "--debug"],
             project_directory=tmp_path,
         )
 
         cmd = app.command.cmd
+        assert isinstance(cmd, list)
         assert "--verbose" in cmd
         assert "--debug" in cmd
 
@@ -428,7 +439,11 @@ class TestPythonScriptApp:
         )
 
         cmd = app.command.cmd
-        assert "--extra dev" in cmd or "--with dev" in cmd or "dev" in cmd
+        assert isinstance(cmd, list)
+        # --extra and the dependency name are now separate list items
+        assert "--extra" in cmd
+        assert "dev" in cmd
+        assert "test" in cmd
 
     def test_python_script_app_appends_python_exe(self, tmp_path: Path):
         """Test PythonScriptApp with append_python_exe=True."""
@@ -442,6 +457,7 @@ class TestPythonScriptApp:
         )
 
         cmd = app.command.cmd
+        assert isinstance(cmd, list)
         assert "python" in cmd
         assert "test.py" in cmd
 
@@ -463,7 +479,9 @@ class TestPythonScriptApp:
             skip_validation=True,
         )
 
-        assert "test.py" in app.command.cmd
+        cmd = app.command.cmd
+        assert isinstance(cmd, list)
+        assert "test.py" in cmd
 
     def test_python_script_app_can_be_executed_with_mock_executor(self, tmp_path: Path):
         """Test that PythonScriptApp can be executed with a mock executor."""
@@ -493,7 +511,7 @@ class TestIntegration:
 
     def test_same_command_different_executors(self, tmp_path: Path):
         """Test that the same command can be run with different executors."""
-        cmd = Command[CommandResult](cmd="python -c \"print('hello')\"", output_parser=identity_parser)
+        cmd = Command[CommandResult](cmd=["python", "-c", "print('hello')"], output_parser=identity_parser)
 
         # Run with first executor
         executor1 = MockExecutor(CommandResult(stdout="output1", stderr="", exit_code=0))
@@ -503,8 +521,8 @@ class TestIntegration:
         executor2 = MockExecutor(CommandResult(stdout="output2", stderr="", exit_code=0))
         cmd._set_result(executor2.run(cmd), override=True)
 
-        assert "hello" in executor1.executed_commands[0]
-        assert "hello" in executor2.executed_commands[0]
+        assert "hello" in " ".join(executor1.executed_commands[0])
+        assert "hello" in " ".join(executor2.executed_commands[0])
 
     def test_app_with_custom_executor(self, tmp_path: Path):
         """Test using an app with a custom executor instead of the default."""
@@ -526,8 +544,8 @@ class TestIntegration:
     async def test_async_and_sync_executors_with_same_command_type(self):
         """Test that both sync and async executors can work with commands."""
         # Note: We use different command instances since they store results
-        sync_cmd = Command[CommandResult](cmd="python -c \"print('sync')\"", output_parser=identity_parser)
-        async_cmd = Command[CommandResult](cmd="python -c \"print('async')\"", output_parser=identity_parser)
+        sync_cmd = Command[CommandResult](cmd=["python", "-c", "print('sync')"], output_parser=identity_parser)
+        async_cmd = Command[CommandResult](cmd=["python", "-c", "print('async')"], output_parser=identity_parser)
 
         sync_executor = MockExecutor(CommandResult(stdout="sync output", stderr="", exit_code=0))
         async_executor = MockAsyncExecutor(CommandResult(stdout="async output", stderr="", exit_code=0))
@@ -547,15 +565,15 @@ class TestIntegration:
 class TestEdgeCases:
     """Tests for edge cases and error handling."""
 
-    def test_command_with_empty_string(self):
-        """Test command with empty cmd string."""
-        cmd = Command[CommandResult](cmd="", output_parser=identity_parser)
-        assert cmd.cmd == ""
+    def test_command_with_empty_list(self):
+        """Test command with empty cmd list."""
+        cmd = Command[CommandResult](cmd=[], output_parser=identity_parser)
+        assert cmd.cmd == []
 
     def test_command_result_multiple_override_warning(self):
         """Test that overriding result logs a warning."""
 
-        cmd = Command[CommandResult](cmd="echo test", output_parser=identity_parser)
+        cmd = Command[CommandResult](cmd=["echo", "test"], output_parser=identity_parser)
         result1 = CommandResult(stdout="first", stderr="", exit_code=0)
         result2 = CommandResult(stdout="second", stderr="", exit_code=0)
 
@@ -585,7 +603,9 @@ class TestEdgeCases:
         )
 
         # Command should still be valid
-        assert "test.py" in app.command.cmd
+        cmd = app.command.cmd
+        assert isinstance(cmd, list)
+        assert "test.py" in cmd
 
 
 @pytest.fixture

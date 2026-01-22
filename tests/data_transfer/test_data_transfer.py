@@ -1,5 +1,7 @@
 import os
+import shutil
 import subprocess
+import sys
 import tempfile
 from datetime import datetime, time
 from pathlib import Path
@@ -18,6 +20,9 @@ from clabe.data_transfer.aind_watchdog import (
 )
 from clabe.data_transfer.robocopy import RobocopyService, RobocopySettings
 from tests import TESTS_ASSETS
+
+_HAS_ROBOCOPY = shutil.which("robocopy") is not None
+_IS_WINDOWS = sys.platform == "win32"
 
 
 @pytest.fixture
@@ -459,6 +464,23 @@ class TestWatchdogDataTransferService:
 
 
 @pytest.fixture
+def robocopy_temp_dirs(tmp_path):
+    """Create temporary source and destination directories for robocopy tests."""
+    source_dir = tmp_path / "source"
+    dest_dir = tmp_path / "destination"
+    source_dir.mkdir()
+
+    (source_dir / "file1.txt").write_text("content1")
+    (source_dir / "file2.txt").write_text("content2")
+    subdir = source_dir / "subdir"
+    subdir.mkdir()
+    (subdir / "file3.txt").write_text("content3")
+    # Cleanup handled by tmp_path fixture
+
+    yield source_dir, dest_dir
+
+
+@pytest.fixture
 def robocopy_settings():
     return RobocopySettings(
         destination=Path("destination_path"),
@@ -488,28 +510,171 @@ class TestRobocopyService:
         assert robocopy_service._settings.overwrite
         assert not robocopy_service._settings.force_dir
 
-    def test_transfer(self, robocopy_service):
+    def test_transfer_mocked(self, robocopy_service):
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(stdout="output", stderr="", returncode=0)
             robocopy_service.transfer()
             mock_run.assert_called_once()
 
-    def test_run(self, robocopy_service):
+    def test_run_mocked(self, robocopy_service):
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(stdout="output", stderr="", returncode=0)
             result = robocopy_service.run()
             assert result.ok is True
             mock_run.assert_called_once()
 
-    def test_solve_src_dst_mapping_single_path(self, robocopy_service, source, robocopy_settings):
-        result = robocopy_service._solve_src_dst_mapping(source, robocopy_settings.destination)
-        assert result == {Path(source): Path(robocopy_settings.destination)}
+    def test_command_single_source(self, robocopy_temp_dirs):
+        """Test command building for single source-destination."""
+        source_dir, dest_dir = robocopy_temp_dirs
+        settings = RobocopySettings(destination=dest_dir, force_dir=False, extra_args="/E")
+        service = RobocopyService(source=source_dir, settings=settings)
 
-    def test_solve_src_dst_mapping_dict(self, robocopy_service, source, robocopy_settings):
-        source_dict = {source: robocopy_settings.destination}
-        result = robocopy_service._solve_src_dst_mapping(source_dict, None)
-        assert result == source_dict
+        cmd = service.command.cmd
+        assert cmd[0] == "robocopy"
+        assert source_dir.as_posix() in cmd[1]
+        assert dest_dir.as_posix() in cmd[2]
+        assert "/E" in cmd
 
-    def test_solve_src_dst_mapping_invalid(self, robocopy_service, source):
-        with pytest.raises(ValueError):
-            robocopy_service._solve_src_dst_mapping(source, None)
+    def test_command_dict_multiple_sources(self, tmp_path):
+        """Test command building for dict with multiple source-destination pairs."""
+        src1 = tmp_path / "src1"
+        src2 = tmp_path / "src2"
+        dst1 = tmp_path / "dst1"
+        dst2 = tmp_path / "dst2"
+        src1.mkdir()
+        src2.mkdir()
+
+        settings = RobocopySettings(destination=dst1, force_dir=False, extra_args="/E")
+        service = RobocopyService(source={src1: dst1, src2: dst2}, settings=settings)
+
+        cmd = service.command.cmd
+        # Multiple commands should use cmd /c with & to chain
+        assert cmd[0] == "cmd"
+        assert cmd[1] == "/c"
+        assert "&" in cmd[2]
+
+    def test_validate_without_robocopy(self, robocopy_service):
+        """Test validate method behavior."""
+        with patch("clabe.data_transfer.robocopy._HAS_ROBOCOPY", False):
+            # Reload the service to use the patched value
+            service = RobocopyService(source=robocopy_service.source, settings=robocopy_service._settings)
+            # The validate method checks the module-level _HAS_ROBOCOPY
+            from clabe.data_transfer import robocopy
+
+            original = robocopy._HAS_ROBOCOPY
+            robocopy._HAS_ROBOCOPY = False
+            try:
+                assert not service.validate()
+            finally:
+                robocopy._HAS_ROBOCOPY = original
+
+    @pytest.mark.skipif(not _IS_WINDOWS or not _HAS_ROBOCOPY, reason="Requires Windows with robocopy")
+    def test_transfer_actual_single_source(self, robocopy_temp_dirs):
+        """Test actual robocopy execution with single source-destination."""
+        from clabe.apps import CommandError
+
+        source_dir, dest_dir = robocopy_temp_dirs
+        settings = RobocopySettings(
+            destination=dest_dir,
+            extra_args="/E /DCOPY:DAT /R:1 /W:1",
+            force_dir=True,
+        )
+        service = RobocopyService(source=source_dir, settings=settings)
+
+        # Robocopy exit codes 0-7 are success, but CommandError is raised for non-zero
+        try:
+            service.transfer()
+        except CommandError as e:
+            # Exit codes 1-7 are actually success for robocopy
+            assert e.exit_code < 8, f"Robocopy failed with exit code {e.exit_code}"
+
+        # Verify files were copied
+        assert (dest_dir / "file1.txt").exists()
+        assert (dest_dir / "file1.txt").read_text() == "content1"
+        assert (dest_dir / "file2.txt").exists()
+        assert (dest_dir / "subdir" / "file3.txt").exists()
+
+    @pytest.mark.skipif(not _IS_WINDOWS or not _HAS_ROBOCOPY, reason="Requires Windows with robocopy")
+    def test_transfer_actual_dict_sources(self, tmp_path):
+        """Test actual robocopy execution with dict multiple source-destination pairs."""
+        from clabe.apps import CommandError
+
+        # Create two source directories
+        src1 = tmp_path / "src1"
+        src2 = tmp_path / "src2"
+        dst1 = tmp_path / "dst1"
+        dst2 = tmp_path / "dst2"
+        src1.mkdir()
+        src2.mkdir()
+
+        # Create files in each source
+        (src1 / "from_src1.txt").write_text("source1_content")
+        (src2 / "from_src2.txt").write_text("source2_content")
+
+        settings = RobocopySettings(
+            destination=Path("not used_in_dict_case"),
+            extra_args="/E /DCOPY:DAT /R:1 /W:1",
+            force_dir=True,
+        )
+        service = RobocopyService(source={src1: dst1, src2: dst2}, settings=settings)
+
+        try:
+            service.transfer()
+        except CommandError as e:
+            assert e.exit_code < 8, f"Robocopy failed with exit code {e.exit_code}"
+
+        # Verify files were copied to respective destinations
+        assert (dst1 / "from_src1.txt").exists()
+        assert (dst1 / "from_src1.txt").read_text() == "source1_content"
+        assert (dst2 / "from_src2.txt").exists()
+        assert (dst2 / "from_src2.txt").read_text() == "source2_content"
+
+    @pytest.mark.skipif(not _IS_WINDOWS or not _HAS_ROBOCOPY, reason="Requires Windows with robocopy")
+    def test_transfer_with_delete_src(self, robocopy_temp_dirs):
+        """Test robocopy with delete_src option (move instead of copy)."""
+        from clabe.apps import CommandError
+
+        source_dir, dest_dir = robocopy_temp_dirs
+        settings = RobocopySettings(
+            destination=dest_dir,
+            extra_args="/E /R:1 /W:1",
+            delete_src=True,
+            force_dir=True,
+        )
+        service = RobocopyService(source=source_dir, settings=settings)
+
+        try:
+            service.transfer()
+        except CommandError as e:
+            assert e.exit_code < 8, f"Robocopy failed with exit code {e.exit_code}"
+
+        # Files should be moved (deleted from source after copy)
+        assert (dest_dir / "file1.txt").exists()
+        assert not (source_dir / "file1.txt").exists()
+
+    @pytest.mark.skipif(not _IS_WINDOWS or not _HAS_ROBOCOPY, reason="Requires Windows with robocopy")
+    def test_transfer_with_overwrite(self, robocopy_temp_dirs):
+        """Test robocopy with overwrite option."""
+        from clabe.apps import CommandError
+
+        source_dir, dest_dir = robocopy_temp_dirs
+        dest_dir.mkdir(exist_ok=True)
+
+        # Create existing file in destination with different content
+        (dest_dir / "file1.txt").write_text("old_content")
+
+        settings = RobocopySettings(
+            destination=dest_dir,
+            extra_args="/E /R:1 /W:1",
+            overwrite=True,
+            force_dir=True,
+        )
+        service = RobocopyService(source=source_dir, settings=settings)
+
+        try:
+            service.transfer()
+        except CommandError as e:
+            assert e.exit_code < 8, f"Robocopy failed with exit code {e.exit_code}"
+
+        # File should be overwritten with new content
+        assert (dest_dir / "file1.txt").read_text() == "content1"
