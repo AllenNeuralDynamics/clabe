@@ -38,17 +38,17 @@ Changelog = "https://github.com/AllenNeuralDynamics/clabe/releases"
 
 [project.optional-dependencies]
 aind-services = [
-    "aind-watchdog-service >= 0.1.6.dev8",
-    "aind-data-schema",
+    "requests",
+    "pyyaml",
+    "pykeepass",
     "ms-active-directory",
-    "aind-data-transfer-service >= 1.22.0",
     "cryptography",
     "winkerberos; sys_platform == 'win32'",
     "ldap3; sys_platform == 'win32'",
     "msal; sys_platform == 'win32'",
-    "requests",
-    "pyyaml",
-    "pykeepass",
+    "aind-data-schema>=2",
+    "aind-data-transfer-service >= 1.22.0",
+    "aind-watchdog-service >= 0.1.6",
 ]
 
 [dependency-groups]
@@ -70,7 +70,6 @@ docs = [
     'mkdocs-material',
     'mkdocstrings[python]',
     'pymdown-extensions',
-    'ruff',
 ]
 
 [project.scripts]
@@ -104,7 +103,6 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 markers = ["asyncio: mark test as requiring asyncio"]
-
 
 [tool.interrogate]
 ignore-init-method = true
