@@ -69,7 +69,7 @@ class CurriculumSettings(ServiceSettings):
 
     __yml_section__: t.ClassVar[t.Optional[str]] = "curriculum"
 
-    script: str = "curriculum run"
+    script: list[str] = ["curriculum", "run"]
     project_directory: os.PathLike = Path(".")
     input_trainer_state: t.Optional[os.PathLike] = None
     data_directory: t.Optional[os.PathLike] = None
@@ -145,18 +145,18 @@ class CurriculumApp(ExecutableApp, _DefaultExecutorMixin):
             raise ValueError("Data directory is not set.")
 
         kwargs: dict[str, t.Any] = {  # Must use kebab casing
-            "data-directory": f'"{self._settings.data_directory}"',
-            "input-trainer-state": f'"{self._settings.input_trainer_state}"',
+            "data-directory": str(self._settings.data_directory),
+            "input-trainer-state": str(self._settings.input_trainer_state),
         }
         if self._settings.curriculum is not None:
-            kwargs["curriculum"] = f'"{self._settings.curriculum}"'
+            kwargs["curriculum"] = str(self._settings.curriculum)
 
         python_script_app_kwargs = python_script_app_kwargs or {}
         self._python_script_app = PythonScriptApp(
             script=settings.script,
             project_directory=settings.project_directory,
             extra_uv_arguments="-q",
-            additional_arguments=" ".join(f"--{key} {value}" for key, value in kwargs.items()),
+            additional_arguments=[arg for kv in kwargs.items() for arg in ("--" + kv[0], str(kv[1]))],
             **python_script_app_kwargs,
         )
 

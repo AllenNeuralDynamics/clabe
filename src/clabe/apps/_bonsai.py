@@ -4,7 +4,7 @@ import os
 import random
 from os import PathLike
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 import pydantic
 from aind_behavior_services import AindBehaviorRigModel, AindBehaviorSessionModel, AindBehaviorTaskLogicModel
@@ -117,13 +117,18 @@ class BonsaiApp(ExecutableApp, _DefaultExecutorMixin):
         is_editor_mode: bool = True,
         is_start_flag: bool = True,
         additional_properties: Optional[Dict[str, str]] = None,
-    ) -> str:
+    ) -> List[str]:
         """
-        Builds a shell command for running a Bonsai workflow via subprocess.
+        Builds a command list for running a Bonsai workflow via subprocess.
 
-        Constructs the complete command string with all necessary flags and properties
-        for executing a Bonsai workflow. Handles editor mode, start flag, and
-        externalized properties.
+        Constructs the complete command as a list of arguments with all necessary
+        flags and properties for executing a Bonsai workflow. Handles editor mode,
+        start flag, and externalized properties.
+
+        Using list format is preferred over string format as it:
+        - Avoids shell injection vulnerabilities
+        - Handles paths with spaces correctly without manual quoting
+        - Is more portable across platforms
 
         Args:
             workflow_file: Path to the Bonsai workflow file
@@ -133,7 +138,7 @@ class BonsaiApp(ExecutableApp, _DefaultExecutorMixin):
             additional_properties: Dictionary of externalized properties to pass. Defaults to None
 
         Returns:
-            str: The complete command string
+            List[str]: The complete command as a list of arguments
 
         Example:
             ```python
@@ -142,19 +147,20 @@ class BonsaiApp(ExecutableApp, _DefaultExecutorMixin):
                 is_editor_mode=False,
                 additional_properties={"SubjectName": "Mouse123"}
             )
-            # Returns: '"bonsai.exe" "workflow.bonsai" --no-editor -p:"SubjectName"="Mouse123"'
+            # Returns: ["bonsai.exe", "workflow.bonsai", "--no-editor", "-p:SubjectName=Mouse123"]
             ```
         """
-        output_cmd: str = f'"{bonsai_exe}" "{workflow_file}"'
+        output_cmd: List[str] = [str(bonsai_exe), str(workflow_file)]
+
         if is_editor_mode:
             if is_start_flag:
-                output_cmd += " --start"
+                output_cmd.append("--start")
         else:
-            output_cmd += " --no-editor"
+            output_cmd.append("--no-editor")
 
         if additional_properties:
             for param, value in additional_properties.items():
-                output_cmd += f' -p:"{param}"="{value}"'
+                output_cmd.append(f"-p:{param}={value}")
 
         return output_cmd
 

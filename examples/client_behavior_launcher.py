@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 
 from _mocks import (
     LIB_CONFIG,
@@ -11,7 +12,7 @@ from _mocks import (
 from pydantic_settings import CliApp
 
 from clabe import resource_monitor
-from clabe.apps import PythonScriptApp
+from clabe.apps import BonsaiApp
 from clabe.launcher import Launcher, LauncherCliArgs, experiment
 from clabe.pickers import DefaultBehaviorPicker, DefaultBehaviorPickerSettings
 from clabe.xml_rpc import XmlRpcClient, XmlRpcClientSettings
@@ -31,7 +32,7 @@ async def client_experiment(launcher: Launcher) -> None:
     session = picker.pick_session(AindBehaviorSessionModel)
     rig = picker.pick_rig(RigModel)
     launcher.register_session(session, rig.data_directory)
-    trainer_state, _ = picker.pick_trainer_state(TaskLogicModel)
+    trainer_state, task_logic = picker.pick_trainer_state(TaskLogicModel)
 
     resource_monitor.ResourceMonitor(
         constrains=[
@@ -40,23 +41,27 @@ async def client_experiment(launcher: Launcher) -> None:
     ).run()
 
     xml_rpc_client = XmlRpcClient(settings=XmlRpcClientSettings(server_url="http://localhost:8000", token="42"))
-    upload_response = xml_rpc_client.upload_model(trainer_state, "trainer_state.json")
 
-    def fmt(value: str) -> str:
-        python_string = f"""
-import time
-print('Hello {value}')
-time.sleep(2)
-print('DONE')
-with open({upload_response.path}, 'r') as f:
-    data = f.read()
-    print('Uploaded Data:', data)
-        """
+    bonsai_root = Path(r"C:\git\AllenNeuralDynamics\Aind.Behavior.VrForaging")
+    session_response = xml_rpc_client.upload_model(session, "session.json")
+    rig_response = xml_rpc_client.upload_model(rig, "rig.json")
+    task_logic_response = xml_rpc_client.upload_model(task_logic, "task_logic.json")
+    assert rig_response.path is not None
+    assert session_response.path is not None
+    assert task_logic_response.path is not None
 
-        return f'python -c "{python_string}"'
-
-    app_1_result = await xml_rpc_client.run_async(PythonScriptApp(script=fmt("Behavior")).command)
-    print(app_1_result)
+    bonsai_app_result = await xml_rpc_client.run_async(
+        BonsaiApp(
+            workflow=bonsai_root / "src/test_deserialization.bonsai",
+            executable=bonsai_root / "bonsai/bonsai.exe",
+            additional_externalized_properties={
+                "RigPath": rig_response.path,
+                "SessionPath": session_response.path,
+                "TaskLogicPath": task_logic_response.path,
+            },
+        ).command
+    )
+    print(bonsai_app_result)
     return
 
 

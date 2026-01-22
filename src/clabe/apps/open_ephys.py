@@ -69,7 +69,7 @@ class OpenEphysApp(ExecutableApp, _DefaultExecutorMixin):
             self.validate()
 
         self._command = Command[CommandResult](
-            cmd=f'"{self.executable}" "{self.signal_chain}"', output_parser=identity_parser
+            cmd=[str(self.executable), str(self.signal_chain)], output_parser=identity_parser
         )
 
     def validate(self):

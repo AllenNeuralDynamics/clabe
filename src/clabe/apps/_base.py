@@ -111,7 +111,7 @@ class ExecutableApp(Protocol):
         class MyApp(ExecutableApp):
             @property
             def command(self) -> Command:
-                return Command(cmd="echo hello", output_parser=identity_parser)
+                return Command(cmd=["echo", "hello"], output_parser=identity_parser)
         ```
     """
 
@@ -170,7 +170,7 @@ class AsyncExecutor(Protocol):
 
 TOutput = TypeVar("TOutput")
 
-OutputParser: TypeAlias = Callable[[CommandResult], TOutput]
+_OutputParser: TypeAlias = Callable[[CommandResult], TOutput]
 
 
 class Command(Generic[TOutput]):
@@ -181,14 +181,20 @@ class Command(Generic[TOutput]):
     Supports both synchronous and asynchronous execution patterns with type-safe
     output parsing.
 
+    Commands are provided as a list of strings, which is consistent with subprocess
+    and executed directly without shell interpretation. This approach:
+    - Avoids shell injection vulnerabilities
+    - Handles arguments with spaces correctly without manual quoting
+    - Is more portable across platforms
+
     Attributes:
-        cmd: The command string to execute
+        cmd: The command to execute as a list of strings
         result: The result of command execution (available after execution)
 
     Example:
         ```python
-        # Create a simple command
-        cmd = Command(cmd="echo hello", output_parser=identity_parser)
+        # Create a command
+        cmd = Command(cmd=["python", "-c", "print('hello')"], output_parser=identity_parser)
 
         # Execute with a synchronous executor
         executor = LocalExecutor()
@@ -198,24 +204,25 @@ class Command(Generic[TOutput]):
         def parse_json(result: CommandResult) -> dict:
             return json.loads(result.stdout)
 
-        cmd = Command(cmd="get-data --json", output_parser=parse_json)
+        cmd = Command(cmd=["get-data", "--json"], output_parser=parse_json)
         data = cmd.execute(executor)
         ```
     """
 
-    def __init__(self, cmd: str, output_parser: OutputParser[TOutput]) -> None:
+    def __init__(self, cmd: list[str], output_parser: _OutputParser[TOutput]) -> None:
         """Initialize the Command instance.
+
         Args:
-            cmd: The command string to execute
+            cmd: The command to execute as a list of strings. The first element
+                is the program to run, followed by its arguments.
             output_parser: Function to parse the command result into desired output type
 
         Example:
             ```python
-            # Create a simple command
-            cmd = Command(cmd="echo hello", output_parser=identity_parser)
+            cmd = Command(cmd=["echo", "hello"], output_parser=identity_parser)
             ```
         """
-        self._cmd = cmd
+        self._cmd: list[str] = cmd
         self._output_parser = output_parser
         self._result: Optional[CommandResult] = None
 
@@ -227,16 +234,30 @@ class Command(Generic[TOutput]):
         return self._result
 
     @property
-    def cmd(self) -> str:
-        """Get the command string."""
+    def cmd(self) -> list[str]:
+        """Get the command as a list of strings."""
         return self._cmd
 
     def append_arg(self, args: str | list[str]) -> Self:
-        """Append an argument to the command."""
+        """Append arguments to the command.
+
+        Args:
+            args: Argument(s) to append. Can be a single string or list of strings.
+                Empty strings are filtered out.
+
+        Returns:
+            Self for method chaining.
+
+        Example:
+            ```python
+            cmd = Command(cmd=["python"], output_parser=identity_parser)
+            cmd.append_arg(["-m", "pytest"])  # Results in ["python", "-m", "pytest"]
+            ```
+        """
         if isinstance(args, str):
             args = [args]
         args = [arg for arg in args if arg]
-        self._cmd = (self.cmd + f" {' '.join(args)}").strip()
+        self._cmd = self._cmd + args
         return self
 
     def execute(self, executor: Executor) -> TOutput:
@@ -267,9 +288,18 @@ class Command(Generic[TOutput]):
 
 
 class StdCommand(Command[CommandResult]):
-    """Standard command that returns the raw CommandResult."""
+    """Standard command that returns the raw CommandResult.
 
-    def __init__(self, cmd: str) -> None:
+    A convenience class that creates a Command with the identity_parser,
+    returning the raw CommandResult without transformation.
+
+    Example:
+        ```python
+        cmd = StdCommand(["echo", "hello"])
+        ```
+    """
+
+    def __init__(self, cmd: list[str]) -> None:
         super().__init__(cmd, identity_parser)
 
 

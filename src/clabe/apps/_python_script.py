@@ -53,8 +53,8 @@ class PythonScriptApp(ExecutableApp, _DefaultExecutorMixin):
     def __init__(
         self,
         /,
-        script: str,
-        additional_arguments: str = "",
+        script: str | list[str],
+        additional_arguments: list[str] | None = None,
         project_directory: os.PathLike = Path("."),
         extra_uv_arguments: str = "",
         optional_toml_dependencies: Optional[list[str]] = None,
@@ -70,7 +70,7 @@ class PythonScriptApp(ExecutableApp, _DefaultExecutorMixin):
 
         Args:
             script: The Python script command to be executed (e.g., "my_module.py" or "my_package run")
-            additional_arguments: Additional arguments to pass to the script. Defaults to empty string
+            additional_arguments: Additional arguments to pass to the script. Defaults to None
             project_directory: The directory where the project resides. Defaults to current directory
             extra_uv_arguments: Extra arguments to pass to the uv command (e.g., "-q" for quiet). Defaults to empty string
             optional_toml_dependencies: Additional TOML dependency groups to include (e.g., ["dev", "test"]). Defaults to None
@@ -104,25 +104,25 @@ class PythonScriptApp(ExecutableApp, _DefaultExecutorMixin):
             )
             ```
         """
+        script = [script] if isinstance(script, str) else script
         if not skip_validation:
             self._validate_uv()
             if not self._has_venv(project_directory):
                 logger.warning("Python environment not found. Creating one...")
                 self.create_environment(project_directory)
 
-        self._command = Command[CommandResult](cmd="", output_parser=identity_parser)
+        cmd_args: list[str] = ["uv", "run"]
+        if extra_uv_arguments:
+            cmd_args.extend(extra_uv_arguments.split())
+        cmd_args.extend(self._make_uv_optional_toml_dependencies(optional_toml_dependencies or []))
+        cmd_args.extend(self._make_uv_project_directory(project_directory))
+        if append_python_exe:
+            cmd_args.append("python")
+        cmd_args.extend(script)
+        if additional_arguments:
+            cmd_args.extend(additional_arguments)
 
-        self.command.append_arg(
-            [
-                "uv run",
-                extra_uv_arguments,
-                self._make_uv_optional_toml_dependencies(optional_toml_dependencies or []),
-                self._make_uv_project_directory(project_directory),
-                "python" if append_python_exe else "",
-                script,
-                additional_arguments,
-            ]
-        )
+        self._command = Command[CommandResult](cmd=cmd_args, output_parser=identity_parser)
 
     @property
     def command(self) -> Command[CommandResult]:
@@ -186,9 +186,10 @@ class PythonScriptApp(ExecutableApp, _DefaultExecutorMixin):
         # TODO we should probably add a way to run this through our executors
         logger.info("Creating Python environment with uv venv at %s...", project_directory)
         run_kwargs = run_kwargs or {}
+        cmd = ["uv", "venv"] + cls._make_uv_project_directory(project_directory)
         try:
             proc = subprocess.run(
-                f"uv venv {cls._make_uv_project_directory(project_directory)} ",
+                cmd,
                 shell=False,
                 capture_output=True,
                 text=True,
@@ -202,30 +203,29 @@ class PythonScriptApp(ExecutableApp, _DefaultExecutorMixin):
         return proc
 
     @staticmethod
-    def _make_uv_project_directory(project_directory: str | os.PathLike) -> str:
+    def _make_uv_project_directory(project_directory: str | os.PathLike) -> list[str]:
         """
         Constructs the --directory argument for the uv command.
 
         Converts the project directory path to an absolute path and formats it
-        as a uv command-line argument.
+        as uv command-line arguments.
 
         Args:
             project_directory: The project directory path
 
         Returns:
-            str: The formatted --directory argument string
+            list[str]: The formatted --directory arguments as a list
 
         Example:
             ```python
-            arg = PythonScriptApp._make_uv_project_directory("/my/project")
-            # Returns: "--directory /my/project"
+            args = PythonScriptApp._make_uv_project_directory("/my/project")
+            # Returns: ["--directory", "/my/project"]
             ```
         """
-
-        return f"--directory {Path(project_directory).resolve()}"
+        return ["--directory", str(Path(project_directory).resolve())]
 
     @staticmethod
-    def _make_uv_optional_toml_dependencies(optional_toml_dependencies: list[str]) -> str:
+    def _make_uv_optional_toml_dependencies(optional_toml_dependencies: list[str]) -> list[str]:
         """
         Constructs the --extra arguments for the uv command based on optional TOML dependencies.
 
@@ -236,20 +236,23 @@ class PythonScriptApp(ExecutableApp, _DefaultExecutorMixin):
             optional_toml_dependencies: List of optional dependency group names
 
         Returns:
-            str: The formatted --extra arguments string, or empty string if no dependencies
+            list[str]: The formatted --extra arguments as a list, or empty list if no dependencies
 
         Example:
             ```python
             args = PythonScriptApp._make_uv_optional_toml_dependencies(["dev", "test"])
-            # Returns: "--extra dev --extra test"
+            # Returns: ["--extra", "dev", "--extra", "test"]
 
             args = PythonScriptApp._make_uv_optional_toml_dependencies([])
-            # Returns: ""
+            # Returns: []
             ```
         """
         if not optional_toml_dependencies:
-            return ""
-        return " ".join([f"--extra {dep}" for dep in optional_toml_dependencies])
+            return []
+        result: list[str] = []
+        for dep in optional_toml_dependencies:
+            result.extend(["--extra", dep])
+        return result
 
     @staticmethod
     def _validate_uv() -> None:
