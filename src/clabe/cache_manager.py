@@ -163,7 +163,7 @@ class CacheManager:
                             cache_data = CacheData.model_validate_json(f.read())
                             instance.caches = cache_data.caches
                     except Exception as e:
-                        logger.warning(f"Cache file {cache_path} is corrupted: {e}. Creating new instance.")
+                        logger.warning("Cache file %s is corrupted: %s. Creating new instance.", cache_path, e)
 
                 cls._instance = instance
 
@@ -306,7 +306,7 @@ class _ListCacheCli(BaseSettings):
         if not manager.caches:
             logger.info("No caches available.")
         for name, cache in manager.caches.items():
-            logger.info(f"Cache '{name}': {cache.values}")
+            logger.info("Cache '%s': %s", name, cache.values)
 
 
 class _ResetCacheCli(BaseSettings):

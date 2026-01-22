@@ -81,7 +81,7 @@ class XmlRpcExecutor:
         self.poll_interval = poll_interval
         self.monitor = monitor
 
-        logger.info(f"RPC executor initialized for server: {client.settings.server_url}")
+        logger.info("RPC executor initialized for server: %s", client.settings.server_url)
 
     def run(self, command: Command[Any]) -> CommandResult:
         """
@@ -105,13 +105,13 @@ class XmlRpcExecutor:
             print(f"Output: {result.stdout}")
             ```
         """
-        logger.info(f"Executing command via RPC: {command.cmd}")
+        logger.info("Executing command via RPC: %s", command.cmd)
 
         job_result = self.client.run_command(command.cmd, timeout=self.timeout)
 
         result = CommandResult(stdout=job_result.stdout, stderr=job_result.stderr, exit_code=job_result.returncode or 0)
         result.check_returncode()
-        logger.info(f"RPC command completed with exit code: {result.exit_code}")
+        logger.info("RPC command completed with exit code: %s", result.exit_code)
         return result
 
     async def run_async(self, command: Command[Any]) -> CommandResult:
@@ -136,7 +136,7 @@ class XmlRpcExecutor:
             print(f"Output: {result.stdout}")
             ```
         """
-        logger.info(f"Executing command asynchronously via RPC: {command.cmd}")
+        logger.info("Executing command asynchronously via RPC: %s", command.cmd)
         submission = self.client.submit_command(command.cmd)
         if submission.job_id is None:
             raise RuntimeError("Job submission failed: no job ID returned")
@@ -146,7 +146,7 @@ class XmlRpcExecutor:
         result = CommandResult(stdout=job_result.stdout, stderr=job_result.stderr, exit_code=job_result.returncode or 0)
         result.check_returncode()
 
-        logger.info(f"RPC async command completed with exit code: {result.exit_code}")
+        logger.info("RPC async command completed with exit code: %s", result.exit_code)
         return result
 
     async def _wait_for_result_async(self, job_id: str):
