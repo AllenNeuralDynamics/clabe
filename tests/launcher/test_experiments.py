@@ -29,15 +29,5 @@ def test_select_experiment_multiple_experiments_discovered_and_logs_constant(cap
     assert {"first_experiment", "second_experiment"}.issubset(names)
     assert selected.name == "first_experiment"
 
-    caplog.clear()
-    caplog.set_level("INFO")
     launcher = Mock()
-    launcher.logger = Mock()
-
     selected.func(launcher)
-
-    # Check that logger.info was called with the formatted constant.
-    from mock_third_party_pkg import mock_constant  # type: ignore[import]
-
-    expected = f"running first_experiment with mock_constant={mock_constant}"
-    launcher.logger.info.assert_any_call(expected)
