@@ -47,7 +47,11 @@ class XmlRpcExecutor:
     """
 
     def __init__(
-        self, client: "XmlRpcClient", timeout: Optional[float] = None, poll_interval: Optional[float] = None
+        self,
+        client: "XmlRpcClient",
+        timeout: Optional[float] = None,
+        poll_interval: Optional[float] = None,
+        monitor: bool = True,
     ) -> None:
         """
         Initialize the RPC executor.
@@ -56,6 +60,9 @@ class XmlRpcExecutor:
             client: RPC client instance for communication with the remote server
             timeout: Maximum time to wait for command completion (uses client default if None)
             poll_interval: Polling interval for job status checks (uses client default if None)
+            monitor: If True, timeout becomes a liveness check window. As long as the job
+                is confirmed running within the timeout period, waiting continues indefinitely.
+                If False, timeout is the total execution time limit.
 
         Example:
             ```python
@@ -72,6 +79,7 @@ class XmlRpcExecutor:
         self.client = client
         self.timeout = timeout
         self.poll_interval = poll_interval
+        self.monitor = monitor
 
         logger.info(f"RPC executor initialized for server: {client.settings.server_url}")
 
@@ -152,18 +160,26 @@ class XmlRpcExecutor:
             JobResult with execution details
 
         Raises:
-            TimeoutError: If job doesn't complete within timeout
+            TimeoutError: If job doesn't complete within timeout (or if monitor mode
+                is enabled and the job stops responding within the timeout window)
         """
 
         timeout = self.timeout or self.client.settings.timeout
         poll_interval = self.poll_interval or self.client.settings.poll_interval
         start_time = time.time()
 
-        while time.time() - start_time < timeout:
+        while True:
+            elapsed = time.time() - start_time
+            if elapsed >= timeout:
+                raise TimeoutError(f"Job {job_id} did not complete within {timeout} seconds")
+
             await asyncio.sleep(poll_interval)
             # this is synchronous but should be fast
             result = self.client.get_result(job_id)
             if result.status == JobStatus.DONE:
                 return result
 
-        raise TimeoutError(f"Job {job_id} did not complete within {timeout} seconds")
+            # In monitor mode, reset timer if job is still running
+            if self.monitor and self.client.is_running(job_id):
+                logger.debug("Job %s is still running; resetting timeout timer", job_id)
+                start_time = time.time()

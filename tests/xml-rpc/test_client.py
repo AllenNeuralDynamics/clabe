@@ -94,6 +94,7 @@ class TestXmlRpcClientSettings:
         assert settings.timeout == 30.0
         assert settings.poll_interval == 0.5
         assert settings.max_file_size == 5 * 1024 * 1024
+        assert settings.monitor is True  # Default is True
 
     def test_client_settings_custom_values(self):
         """Test creating client settings with custom values."""
@@ -103,6 +104,7 @@ class TestXmlRpcClientSettings:
             timeout=60.0,
             poll_interval=1.0,
             max_file_size=10 * 1024 * 1024,
+            monitor=False,
         )
 
         assert str(settings.server_url) == "http://192.168.1.100:9000/"
@@ -110,6 +112,7 @@ class TestXmlRpcClientSettings:
         assert settings.timeout == 60.0
         assert settings.poll_interval == 1.0
         assert settings.max_file_size == 10 * 1024 * 1024
+        assert settings.monitor is False
 
 
 class TestJobResult:
@@ -234,14 +237,25 @@ class TestXmlRpcClient:
         assert result.returncode == 0
         assert "completed" in result.stdout
 
-    def test_wait_for_result_timeout(self, rpc_client: XmlRpcClient):
-        """Test timeout when waiting for command completion."""
+    def test_wait_for_result_timeout(self, test_server):
+        """Test timeout when waiting for command completion (with monitor=False)."""
         import sys
 
-        submission = rpc_client.submit_command([sys.executable, "-c", "import time; time.sleep(10)"])
+        # Create a client with monitor=False to test actual timeout behavior
+        _, port, token = test_server
+        settings = XmlRpcClientSettings(
+            server_url=HttpUrl(f"http://127.0.0.1:{port}"),
+            token=SecretStr(token),
+            timeout=5.0,
+            poll_interval=0.1,
+            monitor=False,  # Disable monitor mode to test hard timeout
+        )
+        client = XmlRpcClient(settings)
+
+        submission = client.submit_command([sys.executable, "-c", "import time; time.sleep(10)"])
 
         with pytest.raises(TimeoutError, match="did not complete within"):
-            rpc_client.wait_for_result(submission.job_id, timeout=0.5)
+            client.wait_for_result(submission.job_id, timeout=0.5)
 
     def test_run_command_success(self, rpc_client: XmlRpcClient):
         """Test running a command to completion."""
@@ -266,6 +280,49 @@ class TestXmlRpcClient:
         time.sleep(1.0)
         is_running_after = rpc_client.is_running(submission.job_id)
         assert is_running_after is False
+
+    def test_wait_for_result_with_monitor_default(self, rpc_client: XmlRpcClient):
+        """Test that monitor mode (default) completes successfully for long-running job."""
+        import sys
+
+        # Submit a job that runs longer than the timeout
+        submission = rpc_client.submit_command([sys.executable, "-c", "import time; time.sleep(0.5); print('done')"])
+
+        # The job takes 0.5s but timeout is 0.3s - with default monitor=True,
+        # the timeout resets each time is_running returns True
+        result = rpc_client.wait_for_result(submission.job_id, timeout=0.3)
+
+        assert result.status == JobStatus.DONE
+        assert result.returncode == 0
+        assert "done" in result.stdout
+
+    def test_wait_for_result_monitor_resets_timeout(self, rpc_client: XmlRpcClient):
+        """Test that monitor mode (default) resets timeout when job is confirmed running."""
+        import sys
+
+        # Submit a job that takes longer than the timeout
+        submission = rpc_client.submit_command(
+            [sys.executable, "-c", "import time; time.sleep(0.8); print('finished')"]
+        )
+
+        # With default monitor=True, the timeout resets each poll cycle while job is running
+        result = rpc_client.wait_for_result(submission.job_id, timeout=0.4)
+
+        assert result.status == JobStatus.DONE
+        assert "finished" in result.stdout
+
+    def test_run_command_with_monitor_default(self, rpc_client: XmlRpcClient):
+        """Test run_command with default monitor mode enabled."""
+        import sys
+
+        # With default monitor=True, long-running commands complete successfully
+        result = rpc_client.run_command(
+            [sys.executable, "-c", "import time; time.sleep(0.5); print('monitored')"],
+            timeout=0.3,
+        )
+
+        assert result.status == JobStatus.DONE
+        assert "monitored" in result.stdout
 
     def test_list_jobs(self, rpc_client: XmlRpcClient):
         """Test listing jobs."""
