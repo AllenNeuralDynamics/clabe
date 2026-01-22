@@ -186,6 +186,7 @@ class XmlRpcClient:
 
             # In monitor mode, reset timer if job is still running
             if self.settings.monitor and self.is_running(job_id):
+                logger.debug("Job %s is still running; resetting timeout timer", job_id)
                 start_time = time.time()
 
             time.sleep(self.settings.poll_interval)
