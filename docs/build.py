@@ -140,18 +140,18 @@ def copy_assets() -> None:
         dest: Path = DOCS_DIR / file_or_dir
 
         if src.exists():
-            log.info(f"Copying {file_or_dir} to docs...")
+            log.info("Copying %s to docs...", file_or_dir)
 
             if src.is_file():
-                log.info(f"Copying file {src} to {dest}")
+                log.info("Copying file %s to %s", src, dest)
                 shutil.copy(src, dest)
             else:
                 if dest.exists():
                     shutil.rmtree(dest)
                 shutil.copytree(src, dest)
-            log.info(f"{file_or_dir} copied successfully.")
+            log.info("%s copied successfully.", file_or_dir)
         else:
-            log.warning(f"Source: {file_or_dir} not found, skipping.")
+            log.warning("Source: %s not found, skipping.", file_or_dir)
 
 
 def find_service_settings_classes(src_dir: Path) -> List[Tuple[str, Optional[str]]]:  # noqa: C901
@@ -201,7 +201,7 @@ def find_service_settings_classes(src_dir: Path) -> List[Tuple[str, Optional[str
                     service_settings.append((node.name, yml_section))
 
         except Exception as e:
-            log.warning(f"Failed to parse {py_file}: {e}")
+            log.warning("Failed to parse %s: %s", py_file, e)
 
     return sorted(service_settings, key=lambda x: x[0])
 
@@ -239,7 +239,7 @@ def generate_service_settings_table() -> None:
     with open(output_path, "w", encoding="utf-8") as f:
         f.write("\n".join(content))
 
-    log.info(f"Service settings documentation written to {output_path}")
+    log.info("Service settings documentation written to %s", output_path)
 
 
 def main() -> None:

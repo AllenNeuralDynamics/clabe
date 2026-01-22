@@ -22,7 +22,7 @@ KNOWN_CONFIG_FILES: t.List[str] = [
 
 for i, p in enumerate(KNOWN_CONFIG_FILES):
     if Path(p).exists():
-        logger.debug(f"Found config file: {p} with rank priority {i}")
+        logger.debug("Found config file: %s with rank priority %s", p, i)
 
 
 class ByAnimalFiles(enum.StrEnum):

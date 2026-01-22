@@ -62,7 +62,7 @@ class XmlRpcClient:
             self, timeout=settings.timeout, poll_interval=settings.poll_interval, monitor=settings.monitor
         )
 
-        logger.info(f"RPC client initialized for server: {settings.server_url}")
+        logger.info("RPC client initialized for server: %s", settings.server_url)
 
     def _call_with_auth(self, method_name: str, *args, **kwargs):
         """
@@ -108,7 +108,7 @@ class XmlRpcClient:
             cmd_args = [cmd_args]
         result = self._call_with_auth("run", cmd_args)
         response = JobSubmissionResponse(**result)
-        logger.info(f"Submitted command {cmd_args} with job ID: {response.job_id}")
+        logger.info("Submitted command %s with job ID: %s", cmd_args, response.job_id)
         return response
 
     def get_result(self, job_id: str) -> JobResult:
@@ -297,12 +297,12 @@ class XmlRpcClient:
         file_data = local_path.read_bytes()
         data_base64 = base64.b64encode(file_data).decode("utf-8")
 
-        logger.info(f"Uploading file {local_path} as {remote_filename} ({file_size} bytes)")
+        logger.info("Uploading file %s as %s (%s bytes)", local_path, remote_filename, file_size)
 
         result = self._call_with_auth("upload_file", remote_filename, data_base64, overwrite)
         response = FileUploadResponse(**result)
 
-        logger.info(f"Successfully uploaded {remote_filename}")
+        logger.info("Successfully uploaded %s", remote_filename)
         return response
 
     def upload_model(self, model: BaseModel, remote_filename: str, overwrite: bool = True) -> FileUploadResponse:
@@ -346,12 +346,12 @@ class XmlRpcClient:
         # Encode for transport
         data_base64 = base64.b64encode(json_bytes).decode("utf-8")
 
-        logger.info(f"Uploading model as {remote_filename} ({data_size} bytes)")
+        logger.info("Uploading model as %s (%s bytes)", remote_filename, data_size)
 
         result = self._call_with_auth("upload_file", remote_filename, data_base64, overwrite)
         response = FileUploadResponse(**result)
 
-        logger.info(f"Successfully uploaded model as {remote_filename}")
+        logger.info("Successfully uploaded model as %s", remote_filename)
         return response
 
     def download_file(self, remote_filename: str, local_path: Optional[Union[str, Path]] = None) -> Path:
@@ -376,7 +376,7 @@ class XmlRpcClient:
         else:
             local_path = Path(local_path)
 
-        logger.info(f"Downloading file {remote_filename} to {local_path}")
+        logger.info("Downloading file %s to %s", remote_filename, local_path)
 
         result = self._call_with_auth("download_file", remote_filename)
 
@@ -396,7 +396,7 @@ class XmlRpcClient:
         file_data = response.data
         local_path.write_bytes(file_data)
 
-        logger.info(f"Successfully downloaded {remote_filename} ({response.size} bytes)")
+        logger.info("Successfully downloaded %s (%s bytes)", remote_filename, response.size)
         return local_path
 
     def list_files(self) -> list[FileInfo]:
@@ -432,10 +432,10 @@ class XmlRpcClient:
             print(f"Deleted: {result.filename}")
             ```
         """
-        logger.info(f"Deleting file {remote_filename}")
+        logger.info("Deleting file %s", remote_filename)
         result = self._call_with_auth("delete_file", remote_filename)
         response = FileDeleteResponse(**result)
-        logger.info(f"Successfully deleted {remote_filename}")
+        logger.info("Successfully deleted %s", remote_filename)
         return response
 
     def delete_all_files(self) -> FileBulkDeleteResponse:
@@ -454,7 +454,7 @@ class XmlRpcClient:
         logger.info("Deleting all files from server")
         result = self._call_with_auth("delete_all_files")
         response = FileBulkDeleteResponse(**result)
-        logger.info(f"Successfully deleted {response.deleted_count} files")
+        logger.info("Successfully deleted %s files", response.deleted_count)
         return response
 
     def ping(self) -> bool:
@@ -477,7 +477,7 @@ class XmlRpcClient:
             self.list_jobs()
             return True
         except (RuntimeError, ConnectionError, ValueError) as e:
-            logger.warning(f"Server ping failed: {e}")
+            logger.warning("Server ping failed: %s", e)
             return False
 
     def __enter__(self):

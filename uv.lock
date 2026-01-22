@@ -147,16 +147,16 @@ wheels = [
 
 [[package]]
 name = "aind-data-schema-models"
-version = "5.2.1"
+version = "5.2.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "importlib-resources" },
     { name = "pydantic" },
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/2e/dc/360e3b97f7b05b6e08962be87dab53e2fc842beaf1329a1687c70898e552/aind_data_schema_models-5.2.1.tar.gz", hash = "sha256:11b68393119b329425f9d7f215b0a35ae82327cb3f781228e61a72bc85ac2e7f", size = 339089, upload-time = "2026-01-20T20:12:25.773Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/4b/e7/b1c40e19bd3267e9c1d1099fb98c4b0d211bc25061fbedc8caafebc48399/aind_data_schema_models-5.2.2.tar.gz", hash = "sha256:962b1ecc52e38ea29fad9f126ff52c7fdb3296d7f23ef774f33987d2ccf61d06", size = 340495, upload-time = "2026-01-22T18:57:03.242Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f4/6e/b1369e14ad5baaed63ee27a16856e6d374cf4b7a7e84d9636f1e908f888f/aind_data_schema_models-5.2.1-py3-none-any.whl", hash = "sha256:701bfb3e1bf14b0bbd9ec71cbda83e2c95719e6cd7e6222ad59bc718165c7c2d", size = 308599, upload-time = "2026-01-20T20:12:24.306Z" },
+    { url = "https://files.pythonhosted.org/packages/ee/2a/e3cb794c232e1b599bada18e383d2a29c74069d36f84408c5598f27c3253/aind_data_schema_models-5.2.2-py3-none-any.whl", hash = "sha256:271db7fd193392c811fd705da58950bc81357a7b2bc68dd1fe9eda53ce057d6a", size = 309917, upload-time = "2026-01-22T18:57:01.65Z" },
 ]
 
 [[package]]

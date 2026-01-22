@@ -135,12 +135,12 @@ class ByAnimalModifier(abc.ABC, _IByAnimalModifier[TRig]):
         """
         target_file = self._subject_db_path / f"{self._model_name}.json"
         if not target_file.exists():
-            logger.warning(f"File not found: {target_file}. Using default.")
+            logger.warning("File not found: %s. Using default.", target_file)
         else:
             target = rgetattr(rig, self._model_path)
             self._tp = TypeAdapter(type(target))
             deserialized = self._tp.validate_json(target_file.read_text(encoding="utf-8"))
-            logger.info(f"Loading {self._model_name} from: {target_file}. Deserialized: {deserialized}")
+            logger.info("Loading %s from: %s. Deserialized: %s", self._model_name, target_file, deserialized)
             self._process_before_inject(deserialized)
             rsetattr(rig, self._model_path, deserialized)
         return rig
@@ -165,11 +165,11 @@ class ByAnimalModifier(abc.ABC, _IByAnimalModifier[TRig]):
 
         try:
             to_inject = self._process_before_dump()
-            logger.info(f"Saving {self._model_name} to: {target_file}. Serialized: {to_inject}")
+            logger.info("Saving %s to: %s. Serialized: %s", self._model_name, target_file, to_inject)
             target_folder.mkdir(parents=True, exist_ok=True)
             target_file.write_text(tp.dump_json(to_inject, indent=2).decode("utf-8"), encoding="utf-8")
         except Exception as e:
-            logger.error(f"Failed to process before dumping modifier: {e}")
+            logger.error("Failed to process before dumping modifier: %s", e)
             raise
 
 
