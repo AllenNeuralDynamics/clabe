@@ -17,6 +17,7 @@ class TestXmlRpcExecutor:
         mock_client.settings.timeout = 30.0
         mock_client.settings.poll_interval = 0.5
         mock_client.settings.server_url = "http://localhost:8000"
+        mock_client.settings.monitor = True
         return mock_client
 
     @pytest.fixture
@@ -29,10 +30,19 @@ class TestXmlRpcExecutor:
         mock_client = Mock()
         mock_client.settings.server_url = "http://localhost:8000"
 
-        executor = XmlRpcExecutor(mock_client, timeout=60.0, poll_interval=1.0)
+        executor = XmlRpcExecutor(mock_client, timeout=60.0, poll_interval=1.0, monitor=False)
         assert executor.client == mock_client
         assert executor.timeout == 60.0
         assert executor.poll_interval == 1.0
+        assert executor.monitor is False
+
+    def test_init_default_monitor(self):
+        """Test XmlRpcExecutor initialization with default monitor=True."""
+        mock_client = Mock()
+        mock_client.settings.server_url = "http://localhost:8000"
+
+        executor = XmlRpcExecutor(mock_client)
+        assert executor.monitor is True
 
     def test_run_success(self, executor):
         """Test successful synchronous command execution."""
@@ -96,3 +106,37 @@ class TestXmlRpcExecutor:
 
         with pytest.raises(Exception, match="Job submission failed: no job ID returned"):
             await executor.run_async(cmd)
+
+    @pytest.mark.asyncio
+    async def test_run_async_with_monitor_enabled(self, mock_client):
+        """Test asynchronous command execution with monitor mode enabled (default)."""
+        # Create executor with monitor=True (default)
+        executor = XmlRpcExecutor(mock_client, monitor=True)
+
+        submission_response = JobSubmissionResponse(success=True, job_id="monitor-job")
+        # Simulate job running initially, then completing
+        running_result = JobResult(
+            job_id="monitor-job", status=JobStatus.RUNNING, stdout=None, stderr=None, returncode=None, error=None
+        )
+        done_result = JobResult(
+            job_id="monitor-job",
+            status=JobStatus.DONE,
+            stdout="Monitored async output",
+            stderr="",
+            returncode=0,
+            error=None,
+        )
+
+        executor.client.submit_command.return_value = submission_response
+        # First call returns running, second call returns done
+        executor.client.get_result.side_effect = [running_result, done_result]
+        executor.client.is_running.return_value = True
+
+        cmd = Command(cmd="long_async_command", output_parser=identity_parser)
+        result = await executor.run_async(cmd)
+
+        assert isinstance(result, CommandResult)
+        assert result.stdout == "Monitored async output"
+        assert result.exit_code == 0
+
+        executor.client.submit_command.assert_called_once_with("long_async_command")

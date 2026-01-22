@@ -37,6 +37,12 @@ class XmlRpcClientSettings(ServiceSettings):
     timeout: float = Field(default=30.0, description="Default timeout for RPC calls in seconds")
     poll_interval: float = Field(default=0.5, description="Polling interval for job status checks in seconds")
     max_file_size: int = Field(default=5 * 1024 * 1024, description="Maximum file size in bytes (default 5MB)")
+    monitor: bool = Field(
+        default=True,
+        description="If True, timeout becomes a liveness check window. As long as the job is confirmed "
+        "running within the timeout period, waiting continues indefinitely. If False, timeout is the "
+        "total execution time limit.",
+    )
 
 
 class XmlRpcClient:
@@ -52,7 +58,9 @@ class XmlRpcClient:
         self.settings = settings
         self._client = xmlrpc.client.ServerProxy(str(settings.server_url), allow_none=True)
         self._token = settings.token.get_secret_value()
-        self._executor = XmlRpcExecutor(self, timeout=settings.timeout, poll_interval=settings.poll_interval)
+        self._executor = XmlRpcExecutor(
+            self, timeout=settings.timeout, poll_interval=settings.poll_interval, monitor=settings.monitor
+        )
 
         logger.info(f"RPC client initialized for server: {settings.server_url}")
 
@@ -152,7 +160,8 @@ class XmlRpcClient:
             JobResult object with execution details
 
         Raises:
-            TimeoutError: If the command doesn't complete within the timeout
+            TimeoutError: If the command doesn't complete within the timeout (or if
+                monitor mode is enabled and the job stops responding within the timeout window)
 
         Example:
             ```python
@@ -166,13 +175,20 @@ class XmlRpcClient:
 
         start_time = time.time()
 
-        while time.time() - start_time < timeout:
+        while True:
+            elapsed = time.time() - start_time
+            if elapsed >= timeout:
+                raise TimeoutError(f"Job {job_id} did not complete within {timeout} seconds")
+
             result = self.get_result(job_id)
             if result.status == JobStatus.DONE:
                 return result
-            time.sleep(self.settings.poll_interval)
 
-        raise TimeoutError(f"Job {job_id} did not complete within {timeout} seconds")
+            # In monitor mode, reset timer if job is still running
+            if self.settings.monitor and self.is_running(job_id):
+                start_time = time.time()
+
+            time.sleep(self.settings.poll_interval)
 
     def run_command(self, cmd_args: list[str] | str, timeout: Optional[float] = None) -> JobResult:
         """
