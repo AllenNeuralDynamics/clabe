@@ -234,7 +234,9 @@ class DefaultBehaviorPicker:
                 rig_path = available_rigs[0]
                 rig = model_from_json_file(rig_path, model)
             else:
-                rig_path = self.ui_helper.prompt_pick_from_list(available_rigs, prompt="Choose a rig:")
+                rig_path = self.ui_helper.prompt_pick_from_list(
+                    available_rigs, prompt=f"Choose a rig for {model.__name__}:"
+                )
                 if rig_path is not None:
                     rig = self._load_rig_from_path(Path(rig_path), model)
         assert rig_path is not None
@@ -336,7 +338,9 @@ class DefaultBehaviorPicker:
                 available_files = glob.glob(os.path.join(_path, "*.json"))
                 if len(available_files) == 0:
                     break
-                path = self.ui_helper.prompt_pick_from_list(available_files, prompt="Choose a task logic:")
+                path = self.ui_helper.prompt_pick_from_list(
+                    available_files, prompt=f"Choose a task logic for {model.__name__}:"
+                )
                 if not isinstance(path, str):
                     raise ValueError("Invalid choice.")
                 if not os.path.isfile(path):
