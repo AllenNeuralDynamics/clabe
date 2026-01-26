@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import logging
 import os
 import xml.etree.ElementTree as ET
@@ -8,9 +6,7 @@ from pathlib import Path
 from typing import Dict, List, Union
 
 import pydantic
-from aind_behavior_services import (
-    AindBehaviorRigModel,
-)
+from aind_behavior_services import AindBehaviorRigModel
 from aind_behavior_services.rig.cameras import CameraController, CameraTypes
 from aind_behavior_services.utils import get_fields_of_type
 

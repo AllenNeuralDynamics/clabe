@@ -7,9 +7,8 @@ from typing import Optional, Union
 
 from pydantic import BaseModel, Field, HttpUrl, SecretStr
 
-from clabe.apps import Command
-from clabe.apps._base import CommandResult
-
+from ..apps import Command
+from ..apps._base import CommandResult
 from ..services import ServiceSettings
 from ._executor import XmlRpcExecutor
 from .models import (

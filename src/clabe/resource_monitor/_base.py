@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import logging
 from dataclasses import dataclass, field
 from typing import Callable, List, Optional
@@ -25,7 +23,7 @@ class ResourceMonitor(Service):
 
     def __init__(
         self,
-        constrains: Optional[List[Constraint]] = None,
+        constrains: Optional[List["Constraint"]] = None,
     ) -> None:
         """
         Initializes the ResourceMonitor.
@@ -51,7 +49,7 @@ class ResourceMonitor(Service):
             raise RuntimeError("Resource monitor constraints failed.")
         return result
 
-    def add_constraint(self, constraint: Constraint) -> None:
+    def add_constraint(self, constraint: "Constraint") -> None:
         """
         Adds a new constraint to the monitor.
 
@@ -81,7 +79,7 @@ class ResourceMonitor(Service):
         """
         self.constraints.append(constraint)
 
-    def remove_constraint(self, constraint: Constraint) -> None:
+    def remove_constraint(self, constraint: "Constraint") -> None:
         """
         Removes a constraint from the monitor.
 

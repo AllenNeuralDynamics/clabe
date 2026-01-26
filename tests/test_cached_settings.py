@@ -65,6 +65,10 @@ class TestCachedSettings:
 class TestCacheManagerManualSync:
     """Tests for CacheManager with manual sync strategy."""
 
+    def setup_method(self):
+        """Reset the cache manager before each test."""
+        CacheManager.get_instance(reset=True, sync_strategy=SyncStrategy.MANUAL)
+
     def test_register_and_add(self):
         """Test registering a cache and adding values."""
         manager = CacheManager.get_instance(reset=True, sync_strategy=SyncStrategy.MANUAL)
@@ -146,6 +150,10 @@ class TestCacheManagerManualSync:
 
 class TestCacheManagerAutoSync:
     """Tests for CacheManager with auto-sync to disk."""
+
+    def setup_method(self):
+        """Reset the cache manager before each test."""
+        CacheManager.get_instance(reset=True, sync_strategy=SyncStrategy.MANUAL)
 
     def test_auto_sync_on_add(self):
         """Test that AUTO sync saves after adding values."""
