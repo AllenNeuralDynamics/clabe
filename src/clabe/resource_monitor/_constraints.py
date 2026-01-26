@@ -116,7 +116,7 @@ def remote_dir_exists_constraint_factory(dir_path: os.PathLike) -> Constraint:
     """
     return Constraint(
         name="remote_dir_exists",
-        constraint=lambda dir_path: os.path.exists(dir_path),
+        constraint=os.path.exists,
         args=[],
         kwargs={"dir_path": dir_path},
         fail_msg_handler=lambda dir_path: f"Directory {dir_path} does not exist.",

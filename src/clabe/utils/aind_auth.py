@@ -1,5 +1,4 @@
 import concurrent.futures
-import getpass
 import logging
 import platform
 from typing import Optional
@@ -12,8 +11,6 @@ _ad_logger = logging.getLogger(
 
 
 if platform.system() == "Windows":
-    import ldap3
-    import ms_active_directory
 
     def validate_aind_username(
         username: str,
@@ -46,6 +43,10 @@ if platform.system() == "Windows":
             is_valid = validate_aind_username("j.doe")
             ```
         """
+        import getpass  # type: ignore[import]
+
+        import ldap3  # type: ignore[import]
+        import ms_active_directory  # type: ignore[import]
 
         def _helper(username: str, domain: str, domain_username: Optional[str]) -> bool:
             """A function submitted to a thread pool to validate the username."""
