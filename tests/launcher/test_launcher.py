@@ -6,9 +6,7 @@ from clabe.launcher import Launcher
 from clabe.launcher._cli import LauncherCliArgs
 
 
-def test_base_launcher_with_attached_logger(
-    mock_base_launcher, mock_rig, mock_session, mock_task_logic, mock_ui_helper
-):
+def test_base_launcher_with_attached_logger(mock_base_launcher, mock_ui_helper):
     """Test launcher initialization with attached logger."""
     with patch("clabe.logging_helper.add_file_handler") as mock_add_file_handler:
         mock_attached_logger = MagicMock()
@@ -21,7 +19,7 @@ def test_base_launcher_with_attached_logger(
         mock_add_file_handler.assert_called()
 
 
-def test_base_launcher_debug_mode(mock_rig, mock_session, mock_task_logic, mock_ui_helper, tmp_path: Path):
+def test_base_launcher_debug_mode(mock_ui_helper, tmp_path: Path):
     """Test launcher initialization with debug mode enabled."""
     launcher_args_debug = LauncherCliArgs(
         debug_mode=True,
@@ -38,7 +36,7 @@ def test_base_launcher_debug_mode(mock_rig, mock_session, mock_task_logic, mock_
             mock_logger.setLevel.assert_called_with(logging.DEBUG)
 
 
-def test_base_launcher_create_directories(mock_rig, mock_session, mock_task_logic, mock_ui_helper, tmp_path: Path):
+def test_base_launcher_create_directories(mock_session, mock_ui_helper, tmp_path: Path):
     """Test launcher initialization with create_directories option."""
     launcher_args_create_dirs = LauncherCliArgs()
     with (
@@ -65,7 +63,7 @@ def test_create_directory():
         mock_makedirs.assert_called_once_with(directory)
 
 
-def test_ensure_directory_structure(mock_rig, mock_session, mock_task_logic, mock_ui_helper, tmp_path: Path):
+def test_ensure_directory_structure(mock_session, mock_ui_helper, tmp_path: Path):
     """Test that _ensure_directory_structure calls create_directory for data_dir and temp_dir."""
     launcher_args = LauncherCliArgs()
 

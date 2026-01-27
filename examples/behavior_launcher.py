@@ -33,7 +33,7 @@ async def demo_experiment(launcher: Launcher) -> None:
     session = picker.pick_session(Session)
     rig = picker.pick_rig(RigModel)
     launcher.register_session(session, rig.data_directory)
-    trainer_state, task_logic = picker.pick_trainer_state(MockTask)
+    trainer_state, task = picker.pick_trainer_state(MockTask)
     _temp_trainer_state_path = launcher.save_temp_model(trainer_state)
 
     resource_monitor.ResourceMonitor(
@@ -62,7 +62,7 @@ async def demo_experiment(launcher: Launcher) -> None:
     DemoAindDataSchemaSessionDataMapper(
         rig,
         session,
-        task_logic,
+        task,
         repository=launcher.repository,
         script_path=Path("./mock/script.py"),
         output_parameters={"suggestion": suggestion.model_dump()},

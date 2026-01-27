@@ -56,7 +56,7 @@ class DemoAindDataSchemaSessionDataMapper(DataMapper[MockAindDataSchemaSession])
         self,
         rig_model: RigModel,
         session_model: Session,
-        task_logic_model: MockTask,
+        task_model: MockTask,
         repository: Union[os.PathLike, git.Repo],
         script_path: os.PathLike,
         session_end_time: Optional[datetime.datetime] = None,
@@ -65,7 +65,7 @@ class DemoAindDataSchemaSessionDataMapper(DataMapper[MockAindDataSchemaSession])
         super().__init__()
         self.session_model = session_model
         self.rig_model = rig_model
-        self.task_logic_model = task_logic_model
+        self.task_model = task_model
         self.repository = repository
         self.script_path = script_path
         self.session_end_time = session_end_time
@@ -74,7 +74,7 @@ class DemoAindDataSchemaSessionDataMapper(DataMapper[MockAindDataSchemaSession])
 
     def map(self) -> MockAindDataSchemaSession:
         self._mapped = MockAindDataSchemaSession(
-            computer_name=self.rig_model.computer_name, repository=self.repository, task_name=self.task_logic_model.name
+            computer_name=self.rig_model.computer_name, repository=self.repository, task_name=self.task_model.name
         )
         print("#" * 50)
         print("THIS IS MAPPED DATA!")
@@ -87,7 +87,7 @@ def create_fake_subjects():
     subjects = ["00000", "123456"]
     for subject in subjects:
         os.makedirs(f"{LIB_CONFIG}/Subjects/{subject}", exist_ok=True)
-        with open(f"{LIB_CONFIG}/Subjects/{subject}/task_logic.json", "w", encoding="utf-8") as f:
+        with open(f"{LIB_CONFIG}/Subjects/{subject}/task.json", "w", encoding="utf-8") as f:
             f.write(MockTask(task_parameters={"subject": subject}).model_dump_json(indent=2))
         with open(f"{LIB_CONFIG}/Subjects/{subject}/trainer_state.json", "w", encoding="utf-8") as f:
             f.write(mock_trainer_state.model_dump_json(indent=2))

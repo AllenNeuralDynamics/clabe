@@ -27,7 +27,7 @@ wheels = [
 [[package]]
 name = "aind-behavior-services"
 version = "0.13.0rc2"
-source = { git = "https://github.com/AllenNeuralDynamics/Aind.Behavior.Services?rev=refactor-class-names#90d721c03f2f55a162110edd47a810a58cd37555" }
+source = { git = "https://github.com/AllenNeuralDynamics/Aind.Behavior.Services?rev=refactor-class-names#14d7d54374f23b7fc81e469bd273ce15b6a68fa4" }
 dependencies = [
     { name = "aind-behavior-curriculum" },
     { name = "gitpython" },
@@ -1115,9 +1115,9 @@ name = "msal"
 version = "1.34.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "cryptography", marker = "sys_platform == 'win32'" },
-    { name = "pyjwt", extra = ["crypto"], marker = "sys_platform == 'win32'" },
-    { name = "requests", marker = "sys_platform == 'win32'" },
+    { name = "cryptography" },
+    { name = "pyjwt", extra = ["crypto"] },
+    { name = "requests" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/cf/0e/c857c46d653e104019a84f22d4494f2119b4fe9f896c92b4b864b3b045cc/msal-1.34.0.tar.gz", hash = "sha256:76ba83b716ea5a6d75b0279c0ac353a0e05b820ca1f6682c0eb7f45190c43c2f", size = 153961, upload-time = "2025-09-22T23:05:48.989Z" }
 wheels = [
@@ -1535,7 +1535,7 @@ wheels = [
 
 [package.optional-dependencies]
 crypto = [
-    { name = "cryptography", marker = "sys_platform == 'win32'" },
+    { name = "cryptography" },
 ]
 
 [[package]]

@@ -34,10 +34,10 @@ class ByAnimalFiles(enum.StrEnum):
 
     Example:
         ```python
-        # Use the task logic file type
-        filename = f"{ByAnimalFiles.TASK_LOGIC}.json"
+        # Use the task file type
+        filename = f"{ByAnimalFiles.task}.json"
         ```
     """
 
-    TASK_LOGIC = "task_logic"
+    TASK = "task"
     TRAINER_STATE = "trainer_state"

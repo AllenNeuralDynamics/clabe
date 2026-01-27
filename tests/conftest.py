@@ -54,16 +54,16 @@ def mock_session():
 
 @pytest.fixture
 def mock_rig():
-    return Rig(rig_name="mock_rig", version="0.0.0", data_directory="mock_data_dir")
+    return Rig(rig_name="mock_rig", version="0.0.0", data_directory="mock_data_dir", computer_name="mock_computer")
 
 
 @pytest.fixture
-def mock_task_logic():
-    return Task(version="0.0.0", task_parameters={}, name="mock_task_logic")
+def mock_task():
+    return Task(version="0.0.0", task_parameters={}, name="mock_task")
 
 
 @pytest.fixture
-def mock_base_launcher(mock_rig, mock_session, mock_task_logic, mock_ui_helper, tmp_path: Path):
+def mock_base_launcher(mock_rig, mock_session, mock_task, mock_ui_helper, tmp_path: Path):
     os.environ["COMPUTERNAME"] = "TEST_COMPUTER"
     launcher_args = LauncherCliArgs()
     # Ensure directories exist for os.chdir
