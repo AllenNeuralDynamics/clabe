@@ -14,7 +14,7 @@ from aind_behavior_curriculum import TrainerState
 from pydantic import BaseModel, SecretStr, computed_field, field_validator
 
 from .. import ui
-from .._typing import TTaskLogic
+from .._typing import TTask
 from ..launcher import Launcher
 from ..services import ServiceSettings
 from ..utils.aind_auth import validate_aind_username
@@ -519,7 +519,7 @@ class DataversePicker(DefaultBehaviorPicker):
         )
         self._dataverse_suggestion: Optional[DataverseSuggestion] = None
 
-    def pick_trainer_state(self, task_logic_model: Type[TTaskLogic]) -> tuple[TrainerState, TTaskLogic]:
+    def pick_trainer_state(self, task_logic_model: Type[TTask]) -> tuple[TrainerState, TTask]:
         """
         Prompts the user to select or create a trainer state configuration.
 

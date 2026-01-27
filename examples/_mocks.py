@@ -5,9 +5,9 @@ from typing import Any, Dict, Literal, Optional, Union
 
 import git
 from aind_behavior_curriculum import Stage, TrainerState
-from aind_behavior_services.rig import AindBehaviorRigModel
-from aind_behavior_services.session import AindBehaviorSessionModel
-from aind_behavior_services.task_logic import AindBehaviorTaskLogicModel
+from aind_behavior_services.rig import Rig
+from aind_behavior_services.session import Session
+from aind_behavior_services.task import Task
 from pydantic import Field
 
 from clabe.data_mapper import DataMapper
@@ -19,12 +19,12 @@ LIB_CONFIG = rf"local\AindBehavior.db\{TASK_NAME}"
 
 
 ### Task-specific definitions
-class RigModel(AindBehaviorRigModel):
+class RigModel(Rig):
     rig_name: str = Field(default="TestRig", description="Rig name")
     version: Literal["0.0.0"] = "0.0.0"
 
 
-class TaskLogicModel(AindBehaviorTaskLogicModel):
+class MockTask(Task):
     version: Literal["0.0.0"] = "0.0.0"
     name: Literal[TASK_NAME] = TASK_NAME
 
@@ -32,7 +32,7 @@ class TaskLogicModel(AindBehaviorTaskLogicModel):
 mock_trainer_state = TrainerState[Any](
     curriculum=None,
     is_on_curriculum=False,
-    stage=Stage(name="TestStage", task=TaskLogicModel(name=TASK_NAME, task_parameters={"foo": "bar"})),
+    stage=Stage(name="TestStage", task=MockTask(name=TASK_NAME, task_parameters={"foo": "bar"})),
 )
 
 
@@ -55,8 +55,8 @@ class DemoAindDataSchemaSessionDataMapper(DataMapper[MockAindDataSchemaSession])
     def __init__(
         self,
         rig_model: RigModel,
-        session_model: AindBehaviorSessionModel,
-        task_logic_model: TaskLogicModel,
+        session_model: Session,
+        task_logic_model: MockTask,
         repository: Union[os.PathLike, git.Repo],
         script_path: os.PathLike,
         session_end_time: Optional[datetime.datetime] = None,
@@ -88,7 +88,7 @@ def create_fake_subjects():
     for subject in subjects:
         os.makedirs(f"{LIB_CONFIG}/Subjects/{subject}", exist_ok=True)
         with open(f"{LIB_CONFIG}/Subjects/{subject}/task_logic.json", "w", encoding="utf-8") as f:
-            f.write(TaskLogicModel(task_parameters={"subject": subject}).model_dump_json(indent=2))
+            f.write(MockTask(task_parameters={"subject": subject}).model_dump_json(indent=2))
         with open(f"{LIB_CONFIG}/Subjects/{subject}/trainer_state.json", "w", encoding="utf-8") as f:
             f.write(mock_trainer_state.model_dump_json(indent=2))
 
@@ -97,4 +97,4 @@ def create_fake_rig():
     computer_name = os.getenv("COMPUTERNAME")
     os.makedirs(_dir := f"{LIB_CONFIG}/Rig/{computer_name}", exist_ok=True)
     with open(f"{_dir}/rig1.json", "w", encoding="utf-8") as f:
-        f.write(RigModel(data_directory=r"./local/data").model_dump_json(indent=2))
+        f.write(RigModel(data_directory=r"./local/data", computer_name="mock_pc").model_dump_json(indent=2))

@@ -3,9 +3,9 @@ from pathlib import Path
 
 from _mocks import (
     LIB_CONFIG,
-    AindBehaviorSessionModel,
+    MockTask,
     RigModel,
-    TaskLogicModel,
+    Session,
     create_fake_rig,
     create_fake_subjects,
 )
@@ -29,10 +29,10 @@ async def client_experiment(launcher: Launcher) -> None:
         experimenter_validator=lambda _: True,
     )
 
-    session = picker.pick_session(AindBehaviorSessionModel)
+    session = picker.pick_session(Session)
     rig = picker.pick_rig(RigModel)
     launcher.register_session(session, rig.data_directory)
-    trainer_state, task_logic = picker.pick_trainer_state(TaskLogicModel)
+    trainer_state, task_logic = picker.pick_trainer_state(MockTask)
 
     resource_monitor.ResourceMonitor(
         constrains=[

@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 import pydantic
-from aind_behavior_services import AindBehaviorRigModel, AindBehaviorSessionModel, AindBehaviorTaskLogicModel
+from aind_behavior_services import Rig, Session, Task
 
 from ..constants import TMP_DIR
 from ._base import Command, CommandResult, ExecutableApp, identity_parser
@@ -186,9 +186,9 @@ class AindBehaviorServicesBonsaiApp(BonsaiApp):
         workflow: os.PathLike,
         *,
         temp_directory: Optional[os.PathLike] = None,
-        rig: Optional[AindBehaviorRigModel] = None,
-        session: Optional[AindBehaviorSessionModel] = None,
-        task_logic: Optional[AindBehaviorTaskLogicModel] = None,
+        rig: Optional[Rig] = None,
+        session: Optional[Session] = None,
+        task_logic: Optional[Task] = None,
         **kwargs,
     ) -> None:
         """
@@ -212,15 +212,15 @@ class AindBehaviorServicesBonsaiApp(BonsaiApp):
         Example:
             ```python
             from aind_behavior_services import (
-                AindBehaviorRigModel,
-                AindBehaviorSessionModel,
-                AindBehaviorTaskLogicModel
+                Rig,
+                Session,
+                Task
             )
 
             # Create models
-            rig = AindBehaviorRigModel(...)
-            session = AindBehaviorSessionModel(...)
-            task_logic = AindBehaviorTaskLogicModel(...)
+            rig = Rig(...)
+            session = Session(...)
+            task_logic = Task(...)
 
             # Create app with automatic configuration
             app = AindBehaviorServicesBonsaiApp(

@@ -6,11 +6,11 @@ from typing import Callable, ClassVar, List, Optional, Type, TypeVar, Union
 
 import pydantic
 from aind_behavior_curriculum import TrainerState
-from aind_behavior_services import AindBehaviorRigModel, AindBehaviorSessionModel, AindBehaviorTaskLogicModel
+from aind_behavior_services import Rig, Session, Task
 from aind_behavior_services.utils import model_from_json_file
 
 from .. import ui
-from .._typing import TRig, TSession, TTaskLogic
+from .._typing import TRig, TSession, TTask
 from ..cache_manager import CacheManager
 from ..constants import ByAnimalFiles
 from ..launcher import Launcher
@@ -89,7 +89,7 @@ class DefaultBehaviorPicker:
         self._ensure_directories()
         self._experimenter_validator = experimenter_validator
         self._trainer_state: Optional[TrainerState] = None
-        self._session: Optional[AindBehaviorSessionModel] = None
+        self._session: Optional[Session] = None
         self._cache_manager = CacheManager.get_instance()
         self._use_cache = use_cache
 
@@ -129,7 +129,7 @@ class DefaultBehaviorPicker:
         return self._launcher.session_directory
 
     @property
-    def session(self) -> AindBehaviorSessionModel:
+    def session(self) -> Session:
         """Returns the current session model."""
         return self._launcher.session
 
@@ -258,7 +258,7 @@ class DefaultBehaviorPicker:
             logger.info("Invalid choice. Try again. %s", e)
         return None
 
-    def pick_session(self, model: Type[TSession] = AindBehaviorSessionModel) -> TSession:
+    def pick_session(self, model: Type[TSession] = Session) -> TSession:
         """
         Prompts the user to select or create a session configuration.
 
@@ -266,7 +266,7 @@ class DefaultBehaviorPicker:
         to create a new session configuration with appropriate metadata.
 
         Args:
-            model: The session model type to instantiate. Defaults to AindBehaviorSessionModel
+            model: The session model type to instantiate. Defaults to Session
 
         Returns:
             TSession: The created or selected session configuration
@@ -291,7 +291,7 @@ class DefaultBehaviorPicker:
         self._session = session
         return session
 
-    def pick_task_logic(self, model: Type[TTaskLogic]) -> TTaskLogic:
+    def pick_task_logic(self, model: Type[TTask]) -> TTask:
         """
         Prompts the user to select or create a task logic configuration.
 
@@ -304,12 +304,12 @@ class DefaultBehaviorPicker:
             model: The task logic model type to validate against
 
         Returns:
-            TTaskLogic: The created or selected task logic configuration
+            TTask: The created or selected task logic configuration
 
         Raises:
             ValueError: If no valid task logic file is found
         """
-        task_logic: Optional[TTaskLogic] = None
+        task_logic: Optional[TTask] = None
         if self._session is None:
             raise ValueError("Session must be picked (pick_session) before picking task logic.")
 
@@ -357,7 +357,7 @@ class DefaultBehaviorPicker:
 
         return task_logic
 
-    def pick_trainer_state(self, task_logic_model: Type[TTaskLogic]) -> tuple[TrainerState, TTaskLogic]:
+    def pick_trainer_state(self, task_logic_model: Type[TTask]) -> tuple[TrainerState, TTask]:
         """
         Prompts the user to select or create a trainer state configuration.
 
@@ -371,7 +371,7 @@ class DefaultBehaviorPicker:
             task_logic_model: The task logic model type to validate against
 
         Returns:
-            tuple[TrainerState, TTaskLogic]: The deserialized TrainerState object and validated task logic
+            tuple[TrainerState, TTask]: The deserialized TrainerState object and validated task logic
 
         Raises:
             ValueError: If no valid task logic file is found or session is not set
@@ -496,7 +496,7 @@ class DefaultBehaviorPicker:
 
     def dump_model(
         self,
-        model: Union[AindBehaviorRigModel, AindBehaviorTaskLogicModel, TrainerState],
+        model: Union[Rig, Task, TrainerState],
     ) -> Optional[Path]:
         """
         Saves the provided model to the appropriate configuration file.
@@ -509,9 +509,9 @@ class DefaultBehaviorPicker:
         """
 
         path: Path
-        if isinstance(model, AindBehaviorRigModel):
+        if isinstance(model, Rig):
             path = self.rig_dir / ("rig.json")
-        elif isinstance(model, AindBehaviorTaskLogicModel):
+        elif isinstance(model, Task):
             if self._session is None:
                 raise ValueError("Session must be picked (pick_session) before dumping task logic.")
             path = Path(self.subject_dir) / self._session.subject / (ByAnimalFiles.TASK_LOGIC.value + ".json")

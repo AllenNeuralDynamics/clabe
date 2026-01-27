@@ -4,7 +4,6 @@ import os
 from pathlib import Path
 from typing import TypeVar
 
-import aind_behavior_services.utils as utils
 import rich.logging
 import rich.style
 
@@ -103,8 +102,10 @@ class _TzFormatter(logging.Formatter):
         Returns:
             str: A string representation of the formatted time
         """
+        from aind_behavior_services.utils import format_datetime
+
         record_time = datetime.datetime.fromtimestamp(record.created, tz=self._tz)
-        return utils.format_datetime(record_time)
+        return format_datetime(record_time)
 
 
 utc_formatter = _TzFormatter(log_fmt, tz=datetime.timezone.utc)
