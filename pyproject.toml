@@ -26,7 +26,7 @@ dependencies = [
     "requests",
     "semver",
     "rich",
-    "aind_behavior_services >= 0.13rc0",
+    "aind_behavior_services@git+https://github.com/AllenNeuralDynamics/Aind.Behavior.Services@refactor-class-names",
     "questionary",
 ]
 

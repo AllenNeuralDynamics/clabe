@@ -11,7 +11,7 @@ import aind_data_transfer_service.models.core
 import pydantic
 import requests
 import yaml
-from aind_behavior_services import AindBehaviorSessionModel
+from aind_behavior_services import Session
 from aind_watchdog_service.models import (
     ManifestConfig,
 )
@@ -76,7 +76,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         self,
         source: PathLike | list[PathLike],
         settings: WatchdogSettings,
-        session: AindBehaviorSessionModel,
+        session: Session,
         *,
         validate: bool = True,
         email_from_experimenter_builder: Optional[
@@ -210,7 +210,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         project_names = self._get_project_names()
         return self._settings.project_name in project_names
 
-    def _create_manifest_from_session(self, session: AindBehaviorSessionModel) -> ManifestConfig:
+    def _create_manifest_from_session(self, session: Session) -> ManifestConfig:
         """
         Creates a ManifestConfig from an aind-behavior-services session.
 

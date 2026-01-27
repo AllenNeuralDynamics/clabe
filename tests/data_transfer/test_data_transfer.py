@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-from aind_behavior_services import AindBehaviorSessionModel
+from aind_behavior_services import Session
 from aind_data_transfer_service.models.core import Task
 from requests.exceptions import HTTPError
 
@@ -60,7 +60,7 @@ def settings():
 
 @pytest.fixture
 def mock_session():
-    return AindBehaviorSessionModel(
+    return Session(
         experiment="mock",
         subject="007",
         session_name="mock_session",
@@ -420,9 +420,7 @@ class TestWatchdogDataTransferService:
     def test_is_valid_project_name_invalid(self, mock_get_project_names, watchdog_service):
         assert not watchdog_service.is_valid_project_name()
 
-    def test_remote_destination_root(
-        self, watchdog_service: WatchdogDataTransferService, mock_session: AindBehaviorSessionModel
-    ):
+    def test_remote_destination_root(self, watchdog_service: WatchdogDataTransferService, mock_session: Session):
         manifest = watchdog_service._create_manifest_from_session(mock_session)
         root = watchdog_service._remote_destination_root(manifest)
         assert manifest.name is not None
@@ -437,9 +435,7 @@ class TestWatchdogDataTransferService:
         schemas = watchdog_service._find_schema_candidates(source)
         assert any(p.name == "schema.json" for p in schemas)
 
-    def test_interpolate_from_manifest(
-        self, watchdog_service: WatchdogDataTransferService, mock_session: AindBehaviorSessionModel
-    ):
+    def test_interpolate_from_manifest(self, watchdog_service: WatchdogDataTransferService, mock_session: Session):
         watchdog_service._create_manifest_from_session(mock_session)
         tasks = {"custom": Task(job_settings={"input_source": "{{ destination }}/extra"})}
         interpolated = watchdog_service._interpolate_from_manifest(tasks, "replacement/value", "{{ destination }}")
@@ -449,7 +445,7 @@ class TestWatchdogDataTransferService:
     def test_yaml_dump_and_write_read_yaml(
         self,
         watchdog_service: WatchdogDataTransferService,
-        mock_session: AindBehaviorSessionModel,
+        mock_session: Session,
         tmp_path: Path,
     ):
         manifest = watchdog_service._create_manifest_from_session(mock_session)

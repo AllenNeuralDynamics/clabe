@@ -6,16 +6,14 @@ from pathlib import Path
 from typing import Dict, List, Union
 
 import pydantic
-from aind_behavior_services import AindBehaviorRigModel
+from aind_behavior_services import Rig
 from aind_behavior_services.rig.cameras import CameraController, CameraTypes
 from aind_behavior_services.utils import get_fields_of_type
 
 logger = logging.getLogger(__name__)
 
 
-def get_cameras(
-    rig_instance: AindBehaviorRigModel, exclude_without_video_writer: bool = True
-) -> Dict[str, CameraTypes]:
+def get_cameras(rig_instance: Rig, exclude_without_video_writer: bool = True) -> Dict[str, CameraTypes]:
     """
     Retrieves cameras from a rig instance.
 

@@ -4,12 +4,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from aind_behavior_services import AindBehaviorRigModel
+    from aind_behavior_services import Rig
 
 from ._base import Constraint
 
 
-def available_storage_constraint_factory_from_rig(rig: "AindBehaviorRigModel", min_bytes: float = 2e11) -> Constraint:
+def available_storage_constraint_factory_from_rig(rig: "Rig", min_bytes: float = 2e11) -> Constraint:
     """
     Creates a constraint to check if the rig's data directory has sufficient available storage.
 
@@ -23,9 +23,9 @@ def available_storage_constraint_factory_from_rig(rig: "AindBehaviorRigModel", m
         Constraint: A constraint object for available storage validation
     Example:
         ```python
-        from aind_behavior_services import AindBehaviorRigModel
+        from aind_behavior_services import Rig
         from clabe.resource_monitor import available_storage_constraint_factory_from_rig
-        rig = AindBehaviorRigModel(rig_name="example_rig", version="1.0", data_directory="D:/data")
+        rig = Rig(rig_name="example_rig", version="1.0", data_directory="D:/data")
         storage_constraint = available_storage_constraint_factory_from_rig(rig, min_bytes=5e11)  # 500GB
         monitor = ResourceMonitor()
         monitor.add_constraint(storage_constraint)
