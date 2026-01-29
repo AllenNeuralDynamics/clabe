@@ -10,9 +10,7 @@ from typing import Awaitable, Callable, Optional, Self, TypeVar, Union
 
 import git.exc
 import pydantic
-from aind_behavior_services import (
-    AindBehaviorSessionModel,
-)
+from aind_behavior_services import Session
 
 from .. import __version__, logging_helper
 from ..constants import TMP_DIR
@@ -90,7 +88,7 @@ class Launcher:
 
         self._logger = _logger
 
-        self._session: Optional[AindBehaviorSessionModel] = None
+        self._session: Optional[Session] = None
         self._has_copied_logs = False
 
     @property
@@ -119,7 +117,7 @@ class Launcher:
         else:
             return Path(self.data_directory) / (session.session_name if session.session_name is not None else "")
 
-    def register_session(self, session: AindBehaviorSessionModel, data_directory: os.PathLike) -> Self:
+    def register_session(self, session: Session, data_directory: os.PathLike) -> Self:
         """
         Registers the session model with the launcher and creates the session
         data directory structure.
@@ -144,12 +142,12 @@ class Launcher:
         return self
 
     @property
-    def session(self) -> AindBehaviorSessionModel:
+    def session(self) -> Session:
         """
         Returns the registered session model.
 
         Returns:
-            AindBehaviorSessionModel: The session model
+            Session: The session model
 
         Raises:
             ValueError: If session is not set

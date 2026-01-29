@@ -14,7 +14,7 @@ from aind_behavior_curriculum import TrainerState
 from pydantic import BaseModel, SecretStr, computed_field, field_validator
 
 from .. import ui
-from .._typing import TTaskLogic
+from .._typing import TTask
 from ..launcher import Launcher
 from ..services import ServiceSettings
 from ..utils.aind_auth import validate_aind_username
@@ -519,30 +519,30 @@ class DataversePicker(DefaultBehaviorPicker):
         )
         self._dataverse_suggestion: Optional[DataverseSuggestion] = None
 
-    def pick_trainer_state(self, task_logic_model: Type[TTaskLogic]) -> tuple[TrainerState, TTaskLogic]:
+    def pick_trainer_state(self, task_model: Type[TTask]) -> tuple[TrainerState, TTask]:
         """
         Prompts the user to select or create a trainer state configuration.
 
         Attempts to load trainer state in the following order:
-        1. If task_logic already exists in launcher, will return an empty TrainerState
+        1. If task already exists in launcher, will return an empty TrainerState
         2. From subject-specific folder
 
-        It will launcher.set_task_logic if the deserialized TrainerState is valid.
+        It will launcher.set_task if the deserialized TrainerState is valid.
 
         Returns:
             TrainerState: The deserialized TrainerState object.
 
         Raises:
-            ValueError: If no valid task logic file is found.
+            ValueError: If no valid task file is found.
         """
         if self._session is None:
             raise ValueError("No session set. Run pick_session first.")
-        task_logic_name = task_logic_model.model_fields["name"].default
-        if not task_logic_name:
-            raise ValueError("Task logic model does not have a default name.")
+        task_name = task_model.model_fields["name"].default
+        if not task_name:
+            raise ValueError("Task model does not have a default name.")
         try:
             logger.debug("Attempting to load trainer state dataverse")
-            last_suggestions = _get_last_suggestions(self._dataverse_client, self._session.subject, task_logic_name, 1)
+            last_suggestions = _get_last_suggestions(self._dataverse_client, self._session.subject, task_name, 1)
         except requests.exceptions.HTTPError as e:
             logger.error("Failed to fetch suggestions from Dataverse: %s", e)
             raise
@@ -551,7 +551,7 @@ class DataversePicker(DefaultBehaviorPicker):
             raise
         if len(last_suggestions) == 0:
             raise ValueError(
-                f"No valid suggestions found in Dataverse for subject {self._session.subject} with task {task_logic_name}."
+                f"No valid suggestions found in Dataverse for subject {self._session.subject} with task {task_name}."
             )
 
         _dataverse_suggestion = last_suggestions[0]
@@ -569,7 +569,7 @@ class DataversePicker(DefaultBehaviorPicker):
             logging.warning("Deserialized TrainerState is NOT on curriculum.")
         return (
             self.trainer_state,
-            task_logic_model.model_validate_json(self.trainer_state.stage.task.model_dump_json()),
+            task_model.model_validate_json(self.trainer_state.stage.task.model_dump_json()),
         )
 
     def push_new_suggestion(self, trainer_state: TrainerState) -> None:

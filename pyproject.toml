@@ -26,8 +26,8 @@ dependencies = [
     "requests",
     "semver",
     "rich",
-    "aind_behavior_services >= 0.13rc0",
     "questionary",
+    "aind_behavior_services>=0.13.0",
 ]
 
 [project.urls]

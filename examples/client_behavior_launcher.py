@@ -3,9 +3,9 @@ from pathlib import Path
 
 from _mocks import (
     LIB_CONFIG,
-    AindBehaviorSessionModel,
+    MockTask,
     RigModel,
-    TaskLogicModel,
+    Session,
     create_fake_rig,
     create_fake_subjects,
 )
@@ -29,10 +29,10 @@ async def client_experiment(launcher: Launcher) -> None:
         experimenter_validator=lambda _: True,
     )
 
-    session = picker.pick_session(AindBehaviorSessionModel)
+    session = picker.pick_session(Session)
     rig = picker.pick_rig(RigModel)
     launcher.register_session(session, rig.data_directory)
-    trainer_state, task_logic = picker.pick_trainer_state(TaskLogicModel)
+    trainer_state, task = picker.pick_trainer_state(MockTask)
 
     resource_monitor.ResourceMonitor(
         constrains=[
@@ -45,10 +45,10 @@ async def client_experiment(launcher: Launcher) -> None:
     bonsai_root = Path(r"C:\git\AllenNeuralDynamics\Aind.Behavior.VrForaging")
     session_response = xml_rpc_client.upload_model(session, "session.json")
     rig_response = xml_rpc_client.upload_model(rig, "rig.json")
-    task_logic_response = xml_rpc_client.upload_model(task_logic, "task_logic.json")
+    task_response = xml_rpc_client.upload_model(task, "task.json")
     assert rig_response.path is not None
     assert session_response.path is not None
-    assert task_logic_response.path is not None
+    assert task_response.path is not None
 
     bonsai_app_result = await xml_rpc_client.run_async(
         BonsaiApp(
@@ -57,7 +57,7 @@ async def client_experiment(launcher: Launcher) -> None:
             additional_externalized_properties={
                 "RigPath": rig_response.path,
                 "SessionPath": session_response.path,
-                "TaskLogicPath": task_logic_response.path,
+                "TaskPath": task_response.path,
             },
         ).command
     )

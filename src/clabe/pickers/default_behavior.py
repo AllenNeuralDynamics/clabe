@@ -6,11 +6,11 @@ from typing import Callable, ClassVar, List, Optional, Type, TypeVar, Union
 
 import pydantic
 from aind_behavior_curriculum import TrainerState
-from aind_behavior_services import AindBehaviorRigModel, AindBehaviorSessionModel, AindBehaviorTaskLogicModel
+from aind_behavior_services import Rig, Session, Task
 from aind_behavior_services.utils import model_from_json_file
 
 from .. import ui
-from .._typing import TRig, TSession, TTaskLogic
+from .._typing import TRig, TSession, TTask
 from ..cache_manager import CacheManager
 from ..constants import ByAnimalFiles
 from ..launcher import Launcher
@@ -37,7 +37,7 @@ class DefaultBehaviorPickerSettings(ServiceSettings):
 
 class DefaultBehaviorPicker:
     """
-    A picker class for selecting rig, session, and task logic configurations.
+    A picker class for selecting rig, session, and task configurations.
 
     Provides methods to initialize directories, pick configurations, and prompt user
     inputs for various components of the experiment setup. Manages the configuration
@@ -49,12 +49,12 @@ class DefaultBehaviorPicker:
         config_library_dir: Path to the configuration library directory
         rig_dir: Path to the rig configurations directory
         subject_dir: Path to the subject configurations directory
-        task_logic_dir: Path to the task logic configurations directory
+        task_dir: Path to the task configurations directory
 
     Methods:
         pick_rig: Picks the rig configuration
         pick_session: Picks the session configuration
-        pick_task_logic: Picks the task logic configuration
+        pick_task: Picks the task configuration
         pick_trainer_state: Picks the trainer state configuration
         choose_subject: Allows the user to choose a subject
         prompt_experimenter: Prompts for experimenter information
@@ -63,7 +63,7 @@ class DefaultBehaviorPicker:
 
     RIG_SUFFIX: str = "Rig"
     SUBJECT_SUFFIX: str = "Subjects"
-    TASK_LOGIC_SUFFIX: str = "TaskLogic"
+    TASK_SUFFIX: str = "Task"
 
     def __init__(
         self,
@@ -89,7 +89,7 @@ class DefaultBehaviorPicker:
         self._ensure_directories()
         self._experimenter_validator = experimenter_validator
         self._trainer_state: Optional[TrainerState] = None
-        self._session: Optional[AindBehaviorSessionModel] = None
+        self._session: Optional[Session] = None
         self._cache_manager = CacheManager.get_instance()
         self._use_cache = use_cache
 
@@ -129,7 +129,7 @@ class DefaultBehaviorPicker:
         return self._launcher.session_directory
 
     @property
-    def session(self) -> AindBehaviorSessionModel:
+    def session(self) -> Session:
         """Returns the current session model."""
         return self._launcher.session
 
@@ -164,24 +164,24 @@ class DefaultBehaviorPicker:
         return Path(os.path.join(self.config_library_dir, self.SUBJECT_SUFFIX))
 
     @property
-    def task_logic_dir(self) -> Path:
+    def task_dir(self) -> Path:
         """
-        Returns the path to the task logic configuration directory.
+        Returns the path to the task configuration directory.
 
         Returns:
-            Path: The task logic configuration directory
+            Path: The task configuration directory
         """
-        return Path(os.path.join(self.config_library_dir, self.TASK_LOGIC_SUFFIX))
+        return Path(os.path.join(self.config_library_dir, self.TASK_SUFFIX))
 
     def _ensure_directories(self) -> None:
         """
         Ensures the required directories for configuration files exist.
 
         Creates the configuration library directory and all required subdirectories
-        for storing rig, task logic, and subject configurations.
+        for storing rig, task, and subject configurations.
         """
         self._launcher.create_directory(self.config_library_dir)
-        self._launcher.create_directory(self.task_logic_dir)
+        self._launcher.create_directory(self.task_dir)
         self._launcher.create_directory(self.rig_dir)
         self._launcher.create_directory(self.subject_dir)
 
@@ -258,7 +258,7 @@ class DefaultBehaviorPicker:
             logger.info("Invalid choice. Try again. %s", e)
         return None
 
-    def pick_session(self, model: Type[TSession] = AindBehaviorSessionModel) -> TSession:
+    def pick_session(self, model: Type[TSession] = Session) -> TSession:
         """
         Prompts the user to select or create a session configuration.
 
@@ -266,7 +266,7 @@ class DefaultBehaviorPicker:
         to create a new session configuration with appropriate metadata.
 
         Args:
-            model: The session model type to instantiate. Defaults to AindBehaviorSessionModel
+            model: The session model type to instantiate. Defaults to Session
 
         Returns:
             TSession: The created or selected session configuration
@@ -291,90 +291,90 @@ class DefaultBehaviorPicker:
         self._session = session
         return session
 
-    def pick_task_logic(self, model: Type[TTaskLogic]) -> TTaskLogic:
+    def pick_task(self, model: Type[TTask]) -> TTask:
         """
-        Prompts the user to select or create a task logic configuration.
+        Prompts the user to select or create a task configuration.
 
-        Attempts to load task logic in the following order:
+        Attempts to load task in the following order:
         1. From CLI if already set
         2. From subject-specific folder
-        3. From user selection in task logic library
+        3. From user selection in task library
 
         Args:
-            model: The task logic model type to validate against
+            model: The task model type to validate against
 
         Returns:
-            TTaskLogic: The created or selected task logic configuration
+            TTask: The created or selected task configuration
 
         Raises:
-            ValueError: If no valid task logic file is found
+            ValueError: If no valid task file is found
         """
-        task_logic: Optional[TTaskLogic] = None
+        task: Optional[TTask] = None
         if self._session is None:
-            raise ValueError("Session must be picked (pick_session) before picking task logic.")
+            raise ValueError("Session must be picked (pick_session) before picking task.")
 
         try:
-            f = self.subject_dir / self._session.subject / (ByAnimalFiles.TASK_LOGIC.value + ".json")
-            logger.info("Attempting to load task logic from subject folder: %s", f)
-            task_logic = model_from_json_file(f, model)
+            f = self.subject_dir / self._session.subject / (ByAnimalFiles.TASK.value + ".json")
+            logger.info("Attempting to load task from subject folder: %s", f)
+            task = model_from_json_file(f, model)
         except (ValueError, FileNotFoundError, pydantic.ValidationError) as e:
-            logger.warning("Failed to find a valid task logic file. %s", e)
+            logger.warning("Failed to find a valid task file. %s", e)
         else:
-            logger.info("Found a valid task logic file in subject folder!")
-            _is_manual = not self.ui_helper.prompt_yes_no_question("Would you like to use this task logic?")
+            logger.info("Found a valid task file in subject folder!")
+            _is_manual = not self.ui_helper.prompt_yes_no_question("Would you like to use this task?")
             if not _is_manual:
-                if task_logic is not None:
-                    return task_logic
+                if task is not None:
+                    return task
                 else:
-                    logger.error("No valid task logic file found in subject folder.")
-                    raise ValueError("No valid task logic file found.")
+                    logger.error("No valid task file found in subject folder.")
+                    raise ValueError("No valid task file found.")
             else:
-                task_logic = None
+                task = None
 
-        # If not found, we prompt the user to choose/enter a task logic file
-        while task_logic is None:
+        # If not found, we prompt the user to choose/enter a task file
+        while task is None:
             try:
-                _path = Path(os.path.join(self.config_library_dir, self.task_logic_dir))
+                _path = Path(os.path.join(self.config_library_dir, self.task_dir))
                 available_files = glob.glob(os.path.join(_path, "*.json"))
                 if len(available_files) == 0:
                     break
                 path = self.ui_helper.prompt_pick_from_list(
-                    available_files, prompt=f"Choose a task logic for {model.__name__}:"
+                    available_files, prompt=f"Choose a task for {model.__name__}:"
                 )
                 if not isinstance(path, str):
                     raise ValueError("Invalid choice.")
                 if not os.path.isfile(path):
                     raise FileNotFoundError(f"File not found: {path}")
-                task_logic = model_from_json_file(path, model)
+                task = model_from_json_file(path, model)
                 logger.info("User entered: %s.", path)
             except pydantic.ValidationError as e:
                 logger.error("Failed to validate pydantic model. Try again. %s", e)
             except (ValueError, FileNotFoundError) as e:
                 logger.info("Invalid choice. Try again. %s", e)
-        if task_logic is None:
-            logger.error("No task logic file found.")
-            raise ValueError("No task logic file found.")
+        if task is None:
+            logger.error("No task file found.")
+            raise ValueError("No task file found.")
 
-        return task_logic
+        return task
 
-    def pick_trainer_state(self, task_logic_model: Type[TTaskLogic]) -> tuple[TrainerState, TTaskLogic]:
+    def pick_trainer_state(self, task_model: Type[TTask]) -> tuple[TrainerState, TTask]:
         """
         Prompts the user to select or create a trainer state configuration.
 
         Attempts to load trainer state in the following order:
-        1. If task_logic already exists in launcher, will return an empty TrainerState
+        1. If task already exists in launcher, will return an empty TrainerState
         2. From subject-specific folder
 
-        It will launcher.set_task_logic if the deserialized TrainerState is valid.
+        It will launcher.set_task if the deserialized TrainerState is valid.
 
         Args:
-            task_logic_model: The task logic model type to validate against
+            task_model: The task model type to validate against
 
         Returns:
-            tuple[TrainerState, TTaskLogic]: The deserialized TrainerState object and validated task logic
+            tuple[TrainerState, TTask]: The deserialized TrainerState object and validated task
 
         Raises:
-            ValueError: If no valid task logic file is found or session is not set
+            ValueError: If no valid task file is found or session is not set
         """
 
         if self._session is None:
@@ -386,7 +386,7 @@ class DefaultBehaviorPicker:
             if trainer_state.stage is None:
                 raise ValueError("Trainer state stage is None, cannot use this trainer state.")
         except (ValueError, FileNotFoundError, pydantic.ValidationError) as e:
-            logger.error("Failed to find a valid task logic file. %s", e)
+            logger.error("Failed to find a valid task file. %s", e)
             raise
         else:
             self._trainer_state = trainer_state
@@ -397,7 +397,7 @@ class DefaultBehaviorPicker:
         assert self._trainer_state.stage is not None
         return (
             self.trainer_state,
-            task_logic_model.model_validate_json(self.trainer_state.stage.task.model_dump_json()),
+            task_model.model_validate_json(self.trainer_state.stage.task.model_dump_json()),
         )
 
     def choose_subject(self, directory: str | os.PathLike) -> str:
@@ -496,7 +496,7 @@ class DefaultBehaviorPicker:
 
     def dump_model(
         self,
-        model: Union[AindBehaviorRigModel, AindBehaviorTaskLogicModel, TrainerState],
+        model: Union[Rig, Task, TrainerState],
     ) -> Optional[Path]:
         """
         Saves the provided model to the appropriate configuration file.
@@ -509,12 +509,12 @@ class DefaultBehaviorPicker:
         """
 
         path: Path
-        if isinstance(model, AindBehaviorRigModel):
+        if isinstance(model, Rig):
             path = self.rig_dir / ("rig.json")
-        elif isinstance(model, AindBehaviorTaskLogicModel):
+        elif isinstance(model, Task):
             if self._session is None:
-                raise ValueError("Session must be picked (pick_session) before dumping task logic.")
-            path = Path(self.subject_dir) / self._session.subject / (ByAnimalFiles.TASK_LOGIC.value + ".json")
+                raise ValueError("Session must be picked (pick_session) before dumping task.")
+            path = Path(self.subject_dir) / self._session.subject / (ByAnimalFiles.TASK.value + ".json")
         elif isinstance(model, TrainerState):
             if self._session is None:
                 raise ValueError("Session must be picked (pick_session) before dumping trainer state.")

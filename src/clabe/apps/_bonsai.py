@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 import pydantic
-from aind_behavior_services import AindBehaviorRigModel, AindBehaviorSessionModel, AindBehaviorTaskLogicModel
+from aind_behavior_services import Rig, Session, Task
 
 from ..constants import TMP_DIR
 from ._base import Command, CommandResult, ExecutableApp, identity_parser
@@ -170,7 +170,7 @@ class AindBehaviorServicesBonsaiApp(BonsaiApp):
     Specialized Bonsai application for AIND behavior services integration.
 
     This class extends the base BonsaiApp to provide specific functionality for
-    AIND behavior experiments, including automatic configuration of task logic,
+    AIND behavior experiments, including automatic configuration of task,
     session, and rig paths for the Bonsai workflow.
 
     Example:
@@ -186,15 +186,15 @@ class AindBehaviorServicesBonsaiApp(BonsaiApp):
         workflow: os.PathLike,
         *,
         temp_directory: Optional[os.PathLike] = None,
-        rig: Optional[AindBehaviorRigModel] = None,
-        session: Optional[AindBehaviorSessionModel] = None,
-        task_logic: Optional[AindBehaviorTaskLogicModel] = None,
+        rig: Optional[Rig] = None,
+        session: Optional[Session] = None,
+        task: Optional[Task] = None,
         **kwargs,
     ) -> None:
         """
         Initializes the AIND behavior services Bonsai app with automatic model configuration.
 
-        Automatically configures RigPath, SessionPath, and TaskLogicPath properties
+        Automatically configures RigPath, SessionPath, and TaskPath properties
         for the Bonsai workflow by saving provided models to temporary files and
         passing their paths as externalized properties.
 
@@ -204,7 +204,7 @@ class AindBehaviorServicesBonsaiApp(BonsaiApp):
             launcher: The launcher instance for saving temporary models
             rig: Optional rig model to configure. Defaults to None
             session: Optional session model to configure. Defaults to None
-            task_logic: Optional task logic model to configure. Defaults to None
+            task: Optional task model to configure. Defaults to None
             **kwargs: Additional keyword arguments passed to BonsaiApp (executable,
                 is_editor_mode, is_start_flag, additional_properties, cwd, timeout,
                 additional_externalized_properties)
@@ -212,15 +212,15 @@ class AindBehaviorServicesBonsaiApp(BonsaiApp):
         Example:
             ```python
             from aind_behavior_services import (
-                AindBehaviorRigModel,
-                AindBehaviorSessionModel,
-                AindBehaviorTaskLogicModel
+                Rig,
+                Session,
+                Task
             )
 
             # Create models
-            rig = AindBehaviorRigModel(...)
-            session = AindBehaviorSessionModel(...)
-            task_logic = AindBehaviorTaskLogicModel(...)
+            rig = Rig(...)
+            session = Session(...)
+            task = Task(...)
 
             # Create app with automatic configuration
             app = AindBehaviorServicesBonsaiApp(
@@ -228,14 +228,14 @@ class AindBehaviorServicesBonsaiApp(BonsaiApp):
                 launcher=my_launcher,
                 rig=rig,
                 session=session,
-                task_logic=task_logic
+                task=task
             )
             app.run()
 
             # The workflow will receive:
             # -p:"RigPath"="/tmp/rig_temp.json"
             # -p:"SessionPath"="/tmp/session_temp.json"
-            # -p:"TaskLogicPath"="/tmp/task_logic_temp.json"
+            # -p:"TaskPath"="/tmp/task_temp.json"
             ```
         """
         self._temp_directory = Path(temp_directory or TMP_DIR)
@@ -245,10 +245,8 @@ class AindBehaviorServicesBonsaiApp(BonsaiApp):
             additional_externalized_properties["RigPath"] = os.path.abspath(self._save_temp_model(model=rig))
         if session:
             additional_externalized_properties["SessionPath"] = os.path.abspath(self._save_temp_model(model=session))
-        if task_logic:
-            additional_externalized_properties["TaskLogicPath"] = os.path.abspath(
-                self._save_temp_model(model=task_logic)
-            )
+        if task:
+            additional_externalized_properties["TaskPath"] = os.path.abspath(self._save_temp_model(model=task))
         super().__init__(
             workflow=workflow, additional_externalized_properties=additional_externalized_properties, **kwargs
         )
