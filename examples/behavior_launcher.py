@@ -42,8 +42,8 @@ async def demo_experiment(launcher: Launcher) -> None:
         ]
     ).run()
 
-    def fmt(value: str) -> str:
-        return f"python -c \"import time; print('Hello {value}'); time.sleep(2); print('DONE')\""
+    def fmt(value: str) -> list[str]:
+        return ["python", "-c", f"import time; print('Hello {value}'); time.sleep(2); print('DONE')"]
 
     app_1 = PythonScriptApp(script=fmt("Behavior"))
     app_2 = PythonScriptApp(script=fmt("Physiology"))
@@ -79,8 +79,6 @@ def main():
             "--debug-mode",
             "--allow-dirty",
             "--skip-hardware-validation",
-            "--data-directory",
-            "./local",
         ],
     )
 
