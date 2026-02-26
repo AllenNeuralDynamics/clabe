@@ -79,8 +79,6 @@ def main():
             "--debug-mode",
             "--allow-dirty",
             "--skip-hardware-validation",
-            "--data-directory",
-            "./local",
         ],
     )
 
