@@ -17,6 +17,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
 ]
 
 dependencies = [
@@ -41,8 +42,6 @@ aind-services = [
     "requests",
     "pyyaml",
     "pykeepass",
-    "cryptography",
-    "msal; sys_platform == 'win32'",
     "aind-data-schema>=2",
     "aind-data-transfer-service >= 1.22.0",
     "aind-watchdog-service >= 0.1.6",
