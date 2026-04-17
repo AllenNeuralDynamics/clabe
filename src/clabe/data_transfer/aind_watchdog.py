@@ -430,26 +430,25 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
 
     @staticmethod
     def _get_project_names(
-        end_point: str = "http://aind-metadata-service/project_names", timeout: int = 5
+        end_point: str = "http://aind-metadata-service/api/v2/project_names", timeout: int = 5
     ) -> list[str]:
         """
         Fetches the list of valid project names from the metadata service.
 
         Args:
-            end_point: The endpoint URL for the metadata service
-            timeout: Timeout for the request in seconds
+            end_point: The endpoint URL for the metadata service.
+            timeout: Timeout for the request in seconds.
 
         Returns:
-            A list of valid project names
+            A list of valid project names.
 
         Raises:
-            HTTPError: If the request fails
+            HTTPError: If the request fails.
         """
         response = requests.get(end_point, timeout=timeout)
         if response.ok:
-            return json.loads(response.content)["data"]
+            return response.json()
         else:
-            response.raise_for_status()
             raise HTTPError(f"Failed to fetch project names from endpoint. {response.content.decode('utf-8')}")
 
     def is_running(self) -> bool:

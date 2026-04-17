@@ -124,17 +124,18 @@ class TestWatchdogDataTransferService:
     def test_get_project_names(self, mock_get, watchdog_service):
         mock_response = MagicMock()
         mock_response.ok = True
-        mock_response.content = '{"data": ["test_project"]}'
+        mock_response.json.return_value = ["test_project", "other_project"]
         mock_get.return_value = mock_response
         project_names = watchdog_service._get_project_names()
         assert "test_project" in project_names
+        mock_get.assert_called_once_with("http://aind-metadata-service/api/v2/project_names", timeout=5)
 
     @patch("clabe.data_transfer.aind_watchdog.requests.get")
     def test_get_project_names_fail(self, mock_get, watchdog_service):
         mock_response = MagicMock()
         mock_response.ok = False
         mock_get.return_value = mock_response
-        with pytest.raises(Exception):
+        with pytest.raises(HTTPError):
             watchdog_service._get_project_names()
 
     @patch(
