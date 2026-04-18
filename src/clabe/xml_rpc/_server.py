@@ -1,4 +1,5 @@
 import base64
+import ctypes
 import logging
 import os
 import secrets
@@ -111,20 +112,36 @@ class XmlRpcServer:
 
         return wrapper
 
+    @staticmethod
+    def _normalize_returncode(returncode: int | None) -> int | None:
+        """Convert a process exit code to a signed 32-bit integer.
+
+        On Windows, process exit codes are unsigned 32-bit values (e.g. 0xC0000005
+        for Access Violation = 3221225477). XML-RPC only supports signed 32-bit
+        integers, so codes above 2**31-1 must be reinterpreted as negative values.
+        XML-RPC docs: https://xmlrpc.com/spec.md
+        
+        """
+        if returncode is None:
+            return None
+        return ctypes.c_int32(returncode).value
+
     def _run_command_sync(self, cmd_args):
         """Internal method: actually runs the subprocess"""
         logger.debug("Executing command: %s", cmd_args)
         try:
             proc = subprocess.run(cmd_args, capture_output=True, text=True, check=True)
+            returncode = self._normalize_returncode(proc.returncode)
             logger.debug(
                 "Command completed successfully. Return code: %s, stdout: %s",
-                proc.returncode,
+                returncode,
                 proc.stdout[:200] + "..." if len(proc.stdout) > 200 else proc.stdout,
             )
-            return {"stdout": proc.stdout, "stderr": proc.stderr, "returncode": proc.returncode}
+            return {"stdout": proc.stdout, "stderr": proc.stderr, "returncode": returncode}
         except subprocess.CalledProcessError as e:
-            logger.error("Command failed with return code: %s, stderr: %s", e.returncode, e.stderr)
-            return {"stdout": e.stdout, "stderr": e.stderr, "returncode": e.returncode}
+            returncode = self._normalize_returncode(e.returncode)
+            logger.error("Command failed with return code: %s, stderr: %s", returncode, e.stderr)
+            return {"stdout": e.stdout, "stderr": e.stderr, "returncode": returncode}
         except Exception as e:
             logger.error("Command execution error: %s", e)
             return {"error": str(e)}
