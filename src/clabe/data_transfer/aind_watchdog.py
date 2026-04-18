@@ -79,9 +79,9 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         session: Session,
         *,
         validate: bool = True,
-        email_from_experimenter_builder: Optional[
-            Callable[[str], str]
-        ] = lambda user_name: f"{user_name}@alleninstitute.org",
+        email_from_experimenter_builder: Optional[Callable[[str], str]] = lambda user_name: (
+            f"{user_name}@alleninstitute.org"
+        ),
     ) -> None:
         """
         Initializes the WatchdogDataTransferService.
