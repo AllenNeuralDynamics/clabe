@@ -42,6 +42,7 @@ aind-services = [
     "requests",
     "pyyaml",
     "pykeepass",
+    "msal; sys_platform == 'win32'",
     "aind-data-schema>=2",
     "aind-data-transfer-service >= 1.22.0",
     "aind-watchdog-service >= 0.1.6",
