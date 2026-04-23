@@ -120,7 +120,7 @@ class XmlRpcServer:
         for Access Violation = 3221225477). XML-RPC only supports signed 32-bit
         integers, so codes above 2**31-1 must be reinterpreted as negative values.
         XML-RPC docs: https://xmlrpc.com/spec.md
-        
+
         """
         if returncode is None:
             return None

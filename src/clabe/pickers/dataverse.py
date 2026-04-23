@@ -11,13 +11,14 @@ import msal
 import pydantic
 import requests
 from aind_behavior_curriculum import TrainerState
+from aind_behavior_services.rig import Rig
 from pydantic import BaseModel, SecretStr, computed_field, field_validator
 
 from .. import ui
 from .._typing import TTask
 from ..launcher import Launcher
 from ..services import ServiceSettings
-from ..utils.aind_auth import validate_aind_username
+from ..utils.aind_validators import validate_rig_computer_name, validate_username
 from ..utils.keepass import KeePass, KeePassSettings
 from .default_behavior import DefaultBehaviorPicker, DefaultBehaviorPickerSettings
 
@@ -498,7 +499,8 @@ class DataversePicker(DefaultBehaviorPicker):
         settings: DefaultBehaviorPickerSettings,
         launcher: Launcher,
         ui_helper: Optional[ui.IUiHelper] = None,
-        experimenter_validator: Optional[Callable[[str], bool]] = validate_aind_username,
+        experimenter_validator: Optional[Callable[[str], bool]] = validate_username,
+        rig_validator: Optional[Callable[[Rig], Rig]] = validate_rig_computer_name,
     ):
         """
         Initializes the DataversePicker.
@@ -508,9 +510,14 @@ class DataversePicker(DefaultBehaviorPicker):
             settings: Settings containing configuration including config_library_dir
             ui_helper: Helper for user interface interactions
             experimenter_validator: Function to validate the experimenter's username. If None, no validation is performed
+            rig_validator: Function to validate the rig configuration. If None, no validation is performed
         """
         super().__init__(
-            settings=settings, launcher=launcher, ui_helper=ui_helper, experimenter_validator=experimenter_validator
+            settings=settings,
+            launcher=launcher,
+            ui_helper=ui_helper,
+            experimenter_validator=experimenter_validator,
+            rig_validator=rig_validator,
         )
         self._dataverse_client = (
             dataverse_client
