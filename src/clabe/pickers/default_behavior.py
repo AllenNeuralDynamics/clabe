@@ -15,7 +15,7 @@ from ..cache_manager import CacheManager
 from ..constants import ByAnimalFiles
 from ..launcher import Launcher
 from ..services import ServiceSettings
-from ..utils.aind_auth import validate_aind_username
+from ..utils.aind_validators import validate_rig_computer_name, validate_username
 
 logger = logging.getLogger(__name__)
 T = TypeVar("T")
@@ -70,7 +70,8 @@ class DefaultBehaviorPicker:
         settings: DefaultBehaviorPickerSettings,
         launcher: Launcher,
         ui_helper: Optional[ui.IUiHelper] = None,
-        experimenter_validator: Optional[Callable[[str], bool]] = validate_aind_username,
+        experimenter_validator: Optional[Callable[[str], bool]] = validate_username,
+        rig_validator: Optional[Callable[[Rig], Rig]] = validate_rig_computer_name,
         use_cache: bool = True,
     ):
         """
@@ -80,7 +81,8 @@ class DefaultBehaviorPicker:
             settings: Settings containing configuration including config_library_dir. By default, attempts to rely on DefaultBehaviorPickerSettings to automatic loading from yaml files
             launcher: The launcher instance for managing experiment execution
             ui_helper: Helper for user interface interactions. If None, uses launcher's ui_helper. Defaults to None
-            experimenter_validator: Function to validate the experimenter's username. If None, no validation is performed. Defaults to validate_aind_username
+            experimenter_validator: Function to validate the experimenter's username. If None, no validation is performed. Defaults to validate_username
+            rig_validator: Function to validate the rig configuration. If None, no validation is performed. Defaults to validate_rig_computer_name
             use_cache: Whether to use caching for selections. Defaults to True
         """
         self._launcher = launcher
@@ -88,6 +90,7 @@ class DefaultBehaviorPicker:
         self._settings = settings
         self._ensure_directories()
         self._experimenter_validator = experimenter_validator
+        self._rig_validator = rig_validator
         self._trainer_state: Optional[TrainerState] = None
         self._session: Optional[Session] = None
         self._cache_manager = CacheManager.get_instance()
@@ -241,6 +244,8 @@ class DefaultBehaviorPicker:
                     rig = self._load_rig_from_path(Path(rig_path), model)
         assert rig_path is not None
         assert rig is not None
+        if self._rig_validator:
+            rig = self._rig_validator(rig)
         # Add the selected rig path to the cache
         self._cache_manager.add_to_cache("rigs", rig_path)
         return rig
