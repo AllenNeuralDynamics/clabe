@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import sys
 from typing import List, Optional
 
 import questionary
@@ -23,6 +24,23 @@ custom_style = Style(
         ("disabled", "fg:#858585 italic"),  # Disabled
     ]
 )
+
+
+def _flush_input() -> None:
+    """Discard any characters already queued in the stdin buffer.
+
+    Prevents type-ahead from a previous prompt being passed straight to the
+    next one when there is processing work between prompts.
+    """
+    if sys.platform == "win32":
+        import msvcrt
+
+        while msvcrt.kbhit():
+            msvcrt.getwch()
+    else:
+        import termios
+
+        termios.tcflush(sys.stdin, termios.TCIFLUSH)
 
 
 def _ask_sync(question: questionary.Question):
@@ -67,10 +85,12 @@ class QuestionaryUIHelper(_UiHelperBase):
 
     def input(self, prompt: str) -> str:
         """Prompts the user for input with custom styling."""
+        _flush_input()
         return _ask_sync(questionary.text(prompt, style=self.style)) or ""
 
     def prompt_pick_from_list(self, value: List[str], prompt: str, **kwargs) -> Optional[str]:
         """Interactive list selection with visual highlighting using arrow keys or number shortcuts."""
+        _flush_input()
         allow_0_as_none = kwargs.get("allow_0_as_none", True)
         zero_label = kwargs.get("zero_label", "None")
 
@@ -102,14 +122,17 @@ class QuestionaryUIHelper(_UiHelperBase):
 
     def prompt_yes_no_question(self, prompt: str) -> bool:
         """Prompts the user with a yes/no question using custom styling."""
+        _flush_input()
         return _ask_sync(questionary.confirm(prompt, style=self.style)) or False
 
     def prompt_text(self, prompt: str) -> str:
         """Prompts the user for generic text input using custom styling."""
+        _flush_input()
         return _ask_sync(questionary.text(prompt, style=self.style)) or ""
 
     def prompt_float(self, prompt: str) -> float:
         """Prompts the user for a float input using custom styling."""
+        _flush_input()
         while True:
             try:
                 value_str = _ask_sync(questionary.text(prompt, style=self.style))
