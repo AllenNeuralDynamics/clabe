@@ -141,7 +141,11 @@ class XmlRpcServer:
             for jid, fut in self.jobs.items():
                 if fut.done() and jid not in self._job_done_at:
                     self._job_done_at[jid] = now
-            stale = [jid for jid, t in self._job_done_at.items() if t < cutoff and jid in self.jobs]
+            stale = [
+                jid
+                for jid, t in self._job_done_at.items()
+                if t < cutoff and jid in self.jobs and self.jobs[jid].done()
+            ]
             for jid in stale:
                 del self.jobs[jid]
                 del self._job_done_at[jid]
