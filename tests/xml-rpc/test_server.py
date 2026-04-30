@@ -389,6 +389,96 @@ class TestFileTransfer:
             assert filename not in filenames
 
 
+class TestJobCleanup:
+    """Test background cleanup of unclaimed finished jobs."""
+
+    def test_stale_finished_job_is_pruned(self, rpc_server):
+        """Jobs completed longer ago than TTL are removed by _prune_stale_jobs."""
+        import sys
+
+        from clabe.xml_rpc._server import _FINISHED_JOB_TTL
+
+        server, settings = rpc_server
+        client = ServerProxy(f"http://{settings.address}:{settings.port}")
+        token = settings.token.get_secret_value()
+
+        result = client.run(token, [sys.executable, "-c", "print('cleanup test')"])
+        job_id = result["job_id"]
+
+        # Wait for the job to finish
+        for _ in range(20):
+            time.sleep(0.1)
+            with server._jobs_lock:
+                if job_id in server.jobs and server.jobs[job_id].done():
+                    break
+        else:
+            pytest.fail("Job did not complete in time")
+
+        # Backdate _job_done_at to simulate TTL expiry
+        with server._jobs_lock:
+            server._job_done_at[job_id] = time.time() - (_FINISHED_JOB_TTL + 10)
+
+        pruned = server._prune_stale_jobs()
+        assert job_id in pruned
+
+        with server._jobs_lock:
+            assert job_id not in server.jobs
+
+        # get_result should now return error
+        get_result = client.result(token, job_id)
+        assert get_result["success"] is False
+        assert get_result["status"] == "error"
+
+    def test_recently_finished_job_is_not_pruned(self, rpc_server):
+        """Jobs completed within TTL are left in place by _prune_stale_jobs."""
+        import sys
+
+        server, settings = rpc_server
+        client = ServerProxy(f"http://{settings.address}:{settings.port}")
+        token = settings.token.get_secret_value()
+
+        result = client.run(token, [sys.executable, "-c", "print('keep me')"])
+        job_id = result["job_id"]
+
+        for _ in range(20):
+            time.sleep(0.1)
+            with server._jobs_lock:
+                if job_id in server.jobs and server.jobs[job_id].done():
+                    break
+        else:
+            pytest.fail("Job did not complete in time")
+
+        pruned = server._prune_stale_jobs()
+        assert job_id not in pruned
+
+        # Result should still be retrievable
+        get_result = client.result(token, job_id)
+        assert get_result["status"] == "done"
+
+    def test_running_job_is_never_pruned(self, rpc_server):
+        """Jobs still running are never touched by _prune_stale_jobs."""
+        import sys
+
+        from clabe.xml_rpc._server import _FINISHED_JOB_TTL
+
+        server, settings = rpc_server
+        client = ServerProxy(f"http://{settings.address}:{settings.port}")
+        token = settings.token.get_secret_value()
+
+        result = client.run(token, [sys.executable, "-c", "import time; time.sleep(3)"])
+        job_id = result["job_id"]
+
+        # Force an old _job_done_at entry even though the job is still running
+        with server._jobs_lock:
+            server._job_done_at[job_id] = time.time() - (_FINISHED_JOB_TTL + 10)
+
+        pruned = server._prune_stale_jobs()
+        assert job_id not in pruned
+
+        with server._jobs_lock:
+            assert job_id in server.jobs
+
+
 class TestHelperFunctions:
     """Test helper functions."""
 

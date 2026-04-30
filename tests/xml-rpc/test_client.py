@@ -289,7 +289,7 @@ class TestXmlRpcClient:
         submission = rpc_client.submit_command([sys.executable, "-c", "import time; time.sleep(0.5); print('done')"])
 
         # The job takes 0.5s but timeout is 0.3s - with default monitor=True,
-        # the timeout resets each time is_running returns True
+        # the timeout resets each poll cycle that returns RUNNING status
         result = rpc_client.wait_for_result(submission.job_id, timeout=0.3)
 
         assert result.status == JobStatus.DONE
@@ -305,7 +305,7 @@ class TestXmlRpcClient:
             [sys.executable, "-c", "import time; time.sleep(0.8); print('finished')"]
         )
 
-        # With default monitor=True, the timeout resets each poll cycle while job is running
+        # With default monitor=True, the timeout resets each poll cycle while job is RUNNING
         result = rpc_client.wait_for_result(submission.job_id, timeout=0.4)
 
         assert result.status == JobStatus.DONE
