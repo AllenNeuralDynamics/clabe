@@ -46,7 +46,7 @@ class BonsaiApp(ExecutableApp, _DefaultExecutorMixin):
 
         Args:
             workflow: Path to the Bonsai workflow file
-            executable: Path to the Bonsai executable. Defaults to "./bonsai/bonsai.exe"
+            executable: Path to the Bonsai executable. Defaults to None, which will trigger automatic discovery
             is_editor_mode: Whether to run in editor mode. Defaults to True
             is_start_flag: Whether to use the start flag. Defaults to True
             additional_externalized_properties: Additional externalized properties. Defaults to None
@@ -85,7 +85,7 @@ class BonsaiApp(ExecutableApp, _DefaultExecutorMixin):
 
     @property
     def executable(self) -> Path:
-        """Returns the path to the Bonsai executable."""
+        """Returns the path to the Bonsai executable after validation."""
         if self._executable is None:
             raise ValueError("Executable path is not set.")
         return Path(self._executable)
@@ -126,7 +126,7 @@ class BonsaiApp(ExecutableApp, _DefaultExecutorMixin):
     @staticmethod
     def _build_bonsai_process_command(
         workflow_file: PathLike | str,
-        bonsai_exe: PathLike | str = "bonsai/bonsai.exe",
+        bonsai_exe: PathLike | str = "./.bonsai/bonsai.exe",
         is_editor_mode: bool = True,
         is_start_flag: bool = True,
         additional_properties: Optional[Dict[str, str]] = None,
@@ -145,7 +145,7 @@ class BonsaiApp(ExecutableApp, _DefaultExecutorMixin):
 
         Args:
             workflow_file: Path to the Bonsai workflow file
-            bonsai_exe: Path to the Bonsai executable. Defaults to "bonsai/bonsai.exe"
+            bonsai_exe: Path to the Bonsai executable. Defaults to ".bonsai/bonsai.exe"
             is_editor_mode: Whether to run in editor mode. Defaults to True
             is_start_flag: Whether to include the --start flag. Defaults to True
             additional_properties: Dictionary of externalized properties to pass. Defaults to None
@@ -160,7 +160,7 @@ class BonsaiApp(ExecutableApp, _DefaultExecutorMixin):
                 is_editor_mode=False,
                 additional_properties={"SubjectName": "Mouse123"}
             )
-            # Returns: ["bonsai.exe", "workflow.bonsai", "--no-editor", "-p:SubjectName=Mouse123"]
+            # Returns: ["./.bonsai/bonsai.exe", "workflow.bonsai", "--no-editor", "-p:SubjectName=Mouse123"]
             ```
         """
         output_cmd: List[str] = [str(bonsai_exe), str(workflow_file)]
