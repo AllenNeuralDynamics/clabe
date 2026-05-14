@@ -2,6 +2,7 @@ import hashlib
 import logging
 import os
 import random
+import shutil
 from os import PathLike
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -34,7 +35,7 @@ class BonsaiApp(ExecutableApp, _DefaultExecutorMixin):
         self,
         workflow: os.PathLike,
         *,
-        executable: os.PathLike = Path("./bonsai/bonsai.exe"),
+        executable: Optional[os.PathLike] = None,
         is_editor_mode: bool = True,
         is_start_flag: bool = True,
         additional_externalized_properties: dict[str, str] | None = None,
@@ -66,7 +67,7 @@ class BonsaiApp(ExecutableApp, _DefaultExecutorMixin):
         """
         # Resolve paths
         self.workflow = Path(workflow).resolve()
-        self.executable = Path(executable).resolve()
+        self._executable = executable
         self.is_editor_mode = is_editor_mode
         self.is_start_flag = is_start_flag if not is_editor_mode else True
 
@@ -81,6 +82,13 @@ class BonsaiApp(ExecutableApp, _DefaultExecutorMixin):
             additional_properties=additional_externalized_properties or {},
         )
         self._command = Command[CommandResult](cmd=__cmd, output_parser=identity_parser)
+
+    @property
+    def executable(self) -> Path:
+        """Returns the path to the Bonsai executable."""
+        if self._executable is None:
+            raise ValueError("Executable path is not set.")
+        return Path(self._executable)
 
     @property
     def command(self) -> Command[CommandResult]:
@@ -103,8 +111,13 @@ class BonsaiApp(ExecutableApp, _DefaultExecutorMixin):
             app.validate()  # Called automatically during __init__
             ```
         """
-        if not Path(self.executable).exists():
-            raise FileNotFoundError(f"Executable not found: {self.executable}")
+        if not self._executable:
+            for potential_exe in ["./.bonsai/bonsai.exe", "./bonsai/bonsai.exe"]:
+                if (loc := shutil.which(potential_exe)) is not None:
+                    self._executable = Path(loc)
+
+        if (not self._executable) or (not Path(self.executable).exists()):
+            raise FileNotFoundError(f"Executable not found: {self._executable}")
         if not Path(self.workflow).exists():
             raise FileNotFoundError(f"Workflow file not found: {self.workflow}")
         if self.is_editor_mode:
