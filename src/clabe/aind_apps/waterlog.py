@@ -1,4 +1,6 @@
+import os
 import shutil
+from pathlib import Path
 from typing import ClassVar, Optional
 
 from pydantic import Field
@@ -32,21 +34,24 @@ class WaterlogSettings(ServiceSettings):
 class WaterlogApp(ExecutableApp, _DefaultExecutorMixin):
     """App for logging water consumption and related information."""
 
-    _EXECUTABLE: ClassVar[str] = "waterlog"
+    _EXECUTABLE: Optional[Path] = Path(os.getenv("PROGRAMDATA", r"C:\ProgramData")) / r"AIBS_MPE\waterlog\waterlog.exe"
 
     def __init__(self, settings: WaterlogSettings):
         """Initialize the WaterlogApp with the given settings."""
+        self._executable = str(self._EXECUTABLE)
         self._settings = settings
         self.validate()
-        _cmd = [self._EXECUTABLE] + CliApp.serialize(settings)
+        _cmd = [self._executable] + CliApp.serialize(settings)
         self._command = Command[CommandResult](cmd=_cmd, output_parser=identity_parser)
 
     def validate(self) -> None:
         """Validates the settings and checks for the presence of the waterlog executable."""
-        if shutil.which(self._EXECUTABLE) is None:
-            raise FileNotFoundError(
-                f"'{self._EXECUTABLE}' command not found in PATH. Please ensure it is installed and available."
-            )
+        if not Path(self._executable).exists():
+            if (loc := shutil.which("waterlog.exe")) is None:
+                raise FileNotFoundError(
+                    f"'{self._EXECUTABLE}' command not found. Please ensure it is installed and available."
+                )
+            self._executable = loc
 
     @property
     def command(self) -> Command[CommandResult]:
