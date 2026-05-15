@@ -189,6 +189,66 @@ class AsyncLocalExecutor(AsyncExecutor):
         return command_result
 
 
+class LocalDetachedExecutor(Executor):
+    """
+    Fire-and-forget executor that spawns a subprocess and returns immediately.
+
+    Launches the command via ``subprocess.Popen`` without waiting for it to
+    finish.  stdout and stderr are redirected to ``DEVNULL`` so that no pipe
+    handles are left open.  The returned ``CommandResult`` is a placeholder
+    with ``exit_code=0`` and no captured output; callers must not rely on it
+    to reflect the actual process outcome.
+
+    Attributes:
+        cwd: Working directory for command execution
+        env: Environment variables for the subprocess
+
+    Example:
+        ```python
+        executor = LocalDetachedExecutor()
+        cmd = Command(cmd=["bonsai", "workflow.bonsai"], output_parser=identity_parser)
+        _ = executor.run(cmd)  # returns immediately; Bonsai keeps running
+        ```
+    """
+
+    def __init__(self, cwd: os.PathLike | None = None, env: dict[str, str] | None = None) -> None:
+        """Initialize the detached executor.
+
+        Args:
+            cwd: Working directory for command execution
+            env: Environment variables for the subprocess
+        """
+        self.cwd = cwd or os.getcwd()
+        self.env = env
+
+    def run(self, command: Command[Any]) -> CommandResult:
+        """Spawn the command and return immediately without waiting.
+
+        Args:
+            command: The command to execute (as a list of strings)
+
+        Returns:
+            A placeholder ``CommandResult`` with ``exit_code=0`` and no output.
+            The actual process exit code is never captured.
+
+        Example:
+            ```python
+            executor = LocalDetachedExecutor()
+            cmd = Command(cmd=["bonsai", "workflow.bonsai"], output_parser=identity_parser)
+            result = executor.run(cmd)  # fire-and-forget
+            ```
+        """
+        subprocess.Popen(
+            command.cmd,
+            cwd=self.cwd,
+            env=self.env,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            shell=False,
+        )
+        return CommandResult(stdout=None, stderr=None, exit_code=0)
+
+
 class _DefaultExecutorMixin:
     """
     Mixin providing default executor implementations for ExecutableApp classes.
