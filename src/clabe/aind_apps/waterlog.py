@@ -34,7 +34,7 @@ class WaterlogSettings(ServiceSettings):
 class WaterlogApp(ExecutableApp, _DefaultExecutorMixin):
     """App for logging water consumption and related information."""
 
-    _EXECUTABLE: Optional[Path] = Path(os.getenv("PROGRAMDATA", r"C:\ProgramData")) / r"AIBS_MPE\waterlog\waterlog.exe"
+    _EXECUTABLE: Optional[Path] = Path(os.getenv("PROGRAMFILES", r"C:\Program Files")) / r"AIBS_MPE\waterlog\waterlog.exe"
 
     def __init__(self, settings: WaterlogSettings):
         """Initialize the WaterlogApp with the given settings."""
