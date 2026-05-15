@@ -12,6 +12,7 @@ from clabe.apps import (
     CommandError,
     CommandResult,
     Executor,
+    LocalDetachedExecutor,
     PythonScriptApp,
     identity_parser,
 )
@@ -263,6 +264,123 @@ class TestAsyncLocalExecutor:
         assert all(r.ok for r in results)
         assert "cmd1" in (results[0].stdout or "")
         assert "cmd2" in (results[1].stdout or "")
+
+
+# ============================================================================
+# LocalDetachedExecutor Tests
+# ============================================================================
+
+
+class TestLocalDetachedExecutor:
+    """Tests for LocalDetachedExecutor (fire-and-forget executor)."""
+
+    @patch("subprocess.Popen")
+    def test_returns_placeholder_result_immediately(self, mock_popen):
+        """run() returns exit_code=0 with no stdout/stderr without waiting."""
+        executor = LocalDetachedExecutor()
+        cmd = Command[CommandResult](cmd=["sleep", "999"], output_parser=identity_parser)
+
+        result = executor.run(cmd)
+
+        assert result.exit_code == 0
+        assert result.stdout is None
+        assert result.stderr is None
+        assert result.ok is True
+
+    @patch("subprocess.Popen")
+    def test_spawns_process_without_waiting(self, mock_popen):
+        """Popen is called once and communicate/wait are never called."""
+        executor = LocalDetachedExecutor()
+        cmd = Command[CommandResult](cmd=["sleep", "999"], output_parser=identity_parser)
+
+        executor.run(cmd)
+
+        mock_popen.assert_called_once()
+        mock_popen.return_value.wait.assert_not_called()
+        mock_popen.return_value.communicate.assert_not_called()
+
+    @patch("subprocess.Popen")
+    def test_passes_command_args_to_popen(self, mock_popen):
+        """The exact command list is forwarded to Popen."""
+        executor = LocalDetachedExecutor()
+        expected_cmd = ["python", "-c", "print('hello')"]
+        cmd = Command[CommandResult](cmd=expected_cmd, output_parser=identity_parser)
+
+        executor.run(cmd)
+
+        call_args = mock_popen.call_args
+        assert call_args[0][0] == expected_cmd
+
+    @patch("subprocess.Popen")
+    def test_stdout_stderr_redirected_to_devnull(self, mock_popen):
+        """stdout and stderr are DEVNULL to avoid unclosed pipe handles."""
+        import subprocess as sp
+
+        executor = LocalDetachedExecutor()
+        cmd = Command[CommandResult](cmd=["echo", "hi"], output_parser=identity_parser)
+
+        executor.run(cmd)
+
+        call_kwargs = mock_popen.call_args[1]
+        assert call_kwargs["stdout"] == sp.DEVNULL
+        assert call_kwargs["stderr"] == sp.DEVNULL
+
+    @patch("subprocess.Popen")
+    def test_shell_is_false(self, mock_popen):
+        """shell=False is enforced to prevent shell injection."""
+        executor = LocalDetachedExecutor()
+        cmd = Command[CommandResult](cmd=["echo", "hi"], output_parser=identity_parser)
+
+        executor.run(cmd)
+
+        call_kwargs = mock_popen.call_args[1]
+        assert call_kwargs["shell"] is False
+
+    @patch("subprocess.Popen")
+    def test_uses_provided_cwd(self, mock_popen, tmp_path: Path):
+        """Custom cwd is passed through to Popen."""
+        executor = LocalDetachedExecutor(cwd=tmp_path)
+        cmd = Command[CommandResult](cmd=["echo", "hi"], output_parser=identity_parser)
+
+        executor.run(cmd)
+
+        call_kwargs = mock_popen.call_args[1]
+        assert call_kwargs["cwd"] == tmp_path
+
+    @patch("subprocess.Popen")
+    def test_defaults_cwd_to_getcwd(self, mock_popen):
+        """When cwd is omitted, cwd defaults to os.getcwd()."""
+        import os
+
+        executor = LocalDetachedExecutor()
+        assert executor.cwd == os.getcwd()
+
+    @patch("subprocess.Popen")
+    def test_uses_provided_env(self, mock_popen):
+        """Custom env dict is passed through to Popen."""
+        custom_env = {"MY_VAR": "my_value"}
+        executor = LocalDetachedExecutor(env=custom_env)
+        cmd = Command[CommandResult](cmd=["echo", "hi"], output_parser=identity_parser)
+
+        executor.run(cmd)
+
+        call_kwargs = mock_popen.call_args[1]
+        assert call_kwargs["env"] == custom_env
+
+    @patch("subprocess.Popen")
+    def test_satisfies_executor_protocol(self, mock_popen):
+        """LocalDetachedExecutor satisfies the Executor protocol."""
+        executor = LocalDetachedExecutor()
+        assert isinstance(executor, Executor)
+
+    @patch("subprocess.Popen")
+    def test_placeholder_result_does_not_raise_on_check_returncode(self, mock_popen):
+        """The placeholder CommandResult does not raise when check_returncode() is called."""
+        executor = LocalDetachedExecutor()
+        cmd = Command[CommandResult](cmd=["echo", "hi"], output_parser=identity_parser)
+
+        result = executor.run(cmd)
+        result.check_returncode()  # must not raise
 
 
 # ============================================================================
