@@ -110,11 +110,9 @@ class TestXmlRpcExecutor:
     @pytest.mark.asyncio
     async def test_run_async_with_monitor_enabled(self, mock_client):
         """Test asynchronous command execution with monitor mode enabled (default)."""
-        # Create executor with monitor=True (default)
         executor = XmlRpcExecutor(mock_client, monitor=True)
 
         submission_response = JobSubmissionResponse(success=True, job_id="monitor-job")
-        # Simulate job running initially, then completing
         running_result = JobResult(
             job_id="monitor-job", status=JobStatus.RUNNING, stdout=None, stderr=None, returncode=None, error=None
         )
@@ -128,9 +126,7 @@ class TestXmlRpcExecutor:
         )
 
         executor.client.submit_command.return_value = submission_response
-        # First call returns running, second call returns done
         executor.client.get_result.side_effect = [running_result, done_result]
-        executor.client.is_running.return_value = True
 
         cmd = Command(cmd="long_async_command", output_parser=identity_parser)
         result = await executor.run_async(cmd)
@@ -140,3 +136,5 @@ class TestXmlRpcExecutor:
         assert result.exit_code == 0
 
         executor.client.submit_command.assert_called_once_with("long_async_command")
+        executor.client.get_result.assert_called_with("monitor-job")
+        executor.client.is_running.assert_not_called()

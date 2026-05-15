@@ -5,10 +5,13 @@ import os
 import secrets
 import socket
 import subprocess
+import threading
+import time
 import uuid
 from concurrent.futures import Future, ThreadPoolExecutor
 from functools import wraps
 from pathlib import Path
+from socketserver import ThreadingMixIn
 from typing import ClassVar, Optional
 from xmlrpc.server import SimpleXMLRPCServer
 
@@ -60,6 +63,15 @@ def get_local_ip():
         return s.getsockname()[0]
 
 
+_FINISHED_JOB_TTL = 300  # seconds before unclaimed finished jobs are pruned
+
+
+class _ThreadedXMLRPCServer(ThreadingMixIn, SimpleXMLRPCServer):
+    """Thread-per-connection XML-RPC server."""
+
+    daemon_threads = True
+
+
 class XmlRpcServer:
     """XML-RPC server for remote command execution and file transfer."""
 
@@ -67,11 +79,13 @@ class XmlRpcServer:
         self.settings = settings
         self.executor = ThreadPoolExecutor(max_workers=settings.max_workers)
         self.jobs: dict[str, Future] = {}
+        self._jobs_lock = threading.Lock()
+        self._job_done_at: dict[str, float] = {}
 
         # Ensure file transfer directory exists
         os.makedirs(settings.file_transfer_dir, exist_ok=True)
 
-        server = SimpleXMLRPCServer((str(settings.address), settings.port), allow_none=True)
+        server = _ThreadedXMLRPCServer((str(settings.address), settings.port), allow_none=True)
         server.register_function(self.require_auth(self.submit_command), "run")
         server.register_function(self.require_auth(self.get_result), "result")
         server.register_function(self.require_auth(self.list_jobs), "jobs")
@@ -88,6 +102,7 @@ class XmlRpcServer:
         logger.info("File transfer directory: %s", settings.file_transfer_dir.resolve())
         logger.info("Use the token above to authenticate requests")
 
+        threading.Thread(target=self._cleanup_finished_jobs, daemon=True).start()
         self.server = server
 
     def authenticate(self, token: str) -> bool:
@@ -111,6 +126,32 @@ class XmlRpcServer:
             return result
 
         return wrapper
+
+    def _cleanup_finished_jobs(self):
+        """Background thread: prune unclaimed finished jobs older than _FINISHED_JOB_TTL."""
+        while True:
+            time.sleep(60)
+            self._prune_stale_jobs()
+
+    def _prune_stale_jobs(self) -> list[str]:
+        """Prune unclaimed finished jobs older than _FINISHED_JOB_TTL. Returns pruned job IDs."""
+        cutoff = time.time() - _FINISHED_JOB_TTL
+        now = time.time()
+        with self._jobs_lock:
+            for jid, fut in self.jobs.items():
+                if fut.done() and jid not in self._job_done_at:
+                    self._job_done_at[jid] = now
+            stale = [
+                jid
+                for jid, t in self._job_done_at.items()
+                if t < cutoff and jid in self.jobs and self.jobs[jid].done()
+            ]
+            for jid in stale:
+                del self.jobs[jid]
+                del self._job_done_at[jid]
+        if stale:
+            logger.info("Pruned %s unclaimed finished jobs", len(stale))
+        return stale
 
     @staticmethod
     def _normalize_returncode(returncode: int | None) -> int | None:
@@ -151,7 +192,8 @@ class XmlRpcServer:
         job_id = str(uuid.uuid4())
         logger.debug("Submitting job %s to executor", job_id)
         future = self.executor.submit(self._run_command_sync, cmd_args)
-        self.jobs[job_id] = future
+        with self._jobs_lock:
+            self.jobs[job_id] = future
         logger.info("Submitted job %s: %s", job_id, cmd_args)
         logger.debug("Active jobs: %s", len(self.jobs))
         response = JobSubmissionResponse(success=True, job_id=job_id)
@@ -160,37 +202,42 @@ class XmlRpcServer:
     def get_result(self, job_id):
         """Fetch the result of a finished command"""
         logger.debug("Fetching result for job %s", job_id)
-        if job_id not in self.jobs:
-            logger.debug("Job %s not found", job_id)
-            return JobStatusResponse(
-                success=False, error="Invalid job_id", job_id=job_id, status=JobStatus.ERROR
-            ).model_dump(mode="json")
+        with self._jobs_lock:
+            if job_id not in self.jobs:
+                logger.debug("Job %s not found", job_id)
+                return JobStatusResponse(
+                    success=False, error="Invalid job_id", job_id=job_id, status=JobStatus.ERROR
+                ).model_dump(mode="json")
 
-        future = self.jobs[job_id]
-        if not future.done():
-            logger.debug("Job %s still running", job_id)
-            return JobStatusResponse(success=True, job_id=job_id, status=JobStatus.RUNNING).model_dump(mode="json")
+            future = self.jobs[job_id]
+            if not future.done():
+                logger.debug("Job %s still running", job_id)
+                return JobStatusResponse(success=True, job_id=job_id, status=JobStatus.RUNNING).model_dump(mode="json")
+
+            del self.jobs[job_id]
+            self._job_done_at.pop(job_id, None)
 
         result = future.result()
         logger.debug("Job %s completed, cleaning up", job_id)
-        del self.jobs[job_id]  # cleanup finished job
         return JobStatusResponse(success=True, job_id=job_id, status=JobStatus.DONE, result=result).model_dump(
             mode="json"
         )
 
     def is_running(self, job_id):
         """Check if a job is still running"""
-        if job_id not in self.jobs:
-            logger.debug("Job %s not found when checking status", job_id)
-            return False
-        is_running = not self.jobs[job_id].done()
+        with self._jobs_lock:
+            if job_id not in self.jobs:
+                logger.debug("Job %s not found when checking status", job_id)
+                return False
+            is_running = not self.jobs[job_id].done()
         logger.debug("Job %s running status: %s", job_id, is_running)
         return is_running
 
     def list_jobs(self):
         """List all running jobs"""
-        running_jobs = [jid for jid, fut in self.jobs.items() if not fut.done()]
-        finished_jobs = [jid for jid, fut in self.jobs.items() if fut.done()]
+        with self._jobs_lock:
+            running_jobs = [job_id for job_id, fut in self.jobs.items() if not fut.done()]
+            finished_jobs = [job_id for job_id, fut in self.jobs.items() if fut.done()]
         logger.debug("Listing jobs: %s running, %s finished", len(running_jobs), len(finished_jobs))
         return JobListResponse(success=True, running=running_jobs, finished=finished_jobs).model_dump(mode="json")
 

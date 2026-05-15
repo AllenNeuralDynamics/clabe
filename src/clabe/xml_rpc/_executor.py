@@ -174,12 +174,11 @@ class XmlRpcExecutor:
                 raise TimeoutError(f"Job {job_id} did not complete within {timeout} seconds")
 
             await asyncio.sleep(poll_interval)
-            # this is synchronous but should be fast
-            result = self.client.get_result(job_id)
+            result = await asyncio.to_thread(self.client.get_result, job_id)
             if result.status == JobStatus.DONE:
                 return result
 
-            # In monitor mode, reset timer if job is still running
-            if self.monitor and self.client.is_running(job_id):
+            # In monitor mode, a RUNNING response proves the job is alive
+            if self.monitor and result.status == JobStatus.RUNNING:
                 logger.debug("Job %s is still running; resetting timeout timer", job_id)
                 start_time = time.time()
