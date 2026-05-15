@@ -1,15 +1,15 @@
 import os
 import shutil
 from pathlib import Path
-from typing import ClassVar, Optional
+from typing import Any, ClassVar, Optional, Self
 
 from pydantic import Field
 from pydantic_settings import CliApp, SettingsConfigDict
 
 from clabe.apps import StdCommand
+from clabe.apps._base import CommandResult
 
-from ..apps import ExecutableApp
-from ..apps._executors import _DefaultExecutorMixin
+from ..apps import ExecutableApp, LocalDetachedExecutor
 from ..services import ServiceSettings
 
 
@@ -31,7 +31,7 @@ class WaterlogSettings(ServiceSettings):
     )
 
 
-class WaterlogApp(ExecutableApp, _DefaultExecutorMixin):
+class WaterlogApp(ExecutableApp):
     """App for logging water consumption and related information."""
 
     _EXECUTABLE: Optional[Path] = (
@@ -59,3 +59,8 @@ class WaterlogApp(ExecutableApp, _DefaultExecutorMixin):
     def command(self) -> StdCommand:
         """Get the command to execute."""
         return self._command
+
+    def run(self: Self, executor_kwargs: Optional[dict[str, Any]] = None) -> CommandResult:
+        """Execute the command using a local executor and return the result."""
+        executor = LocalDetachedExecutor(**(executor_kwargs or {}))
+        return self.command.execute(executor)
