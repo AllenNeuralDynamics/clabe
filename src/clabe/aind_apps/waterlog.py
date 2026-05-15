@@ -6,9 +6,9 @@ from typing import ClassVar, Optional
 from pydantic import Field
 from pydantic_settings import CliApp, SettingsConfigDict
 
-from clabe.apps._base import identity_parser
+from clabe.apps import StdCommand
 
-from ..apps import Command, CommandResult, ExecutableApp
+from ..apps import ExecutableApp
 from ..apps._executors import _DefaultExecutorMixin
 from ..services import ServiceSettings
 
@@ -34,7 +34,9 @@ class WaterlogSettings(ServiceSettings):
 class WaterlogApp(ExecutableApp, _DefaultExecutorMixin):
     """App for logging water consumption and related information."""
 
-    _EXECUTABLE: Optional[Path] = Path(os.getenv("PROGRAMFILES", r"C:\Program Files")) / r"AIBS_MPE\waterlog\waterlog.exe"
+    _EXECUTABLE: Optional[Path] = (
+        Path(os.getenv("PROGRAMFILES", r"C:\Program Files")) / r"AIBS_MPE\waterlog\waterlog.exe"
+    )
 
     def __init__(self, settings: WaterlogSettings):
         """Initialize the WaterlogApp with the given settings."""
@@ -42,7 +44,7 @@ class WaterlogApp(ExecutableApp, _DefaultExecutorMixin):
         self._settings = settings
         self.validate()
         _cmd = [self._executable] + CliApp.serialize(settings)
-        self._command = Command[CommandResult](cmd=_cmd, output_parser=identity_parser)
+        self._command = StdCommand(cmd=_cmd)
 
     def validate(self) -> None:
         """Validates the settings and checks for the presence of the waterlog executable."""
@@ -54,6 +56,6 @@ class WaterlogApp(ExecutableApp, _DefaultExecutorMixin):
             self._executable = loc
 
     @property
-    def command(self) -> Command[CommandResult]:
+    def command(self) -> StdCommand:
         """Get the command to execute."""
         return self._command
