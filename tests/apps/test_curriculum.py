@@ -18,7 +18,7 @@ def curriculum_app() -> CurriculumApp:
             script=["curriculum", "run"],
             input_trainer_state=Path("MockPath"),
             data_directory="demo",
-            project_directory=TESTS_ASSETS / "Aind.Behavior.VrForaging.Curricula",
+            project_directory=TESTS_ASSETS / "Aind.Behavior.VrForaging",
             curriculum="template",
         )
     )
