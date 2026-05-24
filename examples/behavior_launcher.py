@@ -54,7 +54,7 @@ async def demo_experiment(launcher: Launcher) -> None:
         settings=CurriculumSettings(
             curriculum="template",
             data_directory=Path("demo"),
-            project_directory=Path("./tests/assets/Aind.Behavior.VrForaging.Curricula"),
+            project_directory=Path("./tests/assets/Aind.Behavior.VrForaging"),
             input_trainer_state=_temp_trainer_state_path,
         )
     ).run()
