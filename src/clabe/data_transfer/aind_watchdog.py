@@ -78,7 +78,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         settings: WatchdogSettings,
         session: Session,
         *,
-        validate: bool = True,
+        validate: bool = False,
         email_from_experimenter_builder: Optional[Callable[[str], str]] = lambda user_name: (
             f"{user_name}@alleninstitute.org"
         ),
