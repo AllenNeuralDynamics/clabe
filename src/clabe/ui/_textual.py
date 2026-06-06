@@ -58,7 +58,7 @@ Screen { layout: vertical; }
 #clabe-user { height: 2fr; border: round $accent; padding: 0 1; }
 #clabe-logo { height: auto; color: $accent; }
 #clabe-user-log { height: 1fr; display: none; }
-#clabe-processes { height: auto; min-height: 3; max-height: 8; border: round $warning; padding: 0 1; }
+#clabe-processes { height: auto; min-height: 3; max-height: 8; border: round $warning; padding: 0 1; display: none; }
 #clabe-prompt { height: auto; padding: 0 1; border: round $success; }
 #clabe-prompt Label { margin: 0; height: 1; }
 #clabe-prompt Input { border: none; height: 1; padding: 0; }
@@ -159,14 +159,19 @@ class _LauncherApp(App):
         pane.scroll_end(animate=False)
 
     def add_activity(self, description: str) -> _ActivityRow:
-        """Mounts and returns an animated activity row in the Processes pane."""
+        """Mounts an activity row, revealing the Processes pane while work runs."""
         row = _ActivityRow(description)
-        self.query_one("#clabe-processes", Vertical).mount(row)
+        pane = self.query_one("#clabe-processes", Vertical)
+        pane.styles.display = "block"
+        pane.mount(row)
         return row
 
     def remove_activity(self, row: _ActivityRow) -> None:
-        """Removes a previously added activity row."""
+        """Removes an activity row, hiding the Processes pane once none remain."""
+        pane = self.query_one("#clabe-processes", Vertical)
         row.remove()
+        if not [w for w in pane.query(_ActivityRow) if w is not row]:
+            pane.styles.display = "none"
 
     # --- prompt entry points (called via call_from_thread) ----------------
     async def ask_text(self, request: TextRequest, reply: "queue.Queue") -> None:
