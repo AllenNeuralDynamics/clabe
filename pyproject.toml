@@ -27,7 +27,6 @@ dependencies = [
     "requests",
     "semver",
     "rich",
-    "questionary",
     "aind_behavior_services>=0.13.0",
     "textual>=8.2.7",
 ]

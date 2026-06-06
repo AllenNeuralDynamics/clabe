@@ -25,9 +25,9 @@ class Frontend(Protocol):
     from logging: logging is a persistent record/diagnostic sink, while the
     frontend is how a human is informed and prompted.
 
-    Concrete implementations exist for the console, Questionary and a Textual
-    TUI; future implementations (e.g. a web app) only need to fulfil this
-    protocol for the rest of the codebase to work unchanged.
+    Concrete implementations exist for a rich-styled console and a Textual TUI;
+    future implementations (e.g. a web app) only need to fulfil this protocol
+    for the rest of the codebase to work unchanged.
     """
 
     def notify(self, message: str, level: MessageLevel = MessageLevel.INFO) -> None:

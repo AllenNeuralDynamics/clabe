@@ -2,7 +2,6 @@ from ._console import ConsoleFrontend
 from ._current import current_frontend, notify, set_current_frontend
 from ._frontend import Frontend, FrontendBase
 from ._messages import MessageLevel
-from ._questionary import QuestionaryFrontend
 from ._requests import (
     AutoCompleteRequest,
     Choice,
@@ -42,7 +41,7 @@ def make_frontend(backend: str = "auto") -> Frontend:
 
     Args:
         backend: One of ``"auto"`` (TUI when on a terminal, else console),
-            ``"tui"``, ``"questionary"`` or ``"console"``.
+            ``"tui"`` or ``"console"``.
 
     Returns:
         Frontend: A ready-to-use frontend instance.
@@ -55,8 +54,6 @@ def make_frontend(backend: str = "auto") -> Frontend:
         return default_frontend()
     if backend == "tui":
         return TextualFrontend()
-    if backend == "questionary":
-        return QuestionaryFrontend()
     if backend == "console":
         return ConsoleFrontend()
     raise ValueError(f"Unknown UI backend: {backend!r}")
@@ -74,7 +71,6 @@ __all__ = [
     "NumberRequest",
     "Validator",
     "ConsoleFrontend",
-    "QuestionaryFrontend",
     "TextualFrontend",
     "DefaultFrontend",
     "default_frontend",

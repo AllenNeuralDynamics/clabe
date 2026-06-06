@@ -95,6 +95,7 @@ def main():
             "--debug-mode",
             "--allow-dirty",
             "--skip-hardware-validation",
+            "--frontend", "console",
         ],
     )
 
