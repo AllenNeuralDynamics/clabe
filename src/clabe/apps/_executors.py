@@ -1,9 +1,10 @@
 import asyncio
 import os
 import subprocess
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
-from ._base import AsyncExecutor, Command, CommandResult, ExecutableApp, Executor
+from ._base import AsyncExecutor, Command, CommandResult, Executor
+from ._progress import ProgressExecutor
 
 
 class LocalExecutor(Executor):
@@ -277,12 +278,63 @@ class _DefaultExecutorMixin:
         ```
     """
 
-    def run(self: ExecutableApp, executor_kwargs: Optional[dict[str, Any]] = None) -> CommandResult:
-        """Execute the command using a local executor and return the result."""
-        executor = LocalExecutor(**(executor_kwargs or {}))
+    if TYPE_CHECKING:
+        # ``command`` is supplied by the ``ExecutableApp`` this mixin is combined
+        # with. Declaring it here lets the type checker resolve ``self.command``
+        # (and the mixin's own helpers) without typing ``self`` as the protocol.
+        @property
+        def command(self) -> Command: ...
+
+    def _progress_description(self, override: Optional[str]) -> str:
+        """Resolve the spinner label.
+
+        Returns the explicit ``override`` when given, otherwise the app's class
+        name, e.g. ``Running CurriculumApp``.
+        """
+        if override:
+            return override
+        return f"Running {type(self).__name__}"
+
+    def run(
+        self,
+        executor_kwargs: Optional[dict[str, Any]] = None,
+        *,
+        show_progress: bool = False,
+        progress_description: Optional[str] = None,
+    ) -> CommandResult:
+        """Execute the command using a local executor and return the result.
+
+        Args:
+            executor_kwargs: Keyword arguments forwarded to the local executor.
+            show_progress: When True, display a live spinner with elapsed time
+                while the command runs. Automatically a no-op on non-interactive
+                consoles (e.g. CI or piped output). Defaults to False.
+            progress_description: Label shown next to the spinner. Defaults to
+                ``Running <ClassName>``.
+        """
+        executor: Executor = LocalExecutor(**(executor_kwargs or {}))
+        if show_progress:
+            executor = ProgressExecutor(executor, description=self._progress_description(progress_description))
         return self.command.execute(executor)
 
-    async def run_async(self: ExecutableApp, executor_kwargs: Optional[dict[str, Any]] = None) -> CommandResult:
-        """Execute the command asynchronously using a local executor and return the result."""
-        executor = AsyncLocalExecutor(**(executor_kwargs or {}))
+    async def run_async(
+        self,
+        executor_kwargs: Optional[dict[str, Any]] = None,
+        *,
+        show_progress: bool = False,
+        progress_description: Optional[str] = None,
+    ) -> CommandResult:
+        """Execute the command asynchronously using a local executor and return the result.
+
+        Args:
+            executor_kwargs: Keyword arguments forwarded to the local executor.
+            show_progress: When True, display a live spinner with elapsed time
+                while the command runs. Automatically a no-op on non-interactive
+                consoles (e.g. CI or piped output). Defaults to False.
+            progress_description: Label shown next to the spinner. Defaults to
+                ``Running <ClassName>``.
+        """
+        executor: AsyncExecutor = AsyncLocalExecutor(**(executor_kwargs or {}))
+        if show_progress:
+            executor = ProgressExecutor(executor, description=self._progress_description(progress_description))
         return await self.command.execute_async(executor)

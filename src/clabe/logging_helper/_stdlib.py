@@ -4,10 +4,17 @@ import os
 from pathlib import Path
 from typing import TypeVar
 
+import rich.console
 import rich.logging
 import rich.style
 
 TLogger = TypeVar("TLogger", bound=logging.Logger)
+
+#: Shared console used by both the logging handler and the activity indicator.
+#: Both must write through the *same* ``Console`` instance so that live
+#: displays (spinners/progress bars) and log lines coordinate cleanly instead
+#: of corrupting each other's output.
+console = rich.console.Console()
 
 log_fmt = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 datetime_fmt = "%Y-%m-%dT%H%M%S%z"
@@ -63,7 +70,7 @@ class _SeverityHighlightingHandler(rich.logging.RichHandler):
             return message
 
 
-rich_handler = _SeverityHighlightingHandler(rich_tracebacks=True, show_time=False)
+rich_handler = _SeverityHighlightingHandler(console=console, rich_tracebacks=True, show_time=False)
 
 
 class _TzFormatter(logging.Formatter):
