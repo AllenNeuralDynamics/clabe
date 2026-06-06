@@ -134,7 +134,10 @@ class RobocopyService(DataTransfer[RobocopySettings], _DefaultExecutorMixin, Exe
             service.transfer()
             ```
         """
+        from ..ui import MessageLevel, notify
+
         logger.info("Starting robocopy transfer service.")
+        notify("Transferring data (robocopy)…", MessageLevel.INFO)
         try:
             self.run()
         except CommandError as e:
@@ -142,6 +145,7 @@ class RobocopyService(DataTransfer[RobocopySettings], _DefaultExecutorMixin, Exe
                 raise
             logger.debug("Robocopy exited with code %d (informational success).", e.exit_code)
         logger.info("Robocopy transfer completed.")
+        notify("Data transfer completed.", MessageLevel.SUCCESS)
 
     def validate(self) -> bool:
         """

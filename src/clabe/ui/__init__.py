@@ -1,4 +1,5 @@
 from ._console import ConsoleFrontend
+from ._current import current_frontend, notify, set_current_frontend
 from ._frontend import Frontend, FrontendBase
 from ._messages import MessageLevel
 from ._questionary import QuestionaryFrontend
@@ -35,6 +36,32 @@ def default_frontend() -> Frontend:
     return ConsoleFrontend()
 
 
+def make_frontend(backend: str = "auto") -> Frontend:
+    """
+    Builds a frontend for the requested backend.
+
+    Args:
+        backend: One of ``"auto"`` (TUI when on a terminal, else console),
+            ``"tui"``, ``"questionary"`` or ``"console"``.
+
+    Returns:
+        Frontend: A ready-to-use frontend instance.
+
+    Raises:
+        ValueError: If ``backend`` is not a recognized option.
+    """
+    backend = (backend or "auto").lower()
+    if backend == "auto":
+        return default_frontend()
+    if backend == "tui":
+        return TextualFrontend()
+    if backend == "questionary":
+        return QuestionaryFrontend()
+    if backend == "console":
+        return ConsoleFrontend()
+    raise ValueError(f"Unknown UI backend: {backend!r}")
+
+
 __all__ = [
     "Frontend",
     "FrontendBase",
@@ -51,4 +78,8 @@ __all__ = [
     "TextualFrontend",
     "DefaultFrontend",
     "default_frontend",
+    "make_frontend",
+    "notify",
+    "set_current_frontend",
+    "current_frontend",
 ]

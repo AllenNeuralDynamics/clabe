@@ -15,7 +15,7 @@ from aind_behavior_services import Session
 from .. import __version__, logging_helper
 from ..constants import TMP_DIR
 from ..git_manager import GitRepository
-from ..ui import Frontend, MessageLevel, TextRequest, default_frontend
+from ..ui import Frontend, MessageLevel, TextRequest, make_frontend, set_current_frontend
 from ..utils import abspath, format_datetime, utcnow
 from ._cli import LauncherCliArgs
 
@@ -63,10 +63,13 @@ class Launcher:
             settings: The settings for the launcher
             attached_logger: An attached logger instance. Defaults to None
             frontend: The frontend mediating all user interaction. Defaults to the
-                interactive Textual TUI (or a plain console when not on a terminal)
+                backend selected by ``settings.ui_backend``
         """
         self._settings = settings
-        self.frontend = frontend or default_frontend()
+        self.frontend = frontend or make_frontend(settings.ui_backend)
+        # Register the frontend so UI-agnostic library modules can surface key
+        # events to the user (see ``clabe.ui.notify``).
+        set_current_frontend(self.frontend)
         self.temp_dir = Path(TMP_DIR) / format_datetime(utcnow())
         self.computer_name = os.environ["COMPUTERNAME"]
         self._data_directory: Path | None = None
@@ -86,17 +89,22 @@ class Launcher:
             root_logger = logging.getLogger()
             _logger = logging_helper.add_file_handler(root_logger, self.temp_dir / "launcher.log")
 
-        _logger.setLevel(logging.DEBUG if settings.debug_mode else logging.INFO)
+        # Verbosity ladder (quiet < default < verbose < debug) controls what is
+        # shown to the user; the log file always records full detail.
         if settings.debug_mode:
-            logging_helper.set_console_level(logging.DEBUG)
+            display_level = logging.DEBUG
         elif settings.verbose:
-            logging_helper.set_console_level(logging.INFO)
+            display_level = logging.INFO
+        elif settings.quiet:
+            display_level = logging.ERROR
+        else:
+            display_level = logging.WARNING
 
-        # The user-facing pane stays quiet (warnings and above) unless --verbose
-        # is requested; everything is still recorded to the log file.
+        _logger.setLevel(logging.DEBUG if settings.debug_mode else logging.INFO)
+        logging_helper.set_console_level(display_level)
         set_min_level = getattr(self.frontend, "set_min_level", None)
         if callable(set_min_level):
-            set_min_level(logging.INFO if settings.verbose else logging.WARNING)
+            set_min_level(display_level)
 
         self._logger = _logger
 
@@ -316,6 +324,7 @@ class Launcher:
         close = getattr(self.frontend, "close", None)
         if callable(close):
             close()
+        set_current_frontend(None)
 
     def _generate_diagnostic_info(self) -> str:
         """

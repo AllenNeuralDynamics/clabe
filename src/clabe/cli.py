@@ -8,7 +8,6 @@ from clabe.launcher._experiments import _select_experiment
 
 from .cache_manager import _CacheManagerCli
 from .launcher import Launcher, LauncherCliArgs
-from .ui import default_frontend
 from .xml_rpc._server import _XmlRpcServerStartCli
 
 logger = logging.getLogger(__name__)
@@ -24,7 +23,7 @@ class _RunCli(LauncherCliArgs):
     def cli_cmd(self):
         """Run the specified experiment."""
 
-        launcher = Launcher(settings=self, frontend=default_frontend())
+        launcher = Launcher(settings=self)
         experiment_metadata = _select_experiment(self.experiment_path, frontend=launcher.frontend)
         launcher.run_experiment(experiment_metadata.func)
         return None

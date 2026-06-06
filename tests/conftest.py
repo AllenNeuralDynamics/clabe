@@ -60,6 +60,15 @@ def isolated_cache_manager(tmp_path, monkeypatch):
     cache_manager.CacheManager._instance = None
 
 
+@pytest.fixture(autouse=True)
+def reset_global_frontend():
+    """Clear the process-wide frontend registration after each test."""
+    yield
+    from clabe import ui
+
+    ui.set_current_frontend(None)
+
+
 @pytest.fixture
 def mock_session():
     return Session(
