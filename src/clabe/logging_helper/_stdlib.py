@@ -14,7 +14,7 @@ TLogger = TypeVar("TLogger", bound=logging.Logger)
 #: Both must write through the *same* ``Console`` instance so that live
 #: displays (spinners/progress bars) and log lines coordinate cleanly instead
 #: of corrupting each other's output.
-console = rich.console.Console()
+clabe_console = rich.console.Console()
 
 log_fmt = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 datetime_fmt = "%Y-%m-%dT%H%M%S%z"
@@ -70,7 +70,44 @@ class _SeverityHighlightingHandler(rich.logging.RichHandler):
             return message
 
 
-rich_handler = _SeverityHighlightingHandler(console=console, rich_tracebacks=True, show_time=False)
+# Name of the logger used by the frontend to record the user-facing transcript
+_TRANSCRIPT_LOGGER_NAME = "clabe.transcript"
+
+#: Default level for the interactive console handler.
+_DEFAULT_CONSOLE_LEVEL = logging.WARNING
+
+
+class _ExcludeTranscriptFilter(logging.Filter):
+    """Drops frontend-transcript records so they are not echoed to the console.
+
+    The frontend is responsible for rendering anything the user should see; the
+    transcript logger exists purely so those messages (and user input) are
+    persisted to the log file. Without this filter every ``notify`` would be
+    rendered twice: once by the frontend and once by the console log handler.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        """Returns False for transcript records so they skip the console handler."""
+        return not record.name.startswith(_TRANSCRIPT_LOGGER_NAME)
+
+
+rich_handler = _SeverityHighlightingHandler(console=clabe_console, rich_tracebacks=True, show_time=False)
+rich_handler.setLevel(_DEFAULT_CONSOLE_LEVEL)
+rich_handler.addFilter(_ExcludeTranscriptFilter())
+
+
+def set_console_level(level: int) -> None:
+    """
+    Sets the verbosity threshold of the interactive console log handler.
+
+    This only affects what is shown to the user on the console; it is fully
+    decoupled from what is written to the log file (see ``add_file_handler``)
+    and from any remote handlers.
+
+    Args:
+        level: A standard ``logging`` level (e.g. ``logging.INFO``).
+    """
+    rich_handler.setLevel(level)
 
 
 class _TzFormatter(logging.Formatter):

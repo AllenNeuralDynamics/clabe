@@ -124,8 +124,6 @@ nav:
     - resource_monitor: api/resource_monitor/resource_monitor.md
   - Ui:
     - ui: api/ui/ui.md
-    - questionary_ui_helper: api/ui/questionary_ui_helper.md
-    - ui_helper: api/ui/ui_helper.md
   - Utils:
     - utils: api/utils/utils.md
     - aind_auth: api/utils/aind_auth.md
@@ -134,6 +132,8 @@ nav:
     - xml_rpc: api/xml_rpc/xml_rpc.md
     - models: api/xml_rpc/models.md
 - Articles:
+  - Frontends: articles/frontends.md
+  - Logging: articles/logging.md
   - ServiceSettings and yaml tags: articles/service_settings.md
 - Issues: https://github.com/AllenNeuralDynamics/clabe/issues
 - Examples:

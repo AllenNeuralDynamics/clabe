@@ -113,7 +113,7 @@ def test_try_prompt_full_reset_no_reset(temp_git_repo: Path):
     (temp_git_repo / "test_file.txt").write_text("world")
     repo = GitRepository(path=temp_git_repo)
     mock_ui = MagicMock()
-    mock_ui.prompt_yes_no_question.return_value = False
+    mock_ui.prompt_confirm.return_value = False
     repo.try_prompt_full_reset(mock_ui)
     assert repo.is_dirty()
 
@@ -123,7 +123,7 @@ def test_try_prompt_full_reset_yes_reset(temp_git_repo: Path):
     (temp_git_repo / "test_file.txt").write_text("world")
     repo = GitRepository(path=temp_git_repo)
     mock_ui = MagicMock()
-    mock_ui.prompt_yes_no_question.return_value = True
+    mock_ui.prompt_confirm.return_value = True
     repo.try_prompt_full_reset(mock_ui)
     assert not repo.is_dirty()
 
@@ -135,4 +135,4 @@ def test_try_prompt_full_reset_force_reset(temp_git_repo: Path):
     mock_ui = MagicMock()
     repo.try_prompt_full_reset(mock_ui, force_reset=True)
     assert not repo.is_dirty()
-    mock_ui.prompt_yes_no_question.assert_not_called()
+    mock_ui.prompt_confirm.assert_not_called()

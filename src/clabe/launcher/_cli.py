@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import Field
 from pydantic_settings import (
@@ -20,6 +20,17 @@ class LauncherCliArgs(ServiceSettings, cli_prog_name="clabe", cli_kebab_case=Tru
         default=None, description="The repository root directory. If None will be auto-detected."
     )
     debug_mode: CliImplicitFlag[bool] = Field(default=False, description="Whether to run in debug mode")
+    frontend: Literal["auto", "tui", "console"] = Field(
+        default="auto",
+        description="Frontend for prompts and output: auto (TUI on a terminal, else console), tui, or console",
+    )
+    verbose: CliImplicitFlag[bool] = Field(
+        default=False,
+        description="Show informational messages in the UI and console (everything is still logged to file)",
+    )
+    quiet: CliImplicitFlag[bool] = Field(
+        default=False, description="Only show errors in the UI and console (everything is still logged to file)"
+    )
     allow_dirty: CliImplicitFlag[bool] = Field(
         default=False, description="Whether to allow the launcher to run with a dirty repository"
     )

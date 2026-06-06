@@ -127,6 +127,9 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         Creates and deploys a manifest configuration file that the watchdog service
         will use to monitor and transfer data.
         """
+        from ..ui import MessageLevel, notify
+
+        notify("Transferring data (watchdog)…", MessageLevel.INFO)
         try:
             if not self.is_running():
                 logger.warning("Watchdog service is not running. Attempting to start it.")

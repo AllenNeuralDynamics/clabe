@@ -27,8 +27,8 @@ dependencies = [
     "requests",
     "semver",
     "rich",
-    "questionary",
     "aind_behavior_services>=0.13.0",
+    "textual>=8.2.7",
 ]
 
 [project.urls]
@@ -38,6 +38,9 @@ Issues = "https://github.com/AllenNeuralDynamics/clabe/issues"
 Changelog = "https://github.com/AllenNeuralDynamics/clabe/releases"
 
 [project.optional-dependencies]
+web = [
+    "textual-serve",
+]
 aind-services = [
     "requests",
     "pyyaml",
@@ -59,6 +62,7 @@ dev = [
     'pytest-asyncio',
     'interrogate',
     "aind-clabe[aind-services]",
+    "aind-clabe[web]",
 ]
 
 docs = [

@@ -134,7 +134,10 @@ class RobocopyService(DataTransfer[RobocopySettings], _DefaultExecutorMixin, Exe
             service.transfer()
             ```
         """
+        from ..ui import MessageLevel, notify
+
         logger.info("Starting robocopy transfer service.")
+        notify("Transferring data (robocopy)…", MessageLevel.INFO)
         try:
             self.run()
         except CommandError as e:
