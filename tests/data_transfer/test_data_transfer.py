@@ -528,27 +528,41 @@ class TestRobocopyService:
 
         cmd = service.command.cmd
         assert cmd[0] == "robocopy"
-        assert source_dir.as_posix() in cmd[1]
-        assert dest_dir.as_posix() in cmd[2]
+        assert str(source_dir) in cmd[1]
+        assert str(dest_dir) in cmd[2]
         assert "/E" in cmd
 
-    def test_command_dict_multiple_sources(self, tmp_path):
-        """Test command building for dict with multiple source-destination pairs."""
-        src1 = tmp_path / "src1"
-        src2 = tmp_path / "src2"
-        dst1 = tmp_path / "dst1"
-        dst2 = tmp_path / "dst2"
-        src1.mkdir()
-        src2.mkdir()
-
-        settings = RobocopySettings(destination=dst1, force_dir=False, extra_args="/E")
-        service = RobocopyService(source={src1: dst1, src2: dst2}, settings=settings)
+    def test_command_exclude_files(self, robocopy_temp_dirs):
+        """Test command building with exclude_files patterns."""
+        source_dir, dest_dir = robocopy_temp_dirs
+        settings = RobocopySettings(
+            destination=dest_dir,
+            force_dir=False,
+            extra_args="/E",
+            exclude_files=["*.pyc", "*.tmp"],
+        )
+        service = RobocopyService(source=source_dir, settings=settings)
 
         cmd = service.command.cmd
-        # Multiple commands should use cmd /c with & to chain
-        assert cmd[0] == "cmd"
-        assert cmd[1] == "/c"
-        assert "&" in cmd[2]
+        xf_idx = cmd.index("/XF")
+        assert cmd[xf_idx + 1] == "*.pyc"
+        assert cmd[xf_idx + 2] == "*.tmp"
+
+    def test_command_exclude_dirs(self, robocopy_temp_dirs):
+        """Test command building with exclude_dirs patterns."""
+        source_dir, dest_dir = robocopy_temp_dirs
+        settings = RobocopySettings(
+            destination=dest_dir,
+            force_dir=False,
+            extra_args="/E",
+            exclude_dirs=["__pycache__", ".git"],
+        )
+        service = RobocopyService(source=source_dir, settings=settings)
+
+        cmd = service.command.cmd
+        xd_idx = cmd.index("/XD")
+        assert cmd[xd_idx + 1] == "__pycache__"
+        assert cmd[xd_idx + 2] == ".git"
 
     def test_validate_without_robocopy(self, robocopy_service):
         """Test validate method behavior."""
@@ -593,38 +607,35 @@ class TestRobocopyService:
 
     @pytest.mark.skipif(not _IS_WINDOWS or not _HAS_ROBOCOPY, reason="Requires Windows with robocopy")
     def test_transfer_actual_dict_sources(self, tmp_path):
-        """Test actual robocopy execution with dict multiple source-destination pairs."""
+        """Test actual robocopy execution with exclude patterns."""
         from clabe.apps import CommandError
 
-        # Create two source directories
-        src1 = tmp_path / "src1"
-        src2 = tmp_path / "src2"
-        dst1 = tmp_path / "dst1"
-        dst2 = tmp_path / "dst2"
-        src1.mkdir()
-        src2.mkdir()
-
-        # Create files in each source
-        (src1 / "from_src1.txt").write_text("source1_content")
-        (src2 / "from_src2.txt").write_text("source2_content")
+        source_dir = tmp_path / "source"
+        dest_dir = tmp_path / "destination"
+        source_dir.mkdir()
+        (source_dir / "keep.txt").write_text("keep_content")
+        (source_dir / "skip.tmp").write_text("skip_content")
+        skip_dir = source_dir / "skip_dir"
+        skip_dir.mkdir()
+        (skip_dir / "nested.txt").write_text("nested")
 
         settings = RobocopySettings(
-            destination=Path("not used_in_dict_case"),
+            destination=dest_dir,
             extra_args="/E /DCOPY:DAT /R:1 /W:1",
             force_dir=True,
+            exclude_files=["*.tmp"],
+            exclude_dirs=["skip_dir"],
         )
-        service = RobocopyService(source={src1: dst1, src2: dst2}, settings=settings)
+        service = RobocopyService(source=source_dir, settings=settings)
 
         try:
             service.transfer()
         except CommandError as e:
             assert e.exit_code < 8, f"Robocopy failed with exit code {e.exit_code}"
 
-        # Verify files were copied to respective destinations
-        assert (dst1 / "from_src1.txt").exists()
-        assert (dst1 / "from_src1.txt").read_text() == "source1_content"
-        assert (dst2 / "from_src2.txt").exists()
-        assert (dst2 / "from_src2.txt").read_text() == "source2_content"
+        assert (dest_dir / "keep.txt").exists()
+        assert not (dest_dir / "skip.tmp").exists()
+        assert not (dest_dir / "skip_dir").exists()
 
     @pytest.mark.skipif(not _IS_WINDOWS or not _HAS_ROBOCOPY, reason="Requires Windows with robocopy")
     def test_transfer_with_delete_src(self, robocopy_temp_dirs):

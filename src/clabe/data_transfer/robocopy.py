@@ -2,17 +2,22 @@ import logging
 import shutil
 from os import PathLike, makedirs
 from pathlib import Path
-from typing import ClassVar, Dict, List, Optional
+from typing import ClassVar, List, Optional
+
+from pydantic import Field
 
 from ..apps import ExecutableApp
-from ..apps._base import Command, CommandResult, identity_parser
+from ..apps._base import Command, CommandError, CommandResult, identity_parser
 from ..apps._executors import _DefaultExecutorMixin
 from ..services import ServiceSettings
 from ._base import DataTransfer
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_EXTRA_ARGS = "/E /DCOPY:DAT /R:100 /W:3 /tee"
+DEFAULT_EXTRA_ARGS = "/E /DCOPY:DAT /R:100 /W:3"
+
+# Robocopy exit codes 0-7 are informational successes; only 8+ indicate errors.
+_ROBOCOPY_SUCCESS_MAX = 7
 
 _HAS_ROBOCOPY = shutil.which("robocopy") is not None
 
@@ -33,6 +38,8 @@ class RobocopySettings(ServiceSettings):
     delete_src: bool = False
     overwrite: bool = False
     force_dir: bool = True
+    exclude_files: List[str] = Field(default_factory=list)
+    exclude_dirs: List[str] = Field(default_factory=list)
 
 
 class RobocopyService(DataTransfer[RobocopySettings], _DefaultExecutorMixin, ExecutableApp):
@@ -40,8 +47,7 @@ class RobocopyService(DataTransfer[RobocopySettings], _DefaultExecutorMixin, Exe
     A data transfer service that uses Robocopy to copy files between directories.
 
     Provides a wrapper around the Windows Robocopy utility with configurable options
-    for file copying, logging, and directory management. Supports both single
-    source-destination pairs and multiple mappings via a dictionary.
+    for file copying, logging, and directory management.
 
     Attributes:
         command: The robocopy command to be executed
@@ -53,27 +59,24 @@ class RobocopyService(DataTransfer[RobocopySettings], _DefaultExecutorMixin, Exe
 
     def __init__(
         self,
-        source: PathLike | Dict[PathLike, PathLike],
+        source: PathLike,
         settings: RobocopySettings,
     ):
         """
         Initializes the RobocopyService.
 
         Args:
-            source: The source directory/file to copy, or a dict mapping sources to destinations
-            settings: RobocopySettings containing options
+            source: The source root directory to copy from
+            settings: RobocopySettings containing destination and options
 
         Example:
             ```python
-            # Single source-destination:
-            settings = RobocopySettings(destination="D:/destination")
+            settings = RobocopySettings(
+                destination="D:/destination",
+                exclude_dirs=["__pycache__", ".git"],
+                exclude_files=["*.pyc"],
+            )
             service = RobocopyService("C:/source", settings)
-
-            # Multiple source-destination mappings:
-            service = RobocopyService({
-                "C:/data1": "D:/backup1",
-                "C:/data2": "D:/backup2",
-            }, settings)
             ```
         """
         self.source = source
@@ -87,45 +90,36 @@ class RobocopyService(DataTransfer[RobocopySettings], _DefaultExecutorMixin, Exe
 
     def _build_command(self) -> Command[CommandResult]:
         """
-        Builds a single command that executes all robocopy operations.
-
-        For single source-destination, returns a direct robocopy command.
-        For multiple mappings, chains commands using `cmd /c`.
+        Builds the robocopy command from the configured source, destination, and options.
 
         Returns:
             A Command object ready for execution.
         """
-        if isinstance(self.source, dict):
-            src_dst_pairs = [(Path(src), Path(dst)) for src, dst in self.source.items()]
-        else:
-            src_dst_pairs = [(Path(self.source), Path(self._settings.destination))]
+        src = Path(self.source)
+        dst = Path(self._settings.destination)
 
-        robocopy_cmds: List[str] = []
-        for src, dst in src_dst_pairs:
-            if self._settings.force_dir:
-                makedirs(dst, exist_ok=True)
+        if self._settings.force_dir:
+            makedirs(dst, exist_ok=True)
 
-            cmd_parts: List[str] = ["robocopy", f"{src.as_posix()}", f"{dst.as_posix()}"]
+        cmd: List[str] = ["robocopy", str(src), str(dst)]
 
-            if self._settings.extra_args:
-                cmd_parts.extend(self._settings.extra_args.split())
+        if self._settings.extra_args:
+            cmd.extend(self._settings.extra_args.split())
 
-            if self._settings.log:
-                cmd_parts.append(f"/LOG:{dst / self._settings.log}")
-            if self._settings.delete_src:
-                cmd_parts.append("/MOV")
-            if self._settings.overwrite:
-                cmd_parts.append("/IS")
+        if self._settings.exclude_files:
+            cmd.extend(["/XF"] + self._settings.exclude_files)
 
-            robocopy_cmds.append(" ".join(cmd_parts))
+        if self._settings.exclude_dirs:
+            cmd.extend(["/XD"] + self._settings.exclude_dirs)
 
-        if len(robocopy_cmds) == 1:
-            # Single command: split back to list for direct execution
-            return Command(cmd=robocopy_cmds[0].split(), output_parser=identity_parser)
+        if self._settings.log:
+            cmd.append(f"/LOG:{dst / self._settings.log}")
+        if self._settings.delete_src:
+            cmd.append("/MOV")
+        if self._settings.overwrite:
+            cmd.append("/IS")
 
-        # Multiple commands: use cmd /c to chain with & (robocopy is Windows-only)
-        chained = " & ".join(robocopy_cmds)
-        return Command(cmd=["cmd", "/c", chained], output_parser=identity_parser)
+        return Command(cmd=cmd, output_parser=identity_parser)
 
     def transfer(self) -> None:
         """
@@ -141,7 +135,12 @@ class RobocopyService(DataTransfer[RobocopySettings], _DefaultExecutorMixin, Exe
             ```
         """
         logger.info("Starting robocopy transfer service.")
-        self.run()
+        try:
+            self.run()
+        except CommandError as e:
+            if e.exit_code > _ROBOCOPY_SUCCESS_MAX:
+                raise
+            logger.debug("Robocopy exited with code %d (informational success).", e.exit_code)
         logger.info("Robocopy transfer completed.")
 
     def validate(self) -> bool:
