@@ -50,8 +50,8 @@ async def demo_experiment(launcher: Launcher) -> None:
     app_2 = PythonScriptApp(script=fmt("Physiology"))
 
     app_1_result, app_2_result = await asyncio.gather(
-        app_1.run_async(show_progress=True, progress_description="Running Behavior App"),
-        app_2.run_async(show_progress=True, progress_description="Running Physiology App"),
+        app_1.run_async(progress_description="Running Behavior App"),
+        app_2.run_async(progress_description="Running Physiology App"),
     )
 
     suggestion = CurriculumApp(
@@ -61,7 +61,7 @@ async def demo_experiment(launcher: Launcher) -> None:
             project_directory=Path("./tests/assets/Aind.Behavior.VrForaging"),
             input_trainer_state=_temp_trainer_state_path,
         )
-    ).run(show_progress=True)
+    ).run()
 
     DemoAindDataSchemaSessionDataMapper(
         rig,
