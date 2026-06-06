@@ -359,7 +359,7 @@ class TextualFrontend(FrontendBase):
         if not app.ready.wait(timeout=15):
             raise RuntimeError("Timed out starting the TUI.")
 
-        from ..apps._progress import get_activity_indicator
+        from ..runnable import get_activity_indicator
 
         get_activity_indicator().set_sink(_TuiActivitySink(app))
         self._capture_logging()
@@ -384,8 +384,8 @@ class TextualFrontend(FrontendBase):
         if self._app is None:
             return
 
-        from ..apps._progress import get_activity_indicator
         from ..logging_helper import set_console_level
+        from ..runnable import get_activity_indicator
 
         get_activity_indicator().set_sink(None)
         if self._log_handler is not None:

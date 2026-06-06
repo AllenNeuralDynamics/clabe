@@ -18,6 +18,7 @@ from clabe.apps import CurriculumApp, CurriculumSettings, PythonScriptApp
 from clabe.cache_manager import CacheManager
 from clabe.launcher import Launcher, experiment
 from clabe.pickers import DefaultBehaviorPicker, DefaultBehaviorPickerSettings
+from clabe.runnable import runnable
 from clabe.web import serve
 
 logger = logging.getLogger(__name__)
@@ -46,7 +47,7 @@ async def demo_experiment(launcher: Launcher) -> None:
 
     resource_monitor.ResourceMonitor(
         constrains=[
-            resource_monitor.available_storage_constraint_factory_from_rig(rig, 2e11),
+            resource_monitor.available_storage_constraint_factory_from_rig(rig, 1e9),
         ]
     ).run()
 
@@ -57,8 +58,8 @@ async def demo_experiment(launcher: Launcher) -> None:
     app_2 = PythonScriptApp(script=fmt("Physiology"))
 
     app_1_result, app_2_result = await asyncio.gather(
-        app_1.run_async(progress_description="Running Behavior App"),
-        app_2.run_async(progress_description="Running Physiology App"),
+        runnable(app_1.run_async, name="Running Behavior App")(),
+        runnable(app_2.run_async, name="Running Physiology App")(),
     )
 
     suggestion = CurriculumApp(

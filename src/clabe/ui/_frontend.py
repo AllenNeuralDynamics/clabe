@@ -131,7 +131,7 @@ class FrontendBase(abc.ABC):
         Args:
             description: Text shown next to the activity indicator.
         """
-        from ..apps._progress import get_activity_indicator
+        from ..runnable import get_activity_indicator
 
         return get_activity_indicator().activity(description)
 

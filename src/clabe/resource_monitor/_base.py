@@ -2,6 +2,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Callable, List, Optional
 
+from ..runnable import runnable
 from ..services import Service
 
 logger = logging.getLogger(__name__)
@@ -33,6 +34,7 @@ class ResourceMonitor(Service):
         """
         self.constraints = constrains or []
 
+    @runnable(name="Resource monitor")
     def run(self) -> bool:
         """
         Runs the resource monitor and evaluates all constraints.
@@ -41,13 +43,13 @@ class ResourceMonitor(Service):
             bool: True if all constraints pass
 
         Raises:
-            RuntimeError: If one or more constraints fail
+            RuntimeError: On the first failing constraint, carrying that
+                constraint's failure message so it reaches the user.
         """
-        logger.debug("Evaluating resource monitor constraints.")
-        if result := not self.evaluate_constraints():
-            logger.error("One or more resource monitor constraints failed.")
-            raise RuntimeError("Resource monitor constraints failed.")
-        return result
+        for constraint in self.constraints:
+            if not constraint():
+                raise RuntimeError(constraint.on_fail())
+        return True
 
     def add_constraint(self, constraint: "Constraint") -> None:
         """

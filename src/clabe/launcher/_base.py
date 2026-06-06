@@ -15,6 +15,7 @@ from aind_behavior_services import Session
 from .. import __version__, logging_helper
 from ..constants import TMP_DIR
 from ..git_manager import GitRepository
+from ..runnable import ReportTier, set_tier
 from ..ui import Frontend, MessageLevel, TextRequest, make_frontend, set_current_frontend
 from ..utils import abspath, format_datetime, utcnow
 from ._cli import LauncherCliArgs
@@ -87,12 +88,18 @@ class Launcher:
             root_logger = logging.getLogger()
             _logger = logging_helper.add_file_handler(root_logger, self.temp_dir / "launcher.log")
 
+        # Map verbosity flags to both the console log level and the runnable
+        # reporting tier. With no flag, the tier is left to its configured
+        # default (respecting any ``runnable`` YAML section).
         if settings.debug_mode:
             display_level = logging.DEBUG
+            set_tier(ReportTier.VERBOSE)
         elif settings.verbose:
             display_level = logging.INFO
+            set_tier(ReportTier.LIFECYCLE)
         elif settings.quiet:
             display_level = logging.ERROR
+            set_tier(ReportTier.SILENT)
         else:
             display_level = logging.WARNING
 
