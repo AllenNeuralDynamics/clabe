@@ -132,6 +132,7 @@ nav:
     - xml_rpc: api/xml_rpc/xml_rpc.md
     - models: api/xml_rpc/models.md
 - Articles:
+  - Logging: articles/logging.md
   - ServiceSettings and yaml tags: articles/service_settings.md
 - Issues: https://github.com/AllenNeuralDynamics/clabe/issues
 - Examples:
