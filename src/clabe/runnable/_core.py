@@ -29,6 +29,16 @@ def _get_settings() -> RunnableSettings:
     return _settings
 
 
+def set_tier(tier: ReportTier) -> None:
+    """Override the process-wide reporting tier, keeping other settings intact.
+
+    Intended for entry points (e.g. the launcher mapping its verbosity flags)
+    that set the house tier programmatically.
+    """
+    global _settings
+    _settings = _get_settings().model_copy(update={"tier": tier})
+
+
 def _notify(message: str, level: MessageLevel) -> None:
     # Imported lazily: clabe.ui depends on this package for the activity indicator.
     from ..ui import notify

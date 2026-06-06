@@ -3,6 +3,8 @@ import logging
 from dataclasses import dataclass, replace
 from typing import ClassVar, Optional
 
+from pydantic import field_validator
+
 from ..services import ServiceSettings
 
 #: Granular reporting flags that a tier expands into and that any layer may override.
@@ -38,6 +40,18 @@ class RunnableSettings(ServiceSettings):
     notify_success: Optional[bool] = None
     notify_fail: Optional[bool] = None
     emit_span: bool = True  # OTEL; reserved for when tracing is wired in
+
+    @field_validator("tier", mode="before")
+    @classmethod
+    def _coerce_tier(cls, value: object) -> object:
+        """Accept tier by name (e.g. ``LIFECYCLE``) in YAML/env, not just its int."""
+        if isinstance(value, str) and not value.isdigit():
+            try:
+                return ReportTier[value.strip().upper()]
+            except KeyError:
+                names = ", ".join(t.name for t in ReportTier)
+                raise ValueError(f"Unknown report tier {value!r}; expected one of: {names}.") from None
+        return value
 
 
 @dataclass(frozen=True)

@@ -80,6 +80,10 @@ Resolution is most-specific-wins, per field:
 built-in tier defaults  ◁  RunnableSettings  ◁  @runnable(...) spec  ◁  call-site override
 ```
 
+The launcher maps its verbosity flags onto the tier: `--debug-mode` → `VERBOSE`,
+`--verbose` → `LIFECYCLE`, `--quiet` → `SILENT`. With no flag the configured
+default is left untouched.
+
 ## Overriding at the call site
 
 `runnable` can also rewrap an existing callable to override its settings for one

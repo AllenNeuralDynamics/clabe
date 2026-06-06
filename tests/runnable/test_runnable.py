@@ -59,6 +59,24 @@ def default_tier(monkeypatch):
     monkeypatch.setattr(_core, "_settings", RunnableSettings(tier=ReportTier.FAILURES))
 
 
+class TestSettings:
+    def test_tier_accepts_name(self):
+        assert RunnableSettings(tier="lifecycle").tier is ReportTier.LIFECYCLE
+
+    def test_tier_accepts_int(self):
+        assert RunnableSettings(tier=30).tier is ReportTier.VERBOSE
+
+    def test_tier_rejects_unknown_name(self):
+        with pytest.raises(ValueError, match="Unknown report tier"):
+            RunnableSettings(tier="bogus")
+
+    def test_set_tier_overrides_keeping_other_settings(self, monkeypatch):
+        monkeypatch.setattr(_core, "_settings", RunnableSettings(tier=ReportTier.FAILURES, notify_success=False))
+        _core.set_tier(ReportTier.VERBOSE)
+        assert _core._settings.tier is ReportTier.VERBOSE
+        assert _core._settings.notify_success is False  # preserved
+
+
 class Service:
     @runnable(name="Explicit name")
     def named(self) -> str:
