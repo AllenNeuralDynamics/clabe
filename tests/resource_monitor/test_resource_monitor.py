@@ -1,4 +1,5 @@
 import logging
+import os
 import warnings
 from pathlib import Path
 from shutil import _ntuple_diskusage
@@ -70,6 +71,10 @@ class TestResourceMonitor:
         assert constraint()
         constraint = available_storage_constraint_factory(drive=Path("C:\\"), min_bytes=2e13)
         assert not constraint()
+
+    def test_available_storage_constraint_resolves_relative_path(self):
+        constraint = available_storage_constraint_factory(drive=Path("./local/data"))
+        assert os.path.ismount(constraint.kwargs["drive"])
 
     @patch("os.path.exists")
     def test_remote_dir_exists_constraint_factory(self, mock_exists):

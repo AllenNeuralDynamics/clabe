@@ -68,7 +68,7 @@ def available_storage_constraint_factory(drive: os.PathLike = Path(r"C:\\"), min
         ```
     """
     if not os.path.ismount(drive):
-        drive = os.path.splitdrive(drive)[0] + "\\"
+        drive = os.path.splitdrive(os.path.abspath(drive))[0] + "\\"
     if drive is None:
         raise ValueError("Drive is not valid.")
     return Constraint(
