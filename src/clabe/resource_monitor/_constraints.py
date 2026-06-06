@@ -48,9 +48,6 @@ def available_storage_constraint_factory(drive: os.PathLike = Path(r"C:\\"), min
     Returns:
         Constraint: A constraint object for available storage validation
 
-    Raises:
-        ValueError: If the drive path is not valid
-
     Example:
         ```python
         # Check for default 200GB free space on C: drive
@@ -67,15 +64,14 @@ def available_storage_constraint_factory(drive: os.PathLike = Path(r"C:\\"), min
         monitor.add_constraint(large_storage_constraint)
         ```
     """
-    if not os.path.ismount(drive):
-        drive = os.path.splitdrive(os.path.abspath(drive))[0] + "\\"
-    if drive is None:
-        raise ValueError("Drive is not valid.")
+    # Use the filesystem anchor (drive root on Windows, "/" on POSIX) so the
+    # check resolves relative paths and works on either platform.
+    root = Path(os.path.abspath(drive)).anchor
     return Constraint(
         name="available_storage",
         constraint=lambda drive, min_bytes: shutil.disk_usage(drive).free >= min_bytes,
         args=[],
-        kwargs={"drive": drive, "min_bytes": min_bytes},
+        kwargs={"drive": root, "min_bytes": min_bytes},
         fail_msg_handler=lambda drive, min_bytes: f"Drive {drive} does not have enough space.",
     )
 
