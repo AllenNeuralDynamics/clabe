@@ -145,7 +145,6 @@ class RobocopyService(DataTransfer[RobocopySettings], _DefaultExecutorMixin, Exe
                 raise
             logger.debug("Robocopy exited with code %d (informational success).", e.exit_code)
         logger.info("Robocopy transfer completed.")
-        notify("Data transfer completed.", MessageLevel.SUCCESS)
 
     def validate(self) -> bool:
         """

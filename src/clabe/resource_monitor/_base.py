@@ -45,10 +45,7 @@ class ResourceMonitor(Service):
         """
         logger.debug("Evaluating resource monitor constraints.")
         if result := not self.evaluate_constraints():
-            from ..ui import MessageLevel, notify
-
             logger.error("One or more resource monitor constraints failed.")
-            notify("Resource checks failed — see the Logs for details.", MessageLevel.ERROR)
             raise RuntimeError("Resource monitor constraints failed.")
         return result
 

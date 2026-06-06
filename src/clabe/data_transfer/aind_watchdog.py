@@ -129,10 +129,10 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         """
         from ..ui import MessageLevel, notify
 
+        notify("Transferring data (watchdog)…", MessageLevel.INFO)
         try:
             if not self.is_running():
                 logger.warning("Watchdog service is not running. Attempting to start it.")
-                notify("Watchdog service is not running. Attempting to start it.", MessageLevel.WARNING)
                 try:
                     self.force_restart(kill_if_running=False)
                 except subprocess.CalledProcessError as e:
@@ -144,7 +144,6 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
                         raise RuntimeError("Failed to start watchdog service.")
                     else:
                         logger.info("Watchdog service restarted successfully.")
-                        notify("Watchdog service started.", MessageLevel.SUCCESS)
 
             logger.debug("Creating watchdog manifest config.")
 
