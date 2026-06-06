@@ -42,6 +42,24 @@ def mock_frontend():
     return MockFrontend()
 
 
+@pytest.fixture(autouse=True)
+def isolated_cache_manager(tmp_path, monkeypatch):
+    """Isolate the CacheManager singleton from the real on-disk cache.
+
+    The cache manager defaults to a shared ``.cache_manager.json`` under
+    ``TMP_DIR``. Without isolation, anything that writes it (auto-sync usage, or
+    running the example) leaks into later tests and makes assertions about cache
+    contents flaky. This points the default at a per-test temp dir and resets
+    the singleton around each test so the on-disk cache never matters.
+    """
+    from clabe import cache_manager
+
+    monkeypatch.setattr(cache_manager, "TMP_DIR", str(tmp_path))
+    cache_manager.CacheManager._instance = None
+    yield
+    cache_manager.CacheManager._instance = None
+
+
 @pytest.fixture
 def mock_session():
     return Session(
