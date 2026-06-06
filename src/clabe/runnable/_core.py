@@ -40,13 +40,14 @@ def set_tier(tier: ReportTier) -> None:
 
 
 def _notify(message: str, level: MessageLevel) -> None:
-    # Imported lazily: clabe.ui depends on this package for the activity indicator.
+    """Surface a message to the active frontend (imported lazily to avoid a cycle)."""
     from ..ui import notify
 
     notify(message, level)
 
 
 def _elapsed(started: float) -> str:
+    """Format the seconds elapsed since ``started`` (a ``perf_counter`` value)."""
     return f"{time.perf_counter() - started:.2f}s"
 
 
@@ -95,6 +96,7 @@ def _make_wrapper(fn: Callable, spec: RunnableSpec) -> Callable:
     is_method = "." in fn.__qualname__ and "<locals>" not in fn.__qualname__
 
     def name_for(args: tuple) -> str:
+        """Resolve the display name for a call, deriving it from the instance when unnamed."""
         if spec.name:
             return spec.name
         if is_method and args:
@@ -105,12 +107,14 @@ def _make_wrapper(fn: Callable, spec: RunnableSpec) -> Callable:
 
         @functools.wraps(fn)
         async def wrapper(*args, **kwargs):
+            """Run the wrapped coroutine inside the runnable lifecycle."""
             with _lifecycle(spec, name_for(args)):
                 return await fn(*args, **kwargs)
     else:
 
         @functools.wraps(fn)
         def wrapper(*args, **kwargs):
+            """Run the wrapped function inside the runnable lifecycle."""
             with _lifecycle(spec, name_for(args)):
                 return fn(*args, **kwargs)
 
