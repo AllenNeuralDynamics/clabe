@@ -10,6 +10,7 @@ from clabe.apps import StdCommand
 from clabe.apps._base import CommandResult
 
 from ..apps import ExecutableApp, LocalDetachedExecutor
+from ..runnable import runnable
 from ..services import ServiceSettings
 
 
@@ -60,6 +61,7 @@ class WaterlogApp(ExecutableApp):
         """Get the command to execute."""
         return self._command
 
+    @runnable
     def run(self: Self, executor_kwargs: Optional[dict[str, Any]] = None) -> CommandResult:
         """Execute the command using a local executor and return the result."""
         executor = LocalDetachedExecutor(**(executor_kwargs or {}))

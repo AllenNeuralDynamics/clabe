@@ -12,7 +12,6 @@ from ._base import (
 from ._bonsai import AindBehaviorServicesBonsaiApp, BonsaiApp
 from ._curriculum import CurriculumApp, CurriculumSettings, CurriculumSuggestion
 from ._executors import LocalDetachedExecutor
-from ._progress import ActivityIndicator, ProgressExecutor, get_activity_indicator
 from ._python_script import PythonScriptApp
 
 __all__ = [
@@ -33,7 +32,4 @@ __all__ = [
     "ExecutableApp",
     "StdCommand",
     "LocalDetachedExecutor",
-    "ProgressExecutor",
-    "ActivityIndicator",
-    "get_activity_indicator",
 ]
