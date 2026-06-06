@@ -1,25 +1,5 @@
 # Logging in CLABE
 
-This article explains how logging works in CLABE and how to use it in your own
-launchers, apps and services.
-
-## Mental model: logging is a *record*, not the UI
-
-CLABE keeps two concerns separate:
-
-- **Logging** — the durable, developer-facing **record** of what happened. It
-  always captures everything and is the source of truth for debugging.
-- **The Frontend (UI)** — what the **user** sees and answers (the banner,
-  prompts, status messages, progress spinners).
-
-Logging is a *sink*: your code writes records, and **where they end up** (a log
-file, the console, the TUI "Logs" pane, a remote server) is decided by the
-configured handlers — not by the call site. You therefore log freely at the
-right level and let configuration decide what is shown.
-
-> If you want something shown **to the user**, that is the Frontend's job — see
-> the UI/Frontend documentation. Logging and the UI are deliberately decoupled.
-
 ## Getting a logger
 
 Use the standard library. Every module creates a module-scoped logger:
@@ -79,7 +59,6 @@ handler. When a `Launcher` runs it adds the others:
 | **Console** | A `rich` handler with severity highlighting | `WARNING` | Quieted/raised by the verbosity ladder; muted entirely while the TUI owns the terminal |
 | **Log file** | `launcher.log` in the run's temp dir, UTC timestamps | `INFO` (`DEBUG` with `--debug-mode`) | The complete record; copied to `<session>/Behavior/Logs/.launcher/` at the end of a run |
 | **TUI "Logs" pane** | Active only with the Textual frontend | `INFO`+ | Color-coded by level, local-time stamps |
-| **Remote (AIBS)** | Optional socket handler to the AIBS log server | `ERROR` | Opt-in (see below) |
 
 The key idea: **the file is exhaustive**, while the **console / TUI is filtered**
 for humans. You can make the console quieter or noisier without ever losing
@@ -104,13 +83,6 @@ clabe run my_experiment.py --debug-mode
 ```
 
 If you need to adjust the console level yourself, use the helper directly:
-
-```python
-import logging
-from clabe import logging_helper
-
-logging_helper.set_console_level(logging.INFO)
-```
 
 ## Logging vs. talking to the user
 
@@ -154,27 +126,6 @@ avoids double display.
 
 This is why you don't need to manually log what you show the user: surfacing a
 message or collecting an answer through the Frontend already records it.
-
-## Sending logs to the AIBS log server (optional)
-
-```python
-import logging
-from clabe.logging_helper.aibs import AibsLogServerHandlerSettings, add_handler
-
-settings = AibsLogServerHandlerSettings(project_name="my_project", version="1.0.0")
-add_handler(logging.getLogger(), settings)   # forwards ERROR+ records to the server
-```
-
-Or attach it to a launcher in one call:
-
-```python
-from clabe.logging_helper.aibs import AibsLogServerHandlerSettings, attach_to_launcher
-
-attach_to_launcher(launcher, AibsLogServerHandlerSettings(project_name="my_project", version="1.0.0"))
-```
-
-The handler defaults to `ERROR`; set `level=logging.WARNING` on the settings to
-forward more.
 
 ## Finding the log after a run
 
