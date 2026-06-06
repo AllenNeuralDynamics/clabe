@@ -11,18 +11,18 @@ def test_collect_clabe_experiments_discovers_decorated_function() -> None:
     assert "simple_experiment" in names
 
 
-def test_select_experiment_single_choice_uses_default_ui_helper() -> None:
+def test_select_experiment_single_choice_uses_default_frontend() -> None:
     module_path = TESTS_ASSETS / "experiment_mock.py"
     selected = _select_experiment(module_path)
     assert selected.name == "simple_experiment"
 
 
 def test_select_experiment_multiple_experiments_discovered_and_logs_constant(caplog) -> None:
-    mock_ui_helper = Mock()
-    mock_ui_helper.prompt_pick_from_list.return_value = "first_experiment"
+    mock_frontend = Mock()
+    mock_frontend.prompt_pick.return_value = "first_experiment"
 
     module_path = TESTS_ASSETS / "experiment_import_mocks.py"
-    selected = _select_experiment(module_path, ui_helper=mock_ui_helper)
+    selected = _select_experiment(module_path, frontend=mock_frontend)
 
     experiments = list(collect_clabe_experiments(__import__("tests.assets.experiment_import_mocks", fromlist=["*"])))
     names = {e.name for e in experiments}

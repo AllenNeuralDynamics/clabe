@@ -1,33 +1,35 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
-from clabe.ui import NativeUiHelper
+from clabe.ui import ConfirmRequest, ConsoleFrontend, PickRequest, TextRequest
 
 
 @pytest.fixture
-def ui_helper():
-    return NativeUiHelper(print_func=MagicMock())
+def frontend():
+    return ConsoleFrontend(print_func=MagicMock(), input_func=MagicMock())
 
 
-class TestNativeUiHelper:
-    @patch("builtins.input", side_effect=["Some notes"])
-    def test_prompt_get_text(self, mock_input, ui_helper):
-        result = ui_helper.prompt_text("")
-        assert isinstance(result, str)
+class TestConsoleFrontend:
+    def test_prompt_text(self, frontend):
+        frontend._input = MagicMock(return_value="Some notes")
+        result = frontend.prompt_text(TextRequest(label="Notes"))
+        assert result == "Some notes"
 
-    @patch("builtins.input", side_effect=["Y"])
-    def test_prompt_yes_no_question(self, mock_input, ui_helper):
-        result = ui_helper.prompt_yes_no_question("Continue?")
-        assert isinstance(result, bool)
+    def test_prompt_confirm_yes(self, frontend):
+        frontend._input = MagicMock(return_value="Y")
+        assert frontend.prompt_confirm(ConfirmRequest(label="Continue?")) is True
 
-    @patch("builtins.input", side_effect=["1"])
-    def test_prompt_pick_from_list(self, mock_input, ui_helper):
-        result = ui_helper.prompt_pick_from_list(["item1", "item2"], "Choose an item")
-        assert isinstance(result, str)
+    def test_prompt_confirm_no(self, frontend):
+        frontend._input = MagicMock(return_value="N")
+        assert frontend.prompt_confirm(ConfirmRequest(label="Continue?")) is False
+
+    def test_prompt_pick(self, frontend):
+        frontend._input = MagicMock(return_value="1")
+        result = frontend.prompt_pick(PickRequest(label="Choose", options=["item1", "item2"], allow_none=False))
         assert result == "item1"
 
-    @patch("builtins.input", side_effect=["0"])
-    def test_prompt_pick_from_list_none(self, mock_input, ui_helper):
-        result = ui_helper.prompt_pick_from_list(["item1", "item2"], "Choose an item")
+    def test_prompt_pick_none(self, frontend):
+        frontend._input = MagicMock(return_value="0")
+        result = frontend.prompt_pick(PickRequest(label="Choose", options=["item1", "item2"], allow_none=True))
         assert result is None

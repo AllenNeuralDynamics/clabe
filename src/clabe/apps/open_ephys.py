@@ -49,9 +49,7 @@ class OpenEphysApp(ExecutableApp, _DefaultExecutorMixin):
 
         Args:
             settings: Settings for the Open Ephys App
-            ui_helper: UI helper instance. Defaults to DefaultUIHelper
-            client: Optional Open Ephys GUI client
-            **kwargs: Additional keyword arguments
+            skip_validation: Whether to skip validation of required files
 
         Example:
             ```python

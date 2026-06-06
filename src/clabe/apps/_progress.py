@@ -1,7 +1,7 @@
 import contextlib
 import os
 import threading
-from typing import Any, Callable, Iterator, Optional, Union
+from typing import Any, Callable, ContextManager, Iterator, Optional, Protocol, Union
 
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
@@ -34,6 +34,20 @@ def _command_target(cmd: list[str]) -> Optional[str]:
     if scripts:
         return os.path.basename(scripts[-1])
     return None
+
+
+class ActivitySink(Protocol):
+    """An alternative destination for activity displays.
+
+    When a sink is registered on an :class:`ActivityIndicator`, activities are
+    rendered through the sink instead of the rich console. This lets a live TUI
+    own the terminal and show progress *inside* itself, rather than having a
+    console-based spinner corrupt the TUI's display.
+    """
+
+    def activity(self, description: str) -> ContextManager[None]:
+        """Display activity for the duration of the returned context manager."""
+        ...
 
 
 def _default_description(command: Command[Any]) -> str:
@@ -99,11 +113,23 @@ class ActivityIndicator:
         self._lock = threading.RLock()
         self._progress: Optional[Progress] = None
         self._active = 0
+        self._sink: Optional[ActivitySink] = None
 
     @property
     def enabled(self) -> bool:
         """Whether the activity display is active."""
         return self._enabled
+
+    def set_sink(self, sink: Optional[ActivitySink]) -> None:
+        """
+        Routes activities through ``sink`` (e.g. a TUI) instead of the console.
+
+        Args:
+            sink: The sink to render activities, or ``None`` to restore the
+                default console rendering.
+        """
+        with self._lock:
+            self._sink = sink
 
     def _build_progress(self) -> Progress:
         """Create the Progress instance used while activities are running."""
@@ -133,6 +159,14 @@ class ActivityIndicator:
                 executor.run(command)
             ```
         """
+        with self._lock:
+            sink = self._sink
+
+        if sink is not None:
+            with sink.activity(description):
+                yield
+            return
+
         if not self._enabled:
             yield
             return

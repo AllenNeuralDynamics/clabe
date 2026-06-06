@@ -20,6 +20,9 @@ class LauncherCliArgs(ServiceSettings, cli_prog_name="clabe", cli_kebab_case=Tru
         default=None, description="The repository root directory. If None will be auto-detected."
     )
     debug_mode: CliImplicitFlag[bool] = Field(default=False, description="Whether to run in debug mode")
+    verbose: CliImplicitFlag[bool] = Field(
+        default=False, description="Whether to show informational diagnostics on the console"
+    )
     allow_dirty: CliImplicitFlag[bool] = Field(
         default=False, description="Whether to allow the launcher to run with a dirty repository"
     )

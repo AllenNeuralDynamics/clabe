@@ -70,7 +70,49 @@ class _SeverityHighlightingHandler(rich.logging.RichHandler):
             return message
 
 
+#: Name of the logger used by the frontend to record the user-facing transcript
+#: (messages surfaced to the user and the answers they give). It is kept off the
+#: interactive console handler (the frontend already renders it) but still
+#: reaches the file handler so ``launcher.log`` contains a full transcript.
+TRANSCRIPT_LOGGER_NAME = "clabe.transcript"
+
+#: Default level for the interactive console handler. Diagnostics below this
+#: level are still written to the log file but are not shown to the user, so
+#: logging stops being the primary user-facing channel.
+DEFAULT_CONSOLE_LEVEL = logging.WARNING
+
+
+class _ExcludeTranscriptFilter(logging.Filter):
+    """Drops frontend-transcript records so they are not echoed to the console.
+
+    The frontend is responsible for rendering anything the user should see; the
+    transcript logger exists purely so those messages (and user input) are
+    persisted to the log file. Without this filter every ``notify`` would be
+    rendered twice: once by the frontend and once by the console log handler.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        """Returns False for transcript records so they skip the console handler."""
+        return not record.name.startswith(TRANSCRIPT_LOGGER_NAME)
+
+
 rich_handler = _SeverityHighlightingHandler(console=console, rich_tracebacks=True, show_time=False)
+rich_handler.setLevel(DEFAULT_CONSOLE_LEVEL)
+rich_handler.addFilter(_ExcludeTranscriptFilter())
+
+
+def set_console_level(level: int) -> None:
+    """
+    Sets the verbosity threshold of the interactive console log handler.
+
+    This only affects what is shown to the user on the console; it is fully
+    decoupled from what is written to the log file (see ``add_file_handler``)
+    and from any remote handlers.
+
+    Args:
+        level: A standard ``logging`` level (e.g. ``logging.INFO``).
+    """
+    rich_handler.setLevel(level)
 
 
 class _TzFormatter(logging.Formatter):

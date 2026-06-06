@@ -15,6 +15,7 @@ from pydantic_settings import CliApp
 
 from clabe import resource_monitor
 from clabe.apps import CurriculumApp, CurriculumSettings, PythonScriptApp
+from clabe.cache_manager import CacheManager
 from clabe.launcher import Launcher, LauncherCliArgs, experiment
 from clabe.pickers import DefaultBehaviorPicker, DefaultBehaviorPickerSettings
 
@@ -73,9 +74,21 @@ async def demo_experiment(launcher: Launcher) -> None:
     return
 
 
+def _seed_cache() -> None:
+    """Pre-populate the selection caches so autocompletion has options to filter."""
+    cache = CacheManager.get_instance()
+    cache.register_cache("subjects", max_history=20)
+    cache.register_cache("experimenters", max_history=20)
+    for subject in ["00000", "123456", "mouse_42", "mouse_77", "test_subject", "demo_animal", "alpha_01", "beta_02"]:
+        cache.add_to_cache("subjects", subject)
+    for experimenter in ["bruno.cruz", "jane.doe", "john.smith", "alex.kim"]:
+        cache.add_to_cache("experimenters", experimenter)
+
+
 def main():
     create_fake_subjects()
     create_fake_rig()
+    _seed_cache()
     behavior_cli_args = CliApp.run(
         LauncherCliArgs,
         cli_args=[

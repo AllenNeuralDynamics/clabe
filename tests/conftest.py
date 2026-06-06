@@ -10,37 +10,36 @@ from clabe.launcher import Launcher
 from clabe.launcher._cli import LauncherCliArgs
 
 
-class MockUiHelper(ui.UiHelper):
+class MockFrontend(ui.FrontendBase):
+    """Non-interactive frontend for tests; primitives are mockable."""
+
     def __init__(self):
-        self._print_func = lambda x: None
-        self._input_func = lambda x: "1"
-        self._prompt_pick_from_list = Mock(return_value="")
-        self._prompt_yes_no_question = Mock(return_value=True)
-        self._prompt_text = Mock(return_value="")
-        self._prompt_float = Mock(return_value=0.0)
+        super().__init__()
+        self._render_mock = Mock()
+        self._ask_text_mock = Mock(return_value="")
+        self._ask_pick_mock = Mock(return_value="")
+        self._ask_confirm_mock = Mock(return_value=True)
+        self._ask_autocomplete_mock = Mock(return_value="")
 
-    def print(self, message: str) -> None:
-        return self._print_func(message)
+    def _render(self, message, level):
+        return self._render_mock(message, level)
 
-    def input(self, prompt: str) -> str:
-        return self._input_func(prompt)
+    def _ask_text(self, request):
+        return self._ask_text_mock(request)
 
-    def prompt_pick_from_list(self, *args, **kwargs):
-        return self._prompt_pick_from_list(*args, **kwargs)
+    def _ask_pick(self, request):
+        return self._ask_pick_mock(request)
 
-    def prompt_yes_no_question(self, prompt: str) -> bool:
-        return self._prompt_yes_no_question(prompt)
+    def _ask_confirm(self, request):
+        return self._ask_confirm_mock(request)
 
-    def prompt_text(self, prompt: str) -> str:
-        return self._prompt_text(prompt)
-
-    def prompt_float(self, prompt):
-        return self._prompt_float(prompt)
+    def _ask_autocomplete(self, request):
+        return self._ask_autocomplete_mock(request)
 
 
 @pytest.fixture
-def mock_ui_helper():
-    return MockUiHelper()
+def mock_frontend():
+    return MockFrontend()
 
 
 @pytest.fixture
@@ -63,7 +62,7 @@ def mock_task():
 
 
 @pytest.fixture
-def mock_base_launcher(mock_rig, mock_session, mock_task, mock_ui_helper, tmp_path: Path):
+def mock_base_launcher(mock_rig, mock_session, mock_task, mock_frontend, tmp_path: Path):
     os.environ["COMPUTERNAME"] = "TEST_COMPUTER"
     launcher_args = LauncherCliArgs()
     # Ensure directories exist for os.chdir
@@ -78,7 +77,7 @@ def mock_base_launcher(mock_rig, mock_session, mock_task, mock_ui_helper, tmp_pa
     ):
         mock_git.return_value.working_dir = tmp_path / "repo"
         launcher = Launcher(
-            ui_helper=mock_ui_helper,
+            frontend=mock_frontend,
             settings=launcher_args,
         )
         launcher.temp_dir.mkdir(parents=True, exist_ok=True)

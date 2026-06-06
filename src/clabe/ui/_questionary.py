@@ -1,14 +1,13 @@
 import asyncio
-import logging
 import sys
-from typing import List, Optional
+from typing import Optional
 
 import questionary
 from questionary import Style
 
-from .ui_helper import _UiHelperBase
-
-logger = logging.getLogger(__name__)
+from ._frontend import FrontendBase
+from ._messages import MessageLevel
+from ._requests import AutoCompleteRequest, ConfirmRequest, PickRequest, TextRequest
 
 custom_style = Style(
     [
@@ -24,6 +23,13 @@ custom_style = Style(
         ("disabled", "fg:#858585 italic"),  # Disabled
     ]
 )
+
+_LEVEL_STYLES = {
+    MessageLevel.INFO: "bold italic",
+    MessageLevel.SUCCESS: "bold fg:ansigreen",
+    MessageLevel.WARNING: "bold fg:ansiyellow",
+    MessageLevel.ERROR: "bold fg:ansired",
+}
 
 
 def _flush_input() -> None:
@@ -44,7 +50,6 @@ def _flush_input() -> None:
 
 
 def _ask_sync(question: questionary.Question):
-    # TODO: We should just implement an async version of the UIHelper and avoid this complexity.
     """Ask question, handling both sync and async contexts.
 
     When in an async context, runs the questionary prompt in a thread pool
@@ -57,54 +62,47 @@ def _ask_sync(question: questionary.Question):
         KeyboardInterrupt: If user presses Ctrl+C to terminate
     """
     try:
-        # Check if we're in an async context
         asyncio.get_running_loop()
-        # We are in an async context - use thread pool to avoid nested event loop
         import concurrent.futures
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-            # Use unsafe_ask() to propagate KeyboardInterrupt instead of catching it
             future = executor.submit(question.unsafe_ask)
             return future.result()
-
     except RuntimeError:
-        # No running loop - use unsafe_ask() to propagate KeyboardInterrupt
         return question.unsafe_ask()
 
 
-class QuestionaryUIHelper(_UiHelperBase):
-    """UI helper implementation using Questionary for interactive prompts."""
+class QuestionaryFrontend(FrontendBase):
+    """Frontend implementation using Questionary for styled console prompts."""
 
     def __init__(self, style: Optional[questionary.Style] = None) -> None:
-        """Initializes the QuestionaryUIHelper with an optional custom style."""
+        """Initializes the frontend with an optional custom style."""
+        super().__init__()
         self.style = style or custom_style
 
-    def print(self, message: str) -> None:
-        """Prints a message with custom styling."""
-        questionary.print(message, "bold italic")
+    def _render(self, message: str, level: MessageLevel) -> None:
+        """Prints a message with level-appropriate styling."""
+        questionary.print(message, _LEVEL_STYLES[level])
 
-    def input(self, prompt: str) -> str:
-        """Prompts the user for input with custom styling."""
+    def _ask_text(self, request: TextRequest) -> str:
+        """Collects free-form text."""
         _flush_input()
-        return _ask_sync(questionary.text(prompt, style=self.style)) or ""
+        return _ask_sync(questionary.text(request.label, default=request.default or "", style=self.style)) or ""
 
-    def prompt_pick_from_list(self, value: List[str], prompt: str, **kwargs) -> Optional[str]:
-        """Interactive list selection with visual highlighting using arrow keys or number shortcuts."""
+    def _ask_pick(self, request: PickRequest) -> Optional[str]:
+        """Collects a single choice via an interactive list."""
         _flush_input()
-        allow_0_as_none = kwargs.get("allow_0_as_none", True)
-        zero_label = kwargs.get("zero_label", "None")
+        choices = request.choices()
+        labels = [choice.display for choice in choices]
+        by_label = {choice.display: choice.value for choice in choices}
 
-        choices = []
-
-        if allow_0_as_none:
-            choices.append(zero_label)
-
-        choices.extend(value)
+        if request.allow_none:
+            labels = [request.none_label] + labels
 
         result = _ask_sync(
             questionary.select(
-                prompt,
-                choices=choices,
+                request.label,
+                choices=labels,
                 style=self.style,
                 use_arrow_keys=True,
                 use_indicator=True,
@@ -114,29 +112,27 @@ class QuestionaryUIHelper(_UiHelperBase):
 
         if result is None:
             return None
-
-        if result == zero_label and allow_0_as_none:
+        if request.allow_none and result == request.none_label:
             return None
+        return by_label[result]
 
-        return result
-
-    def prompt_yes_no_question(self, prompt: str) -> bool:
-        """Prompts the user with a yes/no question using custom styling."""
+    def _ask_autocomplete(self, request: AutoCompleteRequest) -> str:
+        """Collects text with type-to-filter autocompletion."""
         _flush_input()
-        return _ask_sync(questionary.confirm(prompt, style=self.style)) or False
+        return (
+            _ask_sync(
+                questionary.autocomplete(
+                    request.label,
+                    choices=request.suggestions(),
+                    default=request.default or "",
+                    style=self.style,
+                )
+            )
+            or ""
+        )
 
-    def prompt_text(self, prompt: str) -> str:
-        """Prompts the user for generic text input using custom styling."""
+    def _ask_confirm(self, request: ConfirmRequest) -> bool:
+        """Collects a yes/no answer."""
         _flush_input()
-        return _ask_sync(questionary.text(prompt, style=self.style)) or ""
-
-    def prompt_float(self, prompt: str) -> float:
-        """Prompts the user for a float input using custom styling."""
-        _flush_input()
-        while True:
-            try:
-                value_str = _ask_sync(questionary.text(prompt, style=self.style))
-                if value_str:
-                    return float(value_str)
-            except ValueError:
-                self.print("Invalid input. Please enter a valid float.")
+        result = _ask_sync(questionary.confirm(request.label, default=request.default, style=self.style))
+        return bool(result)

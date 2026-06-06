@@ -124,8 +124,6 @@ nav:
     - resource_monitor: api/resource_monitor/resource_monitor.md
   - Ui:
     - ui: api/ui/ui.md
-    - questionary_ui_helper: api/ui/questionary_ui_helper.md
-    - ui_helper: api/ui/ui_helper.md
   - Utils:
     - utils: api/utils/utils.md
     - aind_auth: api/utils/aind_auth.md
