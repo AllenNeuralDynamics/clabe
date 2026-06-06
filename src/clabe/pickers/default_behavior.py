@@ -241,9 +241,7 @@ class DefaultBehaviorPicker:
                 rig = model_from_json_file(rig_path, model)
             else:
                 rig_path = self.frontend.prompt_pick(
-                    ui.PickRequest(
-                        label=f"Choose a rig for {model.__name__}:", options=available_rigs, field="rig"
-                    )
+                    ui.PickRequest(label=f"Choose a rig for {model.__name__}:", options=available_rigs, field="rig")
                 )
                 if rig_path is not None:
                     rig = self._load_rig_from_path(Path(rig_path), model)
@@ -349,9 +347,7 @@ class DefaultBehaviorPicker:
                 if len(available_files) == 0:
                     break
                 path = self.frontend.prompt_pick(
-                    ui.PickRequest(
-                        label=f"Choose a task for {model.__name__}:", options=available_files, field="task"
-                    )
+                    ui.PickRequest(label=f"Choose a task for {model.__name__}:", options=available_files, field="task")
                 )
                 if not isinstance(path, str):
                     raise ValueError("Invalid choice.")
@@ -529,9 +525,7 @@ class DefaultBehaviorPicker:
 
         os.makedirs(path.parent, exist_ok=True)
         if path.exists():
-            overwrite = self.frontend.prompt_confirm(
-                ui.ConfirmRequest(label=f"File {path} already exists. Overwrite?")
-            )
+            overwrite = self.frontend.prompt_confirm(ui.ConfirmRequest(label=f"File {path} already exists. Overwrite?"))
             if not overwrite:
                 logger.info("User chose not to overwrite the existing file: %s", path)
                 return None

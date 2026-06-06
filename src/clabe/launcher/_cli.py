@@ -25,7 +25,8 @@ class LauncherCliArgs(ServiceSettings, cli_prog_name="clabe", cli_kebab_case=Tru
         description="Frontend for prompts and output: auto (TUI on a terminal, else console), tui, or console",
     )
     verbose: CliImplicitFlag[bool] = Field(
-        default=False, description="Show informational messages in the UI and console (everything is still logged to file)"
+        default=False,
+        description="Show informational messages in the UI and console (everything is still logged to file)",
     )
     quiet: CliImplicitFlag[bool] = Field(
         default=False, description="Only show errors in the UI and console (everything is still logged to file)"

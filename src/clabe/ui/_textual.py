@@ -53,6 +53,7 @@ def _local_time() -> str:
     """Returns the current local time as ``HH:MM:SS`` (no date)."""
     return datetime.datetime.now().strftime("%H:%M:%S")
 
+
 _APP_CSS = """
 Screen { layout: vertical; }
 #clabe-user { height: 2fr; border: round $accent; padding: 0 1; }

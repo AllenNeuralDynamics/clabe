@@ -67,16 +67,12 @@ class TestConsoleFrontendInteractive:
 
     def test_pick_none_row(self, terminal_frontend, monkeypatch):
         monkeypatch.setattr(_keys, "read_key", _keys_returning(_keys.ENTER))
-        result = terminal_frontend.prompt_pick(
-            PickRequest(label="Choose", options=["item1", "item2"], allow_none=True)
-        )
+        result = terminal_frontend.prompt_pick(PickRequest(label="Choose", options=["item1", "item2"], allow_none=True))
         assert result is None
 
     def test_autocomplete_enter_selects_highlighted(self, terminal_frontend, monkeypatch):
         monkeypatch.setattr(_keys, "read_key", _keys_returning("a", "l", _keys.ENTER))
-        result = terminal_frontend.prompt_autocomplete(
-            AutoCompleteRequest(label="Subject", options=["alpha", "beta"])
-        )
+        result = terminal_frontend.prompt_autocomplete(AutoCompleteRequest(label="Subject", options=["alpha", "beta"]))
         assert result == "alpha"
 
     def test_autocomplete_enter_on_first_suggestion(self, terminal_frontend, monkeypatch):
@@ -95,14 +91,10 @@ class TestConsoleFrontendInteractive:
 
     def test_autocomplete_free_text_when_no_match(self, terminal_frontend, monkeypatch):
         monkeypatch.setattr(_keys, "read_key", _keys_returning("z", "z", _keys.ENTER))
-        result = terminal_frontend.prompt_autocomplete(
-            AutoCompleteRequest(label="Subject", options=["alpha", "beta"])
-        )
+        result = terminal_frontend.prompt_autocomplete(AutoCompleteRequest(label="Subject", options=["alpha", "beta"]))
         assert result == "zz"
 
     def test_autocomplete_tab_completes_match(self, terminal_frontend, monkeypatch):
         monkeypatch.setattr(_keys, "read_key", _keys_returning("b", _keys.TAB, _keys.ENTER))
-        result = terminal_frontend.prompt_autocomplete(
-            AutoCompleteRequest(label="Subject", options=["beta", "gamma"])
-        )
+        result = terminal_frontend.prompt_autocomplete(AutoCompleteRequest(label="Subject", options=["beta", "gamma"]))
         assert result == "beta"

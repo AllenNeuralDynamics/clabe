@@ -80,7 +80,7 @@ class Launcher:
 
         self._ensure_directory_structure()
 
-        # Solve logger. 
+        # Solve logger.
         if attached_logger:
             _logger = logging_helper.add_file_handler(attached_logger, self.temp_dir / "launcher.log")
         else:

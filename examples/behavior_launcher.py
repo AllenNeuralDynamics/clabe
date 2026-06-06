@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import sys
 from pathlib import Path
 
 from _mocks import (
@@ -11,13 +12,13 @@ from _mocks import (
     create_fake_rig,
     create_fake_subjects,
 )
-from pydantic_settings import CliApp
 
 from clabe import resource_monitor
 from clabe.apps import CurriculumApp, CurriculumSettings, PythonScriptApp
 from clabe.cache_manager import CacheManager
-from clabe.launcher import Launcher, LauncherCliArgs, experiment
+from clabe.launcher import Launcher, experiment
 from clabe.pickers import DefaultBehaviorPicker, DefaultBehaviorPickerSettings
+from clabe.web import serve
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,12 @@ logger = logging.getLogger(__name__)
 @experiment()
 async def demo_experiment(launcher: Launcher) -> None:
     """Demo experiment showcasing CLABE functionality."""
+    # Seed the mock rig/subjects/cache here so the demo also works when launched
+    # via ``clabe run``/``clabe serve`` (which call this function but not main()).
+    create_fake_subjects()
+    create_fake_rig()
+    _seed_cache()
+
     picker = DefaultBehaviorPicker(
         launcher=launcher,
         settings=DefaultBehaviorPickerSettings(config_library_dir=LIB_CONFIG),
@@ -86,21 +93,14 @@ def _seed_cache() -> None:
 
 
 def main():
-    create_fake_subjects()
-    create_fake_rig()
-    _seed_cache()
-    behavior_cli_args = CliApp.run(
-        LauncherCliArgs,
-        cli_args=[
-            "--debug-mode",
-            "--allow-dirty",
-            "--skip-hardware-validation",
-            "--frontend", "console",
-        ],
+    # Serve this experiment's TUI over a local web port and pop open the browser.
+    # Each browser connection runs `clabe run <this file> --frontend tui` as its
+    # own subprocess, so the seeding/experiment above runs there.
+    this_file = f'"{Path(__file__).resolve()}"'
+    serve(
+        f"{sys.executable} -m clabe.cli run {this_file} --allow-dirty --skip-hardware-validation --frontend tui",
+        open_browser=True,
     )
-
-    launcher = Launcher(settings=behavior_cli_args)
-    launcher.run_experiment(demo_experiment)
     return None
 
 
