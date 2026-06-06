@@ -20,9 +20,9 @@ class LauncherCliArgs(ServiceSettings, cli_prog_name="clabe", cli_kebab_case=Tru
         default=None, description="The repository root directory. If None will be auto-detected."
     )
     debug_mode: CliImplicitFlag[bool] = Field(default=False, description="Whether to run in debug mode")
-    ui_backend: Literal["auto", "tui", "questionary", "console"] = Field(
+    frontend: Literal["auto", "tui", "questionary", "console"] = Field(
         default="auto",
-        description="UI backend for prompts and output: auto (TUI on a terminal, else console), tui, questionary, or console",
+        description="Frontend for prompts and output: auto (TUI on a terminal, else console), tui, questionary, or console",
     )
     verbose: CliImplicitFlag[bool] = Field(
         default=False, description="Show informational messages in the UI and console (everything is still logged to file)"

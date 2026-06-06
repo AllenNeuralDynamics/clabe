@@ -6,7 +6,7 @@ from typing import Any, Callable, ContextManager, Iterator, Optional, Protocol, 
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 
-from ..logging_helper._stdlib import console as _default_console
+from ..logging_helper._stdlib import clabe_console as _default_console
 from ._base import AsyncExecutor, Command, CommandResult, Executor
 
 _Description = Union[str, Callable[[Command[Any]], str]]

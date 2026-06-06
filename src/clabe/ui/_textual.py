@@ -11,7 +11,7 @@ from textual.binding import Binding
 from textual.containers import Vertical
 from textual.widgets import Input, Label, OptionList, RichLog, Static
 
-from ..logging_helper import TRANSCRIPT_LOGGER_NAME
+from ..logging_helper import _TRANSCRIPT_LOGGER_NAME
 from ._frontend import FrontendBase
 from ._messages import MessageLevel
 from ._requests import AutoCompleteRequest, ConfirmRequest, PickRequest, TextRequest
@@ -311,7 +311,7 @@ class _TuiLogHandler(logging.Handler):
 
     def emit(self, record: logging.LogRecord) -> None:
         """Writes the formatted, color-coded record to the TUI Logs pane."""
-        if record.name.startswith(TRANSCRIPT_LOGGER_NAME):
+        if record.name.startswith(_TRANSCRIPT_LOGGER_NAME):
             return
         try:
             message = self.format(record)

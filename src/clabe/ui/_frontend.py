@@ -2,7 +2,7 @@ import abc
 import logging
 from typing import ContextManager, List, Optional, Protocol, runtime_checkable
 
-from ..logging_helper import TRANSCRIPT_LOGGER_NAME
+from ..logging_helper import _TRANSCRIPT_LOGGER_NAME
 from ._messages import MessageLevel
 from ._requests import (
     AutoCompleteRequest,
@@ -80,7 +80,7 @@ class FrontendBase(abc.ABC):
 
     def __init__(self) -> None:
         """Initializes the frontend and its transcript logger."""
-        self._transcript = logging.getLogger(TRANSCRIPT_LOGGER_NAME)
+        self._transcript = logging.getLogger(_TRANSCRIPT_LOGGER_NAME)
         #: Minimum level a message must reach to be *rendered* to the user.
         #: Messages below this are still recorded to the transcript/log file.
         self._min_render_level = logging.WARNING

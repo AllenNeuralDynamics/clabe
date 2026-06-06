@@ -14,7 +14,7 @@ TLogger = TypeVar("TLogger", bound=logging.Logger)
 #: Both must write through the *same* ``Console`` instance so that live
 #: displays (spinners/progress bars) and log lines coordinate cleanly instead
 #: of corrupting each other's output.
-console = rich.console.Console()
+clabe_console = rich.console.Console()
 
 log_fmt = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 datetime_fmt = "%Y-%m-%dT%H%M%S%z"
@@ -70,16 +70,11 @@ class _SeverityHighlightingHandler(rich.logging.RichHandler):
             return message
 
 
-#: Name of the logger used by the frontend to record the user-facing transcript
-#: (messages surfaced to the user and the answers they give). It is kept off the
-#: interactive console handler (the frontend already renders it) but still
-#: reaches the file handler so ``launcher.log`` contains a full transcript.
-TRANSCRIPT_LOGGER_NAME = "clabe.transcript"
+# Name of the logger used by the frontend to record the user-facing transcript
+_TRANSCRIPT_LOGGER_NAME = "clabe.transcript"
 
-#: Default level for the interactive console handler. Diagnostics below this
-#: level are still written to the log file but are not shown to the user, so
-#: logging stops being the primary user-facing channel.
-DEFAULT_CONSOLE_LEVEL = logging.WARNING
+#: Default level for the interactive console handler.
+_DEFAULT_CONSOLE_LEVEL = logging.WARNING
 
 
 class _ExcludeTranscriptFilter(logging.Filter):
@@ -93,11 +88,11 @@ class _ExcludeTranscriptFilter(logging.Filter):
 
     def filter(self, record: logging.LogRecord) -> bool:
         """Returns False for transcript records so they skip the console handler."""
-        return not record.name.startswith(TRANSCRIPT_LOGGER_NAME)
+        return not record.name.startswith(_TRANSCRIPT_LOGGER_NAME)
 
 
-rich_handler = _SeverityHighlightingHandler(console=console, rich_tracebacks=True, show_time=False)
-rich_handler.setLevel(DEFAULT_CONSOLE_LEVEL)
+rich_handler = _SeverityHighlightingHandler(console=clabe_console, rich_tracebacks=True, show_time=False)
+rich_handler.setLevel(_DEFAULT_CONSOLE_LEVEL)
 rich_handler.addFilter(_ExcludeTranscriptFilter())
 
 

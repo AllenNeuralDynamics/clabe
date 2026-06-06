@@ -29,9 +29,9 @@ def default_frontend() -> Frontend:
     Returns:
         Frontend: A ready-to-use frontend instance.
     """
-    from ..logging_helper import console
+    from ..logging_helper import clabe_console
 
-    if console.is_terminal:
+    if clabe_console.is_terminal:
         return TextualFrontend()
     return ConsoleFrontend()
 

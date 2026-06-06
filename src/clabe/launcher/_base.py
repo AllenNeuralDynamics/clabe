@@ -63,10 +63,10 @@ class Launcher:
             settings: The settings for the launcher
             attached_logger: An attached logger instance. Defaults to None
             frontend: The frontend mediating all user interaction. Defaults to the
-                backend selected by ``settings.ui_backend``
+                backend selected by ``settings.frontend``
         """
         self._settings = settings
-        self.frontend = frontend or make_frontend(settings.ui_backend)
+        self.frontend = frontend or make_frontend(settings.frontend)
         # Register the frontend so UI-agnostic library modules can surface key
         # events to the user (see ``clabe.ui.notify``).
         set_current_frontend(self.frontend)
@@ -80,17 +80,13 @@ class Launcher:
 
         self._ensure_directory_structure()
 
-        # Solve logger. The log file always records diagnostics (and, via the
-        # frontend transcript, what the user saw and entered); the interactive
-        # console is filtered independently so logging is not the user channel.
+        # Solve logger. 
         if attached_logger:
             _logger = logging_helper.add_file_handler(attached_logger, self.temp_dir / "launcher.log")
         else:
             root_logger = logging.getLogger()
             _logger = logging_helper.add_file_handler(root_logger, self.temp_dir / "launcher.log")
 
-        # Verbosity ladder (quiet < default < verbose < debug) controls what is
-        # shown to the user; the log file always records full detail.
         if settings.debug_mode:
             display_level = logging.DEBUG
         elif settings.verbose:
