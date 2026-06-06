@@ -283,7 +283,9 @@ class _DefaultExecutorMixin:
         # with. Declaring it here lets the type checker resolve ``self.command``
         # (and the mixin's own helpers) without typing ``self`` as the protocol.
         @property
-        def command(self) -> Command: ...
+        def command(self) -> Command:
+            """The command to execute, provided by the ExecutableApp."""
+            ...
 
     def _progress_description(self, override: Optional[str]) -> str:
         """Resolve the spinner label.
