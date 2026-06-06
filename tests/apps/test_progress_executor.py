@@ -362,10 +362,10 @@ class _DummyApp(ExecutableApp, _DefaultExecutorMixin):
 
 
 class TestDefaultExecutorMixinShowProgress:
-    def test_run_without_progress_uses_plain_executor(self):
+    def test_run_with_progress_disabled_uses_plain_executor(self):
         app = _DummyApp()
         with patch("clabe.apps._executors.ProgressExecutor") as mock_progress:
-            result = app.run()
+            result = app.run(show_progress=False)
         assert result.ok is True
         mock_progress.assert_not_called()
 
@@ -379,10 +379,10 @@ class TestDefaultExecutorMixinShowProgress:
         assert isinstance(inner, LocalExecutor)
 
     @pytest.mark.asyncio
-    async def test_run_async_without_progress_uses_plain_executor(self):
+    async def test_run_async_with_progress_disabled_uses_plain_executor(self):
         app = _DummyApp()
         with patch("clabe.apps._executors.ProgressExecutor") as mock_progress:
-            result = await app.run_async()
+            result = await app.run_async(show_progress=False)
         assert result.ok is True
         mock_progress.assert_not_called()
 
@@ -395,6 +395,19 @@ class TestDefaultExecutorMixinShowProgress:
         mock_progress.assert_called_once()
         (inner,), _ = mock_progress.call_args
         assert isinstance(inner, AsyncLocalExecutor)
+
+    def test_run_defaults_to_showing_progress(self):
+        app = _DummyApp()
+        with patch("clabe.apps._executors.ProgressExecutor", wraps=ProgressExecutor) as mock_progress:
+            app.run()
+        mock_progress.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_run_async_defaults_to_showing_progress(self):
+        app = _DummyApp()
+        with patch("clabe.apps._executors.ProgressExecutor", wraps=ProgressExecutor) as mock_progress:
+            await app.run_async()
+        mock_progress.assert_called_once()
 
     def test_default_label_uses_class_name(self):
         app = _DummyApp()

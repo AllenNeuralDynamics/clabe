@@ -301,7 +301,7 @@ class _DefaultExecutorMixin:
         self,
         executor_kwargs: Optional[dict[str, Any]] = None,
         *,
-        show_progress: bool = False,
+        show_progress: bool = True,
         progress_description: Optional[str] = None,
     ) -> CommandResult:
         """Execute the command using a local executor and return the result.
@@ -310,7 +310,7 @@ class _DefaultExecutorMixin:
             executor_kwargs: Keyword arguments forwarded to the local executor.
             show_progress: When True, display a live spinner with elapsed time
                 while the command runs. Automatically a no-op on non-interactive
-                consoles (e.g. CI or piped output). Defaults to False.
+                consoles (e.g. CI or piped output). Defaults to True.
             progress_description: Label shown next to the spinner. Defaults to
                 ``Running <ClassName>``.
         """
@@ -323,7 +323,7 @@ class _DefaultExecutorMixin:
         self,
         executor_kwargs: Optional[dict[str, Any]] = None,
         *,
-        show_progress: bool = False,
+        show_progress: bool = True,
         progress_description: Optional[str] = None,
     ) -> CommandResult:
         """Execute the command asynchronously using a local executor and return the result.
@@ -332,7 +332,7 @@ class _DefaultExecutorMixin:
             executor_kwargs: Keyword arguments forwarded to the local executor.
             show_progress: When True, display a live spinner with elapsed time
                 while the command runs. Automatically a no-op on non-interactive
-                consoles (e.g. CI or piped output). Defaults to False.
+                consoles (e.g. CI or piped output). Defaults to True.
             progress_description: Label shown next to the spinner. Defaults to
                 ``Running <ClassName>``.
         """
