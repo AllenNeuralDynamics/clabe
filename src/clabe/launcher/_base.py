@@ -208,6 +208,9 @@ class Launcher:
         _code = 0
         try:
             self.frontend.header(self.make_header())
+            set_experiment = getattr(self.frontend, "set_experiment", None)
+            if callable(set_experiment):
+                set_experiment(getattr(experiment, "__name__", None) or "experiment")
             logger.info(self._generate_diagnostic_info())
 
             if not self.settings.debug_mode:

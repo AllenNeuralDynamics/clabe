@@ -1,16 +1,21 @@
 import contextlib
 import datetime
 import logging
+import os
 import queue
+import re
+import tempfile
 import threading
+from pathlib import Path
 from typing import Iterator, List, Optional
 
 from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Vertical
-from textual.widgets import Input, Label, OptionList, RichLog, Static
+from textual.widgets import Footer, Header, Input, Label, OptionList, RichLog, Static
 
+from .. import __version__
 from ..logging_helper import _TRANSCRIPT_LOGGER_NAME
 from ._frontend import FrontendBase
 from ._messages import MessageLevel
@@ -52,6 +57,39 @@ def _log_style(levelno: int) -> str:
 def _local_time() -> str:
     """Returns the current local time as ``HH:MM:SS`` (no date)."""
     return datetime.datetime.now().strftime("%H:%M:%S")
+
+
+#: Path-like tokens: a drive root (``C:\\a``), a rooted path (``/a/b``), or a
+#: multi-segment relative path (``a/b``). The leading guard skips URL fragments
+#: (e.g. ``http://host/x``); only tokens that resolve to an existing path are
+#: linked, which filters out incidental ``a/b`` text.
+_PATH_RE = re.compile(
+    r"(?<![:\w/\\])"
+    r"(?:[A-Za-z]:[\\/][\w.\-]+(?:[\\/][\w.\-]+)*"
+    r"|[\\/][\w.\-]+(?:[\\/][\w.\-]+)*"
+    r"|[\w.\-]+(?:[\\/][\w.\-]+)+)"
+)
+
+
+def _linkify(message: str, style: str) -> Text:
+    """Render ``message`` with existing file paths as OSC 8 ``file://`` hyperlinks.
+
+    Clickable in terminals that support OSC 8 (e.g. Windows Terminal); elsewhere
+    the path just renders as underlined text. Relative paths are resolved against
+    the working directory, and only paths that actually exist are linked.
+    """
+    text = Text(style=style)
+    cursor = 0
+    for match in _PATH_RE.finditer(message):
+        token = match.group(0).rstrip(".,;:!?)]}'\"")
+        absolute = os.path.abspath(token)
+        if not os.path.exists(absolute):
+            continue
+        text.append(message[cursor : match.start()])
+        text.append(token, style=f"underline link {Path(absolute).as_uri()}")
+        cursor = match.start() + len(token)
+    text.append(message[cursor:])
+    return text
 
 
 _APP_CSS = """
@@ -109,7 +147,10 @@ class _LauncherApp(App):
     """
 
     CSS = _APP_CSS
-    BINDINGS = [Binding("ctrl+c", "cancel", "Cancel", priority=True)]
+    BINDINGS = [
+        Binding("ctrl+c", "cancel", "Exit", priority=True),
+        Binding("ctrl+s", "screenshot", "Screenshot", priority=True),
+    ]
 
     def __init__(self) -> None:
         super().__init__()
@@ -120,16 +161,20 @@ class _LauncherApp(App):
         self._auto_all: List[str] = []
 
     def compose(self) -> ComposeResult:
-        """Builds the four-pane layout (Session, Processes, Input, Logs)."""
+        """Builds the layout: a persistent header, the four panes, and a footer."""
+        yield Header()
         with Vertical(id="clabe-user"):
             yield Static("", id="clabe-logo")
             yield RichLog(id="clabe-user-log", highlight=False, wrap=True, auto_scroll=True)
         yield Vertical(id="clabe-processes")
         yield Vertical(id="clabe-prompt")
         yield RichLog(id="clabe-logs", highlight=False, wrap=True, auto_scroll=True)
+        yield Footer()
 
     def on_mount(self) -> None:
-        """Titles the panes and signals that the app is ready for input."""
+        """Titles the panes/header and signals that the app is ready for input."""
+        self.title = "clabe"
+        self.sub_title = f"v{__version__}"
         self.query_one("#clabe-user", Vertical).border_title = "Session"
         self.query_one("#clabe-processes", Vertical).border_title = "Processes"
         self.query_one("#clabe-prompt", Vertical).border_title = "Input"
@@ -142,6 +187,10 @@ class _LauncherApp(App):
         logos = self.query("#clabe-logo")
         if len(logos):
             logos.first(Static).update(text)
+
+    def set_experiment(self, name: str) -> None:
+        """Shows the running experiment's name alongside the version in the header."""
+        self.sub_title = f"v{__version__} · {name}"
 
     def write_user(self, renderable: object) -> None:
         """Appends a renderable to the Session pane, retiring the logo on first use."""
@@ -286,6 +335,17 @@ class _LauncherApp(App):
 
             _thread.interrupt_main()
 
+    def action_screenshot(self) -> None:
+        """Saves an SVG screenshot of the whole window and notes where it went.
+
+        Saved to the OS temp directory so it works regardless of the launcher's
+        working directory.
+        """
+        path = self.save_screenshot(path=tempfile.gettempdir())
+        line = Text(f"[{_local_time()}] ", style="dim")
+        line.append_text(_linkify(f"Saved screenshot to {path}", _RICH_STYLES[MessageLevel.SUCCESS]))
+        self.write_user(line)
+
 
 class _TuiActivitySink:
     """Renders activities as rows inside the running TUI instead of the console."""
@@ -318,7 +378,7 @@ class _TuiLogHandler(logging.Handler):
             message = self.format(record)
         except Exception:  # pragma: no cover - defensive
             return
-        self._frontend._write_log(Text(message, style=_log_style(record.levelno)))
+        self._frontend._write_log(_linkify(message, _log_style(record.levelno)))
 
 
 def _unwrap(value: object) -> object:
@@ -421,11 +481,17 @@ class TextualFrontend(FrontendBase):
         if self._app is not None:
             self._app.call_from_thread(self._app.set_logo, text)
 
+    def set_experiment(self, name: str) -> None:
+        """Shows the running experiment's name in the header."""
+        self._ensure()
+        if self._app is not None:
+            self._app.call_from_thread(self._app.set_experiment, name)
+
     def _render(self, message: str, level: MessageLevel) -> None:
         """Writes a timestamped, level-styled message to the Session pane."""
         self._ensure()
         line = Text(f"[{_local_time()}] ", style="dim")
-        line.append(message, style=_RICH_STYLES[level])
+        line.append_text(_linkify(message, _RICH_STYLES[level]))
         self._write_user(line)
 
     def _on_answer(self, key: str, value: object) -> None:

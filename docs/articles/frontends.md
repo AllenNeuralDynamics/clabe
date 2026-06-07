@@ -68,6 +68,23 @@ pane only renders at/above the current verbosity threshold (warnings and above
 by default), while everything is still recorded to the transcript. See
 [Logging](logging.md#logging-vs-talking-to-the-user) for `notify()` vs `logger`.
 
+## TUI shortcuts and clickable paths
+
+The Textual TUI shows a persistent header (with the CLABE version and, once
+known, the running experiment) and a footer listing the active shortcuts:
+
+| Key | Action |
+|---|---|
+| `Ctrl+C` | Exit the launcher |
+| `Ctrl+S` | Save an SVG screenshot of the window |
+
+`Ctrl+S` renders the whole window to an SVG in the OS temp directory and notes
+the (clickable) path in the Session pane — terminal-independent, and a reliable
+way to capture a run to share. Existing paths in the Session and Logs panes are
+rendered as `file://` hyperlinks — `Ctrl`/`⌘`-click opens them in terminals that
+support OSC 8 (e.g. Windows Terminal, iTerm2); elsewhere they render as ordinary
+underlined text.
+
 ## Writing a new frontend
 
 Subclass `FrontendBase` and implement the rendering/asking primitives; the base
