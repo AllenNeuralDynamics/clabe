@@ -170,6 +170,7 @@ class _LauncherApp(App):
     BINDINGS = [
         Binding("ctrl+c", "cancel", "Exit", priority=True),
         Binding("ctrl+s", "screenshot", "Screenshot", priority=True),
+        Binding("f2", "toggle_logs", "Toggle Logs"),
     ]
 
     def __init__(self) -> None:
@@ -381,6 +382,14 @@ class _LauncherApp(App):
         line = Text(f"[{_local_time()}] ", style="dim")
         line.append_text(_linkify(f"Saved screenshot to {path}", _RICH_STYLES[MessageLevel.SUCCESS]))
         self.write_user(line)
+
+    def action_toggle_logs(self) -> None:
+        """Show or hide the Logs pane to reclaim vertical space."""
+        logs = self.query_one("#clabe-logs", RichLog)
+        logs.display = not logs.display
+        if logs.display:
+            logs.scroll_end(animate=False)
+        self.query_one("#clabe-user-log", RichLog).scroll_end(animate=False)
 
 
 class _TuiActivitySink:
