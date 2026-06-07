@@ -344,12 +344,19 @@ class _LauncherApp(App):
             await self._finish(str(event.option.prompt))
 
     def on_key(self, event) -> None:
-        """Move focus from the autocomplete input into the suggestion list on Down."""
-        if self._kind == "auto" and event.key == "down" and isinstance(self.focused, Input):
+        """Shuttle focus between the autocomplete input and suggestion list with arrow keys."""
+        if self._kind != "auto":
+            return
+        if event.key == "down" and isinstance(self.focused, Input):
             option_list = self.query_one("#clabe-options", OptionList)
             if option_list.option_count:
                 option_list.focus()
                 option_list.highlighted = 0
+                event.stop()
+        elif event.key == "up" and isinstance(self.focused, OptionList):
+            option_list = self.query_one("#clabe-options", OptionList)
+            if option_list.highlighted == 0:
+                self.query_one("#clabe-input", Input).focus()
                 event.stop()
 
     def action_cancel(self) -> None:
