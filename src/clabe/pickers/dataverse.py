@@ -498,7 +498,7 @@ class DataversePicker(DefaultBehaviorPicker):
         dataverse_client: Optional[_DataverseRestClient] = None,
         settings: DefaultBehaviorPickerSettings,
         launcher: Launcher,
-        ui_helper: Optional[ui.IUiHelper] = None,
+        frontend: Optional[ui.Frontend] = None,
         experimenter_validator: Optional[Callable[[str], bool]] = validate_username,
         rig_validator: Optional[Callable[[Rig], Rig]] = validate_rig_computer_name,
     ):
@@ -508,14 +508,14 @@ class DataversePicker(DefaultBehaviorPicker):
         Args:
             dataverse_client: Optional Dataverse REST client for making API calls. If not provided, a new client will be created using settings from KeePass.
             settings: Settings containing configuration including config_library_dir
-            ui_helper: Helper for user interface interactions
+            frontend: Frontend mediating user interaction
             experimenter_validator: Function to validate the experimenter's username. If None, no validation is performed
             rig_validator: Function to validate the rig configuration. If None, no validation is performed
         """
         super().__init__(
             settings=settings,
             launcher=launcher,
-            ui_helper=ui_helper,
+            frontend=frontend,
             experimenter_validator=experimenter_validator,
             rig_validator=rig_validator,
         )

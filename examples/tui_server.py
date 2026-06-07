@@ -1,8 +1,7 @@
 import asyncio
 import logging
-from enum import Enum
+import sys
 from pathlib import Path
-from typing import Literal, Optional
 
 from _mocks import (
     LIB_CONFIG,
@@ -13,60 +12,16 @@ from _mocks import (
     create_fake_rig,
     create_fake_subjects,
 )
-from pydantic import BaseModel, Field
-from pydantic_settings import CliApp
 
 from clabe import resource_monitor
 from clabe.apps import CurriculumApp, CurriculumSettings, PythonScriptApp
 from clabe.cache_manager import CacheManager
-from clabe.launcher import Launcher, LauncherCliArgs, experiment
+from clabe.launcher import Launcher, experiment
 from clabe.pickers import DefaultBehaviorPicker, DefaultBehaviorPickerSettings
 from clabe.runnable import runnable
-from clabe.ui import FieldRequest, FormRequest, MessageLevel, notify
+from clabe.web import serve
 
 logger = logging.getLogger(__name__)
-
-
-class RecordingMode(Enum):
-    EPHYS = "ephys"
-    CALCIUM = "calcium"
-    BEHAVIOR_ONLY = "behavior_only"
-
-
-class SessionConfig(BaseModel):
-    """Demonstration model — exercises every form widget type."""
-
-    notes: Optional[str] = Field(
-        default=None,
-        title="Experimenter Notes",
-        description="Free-text notes attached to this session. Leave blank to skip.",
-    )
-    session_type: Literal["behavior", "physiology", "combined"] = Field(
-        default="behavior",
-        title="Session Type",
-        description="High-level classification of this recording session.",
-    )
-    recording_mode: RecordingMode = Field(
-        default=RecordingMode.BEHAVIOR_ONLY,
-        title="Recording Mode",
-        description="Hardware modality used for this session (ephys, calcium imaging, or behavior-only).",
-    )
-    trial_count: int = Field(
-        default=200,
-        title="Trial Count",
-        description="Number of trials to run. Must be a positive integer greater than zero.",
-        gt=0,
-    )
-    debug_mode: bool = Field(
-        default=False,
-        title="Debug Mode",
-        description="When enabled, skips hardware checks and logs extra diagnostics.",
-    )
-    output_dir: Path = Field(
-        default=Path("./local/output"),
-        title="Output Directory",
-        description="Directory where session data and logs will be written.",
-    )
 
 
 @experiment()
@@ -77,29 +32,6 @@ async def demo_experiment(launcher: Launcher) -> None:
     create_fake_subjects()
     create_fake_rig()
     _seed_cache()
-
-    logger.info("Starting the demo experiment")
-    notify("Welcome to the CLABE demo experiment!", MessageLevel.INFO)
-
-    config = launcher.frontend.prompt_form(FormRequest(model=SessionConfig, title="Session Configuration"))
-    if config is not None:
-        notify(
-            f"Config: type={config.session_type!r}  mode={config.recording_mode.name}"
-            f"  trials={config.trial_count}  debug={config.debug_mode}",
-            MessageLevel.SUCCESS,
-        )
-    else:
-        notify("Form cancelled — using defaults.", MessageLevel.WARNING)
-        config = SessionConfig()
-
-    updated_type = launcher.frontend.prompt_field(
-        FieldRequest(
-            model=SessionConfig,
-            field_name="session_type",
-            initial=config.session_type,
-        )
-    )
-    notify(f"Final session type: {updated_type!r}", MessageLevel.INFO)
 
     picker = DefaultBehaviorPicker(
         launcher=launcher,
@@ -125,13 +57,10 @@ async def demo_experiment(launcher: Launcher) -> None:
     app_1 = PythonScriptApp(script=fmt("Behavior"))
     app_2 = PythonScriptApp(script=fmt("Physiology"))
 
-    notify("Running the behavior and physiology apps…", MessageLevel.INFO)
     app_1_result, app_2_result = await asyncio.gather(
         runnable(app_1.run_async, name="Running Behavior App")(),
         runnable(app_2.run_async, name="Running Physiology App")(),
     )
-    logger.debug("App results: behavior=%r, physiology=%r", app_1_result, app_2_result)
-    notify("Both apps finished", MessageLevel.SUCCESS)
 
     suggestion = CurriculumApp(
         settings=CurriculumSettings(
@@ -150,9 +79,6 @@ async def demo_experiment(launcher: Launcher) -> None:
         script_path=Path("./mock/script.py"),
         output_parameters={"suggestion": suggestion.model_dump()},
     ).map()
-
-    logger.info("Demo experiment finished")
-    notify("Demo experiment complete!", MessageLevel.SUCCESS)
     return
 
 
@@ -168,17 +94,14 @@ def _seed_cache() -> None:
 
 
 def main():
-    settings = CliApp.run(
-        LauncherCliArgs,
-        cli_args=[
-            "--allow-dirty",
-            "--skip-hardware-validation",
-            "--verbose",
-            "--frontend",
-            "tui",
-        ],
+    # Serve this experiment's TUI over a local web port and pop open the browser.
+    # Each browser connection runs `clabe run <this file> --frontend tui` as its
+    # own subprocess, so the seeding/experiment above runs there.
+    this_file = f'"{Path(__file__).resolve()}"'
+    serve(
+        f"{sys.executable} -m clabe.cli run {this_file} --allow-dirty --skip-hardware-validation --frontend tui",
+        open_browser=True,
     )
-    Launcher(settings=settings).run_experiment(demo_experiment)
     return None
 
 

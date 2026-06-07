@@ -44,7 +44,7 @@ class DefaultBehaviorPicker:
     library structure and user interactions for selecting experiment parameters.
 
     Properties:
-        ui_helper: Helper for user interface interactions
+        frontend: Frontend mediating user interface interactions
         trainer_state: The current trainer state
         config_library_dir: Path to the configuration library directory
         rig_dir: Path to the rig configurations directory
@@ -69,7 +69,7 @@ class DefaultBehaviorPicker:
         self,
         settings: DefaultBehaviorPickerSettings,
         launcher: Launcher,
-        ui_helper: Optional[ui.IUiHelper] = None,
+        frontend: Optional[ui.Frontend] = None,
         experimenter_validator: Optional[Callable[[str], bool]] = validate_username,
         rig_validator: Optional[Callable[[Rig], Rig]] = validate_rig_computer_name,
         use_cache: bool = True,
@@ -80,13 +80,13 @@ class DefaultBehaviorPicker:
         Args:
             settings: Settings containing configuration including config_library_dir. By default, attempts to rely on DefaultBehaviorPickerSettings to automatic loading from yaml files
             launcher: The launcher instance for managing experiment execution
-            ui_helper: Helper for user interface interactions. If None, uses launcher's ui_helper. Defaults to None
+            frontend: Frontend mediating user interaction. If None, uses the launcher's frontend. Defaults to None
             experimenter_validator: Function to validate the experimenter's username. If None, no validation is performed. Defaults to validate_username
             rig_validator: Function to validate the rig configuration. If None, no validation is performed. Defaults to validate_rig_computer_name
             use_cache: Whether to use caching for selections. Defaults to True
         """
         self._launcher = launcher
-        self._ui_helper = launcher.ui_helper if ui_helper is None else ui_helper
+        self._frontend = launcher.frontend if frontend is None else frontend
         self._settings = settings
         self._ensure_directories()
         self._experimenter_validator = experimenter_validator
@@ -97,19 +97,19 @@ class DefaultBehaviorPicker:
         self._use_cache = use_cache
 
     @property
-    def ui_helper(self) -> ui.IUiHelper:
+    def frontend(self) -> ui.Frontend:
         """
-        Retrieves the registered UI helper.
+        Retrieves the registered frontend.
 
         Returns:
-            UiHelper: The registered UI helper
+            Frontend: The registered frontend
 
         Raises:
-            ValueError: If no UI helper is registered
+            ValueError: If no frontend is registered
         """
-        if self._ui_helper is None:
-            raise ValueError("UI Helper is not registered")
-        return self._ui_helper
+        if self._frontend is None:
+            raise ValueError("Frontend is not registered")
+        return self._frontend
 
     @property
     def trainer_state(self) -> TrainerState:
@@ -215,11 +215,14 @@ class DefaultBehaviorPicker:
 
         if cache:
             cache.sort()
-            rig_path = self.ui_helper.prompt_pick_from_list(
-                cache,
-                prompt=f"Choose a rig for {model.__name__}:",
-                allow_0_as_none=True,
-                zero_label="Select from library",
+            rig_path = self.frontend.prompt_pick(
+                ui.PickRequest(
+                    label=f"Choose a rig for {model.__name__}:",
+                    options=cache,
+                    allow_none=True,
+                    none_label="Select from library",
+                    field="rig",
+                )
             )
             if rig_path is not None:
                 rig = self._load_rig_from_path(Path(rig_path), model)
@@ -229,16 +232,21 @@ class DefaultBehaviorPicker:
             available_rigs = glob.glob(os.path.join(self.rig_dir, "*.json"))
             # We raise if no rigs are found to prevent an infinite loop
             if len(available_rigs) == 0:
-                logger.error("No rig config files found.")
+                self.frontend.notify("No rig config files found.", ui.MessageLevel.ERROR)
                 raise ValueError("No rig config files found.")
             # Use the single available rig config file
             elif len(available_rigs) == 1:
-                logger.info("Found a single rig config file. Using %s.", {available_rigs[0]})
+                self.frontend.notify(f"Found a single rig config file. Using {available_rigs[0]}.")
                 rig_path = available_rigs[0]
                 rig = model_from_json_file(rig_path, model)
             else:
-                rig_path = self.ui_helper.prompt_pick_from_list(
-                    available_rigs, prompt=f"Choose a rig for {model.__name__}:"
+                rig_path = self.frontend.prompt_pick(
+                    ui.PickRequest(
+                        label=f"Choose a rig for {model.__name__}:",
+                        options=available_rigs,
+                        allow_none=False,
+                        field="rig",
+                    )
                 )
                 if rig_path is not None:
                     rig = self._load_rig_from_path(Path(rig_path), model)
@@ -284,7 +292,7 @@ class DefaultBehaviorPicker:
             logger.info("Directory for subject %s does not exist. Creating a new one.", subject)
             os.makedirs(self.subject_dir / subject)
 
-        notes = self.ui_helper.prompt_text("Enter notes: ")
+        notes = self.frontend.prompt_text(ui.TextRequest(label="Enter notes", field="notes"))
         session = model(
             subject=subject,
             notes=notes,
@@ -325,13 +333,13 @@ class DefaultBehaviorPicker:
         except (ValueError, FileNotFoundError, pydantic.ValidationError) as e:
             logger.warning("Failed to find a valid task file. %s", e)
         else:
-            logger.info("Found a valid task file in subject folder!")
-            _is_manual = not self.ui_helper.prompt_yes_no_question("Would you like to use this task?")
+            self.frontend.notify("Found a valid task file in subject folder.", ui.MessageLevel.SUCCESS)
+            _is_manual = not self.frontend.prompt_confirm(ui.ConfirmRequest(label="Would you like to use this task?"))
             if not _is_manual:
                 if task is not None:
                     return task
                 else:
-                    logger.error("No valid task file found in subject folder.")
+                    self.frontend.notify("No valid task file found in subject folder.", ui.MessageLevel.ERROR)
                     raise ValueError("No valid task file found.")
             else:
                 task = None
@@ -343,8 +351,13 @@ class DefaultBehaviorPicker:
                 available_files = glob.glob(os.path.join(_path, "*.json"))
                 if len(available_files) == 0:
                     break
-                path = self.ui_helper.prompt_pick_from_list(
-                    available_files, prompt=f"Choose a task for {model.__name__}:"
+                path = self.frontend.prompt_pick(
+                    ui.PickRequest(
+                        label=f"Choose a task for {model.__name__}:",
+                        options=available_files,
+                        allow_none=False,
+                        field="task",
+                    )
                 )
                 if not isinstance(path, str):
                     raise ValueError("Invalid choice.")
@@ -357,7 +370,7 @@ class DefaultBehaviorPicker:
             except (ValueError, FileNotFoundError) as e:
                 logger.info("Invalid choice. Try again. %s", e)
         if task is None:
-            logger.error("No task file found.")
+            self.frontend.notify("No task file found.", ui.MessageLevel.ERROR)
             raise ValueError("No task file found.")
 
         return task
@@ -397,7 +410,7 @@ class DefaultBehaviorPicker:
             self._trainer_state = trainer_state
 
         if not self._trainer_state.is_on_curriculum:
-            logging.warning("Deserialized TrainerState is NOT on curriculum.")
+            self.frontend.notify("Deserialized TrainerState is NOT on curriculum.", ui.MessageLevel.WARNING)
 
         assert self._trainer_state.stage is not None
         return (
@@ -428,21 +441,17 @@ class DefaultBehaviorPicker:
             subjects = self._cache_manager.try_get_cache("subjects")
         else:
             subjects = None
-        if subjects:
-            subjects.sort()
-            subject = self.ui_helper.prompt_pick_from_list(
-                subjects,
-                prompt="Choose a subject:",
-                allow_0_as_none=True,
-                zero_label="Enter manually",
-            )
-        else:
-            subject = None
+        options = sorted(subjects) if subjects else []
 
-        while subject is None:
-            subject = self.ui_helper.input("Enter subject name: ")
-            if subject == "":
-                subject = None
+        subject: Optional[str] = None
+        while not subject:
+            subject = self.frontend.prompt_autocomplete(
+                ui.AutoCompleteRequest(
+                    label="Subject (type to filter, or enter a new one)",
+                    options=options,
+                    field="subject",
+                )
+            )
         self._cache_manager.add_to_cache("subjects", subject)
         return subject
 
@@ -470,30 +479,27 @@ class DefaultBehaviorPicker:
             experimenters_cache = self._cache_manager.try_get_cache("experimenters")
         else:
             experimenters_cache = None
+        options = sorted(experimenters_cache) if experimenters_cache else []
         experimenter: Optional[List[str]] = None
-        _picked: str | None = None
         while experimenter is None:
-            if experimenters_cache:
-                experimenters_cache.sort()
-                _picked = self.ui_helper.prompt_pick_from_list(
-                    experimenters_cache,
-                    prompt="Choose an experimenter:",
-                    allow_0_as_none=True,
-                    zero_label="Enter manually",
+            _input = self.frontend.prompt_autocomplete(
+                ui.AutoCompleteRequest(
+                    label="Experimenter name(s) (type to filter, comma-separated for multiple)",
+                    options=options,
+                    field="experimenter",
                 )
-            if _picked is None:
-                _input = self.ui_helper.prompt_text("Experimenter name: ")
-            else:
-                _input = _picked
+            )
             experimenter = _input.replace(",", " ").split()
             if strict & (len(experimenter) == 0):
-                logger.info("Experimenter name is not valid. Try again.")
+                self.frontend.notify("Experimenter name is not valid. Try again.", ui.MessageLevel.WARNING)
                 experimenter = None
             else:
                 if self._experimenter_validator:
                     for name in experimenter:
                         if not self._experimenter_validator(name):
-                            logger.warning("Experimenter name: %s, is not valid. Try again", name)
+                            self.frontend.notify(
+                                f"Experimenter name: {name}, is not valid. Try again", ui.MessageLevel.WARNING
+                            )
                             experimenter = None
                             break
         self._cache_manager.add_to_cache("experimenters", ",".join(experimenter))
@@ -529,11 +535,11 @@ class DefaultBehaviorPicker:
 
         os.makedirs(path.parent, exist_ok=True)
         if path.exists():
-            overwrite = self.ui_helper.prompt_yes_no_question(f"File {path} already exists. Overwrite?")
+            overwrite = self.frontend.prompt_confirm(ui.ConfirmRequest(label=f"File {path} already exists. Overwrite?"))
             if not overwrite:
                 logger.info("User chose not to overwrite the existing file: %s", path)
                 return None
         with open(path, "w", encoding="utf-8") as f:
             f.write(model.model_dump_json(indent=2))
-            logger.info("Saved model to %s", path)
+        self.frontend.notify(f"Saved model to {path}", ui.MessageLevel.SUCCESS)
         return path

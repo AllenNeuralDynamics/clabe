@@ -6,7 +6,7 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any, Awaitable, Callable, Iterable, Optional, Protocol, Union
 
-from ..ui import DefaultUIHelper, IUiHelper
+from ..ui import Frontend, PickRequest, default_frontend
 from ._base import Launcher
 
 logger = logging.getLogger(__name__)
@@ -109,20 +109,19 @@ def _load_module_from_path(path: Path):
     return module
 
 
-def _select_experiment(file_path: Path, ui_helper: IUiHelper | None = None) -> ExperimentMetadata:
+def _select_experiment(file_path: Path, frontend: Frontend | None = None) -> ExperimentMetadata:
     """Select an experiment callable from a Python module.
 
     Loads the module at ``file_path``, discovers all callables decorated with
     :func:`experiment`, and returns the associated :class:`ExperimentMetadata`.
 
     If a single experiment is found it is returned directly. When multiple
-    experiments are available, the provided ``ui_helper`` is used to prompt the
-    user to choose one. If no UI helper is supplied a :class:`DefaultUIHelper`
-    instance is used.
+    experiments are available, the provided ``frontend`` is used to prompt the
+    user to choose one. If no frontend is supplied the default frontend is used.
 
     Args:
         file_path: Filesystem path to the Python module to inspect.
-        ui_helper: Optional helper used to interactively choose an experiment
+        frontend: Optional frontend used to interactively choose an experiment
             when more than one is discovered.
 
     Returns:
@@ -134,8 +133,8 @@ def _select_experiment(file_path: Path, ui_helper: IUiHelper | None = None) -> E
             selection.
     """
 
-    if ui_helper is None:
-        ui_helper = DefaultUIHelper()
+    if frontend is None:
+        frontend = default_frontend()
     module = _load_module_from_path(file_path)
     experiments = list(collect_clabe_experiments(module))
 
@@ -150,7 +149,14 @@ def _select_experiment(file_path: Path, ui_helper: IUiHelper | None = None) -> E
         selected = experiments[0]
     else:
         callable_str_converter = {e.name: e for e in experiments}
-        choice = ui_helper.prompt_pick_from_list(list(callable_str_converter.keys()), "Select experiment to run")
+        choice = frontend.prompt_pick(
+            PickRequest(
+                label="Select experiment to run",
+                options=list(callable_str_converter.keys()),
+                allow_none=False,
+                field="experiment",
+            )
+        )
         if choice is None:
             raise SystemExit("No experiment selected; exiting.")
         selected = callable_str_converter[choice]

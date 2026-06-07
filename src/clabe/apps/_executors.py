@@ -1,9 +1,10 @@
 import asyncio
 import os
 import subprocess
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
-from ._base import AsyncExecutor, Command, CommandResult, ExecutableApp, Executor
+from ..runnable import runnable
+from ._base import AsyncExecutor, Command, CommandResult, Executor
 
 
 class LocalExecutor(Executor):
@@ -257,6 +258,10 @@ class _DefaultExecutorMixin:
     eliminating the need for applications to manually instantiate executors.
     Supports both synchronous and asynchronous execution patterns.
 
+    ``run`` and ``run_async`` are runnables, so each execution shows a live
+    activity spinner (labelled with the app's class name) and participates in
+    the shared reporting/notification lifecycle.
+
     Example:
         ```python
         class MyApp(ExecutableApp, _DefaultExecutorMixin):
@@ -265,24 +270,35 @@ class _DefaultExecutorMixin:
                 return Command(cmd=["echo", "hello"], output_parser=identity_parser)
 
         app = MyApp()
-
-        # Run synchronously with default executor
         result = app.run()
-
-        # Run asynchronously
         result = await app.run_async()
-
-        # Run with custom executor kwargs
         result = app.run(executor_kwargs={"cwd": "/custom/path"})
         ```
     """
 
-    def run(self: ExecutableApp, executor_kwargs: Optional[dict[str, Any]] = None) -> CommandResult:
-        """Execute the command using a local executor and return the result."""
-        executor = LocalExecutor(**(executor_kwargs or {}))
-        return self.command.execute(executor)
+    if TYPE_CHECKING:
+        # ``command`` is supplied by the ``ExecutableApp`` this mixin is combined
+        # with. Declaring it here lets the type checker resolve ``self.command``
+        # without typing ``self`` as the protocol.
+        @property
+        def command(self) -> Command:
+            """The command to execute, provided by the ExecutableApp."""
+            ...
 
-    async def run_async(self: ExecutableApp, executor_kwargs: Optional[dict[str, Any]] = None) -> CommandResult:
-        """Execute the command asynchronously using a local executor and return the result."""
-        executor = AsyncLocalExecutor(**(executor_kwargs or {}))
-        return await self.command.execute_async(executor)
+    @runnable
+    def run(self, executor_kwargs: Optional[dict[str, Any]] = None) -> CommandResult:
+        """Execute the command using a local executor and return the result.
+
+        Args:
+            executor_kwargs: Keyword arguments forwarded to the local executor.
+        """
+        return self.command.execute(LocalExecutor(**(executor_kwargs or {})))
+
+    @runnable
+    async def run_async(self, executor_kwargs: Optional[dict[str, Any]] = None) -> CommandResult:
+        """Execute the command asynchronously using a local executor and return the result.
+
+        Args:
+            executor_kwargs: Keyword arguments forwarded to the local executor.
+        """
+        return await self.command.execute_async(AsyncLocalExecutor(**(executor_kwargs or {})))

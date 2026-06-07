@@ -15,7 +15,8 @@ from aind_behavior_services import Session
 from .. import __version__, logging_helper
 from ..constants import TMP_DIR
 from ..git_manager import GitRepository
-from ..ui import DefaultUIHelper, IUiHelper
+from ..runnable import ReportTier, set_tier
+from ..ui import Frontend, MessageLevel, TextRequest, make_frontend, set_current_frontend
 from ..utils import abspath, format_datetime, utcnow
 from ._cli import LauncherCliArgs
 
@@ -54,7 +55,7 @@ class Launcher:
         *,
         settings: LauncherCliArgs,
         attached_logger: Optional[logging.Logger] = None,
-        ui_helper: None | IUiHelper = None,
+        frontend: None | Frontend = None,
     ) -> None:
         """
         Initializes the Launcher instance.
@@ -62,10 +63,14 @@ class Launcher:
         Args:
             settings: The settings for the launcher
             attached_logger: An attached logger instance. Defaults to None
-            ui_helper: The UI helper for user interactions. Defaults to DefaultUIHelper
+            frontend: The frontend mediating all user interaction. Defaults to the
+                backend selected by ``settings.frontend``
         """
         self._settings = settings
-        self.ui_helper = ui_helper or DefaultUIHelper()
+        self.frontend = frontend or make_frontend(settings.frontend)
+        # Register the frontend so UI-agnostic library modules can surface key
+        # events to the user (see ``clabe.ui.notify``).
+        set_current_frontend(self.frontend)
         self.temp_dir = Path(TMP_DIR) / format_datetime(utcnow())
         self.computer_name = os.environ["COMPUTERNAME"]
         self._data_directory: Path | None = None
@@ -76,15 +81,33 @@ class Launcher:
 
         self._ensure_directory_structure()
 
-        # Solve logger
+        # Solve logger.
         if attached_logger:
             _logger = logging_helper.add_file_handler(attached_logger, self.temp_dir / "launcher.log")
         else:
             root_logger = logging.getLogger()
             _logger = logging_helper.add_file_handler(root_logger, self.temp_dir / "launcher.log")
 
+        # Map verbosity flags to both the console log level and the runnable
+        # reporting tier. With no flag, the tier is left to its configured
+        # default (respecting any ``runnable`` YAML section).
         if settings.debug_mode:
-            _logger.setLevel(logging.DEBUG)
+            display_level = logging.DEBUG
+            set_tier(ReportTier.VERBOSE)
+        elif settings.verbose:
+            display_level = logging.INFO
+            set_tier(ReportTier.LIFECYCLE)
+        elif settings.quiet:
+            display_level = logging.ERROR
+            set_tier(ReportTier.SILENT)
+        else:
+            display_level = logging.WARNING
+
+        _logger.setLevel(logging.DEBUG if settings.debug_mode else logging.INFO)
+        logging_helper.set_console_level(display_level)
+        set_min_level = getattr(self.frontend, "set_min_level", None)
+        if callable(set_min_level):
+            set_min_level(display_level)
 
         self._logger = _logger
 
@@ -115,7 +138,7 @@ class Launcher:
         if session.session_name is None:
             raise ValueError("session.session_name is not set.")
         else:
-            return Path(self.data_directory) / (session.session_name if session.session_name is not None else "")
+            return Path(self.data_directory) / session.session_name
 
     def register_session(self, session: Session, data_directory: os.PathLike) -> Self:
         """
@@ -184,7 +207,10 @@ class Launcher:
         """
         _code = 0
         try:
-            logger.info(self.make_header())
+            self.frontend.header(self.make_header())
+            set_experiment = getattr(self.frontend, "set_experiment", None)
+            if callable(set_experiment):
+                set_experiment(getattr(experiment, "__name__", None) or "experiment")
             logger.info(self._generate_diagnostic_info())
 
             if not self.settings.debug_mode:
@@ -196,15 +222,17 @@ class Launcher:
 
         except KeyboardInterrupt:
             logger.error("User interrupted the process.")
+            self.frontend.notify("Interrupted by user.", MessageLevel.WARNING)
             _code = -1
         except Exception as e:  # pylint: disable=broad-except
             logger.error("Launcher failed: %s", e, exc_info=True)
+            self.frontend.notify(f"Launcher failed: {e}", MessageLevel.ERROR)
             _code = -1
         finally:
             try:
                 self.copy_logs()
             except ValueError as ve:  # In the case session_directory fails
-                logger.error("Failed to copy logs from %s. Error: %s", self.temp_dir, ve)  # we swallow the error
+                self.frontend.notify(f"Failed to copy logs from {self.temp_dir}: {ve}", MessageLevel.ERROR)
                 self._exit(-1)
             else:
                 self._exit(_code)
@@ -222,12 +250,12 @@ class Launcher:
         if self._has_copied_logs:
             return None
 
-        logging_helper.close_file_handlers(logger)
+        logging_helper.close_file_handlers(self._logger)
         if dst is not None:
             out = self._copy_tmp_directory(dst)
         else:
             out = self._copy_tmp_directory(self.session_directory / suffix)
-        logger.info("Copied logs to %s", out)
+        self.frontend.notify(f"Copied logs to {out}", MessageLevel.SUCCESS)
         self._has_copied_logs = True
 
     @property
@@ -294,7 +322,15 @@ class Launcher:
         if logger is not None:
             logging_helper.shutdown_logger(logger)
         if not _force:
-            self.ui_helper.input("Press any key to exit...")
+            try:
+                self.frontend.prompt_text(TextRequest(label="Press Enter to exit...", field="exit"))
+            except KeyboardInterrupt:
+                pass  # a second Ctrl+C at the exit prompt should just exit
+        # Tear down the frontend (e.g. leave the persistent TUI) if it supports it.
+        close = getattr(self.frontend, "close", None)
+        if callable(close):
+            close()
+        set_current_frontend(None)
 
     def _generate_diagnostic_info(self) -> str:
         """
@@ -343,15 +379,18 @@ class Launcher:
                 print(f"Validation failed: {e}")
         """
         if self.repository.is_dirty():
-            logger.warning(
-                "Git repository is dirty. Discard changes before continuing unless you know what you are doing!"
-                "Uncommitted files: %s",
-                self.repository.uncommitted_changes(),
+            logger.warning("Uncommitted files: %s", self.repository.uncommitted_changes())
+            self.frontend.notify(
+                "Git repository is dirty. Discard changes before continuing unless you know what you are doing!",
+                MessageLevel.WARNING,
             )
             if not self.settings.allow_dirty:
-                self.repository.try_prompt_full_reset(self.ui_helper, force_reset=False)
+                self.repository.try_prompt_full_reset(self.frontend, force_reset=False)
                 if self.repository.is_dirty_with_submodules():
-                    logger.error("Dirty repository not allowed. Exiting. Consider running with --allow-dirty flag.")
+                    self.frontend.notify(
+                        "Dirty repository not allowed. Exiting. Consider running with --allow-dirty flag.",
+                        MessageLevel.ERROR,
+                    )
                     raise RuntimeError("Dirty repository not allowed.")
 
     def _ensure_directory_structure(self) -> None:

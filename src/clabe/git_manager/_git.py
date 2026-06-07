@@ -225,7 +225,7 @@ class GitRepository(Repo):
         _ = [GitRepository(str(sub.abspath)).full_reset() for sub in self.submodules]
         return self
 
-    def try_prompt_full_reset(self, ui_helper: ui.IUiHelper, force_reset: bool = False) -> Self:
+    def try_prompt_full_reset(self, frontend: "ui.Frontend", force_reset: bool = False) -> Self:
         """
         Prompts the user to perform a full reset if the repository is dirty.
 
@@ -233,7 +233,7 @@ class GitRepository(Repo):
         or automatically performs a full reset based on the force_reset parameter.
 
         Args:
-            ui_helper: The UI helper for user interaction
+            frontend: The frontend mediating user interaction
             force_reset: Whether to skip the prompt and force a reset
 
         Returns:
@@ -242,9 +242,9 @@ class GitRepository(Repo):
         Example:
             ```python
             repo = GitRepository("/path/to/repo")
-            ui_helper = ui.DefaultUIHelper()
-            repo.try_prompt_full_reset(ui_helper)  # Prompts user if dirty
-            repo.try_prompt_full_reset(ui_helper, force_reset=True)  # Forces reset
+            frontend = ui.default_frontend()
+            repo.try_prompt_full_reset(frontend)  # Prompts user if dirty
+            repo.try_prompt_full_reset(frontend, force_reset=True)  # Forces reset
             ```
         """
         if force_reset:
@@ -254,7 +254,7 @@ class GitRepository(Repo):
             logger.info("Repository is dirty! %s", self.working_dir)
             logger.info("Uncommitted files: %s", self.uncommitted_changes())
             if not force_reset:
-                is_reset = ui_helper.prompt_yes_no_question(prompt="Do you want to reset the repository?")
+                is_reset = frontend.prompt_confirm(ui.ConfirmRequest(label="Do you want to reset the repository?"))
             else:
                 is_reset = True
             if is_reset:

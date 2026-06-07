@@ -1,4 +1,5 @@
 import logging
+import os
 import warnings
 from pathlib import Path
 from shutil import _ntuple_diskusage
@@ -49,6 +50,20 @@ class TestResourceMonitor:
         monitor.add_constraint(constraint2)
         assert not monitor.evaluate_constraints()
 
+    def test_run_returns_true_when_all_pass(self, monitor):
+        constraint = MagicMock(spec=Constraint)
+        constraint.return_value = True
+        monitor.add_constraint(constraint)
+        assert monitor.run() is True
+
+    def test_run_raises_with_failing_constraint_message(self, monitor):
+        constraint = MagicMock(spec=Constraint)
+        constraint.return_value = False
+        constraint.on_fail.return_value = "Need 10GB free on C:\\"
+        monitor.add_constraint(constraint)
+        with pytest.raises(RuntimeError, match="Need 10GB free"):
+            monitor.run()
+
     @patch("shutil.disk_usage")
     def test_available_storage_constraint_factory(self, mock_disk_usage):
         mock_disk_usage.return_value = _ntuple_diskusage(total=int(500e9), used=int(100e9), free=int(400e9))
@@ -56,6 +71,10 @@ class TestResourceMonitor:
         assert constraint()
         constraint = available_storage_constraint_factory(drive=Path("C:\\"), min_bytes=2e13)
         assert not constraint()
+
+    def test_available_storage_constraint_resolves_relative_path(self):
+        constraint = available_storage_constraint_factory(drive=Path("./local/data"))
+        assert os.path.ismount(constraint.kwargs["drive"])
 
     @patch("os.path.exists")
     def test_remote_dir_exists_constraint_factory(self, mock_exists):

@@ -36,7 +36,7 @@ async def client_experiment(launcher: Launcher) -> None:
 
     resource_monitor.ResourceMonitor(
         constrains=[
-            resource_monitor.available_storage_constraint_factory_from_rig(rig, 2e11),
+            resource_monitor.available_storage_constraint_factory_from_rig(rig, 1e9),
         ]
     ).run()
 

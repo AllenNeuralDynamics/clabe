@@ -19,6 +19,7 @@ from aind_watchdog_service.models.watch_config import WatchConfig
 from pydantic import BaseModel, SerializeAsAny, TypeAdapter
 from requests.exceptions import HTTPError
 
+from ..runnable import ReportTier, runnable
 from ..services import ServiceSettings
 from ._base import DataTransfer
 
@@ -120,6 +121,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
 
         self._email_from_experimenter_builder = email_from_experimenter_builder
 
+    @runnable(name="Transfer (watchdog)", tier=ReportTier.LIFECYCLE, notify="Transferring data (watchdog)…")
     def transfer(self) -> None:
         """
         Executes the data transfer by generating a Watchdog manifest configuration.
