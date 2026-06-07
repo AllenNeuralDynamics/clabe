@@ -138,7 +138,7 @@ class Launcher:
         if session.session_name is None:
             raise ValueError("session.session_name is not set.")
         else:
-            return Path(self.data_directory) / (session.session_name if session.session_name is not None else "")
+            return Path(self.data_directory) / session.session_name
 
     def register_session(self, session: Session, data_directory: os.PathLike) -> Self:
         """
@@ -250,7 +250,7 @@ class Launcher:
         if self._has_copied_logs:
             return None
 
-        logging_helper.close_file_handlers(logger)
+        logging_helper.close_file_handlers(self._logger)
         if dst is not None:
             out = self._copy_tmp_directory(dst)
         else:

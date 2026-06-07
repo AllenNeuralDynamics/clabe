@@ -185,6 +185,7 @@ class _LauncherApp(App):
         self._kind: Optional[str] = None
         self._pick_values: List[object] = []
         self._auto_all: List[str] = []
+        self._activity_count: int = 0
 
     def compose(self) -> ComposeResult:
         """Build the four-pane layout."""
@@ -242,14 +243,15 @@ class _LauncherApp(App):
         pane = self.query_one("#clabe-processes", Vertical)
         pane.styles.display = "block"
         pane.mount(row)
+        self._activity_count += 1
         return row
 
     def remove_activity(self, row: _ActivityRow) -> None:
         """Remove an activity row; hide the Processes pane when none remain."""
-        pane = self.query_one("#clabe-processes", Vertical)
         row.remove()
-        if not [w for w in pane.query(_ActivityRow) if w is not row]:
-            pane.styles.display = "none"
+        self._activity_count -= 1
+        if self._activity_count == 0:
+            self.query_one("#clabe-processes", Vertical).styles.display = "none"
 
     async def ask_text(self, request: TextRequest, reply: "queue.Queue") -> None:
         """Mount a text input; deliver the answer via reply."""
@@ -521,15 +523,13 @@ class TextualFrontend(FrontendBase):
 
     def _render_header(self, text: str) -> None:
         """Show the banner as the empty-state logo in the Session pane."""
-        self._ensure()
-        if self._app is not None:
-            self._app.call_from_thread(self._app.set_logo, text)
+        app = self._ensure()
+        app.call_from_thread(app.set_logo, text)
 
     def set_experiment(self, name: str) -> None:
         """Show the running experiment name in the TUI header."""
-        self._ensure()
-        if self._app is not None:
-            self._app.call_from_thread(self._app.set_experiment, name)
+        app = self._ensure()
+        app.call_from_thread(app.set_experiment, name)
 
     def _render(self, message: str, level: MessageLevel) -> None:
         """Write a timestamped, level-styled message to the Session pane."""

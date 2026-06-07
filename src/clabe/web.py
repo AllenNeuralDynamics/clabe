@@ -169,7 +169,7 @@ def serve(
 
         async def _handle_finish(request):
             """Schedules a graceful shutdown and acknowledges the request."""
-            asyncio.get_event_loop().call_later(0.25, server.request_exit)
+            asyncio.get_running_loop().call_later(0.25, server.request_exit)
             return aiohttp_web.json_response({"status": "stopping"})
 
         app.router.add_post("/finish", _handle_finish)

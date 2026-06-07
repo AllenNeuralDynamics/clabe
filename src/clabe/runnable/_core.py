@@ -1,8 +1,10 @@
+import asyncio
 import contextlib
 import contextvars
 import functools
 import inspect
 import logging
+import threading
 import time
 from typing import Any, Callable, Optional, TypeVar, overload
 
@@ -14,18 +16,22 @@ logger = logging.getLogger(__name__)
 
 F = TypeVar("F", bound=Callable[..., Any])
 
-#: True while any runnable is executing on the current thread/task. Inner
-#: runnables read it to fold into the outermost one's user-facing surface.
 _active: contextvars.ContextVar[bool] = contextvars.ContextVar("clabe_runnable_active", default=False)
+#: Tracks which asyncio Task set _active so gather()-spawned sibling tasks
+#: (which copy context) are not mistaken for nested runnables.
+_active_task: contextvars.ContextVar[Optional[Any]] = contextvars.ContextVar("clabe_runnable_task", default=None)
 
 _settings: Optional[RunnableSettings] = None
+_settings_lock = threading.Lock()
 
 
 def _get_settings() -> RunnableSettings:
     """Return the process-wide settings, loading them once on first use."""
     global _settings
     if _settings is None:
-        _settings = RunnableSettings()
+        with _settings_lock:
+            if _settings is None:
+                _settings = RunnableSettings()
     return _settings
 
 
@@ -61,8 +67,14 @@ def _lifecycle(spec: RunnableSpec, name: str):
     Logging happens at every level.
     """
     eff = resolve(spec, _get_settings())
-    reentrant = _active.get()
+    try:
+        current_task = asyncio.current_task()
+    except RuntimeError:
+        current_task = None
+    outer_task = _active_task.get()
+    reentrant = _active.get() and (current_task is None or current_task is outer_task)
     token = _active.set(True)
+    task_token = _active_task.set(current_task)
     started = time.perf_counter()
 
     if not reentrant and eff.notify_start:
@@ -87,6 +99,7 @@ def _lifecycle(spec: RunnableSpec, name: str):
         logger.log(eff.log_level, "%s finished in %s", name, _elapsed(started))
     finally:
         _active.reset(token)
+        _active_task.reset(task_token)
 
 
 def _make_wrapper(fn: Callable, spec: RunnableSpec) -> Callable:

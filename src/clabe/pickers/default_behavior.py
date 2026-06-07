@@ -241,7 +241,12 @@ class DefaultBehaviorPicker:
                 rig = model_from_json_file(rig_path, model)
             else:
                 rig_path = self.frontend.prompt_pick(
-                    ui.PickRequest(label=f"Choose a rig for {model.__name__}:", options=available_rigs, field="rig")
+                    ui.PickRequest(
+                        label=f"Choose a rig for {model.__name__}:",
+                        options=available_rigs,
+                        allow_none=False,
+                        field="rig",
+                    )
                 )
                 if rig_path is not None:
                     rig = self._load_rig_from_path(Path(rig_path), model)
@@ -347,7 +352,12 @@ class DefaultBehaviorPicker:
                 if len(available_files) == 0:
                     break
                 path = self.frontend.prompt_pick(
-                    ui.PickRequest(label=f"Choose a task for {model.__name__}:", options=available_files, field="task")
+                    ui.PickRequest(
+                        label=f"Choose a task for {model.__name__}:",
+                        options=available_files,
+                        allow_none=False,
+                        field="task",
+                    )
                 )
                 if not isinstance(path, str):
                     raise ValueError("Invalid choice.")
