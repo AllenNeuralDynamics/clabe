@@ -142,3 +142,42 @@ class NumberRequest:
     label: str
     default: Optional[float] = None
     field: Optional[str] = None
+
+
+@dataclasses.dataclass
+class FormRequest:
+    """
+    A declarative request to fill in a Pydantic model as a form.
+
+    Attributes:
+        model: The Pydantic model class to render.
+        title: Optional title override. Defaults to the humanized class name.
+        initial: Optional pre-populated model instance to seed field defaults.
+        field: Logical field name used in the persisted transcript.
+    """
+
+    model: type
+    title: Optional[str] = None
+    initial: Optional[object] = None
+    field: Optional[str] = None
+
+
+@dataclasses.dataclass
+class FieldRequest:
+    """
+    A declarative request to enter a single field from a Pydantic model.
+
+    The frontend inspects the field's type annotation and routes to the most
+    appropriate input: autocomplete for ``Literal`` / ``Enum`` fields, yes/no
+    for ``bool``, and a validated text prompt for everything else.
+
+    Attributes:
+        model: The Pydantic model class that owns the field.
+        field_name: The name of the field to prompt for.
+        initial: Optional value to use as the pre-filled default (overrides the
+            field's declared default).
+    """
+
+    model: type
+    field_name: str
+    initial: Optional[object] = None

@@ -1,6 +1,8 @@
 import asyncio
 import logging
+from enum import Enum
 from pathlib import Path
+from typing import Literal, Optional
 
 from _mocks import (
     LIB_CONFIG,
@@ -11,6 +13,7 @@ from _mocks import (
     create_fake_rig,
     create_fake_subjects,
 )
+from pydantic import BaseModel, Field
 from pydantic_settings import CliApp
 
 from clabe import resource_monitor
@@ -19,9 +22,51 @@ from clabe.cache_manager import CacheManager
 from clabe.launcher import Launcher, LauncherCliArgs, experiment
 from clabe.pickers import DefaultBehaviorPicker, DefaultBehaviorPickerSettings
 from clabe.runnable import runnable
-from clabe.ui import MessageLevel, notify
+from clabe.ui import FieldRequest, FormRequest, MessageLevel, notify
 
 logger = logging.getLogger(__name__)
+
+
+class RecordingMode(Enum):
+    EPHYS = "ephys"
+    CALCIUM = "calcium"
+    BEHAVIOR_ONLY = "behavior_only"
+
+
+class SessionConfig(BaseModel):
+    """Demonstration model — exercises every form widget type."""
+
+    notes: Optional[str] = Field(
+        default=None,
+        title="Experimenter Notes",
+        description="Free-text notes attached to this session. Leave blank to skip.",
+    )
+    session_type: Literal["behavior", "physiology", "combined"] = Field(
+        default="behavior",
+        title="Session Type",
+        description="High-level classification of this recording session.",
+    )
+    recording_mode: RecordingMode = Field(
+        default=RecordingMode.BEHAVIOR_ONLY,
+        title="Recording Mode",
+        description="Hardware modality used for this session (ephys, calcium imaging, or behavior-only).",
+    )
+    trial_count: int = Field(
+        default=200,
+        title="Trial Count",
+        description="Number of trials to run. Must be a positive integer greater than zero.",
+        gt=0,
+    )
+    debug_mode: bool = Field(
+        default=False,
+        title="Debug Mode",
+        description="When enabled, skips hardware checks and logs extra diagnostics.",
+    )
+    output_dir: Path = Field(
+        default=Path("./local/output"),
+        title="Output Directory",
+        description="Directory where session data and logs will be written.",
+    )
 
 
 @experiment()
@@ -35,6 +80,35 @@ async def demo_experiment(launcher: Launcher) -> None:
 
     logger.info("Starting the demo experiment")
     notify("Welcome to the CLABE demo experiment!", MessageLevel.INFO)
+
+    # --- Demo: prompt_form --------------------------------------------------
+    # Fill every field of SessionConfig at once in a modal form.
+    # The form validates on submit — try leaving "Trial Count" blank or entering
+    # letters to see the inline error messages.
+    config = launcher.frontend.prompt_form(
+        FormRequest(model=SessionConfig, title="Session Configuration")
+    )
+    if config is not None:
+        notify(
+            f"Config: type={config.session_type!r}  mode={config.recording_mode.name}"
+            f"  trials={config.trial_count}  debug={config.debug_mode}",
+            MessageLevel.SUCCESS,
+        )
+    else:
+        notify("Form cancelled — using defaults.", MessageLevel.WARNING)
+        config = SessionConfig()
+
+    # --- Demo: prompt_field -------------------------------------------------
+    # Ask for a single field after the fact.  Literal and Enum fields are
+    # presented as a filterable autocomplete list.
+    updated_type = launcher.frontend.prompt_field(
+        FieldRequest(
+            model=SessionConfig,
+            field_name="session_type",
+            initial=config.session_type,
+        )
+    )
+    notify(f"Final session type: {updated_type!r}", MessageLevel.INFO)
 
     picker = DefaultBehaviorPicker(
         launcher=launcher,

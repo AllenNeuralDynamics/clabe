@@ -6,6 +6,8 @@ from ._requests import (
     AutoCompleteRequest,
     Choice,
     ConfirmRequest,
+    FieldRequest,
+    FormRequest,
     NumberRequest,
     PickRequest,
     TextRequest,
@@ -62,6 +64,8 @@ def make_frontend(backend: str = "auto") -> Frontend:
 __all__ = [
     "Frontend",
     "FrontendBase",
+    "FieldRequest",
+    "FormRequest",
     "MessageLevel",
     "Choice",
     "PickRequest",

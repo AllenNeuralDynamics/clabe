@@ -1,17 +1,26 @@
 import abc
 import logging
-from typing import ContextManager, List, Optional, Protocol, runtime_checkable
+import typing
+from enum import Enum
+from typing import Any, ContextManager, List, Literal, Optional, Protocol, get_args, get_origin, runtime_checkable
 
 from ..logging_helper import _TRANSCRIPT_LOGGER_NAME
 from ._messages import MessageLevel
 from ._requests import (
     AutoCompleteRequest,
     ConfirmRequest,
+    FieldRequest,
+    FormRequest,
     NumberRequest,
     PickRequest,
     TextRequest,
     Validator,
 )
+
+
+def _humanize_field(name: str) -> str:
+    """Converts snake_case / kebab-case field names to Title Case."""
+    return name.replace("_", " ").replace("-", " ").title()
 
 
 @runtime_checkable
@@ -60,6 +69,14 @@ class Frontend(Protocol):
 
     def prompt_number(self, request: NumberRequest) -> float:
         """Prompt the user for a floating-point number."""
+        ...
+
+    def prompt_form(self, request: FormRequest) -> Optional[object]:
+        """Prompt the user to fill in a Pydantic model form; returns the validated instance or None."""
+        ...
+
+    def prompt_field(self, request: FieldRequest) -> Any:
+        """Prompt the user for a single Pydantic model field value; returns the validated Python value."""
         ...
 
 
@@ -231,6 +248,134 @@ class FrontendBase(abc.ABC):
                 continue
             self._record(request.field or request.label, value)
             return value
+
+    def prompt_form(self, request: FormRequest) -> Optional[object]:
+        """
+        Presents a Pydantic model form for the user to fill in.
+
+        Args:
+            request: The declarative form request.
+
+        Returns:
+            Optional[object]: The validated model instance, or ``None`` if cancelled.
+
+        Raises:
+            NotImplementedError: This frontend does not support form prompts.
+        """
+        raise NotImplementedError(f"{type(self).__name__} does not support form prompts.")
+
+    def prompt_field(self, request: FieldRequest) -> Any:
+        """
+        Prompts for a single Pydantic model field value and returns the validated Python object.
+
+        Routing rules:
+
+        * ``Literal[...]`` / ``Enum`` → autocomplete with strict matching against the
+          allowed options; returns the original typed value (not a string).
+        * ``bool`` → yes/no confirm; returns ``bool``.
+        * All other types → text prompt with a Pydantic-backed validator that
+          re-prompts until the value is accepted; returns the coerced Python type.
+
+        Args:
+            request: The declarative field request.
+
+        Returns:
+            Any: The validated, Python-typed field value.
+        """
+        from pydantic import TypeAdapter
+        from pydantic import ValidationError as _PydanticError
+        from pydantic_core import PydanticUndefined
+
+        field_info = request.model.model_fields[request.field_name]
+        annotation = field_info.annotation
+
+        # Unwrap Annotated[T, ...] then Optional[T] = Union[T, None]
+        inner = annotation
+        if get_origin(inner) is typing.Annotated:
+            inner = get_args(inner)[0]
+        is_optional = False
+        if get_origin(inner) is typing.Union:
+            args = get_args(inner)
+            non_none = [a for a in args if a is not type(None)]
+            if len(non_none) == 1:
+                inner, is_optional = non_none[0], True
+
+        label = getattr(field_info, "title", None) or _humanize_field(request.field_name)
+
+        default = request.initial
+        if default is None:
+            raw_default = getattr(field_info, "default", PydanticUndefined)
+            if raw_default is not PydanticUndefined:
+                default = raw_default
+            else:
+                factory = getattr(field_info, "default_factory", None)
+                if factory is not None:
+                    default = factory()
+
+        # bool → confirm
+        if inner is bool:
+            return self.prompt_confirm(ConfirmRequest(
+                label=label,
+                default=bool(default) if default is not None else False,
+                field=request.field_name,
+            ))
+
+        # Literal[...] → strict autocomplete on the literal values (preserves original type)
+        if get_origin(inner) is Literal:
+            literal_vals = get_args(inner)
+            options = [str(v) for v in literal_vals]
+            default_str = str(default) if default is not None else None
+            answer = self.prompt_autocomplete(AutoCompleteRequest(
+                label=label,
+                options=options,
+                default=default_str,
+                strict=True,
+                field=request.field_name,
+            ))
+            for v in literal_vals:
+                if str(v) == answer:
+                    return v
+            return answer
+
+        # Enum → strict autocomplete on member names; returns the Enum member
+        if isinstance(inner, type) and issubclass(inner, Enum):
+            options = [m.name for m in inner]
+            if isinstance(default, Enum):
+                default_str: Optional[str] = default.name
+            else:
+                default_str = str(default) if default is not None else None
+            answer = self.prompt_autocomplete(AutoCompleteRequest(
+                label=label,
+                options=options,
+                default=default_str,
+                strict=True,
+                field=request.field_name,
+            ))
+            return inner[answer]
+
+        # Everything else → text prompt, re-prompting via pydantic validation
+        adapter = TypeAdapter(annotation)
+
+        def _pydantic_validator(raw: str) -> Optional[str]:
+            try:
+                val: Any = None if (is_optional and raw == "") else raw
+                adapter.validate_python(val)
+                return None
+            except _PydanticError as exc:
+                errs = exc.errors()
+                return errs[0]["msg"] if errs else "Invalid value."
+            except Exception as exc:
+                return str(exc)
+
+        default_str = str(default) if default is not None else None
+        raw = self.prompt_text(TextRequest(
+            label=label,
+            default=default_str,
+            validators=[_pydantic_validator],
+            field=request.field_name,
+        ))
+        val = None if (is_optional and raw == "") else raw
+        return adapter.validate_python(val)
 
     # --- helpers ----------------------------------------------------------
     def _record(self, key: str, value: object) -> None:
