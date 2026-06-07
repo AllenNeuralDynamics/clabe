@@ -170,14 +170,16 @@ class _LauncherApp(App):
     BINDINGS = [
         Binding("ctrl+c", "cancel", "Exit", priority=True),
         Binding("ctrl+s", "screenshot", "Screenshot", priority=True),
+        Binding("f2", "toggle_logs", "Toggle Logs"),
     ]
 
-    def __init__(self) -> None:
+    def __init__(self, show_logs: bool = True) -> None:
         """Initialize the app with the platform-appropriate mouse driver."""
         import os
 
         driver = None if os.environ.get("TEXTUAL_DRIVER") else _DRIVER_CLASS
         super().__init__(driver_class=driver)
+        self._show_logs = show_logs
         self.ready = threading.Event()
         self._pending: Optional["queue.Queue"] = None
         self._kind: Optional[str] = None
@@ -202,7 +204,10 @@ class _LauncherApp(App):
         self.query_one("#clabe-user", Vertical).border_title = "Session"
         self.query_one("#clabe-processes", Vertical).border_title = "Processes"
         self.query_one("#clabe-prompt", Vertical).border_title = "Input"
-        self.query_one("#clabe-logs", RichLog).border_title = "Logs"
+        logs = self.query_one("#clabe-logs", RichLog)
+        logs.border_title = "Logs"
+        if not self._show_logs:
+            logs.display = False
         self.ready.set()
 
     def set_logo(self, text: str) -> None:
@@ -382,6 +387,14 @@ class _LauncherApp(App):
         line.append_text(_linkify(f"Saved screenshot to {path}", _RICH_STYLES[MessageLevel.SUCCESS]))
         self.write_user(line)
 
+    def action_toggle_logs(self) -> None:
+        """Show or hide the Logs pane to reclaim vertical space."""
+        logs = self.query_one("#clabe-logs", RichLog)
+        logs.display = not logs.display
+        if logs.display:
+            logs.scroll_end(animate=False)
+        self.query_one("#clabe-user-log", RichLog).scroll_end(animate=False)
+
 
 class _TuiActivitySink:
     """Renders activities as animated spinner rows inside the running TUI."""
@@ -448,7 +461,9 @@ class TextualFrontend(FrontendBase):
         """Start the TUI app on a background thread (once) and return it."""
         if self._app is not None:
             return self._app
-        app = _LauncherApp()
+        from ..logging_helper import rich_handler
+
+        app = _LauncherApp(show_logs=rich_handler.level <= logging.DEBUG)
         self._app = app
         self._thread = threading.Thread(target=app.run, name="clabe-tui", daemon=True)
         self._thread.start()
