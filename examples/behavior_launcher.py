@@ -81,13 +81,7 @@ async def demo_experiment(launcher: Launcher) -> None:
     logger.info("Starting the demo experiment")
     notify("Welcome to the CLABE demo experiment!", MessageLevel.INFO)
 
-    # --- Demo: prompt_form --------------------------------------------------
-    # Fill every field of SessionConfig at once in a modal form.
-    # The form validates on submit — try leaving "Trial Count" blank or entering
-    # letters to see the inline error messages.
-    config = launcher.frontend.prompt_form(
-        FormRequest(model=SessionConfig, title="Session Configuration")
-    )
+    config = launcher.frontend.prompt_form(FormRequest(model=SessionConfig, title="Session Configuration"))
     if config is not None:
         notify(
             f"Config: type={config.session_type!r}  mode={config.recording_mode.name}"
@@ -98,9 +92,6 @@ async def demo_experiment(launcher: Launcher) -> None:
         notify("Form cancelled — using defaults.", MessageLevel.WARNING)
         config = SessionConfig()
 
-    # --- Demo: prompt_field -------------------------------------------------
-    # Ask for a single field after the fact.  Literal and Enum fields are
-    # presented as a filterable autocomplete list.
     updated_type = launcher.frontend.prompt_field(
         FieldRequest(
             model=SessionConfig,

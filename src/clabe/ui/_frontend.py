@@ -314,24 +314,28 @@ class FrontendBase(abc.ABC):
 
         # bool → confirm
         if inner is bool:
-            return self.prompt_confirm(ConfirmRequest(
-                label=label,
-                default=bool(default) if default is not None else False,
-                field=request.field_name,
-            ))
+            return self.prompt_confirm(
+                ConfirmRequest(
+                    label=label,
+                    default=bool(default) if default is not None else False,
+                    field=request.field_name,
+                )
+            )
 
         # Literal[...] → strict autocomplete on the literal values (preserves original type)
         if get_origin(inner) is Literal:
             literal_vals = get_args(inner)
             options = [str(v) for v in literal_vals]
             default_str = str(default) if default is not None else None
-            answer = self.prompt_autocomplete(AutoCompleteRequest(
-                label=label,
-                options=options,
-                default=default_str,
-                strict=True,
-                field=request.field_name,
-            ))
+            answer = self.prompt_autocomplete(
+                AutoCompleteRequest(
+                    label=label,
+                    options=options,
+                    default=default_str,
+                    strict=True,
+                    field=request.field_name,
+                )
+            )
             for v in literal_vals:
                 if str(v) == answer:
                     return v
@@ -344,13 +348,15 @@ class FrontendBase(abc.ABC):
                 default_str: Optional[str] = default.name
             else:
                 default_str = str(default) if default is not None else None
-            answer = self.prompt_autocomplete(AutoCompleteRequest(
-                label=label,
-                options=options,
-                default=default_str,
-                strict=True,
-                field=request.field_name,
-            ))
+            answer = self.prompt_autocomplete(
+                AutoCompleteRequest(
+                    label=label,
+                    options=options,
+                    default=default_str,
+                    strict=True,
+                    field=request.field_name,
+                )
+            )
             return inner[answer]
 
         # Everything else → text prompt, re-prompting via pydantic validation
@@ -368,12 +374,14 @@ class FrontendBase(abc.ABC):
                 return str(exc)
 
         default_str = str(default) if default is not None else None
-        raw = self.prompt_text(TextRequest(
-            label=label,
-            default=default_str,
-            validators=[_pydantic_validator],
-            field=request.field_name,
-        ))
+        raw = self.prompt_text(
+            TextRequest(
+                label=label,
+                default=default_str,
+                validators=[_pydantic_validator],
+                field=request.field_name,
+            )
+        )
         val = None if (is_optional and raw == "") else raw
         return adapter.validate_python(val)
 
