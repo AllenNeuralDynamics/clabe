@@ -232,7 +232,7 @@ class Launcher:
             try:
                 self.copy_logs()
             except ValueError as ve:  # In the case session_directory fails
-                logger.error("Failed to copy logs from %s. Error: %s", self.temp_dir, ve)  # we swallow the error
+                self.frontend.notify(f"Failed to copy logs from {self.temp_dir}: {ve}", MessageLevel.ERROR)
                 self._exit(-1)
             else:
                 self._exit(_code)
@@ -255,7 +255,7 @@ class Launcher:
             out = self._copy_tmp_directory(dst)
         else:
             out = self._copy_tmp_directory(self.session_directory / suffix)
-        logger.info("Copied logs to %s", out)
+        self.frontend.notify(f"Copied logs to {out}", MessageLevel.SUCCESS)
         self._has_copied_logs = True
 
     @property
