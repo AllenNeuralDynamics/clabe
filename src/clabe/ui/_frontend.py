@@ -23,6 +23,31 @@ def _humanize_field(name: str) -> str:
     return name.replace("_", " ").replace("-", " ").title()
 
 
+def _resolve_field_type(annotation: Any) -> tuple[Any, bool]:
+    """Strip Annotated and Optional wrappers; return (inner_type, is_optional)."""
+    if get_origin(annotation) is typing.Annotated:
+        annotation = get_args(annotation)[0]
+    if get_origin(annotation) is typing.Union:
+        args = get_args(annotation)
+        non_none = [a for a in args if a is not type(None)]
+        if len(non_none) == 1:
+            return non_none[0], True
+    return annotation, False
+
+
+def _resolve_field_default(field_info: Any, initial: Any) -> Any:
+    """Return initial if provided, else the field's declared default or None."""
+    from pydantic_core import PydanticUndefined
+
+    if initial is not None:
+        return initial
+    raw = getattr(field_info, "default", PydanticUndefined)
+    if raw is not PydanticUndefined:
+        return raw
+    factory = getattr(field_info, "default_factory", None)
+    return factory() if factory is not None else None
+
+
 @runtime_checkable
 class Frontend(Protocol):
     """
@@ -284,33 +309,12 @@ class FrontendBase(abc.ABC):
         """
         from pydantic import TypeAdapter
         from pydantic import ValidationError as _PydanticError
-        from pydantic_core import PydanticUndefined
 
         field_info = request.model.model_fields[request.field_name]
         annotation = field_info.annotation
-
-        # Unwrap Annotated[T, ...] then Optional[T] = Union[T, None]
-        inner = annotation
-        if get_origin(inner) is typing.Annotated:
-            inner = get_args(inner)[0]
-        is_optional = False
-        if get_origin(inner) is typing.Union:
-            args = get_args(inner)
-            non_none = [a for a in args if a is not type(None)]
-            if len(non_none) == 1:
-                inner, is_optional = non_none[0], True
-
+        inner, is_optional = _resolve_field_type(annotation)
         label = getattr(field_info, "title", None) or _humanize_field(request.field_name)
-
-        default = request.initial
-        if default is None:
-            raw_default = getattr(field_info, "default", PydanticUndefined)
-            if raw_default is not PydanticUndefined:
-                default = raw_default
-            else:
-                factory = getattr(field_info, "default_factory", None)
-                if factory is not None:
-                    default = factory()
+        default = _resolve_field_default(field_info, request.initial)
 
         # bool → confirm
         if inner is bool:

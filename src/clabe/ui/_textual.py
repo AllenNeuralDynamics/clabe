@@ -2,6 +2,7 @@ import contextlib
 import datetime
 import logging
 import os
+import platform as _platform
 import queue
 import re
 import tempfile
@@ -117,8 +118,6 @@ class _ActivityRow(Static):
         self._frame = (self._frame + 1) % len(_SPINNER_FRAMES)
         self.update(f"{_SPINNER_FRAMES[self._frame]} {self._description}")
 
-
-import platform as _platform
 
 if _platform.system() == "Windows":
     from textual.drivers.windows_driver import WindowsDriver as _WindowsDriver

@@ -297,7 +297,7 @@ class _FormScreen(ModalScreen):
         wid = event.input.id or ""
         if not wid.startswith("field-"):
             return
-        field_name = wid[len("field-"):]
+        field_name = wid[len("field-") :]
         if self._validate_field(field_name, event.value):
             self._focus_next_field(field_name)
 
@@ -317,7 +317,7 @@ class _FormScreen(ModalScreen):
         wid = event.input.id or ""
         if not wid.startswith("field-"):
             return
-        field_name = wid[len("field-"):]
+        field_name = wid[len("field-") :]
         self._clear_field_error(field_name)
         if field_name in self._path_fields:
             self._update_path_completions(field_name, event.value)
@@ -341,7 +341,7 @@ class _FormScreen(ModalScreen):
         opt_id = event.option_list.id or ""
         if not opt_id.startswith("complete-"):
             return
-        field_name = opt_id[len("complete-"):]
+        field_name = opt_id[len("complete-") :]
         path_input = self._field_widgets.get(field_name)
         if not isinstance(path_input, Input):
             return
@@ -373,7 +373,7 @@ class _FormScreen(ModalScreen):
         """Handle Browse and close button presses."""
         btn_id = event.button.id or ""
         if btn_id.startswith("browse-"):
-            field_name = btn_id[len("browse-"):]
+            field_name = btn_id[len("browse-") :]
             path_input = self.query_one(f"#field-{field_name}", Input)
             start = _resolve_start_dir(path_input.value.strip())
 
@@ -400,7 +400,7 @@ class _FormScreen(ModalScreen):
         if focused is None:
             return None
         fid = getattr(focused, "id", None) or ""
-        return fid[len("field-"):] if fid.startswith("field-") else None
+        return fid[len("field-") :] if fid.startswith("field-") else None
 
     def action_show_help(self) -> None:
         """Show the F1 help popup for the focused field."""
