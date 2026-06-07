@@ -45,7 +45,7 @@ How much a runnable reports is set by a `ReportTier`. Higher tiers are strictly
 louder; each expands into the granular flags below.
 
 | Tier | Spinner | Log | Notify on failure | Notify start/success |
-|------|---------|-----|-------------------|----------------------|
+| --- | --- | --- | --- | --- |
 | `SILENT` | yes | debug | – | – |
 | `FAILURES` *(default)* | yes | info | yes | – |
 | `LIFECYCLE` | yes | info | yes | yes |
@@ -76,7 +76,7 @@ runnable:
 
 Resolution is most-specific-wins, per field:
 
-```
+```text
 built-in tier defaults  ◁  RunnableSettings  ◁  @runnable(...) spec  ◁  call-site override
 ```
 
@@ -101,16 +101,31 @@ than nesting, so you never get two spinners or duplicate notifications.
 
 ## Nesting
 
-When one runnable calls another, the inner one folds into the outer: only the
-**outermost** runnable shows a spinner and emits start/success/failure
-notifications. Inner runnables still log. This means an inner failure that the
-outer handles stays quiet, while a failure that propagates all the way out is
-announced exactly once.
+When one runnable **directly calls** another (a plain call or `await`), the
+inner one folds into the outer: only the **outermost** runnable shows a spinner
+and emits start/success/failure notifications. Inner runnables still log. This
+means an inner failure that the outer handles stays quiet, while a failure that
+propagates all the way out is announced exactly once.
 
 ```python
 @runnable(name="Transfer (robocopy)", tier=ReportTier.LIFECYCLE, notify="Transferring data…")
 def transfer(self) -> None:
     self.run()        # the mixin's run() is also a runnable, but folds in here
+```
+
+Tasks spawned concurrently with `asyncio.gather()` or `asyncio.create_task()`
+are **not** treated as nested — each is an independent lifecycle with its own
+spinner and notifications. This is intentional: concurrent tasks are peers, not
+children.
+
+```python
+@runnable(name="Experiment")
+async def run_experiment(self) -> None:
+    # Both subtasks get their own spinner and failure notification.
+    await asyncio.gather(
+        runnable(self.behavior.run_async, name="Behavior")(),
+        runnable(self.physiology.run_async, name="Physiology")(),
+    )
 ```
 
 ## Surfacing information to the user

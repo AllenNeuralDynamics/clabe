@@ -16,7 +16,7 @@ touching the rest of the codebase.
 ## The ones we have
 
 | Frontend | Class | What it is | When it's used |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | **Console** | `ConsoleFrontend` | A `rich`-styled, line-based console. On a real terminal it offers an arrow-key picker and a type-to-filter autocomplete; piped/CI it degrades to plain numbered prompts and `input()`. | `frontend = "console"`, or `auto` when not attached to a terminal |
 | **TUI** | `TextualFrontend` | A persistent full-screen Textual app with four panes — **Session** (messages + answered prompts), **Processes** (live activity spinners), **Input** (the current prompt), **Logs**. | `frontend = "tui"`, or `auto` on a terminal (the default) |
 | **Web** | *(not a frontend class)* | The **TUI served in a browser** via `textual-serve`. Not a separate implementation — it runs the `TextualFrontend` in a subprocess and proxies it to the browser. | `clabe serve …` (see below) |
@@ -32,7 +32,7 @@ clabe run my_experiment.py --frontend console   # force the rich console
 ```
 
 | Value | Result |
-|---|---|
+| --- | --- |
 | `auto` *(default)* | TUI when attached to a terminal, otherwise the console |
 | `tui` | Always the Textual TUI |
 | `console` | Always the rich console (also the safe choice for piping/CI) |
@@ -74,9 +74,10 @@ The Textual TUI shows a persistent header (with the CLABE version and, once
 known, the running experiment) and a footer listing the active shortcuts:
 
 | Key | Action |
-|---|---|
+| --- | --- |
 | `Ctrl+C` | Exit the launcher |
 | `Ctrl+S` | Save an SVG screenshot of the window |
+| `F2` | Toggle the Logs pane to reclaim vertical space |
 
 `Ctrl+S` renders the whole window to an SVG in the OS temp directory and notes
 the (clickable) path in the Session pane — terminal-independent, and a reliable

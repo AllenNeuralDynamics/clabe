@@ -18,7 +18,7 @@ named logger.
 ## Choosing a level
 
 | Level | Use it for | Shown by default? |
-|---|---|---|
+| --- | --- | --- |
 | `DEBUG` | Fine-grained detail for diagnosis (payloads, resolved paths, internal state) | No (file only with `--debug-mode`) |
 | `INFO` | Normal milestones ("Executing command", "Manifest created") | No (shown with `--verbose`; always in the file) |
 | `WARNING` | Unexpected-but-recoverable ("service not running, restarting", "deprecated version") | Yes |
@@ -55,7 +55,7 @@ At import time, `clabe/__init__.py` configures the root logger with a console
 handler. When a `Launcher` runs it adds the others:
 
 | Sink | What | Default level | Notes |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | **Console** | A `rich` handler with severity highlighting | `WARNING` | Quieted/raised by the verbosity ladder; muted entirely while the TUI owns the terminal |
 | **Log file** | `launcher.log` in the run's temp dir, UTC timestamps | `INFO` (`DEBUG` with `--debug-mode`) | The complete record; copied to `<session>/Behavior/Logs/.launcher/` at the end of a run |
 | **TUI "Logs" pane** | Active only with the Textual frontend | `INFO`+ | Color-coded by level, local-time stamps |
@@ -70,7 +70,7 @@ A single ladder controls what is *shown* (the console and the user-facing
 Session pane). The **log file always records full detail** regardless.
 
 | Flag | Console / UI shows | Log file |
-|---|---|---|
+| --- | --- | --- |
 | `--quiet` | `ERROR`+ | `INFO` |
 | *(default)* | `WARNING`+ | `INFO` |
 | `--verbose` | `INFO`+ | `INFO` |
@@ -83,6 +83,13 @@ clabe run my_experiment.py --debug-mode
 ```
 
 If you need to adjust the console level yourself, use the helper directly:
+
+```python
+from clabe.logging_helper import set_console_level
+import logging
+
+set_console_level(logging.DEBUG)
+```
 
 ## Logging vs. talking to the user
 
@@ -132,7 +139,7 @@ message or collecting an answer through the Frontend already records it.
 While a run is in progress, logs are written to a temporary directory. On
 completion the launcher's `copy_logs()` copies them into the session directory:
 
-```
+```text
 <data_directory>/<session_name>/Behavior/Logs/.launcher/launcher.log
 ```
 
