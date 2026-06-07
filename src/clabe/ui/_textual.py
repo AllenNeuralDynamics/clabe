@@ -174,7 +174,10 @@ class _LauncherApp(App):
 
     def __init__(self) -> None:
         """Initialize the app with the platform-appropriate mouse driver."""
-        super().__init__(driver_class=_DRIVER_CLASS)
+        import os
+
+        driver = None if os.environ.get("TEXTUAL_DRIVER") else _DRIVER_CLASS
+        super().__init__(driver_class=driver)
         self.ready = threading.Event()
         self._pending: Optional["queue.Queue"] = None
         self._kind: Optional[str] = None
