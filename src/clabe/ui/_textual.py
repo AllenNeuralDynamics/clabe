@@ -5,7 +5,6 @@ import os
 import platform as _platform
 import queue
 import re
-import tempfile
 import threading
 from pathlib import Path
 from typing import Iterator, List, Optional
@@ -169,7 +168,6 @@ class _LauncherApp(App):
     CSS = _APP_CSS
     BINDINGS = [
         Binding("ctrl+c", "cancel", "Exit", priority=True),
-        Binding("ctrl+s", "screenshot", "Screenshot", priority=True),
         Binding("f2", "toggle_logs", "Toggle Logs"),
     ]
 
@@ -381,13 +379,6 @@ class _LauncherApp(App):
             import _thread
 
             _thread.interrupt_main()
-
-    def action_screenshot(self) -> None:
-        """Save an SVG screenshot to the OS temp directory and note the path."""
-        path = self.save_screenshot(path=tempfile.gettempdir())
-        line = Text(f"[{_local_time()}] ", style="dim")
-        line.append_text(_linkify(f"Saved screenshot to {path}", _RICH_STYLES[MessageLevel.SUCCESS]))
-        self.write_user(line)
 
     def action_toggle_logs(self) -> None:
         """Show or hide the Logs pane to reclaim vertical space."""
