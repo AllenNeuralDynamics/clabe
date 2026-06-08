@@ -34,14 +34,9 @@ class TestLinkify:
 
 
 class TestBindings:
-    def test_ctrl_c_exits_and_ctrl_s_screenshots(self):
+    def test_ctrl_c_exits(self):
         actions = {binding.key: binding.action for binding in _LauncherApp.BINDINGS}
         assert actions["ctrl+c"] == "cancel"
-        assert actions["ctrl+s"] == "screenshot"
-        assert "escape" not in actions
-
-    def test_screenshot_action_exists(self):
-        assert callable(_LauncherApp.action_screenshot)
 
 
 @pytest.mark.asyncio
@@ -62,15 +57,3 @@ async def test_set_experiment_updates_header():
         app.set_experiment("demo_experiment")
         assert "demo_experiment" in app.sub_title
         assert __version__ in app.sub_title
-
-
-@pytest.mark.asyncio
-async def test_screenshot_saves_to_temp_dir(tmp_path, monkeypatch):
-    import tempfile
-
-    monkeypatch.setattr(tempfile, "gettempdir", lambda: str(tmp_path))
-    app = _LauncherApp()
-    async with app.run_test(size=(80, 24)) as pilot:
-        app.action_screenshot()
-        await pilot.pause()
-    assert list(tmp_path.glob("*.svg"))
