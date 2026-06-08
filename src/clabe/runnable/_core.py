@@ -4,13 +4,12 @@ import contextvars
 import functools
 import inspect
 import logging
-import threading
 import time
 from typing import Any, Callable, Optional, TypeVar, overload
 
 from ..ui._messages import MessageLevel
 from ._activity import get_activity_indicator
-from ._settings import ReportTier, RunnableSettings, RunnableSpec, resolve
+from ._settings import RunnableSpec, _include_timing
 
 logger = logging.getLogger(__name__)
 
@@ -21,28 +20,23 @@ _active: contextvars.ContextVar[bool] = contextvars.ContextVar("clabe_runnable_a
 #: (which copy context) are not mistaken for nested runnables.
 _active_task: contextvars.ContextVar[Optional[Any]] = contextvars.ContextVar("clabe_runnable_task", default=None)
 
-_settings: Optional[RunnableSettings] = None
-_settings_lock = threading.Lock()
+#: Defaults applied when a spec field is still None after merging.
+_DEFAULTS: dict[str, bool] = {
+    "show_activity": True,
+    "notify_start": True,
+    "notify_success": True,
+    "notify_fail": True,
+}
 
 
-def _get_settings() -> RunnableSettings:
-    """Return the process-wide settings, loading them once on first use."""
-    global _settings
-    if _settings is None:
-        with _settings_lock:
-            if _settings is None:
-                _settings = RunnableSettings()
-    return _settings
+def _fill(spec: RunnableSpec) -> RunnableSpec:
+    """Fill any remaining None flags with their defaults."""
+    from dataclasses import replace
 
-
-def set_tier(tier: ReportTier) -> None:
-    """Override the process-wide reporting tier, keeping other settings intact.
-
-    Intended for entry points (e.g. the launcher mapping its verbosity flags)
-    that set the house tier programmatically.
-    """
-    global _settings
-    _settings = _get_settings().model_copy(update={"tier": tier})
+    updates = {k: v for k, v in _DEFAULTS.items() if getattr(spec, k) is None}
+    if spec.notify is not None:
+        updates.setdefault("notify_start", True)
+    return replace(spec, **updates) if updates else spec
 
 
 def _notify(message: str, level: MessageLevel) -> None:
@@ -66,7 +60,7 @@ def _lifecycle(spec: RunnableSpec, name: str):
     failure stays quiet, while one that propagates is announced exactly once).
     Logging happens at every level.
     """
-    eff = resolve(spec, _get_settings())
+    eff = _fill(spec)
     try:
         current_task = asyncio.current_task()
     except RuntimeError:
@@ -93,7 +87,7 @@ def _lifecycle(spec: RunnableSpec, name: str):
         logger.log(eff.log_level, "%s failed after %s", name, _elapsed(started))
         raise
     else:
-        timing = f" in {_elapsed(started)}" if eff.include_timing else ""
+        timing = f" in {_elapsed(started)}" if _include_timing else ""
         if not reentrant and eff.notify_success:
             _notify(f"{name} finished{timing}", MessageLevel.SUCCESS)
         logger.log(eff.log_level, "%s finished in %s", name, _elapsed(started))
@@ -141,7 +135,6 @@ def runnable(
     fn: F,
     *,
     name: Optional[str] = ...,
-    tier: Optional[ReportTier] = ...,
     notify: Optional[str] = ...,
     show_activity: Optional[bool] = ...,
     notify_start: Optional[bool] = ...,
@@ -155,7 +148,6 @@ def runnable(
     fn: None = ...,
     *,
     name: Optional[str] = ...,
-    tier: Optional[ReportTier] = ...,
     notify: Optional[str] = ...,
     show_activity: Optional[bool] = ...,
     notify_start: Optional[bool] = ...,
@@ -168,7 +160,6 @@ def runnable(
     fn=None,
     *,
     name=None,
-    tier=None,
     notify=None,
     show_activity=None,
     notify_start=None,
@@ -179,25 +170,25 @@ def runnable(
     spinner, notifications, and a future OTEL span).
 
     Use it as a decorator at definition time (``@runnable`` or
-    ``@runnable(name=..., tier=...)``) or to rewrap an existing callable at the
-    call site (``runnable(obj.method, tier=...)()``). Rewrapping merges over the
-    callable's existing spec rather than nesting, so it never double-reports.
+    ``@runnable(name=..., notify=...)``) or to rewrap an existing callable at
+    the call site (``runnable(obj.method, notify_success=False)()``). Rewrapping
+    merges over the callable's existing spec rather than nesting, so it never
+    double-reports.
+
+    By default all notifications are on (start, success, failure). Pass
+    ``notify_start=False`` etc. to suppress individual ones.
 
     Args:
-        fn: The callable to wrap. Omit it to use ``runnable`` as a decorator
-            factory.
-        name: Display/span name. When omitted it is derived at call time from
-            the instance class for methods, else the function name.
-        tier: The :class:`ReportTier` for this runnable. Defaults to the global
-            setting.
-        notify: A start message to surface to the user (implies notifying on
-            start).
-        show_activity, notify_start, notify_success, notify_fail: Per-flag
-            overrides of the tier; ``None`` inherits.
+        fn: The callable to wrap. Omit to use ``runnable`` as a decorator factory.
+        name: Display name. Derived from the instance class or function name when omitted.
+        notify: Custom start message (shown instead of ``"<name>…"``).
+        show_activity: Show a spinner while running. Default ``True``.
+        notify_start: Notify on start. Default ``True``.
+        notify_success: Notify on success. Default ``True``.
+        notify_fail: Notify on failure. Default ``True``.
     """
     overrides = RunnableSpec(
         name=name,
-        tier=tier,
         notify=notify,
         show_activity=show_activity,
         notify_start=notify_start,

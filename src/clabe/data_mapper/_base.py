@@ -1,6 +1,8 @@
 import abc
 import logging
-from typing import Any, Generic, Optional, TypeVar
+from typing import Any, Generic, Optional, TypeVar, final
+
+from clabe.runnable._core import runnable
 
 from ..services import Service
 
@@ -21,6 +23,18 @@ class DataMapper(Service, abc.ABC, Generic[TMapTo]):
     """
 
     _mapped: Optional[TMapTo]
+
+    @runnable
+    @final
+    def run(self) -> TMapTo:
+        """
+        Executes the data mapping process.
+
+        Returns:
+            The mapped data object
+        """
+        self._mapped = self.map()
+        return self._mapped
 
     @abc.abstractmethod
     def map(self) -> TMapTo:

@@ -123,38 +123,18 @@ class FrontendBase(abc.ABC):
     def __init__(self) -> None:
         """Initializes the frontend and its transcript logger."""
         self._transcript = logging.getLogger(_TRANSCRIPT_LOGGER_NAME)
-        #: Minimum level a message must reach to be *rendered* to the user.
-        #: Messages below this are still recorded to the transcript/log file.
-        self._min_render_level = logging.WARNING
-
-    def set_min_level(self, level: int) -> None:
-        """
-        Sets the minimum level a notification must reach to be shown.
-
-        This only affects what is rendered to the user; every message is still
-        recorded to the persistent transcript regardless of this threshold.
-
-        Args:
-            level: A standard ``logging`` level (e.g. ``logging.INFO``).
-        """
-        self._min_render_level = level
 
     # --- output -----------------------------------------------------------
     def notify(self, message: str, level: MessageLevel = MessageLevel.INFO) -> None:
         """
         Surfaces a message to the user and records it to the transcript.
 
-        The message is always recorded to the transcript (and thus the log
-        file); it is only rendered to the user when its level is at or above the
-        configured threshold (see :meth:`set_min_level`).
-
         Args:
             message: The message to surface.
             level: The presentation level/intent of the message.
         """
         self._transcript.log(level.logging_level, "UI» %s", message)
-        if level.logging_level >= self._min_render_level:
-            self._render(message, level)
+        self._render(message, level)
 
     def header(self, text: str) -> None:
         """

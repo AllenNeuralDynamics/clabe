@@ -1,12 +1,10 @@
 from ._activity import ActivityIndicator, ActivitySink, get_activity_indicator
-from ._core import runnable, set_tier
-from ._settings import ReportTier, RunnableSettings, RunnableSpec
+from ._core import runnable
+from ._settings import RunnableSpec, set_include_timing
 
 __all__ = [
     "runnable",
-    "set_tier",
-    "ReportTier",
-    "RunnableSettings",
+    "set_include_timing",
     "RunnableSpec",
     "ActivityIndicator",
     "ActivitySink",
