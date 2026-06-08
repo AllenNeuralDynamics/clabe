@@ -9,7 +9,7 @@ from pydantic import Field
 from ..apps import ExecutableApp
 from ..apps._base import Command, CommandError, CommandResult, identity_parser
 from ..apps._executors import _DefaultExecutorMixin
-from ..runnable import ReportTier, runnable
+from ..runnable import runnable
 from ..services import ServiceSettings
 from ._base import DataTransfer
 
@@ -122,7 +122,7 @@ class RobocopyService(DataTransfer[RobocopySettings], _DefaultExecutorMixin, Exe
 
         return Command(cmd=cmd, output_parser=identity_parser)
 
-    @runnable(name="Transfer (robocopy)", tier=ReportTier.LIFECYCLE, notify="Transferring data (robocopy)…")
+    @runnable(name="Transfer (robocopy)", notify="Transferring data (robocopy)…")
     def transfer(self) -> None:
         """
         Executes the data transfer using Robocopy.

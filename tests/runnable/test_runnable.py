@@ -2,7 +2,7 @@ import contextlib
 
 import pytest
 
-from clabe.runnable import ReportTier, RunnableSettings, _core, runnable
+from clabe.runnable import _core, runnable
 from clabe.ui import MessageLevel, set_current_frontend
 
 
@@ -53,30 +53,6 @@ def indicator(monkeypatch) -> RecordingIndicator:
     return ind
 
 
-@pytest.fixture(autouse=True)
-def default_tier(monkeypatch):
-    """Pin the global default to FAILURES so config files can't sway tests."""
-    monkeypatch.setattr(_core, "_settings", RunnableSettings(tier=ReportTier.FAILURES))
-
-
-class TestSettings:
-    def test_tier_accepts_name(self):
-        assert RunnableSettings(tier="lifecycle").tier is ReportTier.LIFECYCLE
-
-    def test_tier_accepts_int(self):
-        assert RunnableSettings(tier=30).tier is ReportTier.VERBOSE
-
-    def test_tier_rejects_unknown_name(self):
-        with pytest.raises(ValueError, match="Unknown report tier"):
-            RunnableSettings(tier="bogus")
-
-    def test_set_tier_overrides_keeping_other_settings(self, monkeypatch):
-        monkeypatch.setattr(_core, "_settings", RunnableSettings(tier=ReportTier.FAILURES, notify_success=False))
-        _core.set_tier(ReportTier.VERBOSE)
-        assert _core._settings.tier is ReportTier.VERBOSE
-        assert _core._settings.notify_success is False  # preserved
-
-
 class Service:
     @runnable(name="Explicit name")
     def named(self) -> str:
@@ -86,7 +62,7 @@ class Service:
     def bare(self) -> str:
         return "ok"
 
-    @runnable(name="boom", tier=ReportTier.FAILURES)
+    @runnable(name="boom")
     def fails(self):
         raise RuntimeError("kaboom")
 
@@ -99,17 +75,17 @@ class TestWrapping:
         assert Service.named.__name__ == "named"
 
     def test_bare_name_uses_instance_class(self, indicator):
-        runnable(Service().bare, tier=ReportTier.LIFECYCLE)()
+        Service().bare()
         assert indicator.descriptions == ["Service"]
 
     def test_explicit_name_used(self, indicator):
-        runnable(Service().named, tier=ReportTier.LIFECYCLE)()
+        Service().named()
         assert indicator.descriptions == ["Explicit name"]
 
     @pytest.mark.asyncio
     async def test_async_wrapping(self, indicator):
         class AsyncService:
-            @runnable(name="async work", tier=ReportTier.LIFECYCLE)
+            @runnable(name="async work")
             async def go(self) -> str:
                 return "done"
 
@@ -121,49 +97,57 @@ class TestWrapping:
             Service().fails()
 
 
-class TestTiers:
-    def test_silent_does_not_notify(self, frontend, indicator):
-        runnable(Service().named, tier=ReportTier.SILENT)()
-        assert frontend.messages == []
-
-    def test_failures_notifies_only_on_error(self, frontend):
-        runnable(Service().named, tier=ReportTier.FAILURES)()
-        assert frontend.messages == []
-        with pytest.raises(RuntimeError):
-            runnable(Service().fails, tier=ReportTier.FAILURES)()
-        assert frontend.levels() == [MessageLevel.ERROR]
-
-    def test_lifecycle_notifies_start_and_success(self, frontend):
-        runnable(Service().named, tier=ReportTier.LIFECYCLE)()
+class TestNotifications:
+    def test_notifies_start_and_success_by_default(self, frontend):
+        Service().named()
         assert frontend.levels() == [MessageLevel.INFO, MessageLevel.SUCCESS]
 
+    def test_notifies_error_on_failure(self, frontend):
+        with pytest.raises(RuntimeError):
+            Service().fails()
+        assert frontend.levels() == [MessageLevel.INFO, MessageLevel.ERROR]
+
     def test_notify_message_overrides_start_text(self, frontend):
-        runnable(Service().named, tier=ReportTier.LIFECYCLE, notify="Working…")()
+        runnable(Service().named, notify="Working…")()
         assert frontend.messages[0] == (MessageLevel.INFO, "Working…")
+
+    def test_notify_start_false_suppresses_start(self, frontend):
+        runnable(Service().named, notify_start=False)()
+        assert frontend.levels() == [MessageLevel.SUCCESS]
+
+    def test_notify_success_false_suppresses_success(self, frontend):
+        runnable(Service().named, notify_success=False)()
+        assert frontend.levels() == [MessageLevel.INFO]
+
+    def test_notify_fail_false_suppresses_error(self, frontend):
+        with pytest.raises(RuntimeError):
+            runnable(Service().fails, notify_fail=False)()
+        # start still fires, only the failure notification is suppressed
+        assert frontend.levels() == [MessageLevel.INFO]
 
 
 class TestIdempotency:
     def test_rewrap_does_not_nest(self, frontend, indicator):
         # ``named`` is already decorated; rewrapping must not double-report.
-        runnable(Service().named, tier=ReportTier.LIFECYCLE)()
+        Service().named()
         assert indicator.descriptions == ["Explicit name"]
         assert indicator.max_depth == 1
         assert frontend.levels() == [MessageLevel.INFO, MessageLevel.SUCCESS]
 
     def test_rewrap_merges_keeping_prior_name(self, indicator):
-        # Call-site override bumps the tier but keeps the baked-in name.
-        runnable(Service().named, tier=ReportTier.LIFECYCLE)()
+        # Call-site override keeps the baked-in name.
+        runnable(Service().named, notify_success=False)()
         assert indicator.descriptions == ["Explicit name"]
 
 
 class TestReentrancy:
     def test_nested_runnable_folds_into_outer(self, frontend, indicator):
         class Outer:
-            @runnable(name="inner", tier=ReportTier.LIFECYCLE)
+            @runnable(name="inner")
             def inner(self) -> str:
                 return "inner-result"
 
-            @runnable(name="outer", tier=ReportTier.LIFECYCLE)
+            @runnable(name="outer")
             def outer(self) -> str:
                 return self.inner()
 
@@ -180,11 +164,11 @@ class TestReentrancy:
 
     def test_handled_inner_failure_stays_quiet(self, frontend):
         class Service:
-            @runnable(name="inner", tier=ReportTier.FAILURES)
+            @runnable(name="inner")
             def inner(self):
                 raise RuntimeError("informational")
 
-            @runnable(name="outer", tier=ReportTier.FAILURES)
+            @runnable(name="outer")
             def outer(self) -> str:
                 try:
                     self.inner()
@@ -194,30 +178,33 @@ class TestReentrancy:
 
         assert Service().outer() == "recovered"
         # The inner failure was handled, so no error reached the user.
-        assert frontend.messages == []
+        assert frontend.messages == [
+            (MessageLevel.INFO, "outer…"),
+            (MessageLevel.SUCCESS, "outer finished"),
+        ]
 
     def test_propagating_failure_notifies_once(self, frontend):
         class Service:
-            @runnable(name="inner", tier=ReportTier.FAILURES)
+            @runnable(name="inner")
             def inner(self):
                 raise RuntimeError("fatal")
 
-            @runnable(name="outer", tier=ReportTier.FAILURES)
+            @runnable(name="outer")
             def outer(self):
                 self.inner()
 
         with pytest.raises(RuntimeError, match="fatal"):
             Service().outer()
-        assert frontend.levels() == [MessageLevel.ERROR]
+        assert frontend.levels() == [MessageLevel.INFO, MessageLevel.ERROR]
 
 
 class TestCallSiteRewrap:
     def test_bound_method_rewrap_keeps_binding(self):
         service = Service()
-        assert runnable(service.named, tier=ReportTier.SILENT)() == "ok"
+        assert runnable(service.named, notify_start=False, notify_success=False)() == "ok"
 
     def test_rename_at_call_site(self, indicator):
-        runnable(Service().named, name="Renamed", tier=ReportTier.LIFECYCLE)()
+        runnable(Service().named, name="Renamed")()
         assert indicator.descriptions == ["Renamed"]
 
     def test_wraps_undecorated_callable(self, frontend):
@@ -227,6 +214,6 @@ class TestCallSiteRewrap:
             calls.append(value)
             return value * 2
 
-        assert runnable(free, tier=ReportTier.LIFECYCLE)(21) == 42
+        assert runnable(free)(21) == 42
         assert calls == [21]
         assert frontend.levels() == [MessageLevel.INFO, MessageLevel.SUCCESS]
