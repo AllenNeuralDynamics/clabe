@@ -8,7 +8,7 @@ from rich.text import Text
 from . import _keys
 from ._frontend import FrontendBase
 from ._messages import MessageLevel
-from ._requests import AutoCompleteRequest, ConfirmRequest, PickRequest, TextRequest
+from ._requests import AcknowledgeRequest, AutoCompleteRequest, ConfirmRequest, PickRequest, TextRequest
 
 #: Maximum suggestions shown at once while filtering an autocomplete prompt.
 _MAX_VISIBLE_SUGGESTIONS = 8
@@ -230,3 +230,9 @@ class ConsoleFrontend(FrontendBase):
     def _ask_confirm(self, request: ConfirmRequest) -> bool:
         """Collects a yes/no answer."""
         return bool(Confirm.ask(Text(request.label, style="bold"), console=self._console, default=request.default))
+
+    def _ask_acknowledge(self, request: AcknowledgeRequest) -> None:
+        """Prints the title and message, then waits for Enter."""
+        self._console.print(Text(f"\n{request.title}", style="bold yellow"))
+        self._console.print(request.message)
+        input(f"  Press Enter to {request.button_label.lower()}\u2026")

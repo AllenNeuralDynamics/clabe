@@ -7,6 +7,7 @@ from typing import Any, ContextManager, List, Literal, Optional, Protocol, get_a
 from ..logging_helper import _TRANSCRIPT_LOGGER_NAME
 from ._messages import MessageLevel
 from ._requests import (
+    AcknowledgeRequest,
     AutoCompleteRequest,
     ConfirmRequest,
     FieldRequest,
@@ -102,6 +103,10 @@ class Frontend(Protocol):
 
     def prompt_field(self, request: FieldRequest) -> Any:
         """Prompt the user for a single Pydantic model field value; returns the validated Python value."""
+        ...
+
+    def prompt_acknowledge(self, request: AcknowledgeRequest) -> None:
+        """Display a message in a modal and block until the user dismisses it."""
         ...
 
 
@@ -269,6 +274,16 @@ class FrontendBase(abc.ABC):
         """
         raise NotImplementedError(f"{type(self).__name__} does not support form prompts.")
 
+    def prompt_acknowledge(self, request: AcknowledgeRequest) -> None:
+        """
+        Displays a message in a modal overlay and blocks until the user dismisses it.
+
+        Args:
+            request: The declarative acknowledge request.
+        """
+        self._ask_acknowledge(request)
+        self._record(request.field or request.title, "acknowledged")
+
     def prompt_field(self, request: FieldRequest) -> Any:
         """
         Prompts for a single Pydantic model field value and returns the validated Python object.
@@ -415,3 +430,7 @@ class FrontendBase(abc.ABC):
     @abc.abstractmethod
     def _ask_autocomplete(self, request: AutoCompleteRequest) -> str:
         """Collects autocompleted text from the user (no validation/transcript)."""
+
+    @abc.abstractmethod
+    def _ask_acknowledge(self, request: AcknowledgeRequest) -> None:
+        """Displays the acknowledge message and blocks until the user dismisses it."""

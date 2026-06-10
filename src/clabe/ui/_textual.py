@@ -19,8 +19,8 @@ from .. import __version__
 from ..logging_helper import _TRANSCRIPT_LOGGER_NAME
 from ._frontend import FrontendBase
 from ._messages import MessageLevel
-from ._requests import AutoCompleteRequest, ConfirmRequest, FormRequest, PickRequest, TextRequest
-from ._textual_form import _FormScreen
+from ._requests import AcknowledgeRequest, AutoCompleteRequest, ConfirmRequest, FormRequest, PickRequest, TextRequest
+from ._textual_form import _AcknowledgeScreen, _FormScreen
 
 #: Sentinel pushed back to the caller when a prompt is cancelled (e.g. Ctrl+C).
 _CANCELLED = object()
@@ -307,6 +307,15 @@ class _LauncherApp(App):
 
         await self.push_screen(_FormScreen(request), _on_dismiss)
 
+    async def ask_acknowledge(self, request: AcknowledgeRequest, reply: "queue.Queue") -> None:
+        """Push an acknowledge modal; deliver True via reply once dismissed."""
+
+        async def _on_dismiss(_: None) -> None:
+            """Helper to put True onto the reply queue when the user dismisses the modal."""
+            reply.put(True)
+
+        await self.push_screen(_AcknowledgeScreen(request), _on_dismiss)
+
     async def _mount(self, *widgets) -> None:
         """Replace the Input pane contents with the given widgets."""
         box = self.query_one("#clabe-prompt", Vertical)
@@ -581,3 +590,10 @@ class TextualFrontend(FrontendBase):
         if result is not None:
             self._record(request.field or request.model.__name__, str(result))
         return result
+
+    def _ask_acknowledge(self, request: AcknowledgeRequest) -> None:
+        """Push the acknowledge modal and block until the user dismisses it."""
+        app = self._ensure()
+        reply: "queue.Queue" = queue.Queue()
+        app.call_from_thread(app.ask_acknowledge, request, reply)
+        _unwrap(reply.get())

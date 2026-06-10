@@ -3,6 +3,7 @@ from ._current import current_frontend, notify, set_current_frontend
 from ._frontend import Frontend, FrontendBase
 from ._messages import MessageLevel
 from ._requests import (
+    AcknowledgeRequest,
     AutoCompleteRequest,
     Choice,
     ConfirmRequest,
@@ -73,6 +74,7 @@ __all__ = [
     "TextRequest",
     "AutoCompleteRequest",
     "NumberRequest",
+    "AcknowledgeRequest",
     "Validator",
     "ConsoleFrontend",
     "TextualFrontend",

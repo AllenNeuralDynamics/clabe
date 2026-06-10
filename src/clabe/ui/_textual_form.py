@@ -13,7 +13,7 @@ from textual.containers import Horizontal, ScrollableContainer, Vertical
 from textual.screen import ModalScreen
 from textual.widgets import Button, DirectoryTree, Footer, Input, Label, OptionList, Select, Switch
 
-from ._requests import FormRequest
+from ._requests import AcknowledgeRequest, FormRequest
 
 
 def _humanize(name: str) -> str:
@@ -158,6 +158,17 @@ _HelpPopup { align: center middle; }
 #help-ok { width: 100%; }
 """
 
+_ACKNOWLEDGE_CSS = """
+_AcknowledgeScreen { align: center middle; }
+#ack-box {
+    width: 60; height: auto; max-width: 90%;
+    background: $surface; border: thick $warning; padding: 1 2;
+}
+#ack-title  { color: $warning; text-style: bold; margin-bottom: 1; }
+#ack-body   { margin-bottom: 1; }
+#ack-ok     { width: 100%; }
+"""
+
 
 class _HelpPopup(ModalScreen):
     """Field-help dialog shown on F1; dismissed with Enter, Space, Escape, or F1."""
@@ -189,6 +200,41 @@ class _HelpPopup(ModalScreen):
 
     def action_ok(self) -> None:
         """Dismiss the popup."""
+        self.dismiss()
+
+
+class _AcknowledgeScreen(ModalScreen):
+    """Modal acknowledgement dialog — blocks until the user dismisses it."""
+
+    DEFAULT_CSS = _ACKNOWLEDGE_CSS
+    BINDINGS = [
+        Binding("enter", "ok", "", show=False),
+        Binding("space", "ok", "", show=False),
+        Binding("escape", "ok", "", show=False),
+    ]
+
+    def __init__(self, request: AcknowledgeRequest) -> None:
+        """Initialize with the declarative acknowledge request."""
+        super().__init__()
+        self._request = request
+
+    def compose(self) -> ComposeResult:
+        """Build the acknowledge dialog layout."""
+        with Vertical(id="ack-box"):
+            yield Label(self._request.title, id="ack-title")
+            yield Label(self._request.message, id="ack-body")
+            yield Button(
+                f"{self._request.button_label}  [Enter]",
+                id="ack-ok",
+                variant="warning",
+            )
+
+    async def on_button_pressed(self, _: Button.Pressed) -> None:
+        """Dismiss on button press."""
+        self.dismiss()
+
+    def action_ok(self) -> None:
+        """Dismiss the dialog."""
         self.dismiss()
 
 
