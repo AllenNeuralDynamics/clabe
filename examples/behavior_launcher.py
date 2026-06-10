@@ -22,7 +22,7 @@ from clabe.cache_manager import CacheManager
 from clabe.launcher import Launcher, LauncherCliArgs, experiment
 from clabe.pickers import DefaultBehaviorPicker, DefaultBehaviorPickerSettings
 from clabe.runnable import runnable
-from clabe.ui import FieldRequest, FormRequest, MessageLevel, notify
+from clabe.ui import AcknowledgeRequest, ConfirmRequest, FieldRequest, FormRequest, MessageLevel, notify
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +81,16 @@ async def demo_experiment(launcher: Launcher) -> None:
     logger.info("Starting the demo experiment")
     notify("Welcome to the CLABE demo experiment!", MessageLevel.INFO)
 
+    # --- AcknowledgeRequest demo: modal acknowledgement gate --------------
+    launcher.frontend.prompt_acknowledge(
+        AcknowledgeRequest(
+            title="Safety Check",
+            message="Ensure the animal is properly head-fixed and all cables are connected before proceeding.",
+            button_label="Confirmed",
+        )
+    )
+    # ----------------------------------------------------------------------
+
     config = launcher.frontend.prompt_form(FormRequest(model=SessionConfig, title="Session Configuration"))
     if config is not None:
         notify(
@@ -105,6 +115,23 @@ async def demo_experiment(launcher: Launcher) -> None:
         launcher=launcher,
         settings=DefaultBehaviorPickerSettings(config_library_dir=LIB_CONFIG),
         experimenter_validator=lambda _: True,
+    )
+
+    if not picker.frontend.prompt_confirm(
+        ConfirmRequest(label="Is this True", default=True),
+    ):
+        notify("hahaha", MessageLevel.INFO)
+
+    if not picker.frontend.prompt_confirm(
+        ConfirmRequest(label="Proceed with the experiment?"),
+    ):
+        notify("Experiment cancelled by user.", MessageLevel.WARNING)
+
+    picker.frontend.prompt_acknowledge(
+        AcknowledgeRequest(
+            title="Experiment Starting",
+            message="All checks passed. The experiment is about to begin. Press OK to continue.",
+        )
     )
 
     session = picker.pick_session(Session)

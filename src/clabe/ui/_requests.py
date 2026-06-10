@@ -74,6 +74,28 @@ class ConfirmRequest:
 
 
 @dataclasses.dataclass
+class AcknowledgeRequest:
+    """
+    A declarative acknowledgement gate.
+
+    Displays a message (optionally with a title) in a modal overlay and blocks
+    until the user dismisses it. No answer is collected — the sole purpose is to
+    ensure the user has read the message before execution continues.
+
+    Attributes:
+        message: The body text the user must read before continuing.
+        title: Optional bold heading shown above the message.
+        button_label: Label on the dismiss button. Defaults to ``"OK"``.
+        field: Logical field name used in the persisted transcript.
+    """
+
+    message: str
+    title: str = "Notice"
+    button_label: str = "OK"
+    field: Optional[str] = None
+
+
+@dataclasses.dataclass
 class TextRequest:
     """
     A declarative request for free-form text.
