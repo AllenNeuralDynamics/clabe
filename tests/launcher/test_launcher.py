@@ -84,3 +84,30 @@ def test_ensure_directory_structure(mock_session, mock_frontend, tmp_path: Path)
             ).register_session(mock_session, data_directory=tmp_path / "data")
             mock_create_directory.assert_any_call(launcher.session_directory)
             mock_create_directory.assert_any_call(launcher.temp_dir)
+
+
+def test_copy_tmp_directory_appends_launcher_log(mock_base_launcher, tmp_path: Path):
+    """launcher.log is appended (not overwritten) on a second copy; other files are overwritten."""
+    src_dir = mock_base_launcher.temp_dir
+    src_dir.mkdir(parents=True, exist_ok=True)
+
+    # Seed the temp dir with two files
+    (src_dir / "launcher.log").write_text("second run\n", encoding="utf-8")
+    (src_dir / "other.txt").write_text("new content\n", encoding="utf-8")
+
+    dst_launcher = tmp_path / ".launcher"
+    dst_launcher.mkdir()
+
+    # Pre-populate the destination as if a previous copy already happened
+    (dst_launcher / "launcher.log").write_text("first run\n", encoding="utf-8")
+    (dst_launcher / "other.txt").write_text("old content\n", encoding="utf-8")
+
+    mock_base_launcher._copy_tmp_directory(tmp_path)
+
+    log_content = (dst_launcher / "launcher.log").read_text(encoding="utf-8")
+    assert "first run" in log_content, "original log content should be preserved"
+    assert "second run" in log_content, "new log content should be appended"
+    assert log_content.index("first run") < log_content.index("second run"), "first run should appear before second run"
+
+    other_content = (dst_launcher / "other.txt").read_text(encoding="utf-8")
+    assert other_content == "new content\n", "non-log files should be overwritten"

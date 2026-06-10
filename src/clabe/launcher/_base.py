@@ -452,7 +452,17 @@ class Launcher:
             Path: The destination path where files were copied
         """
         dst = Path(dst) / ".launcher"
-        shutil.copytree(self.temp_dir, dst, dirs_exist_ok=True)
+
+        def _copy_with_log_append(src: str, dst: str) -> str:
+            """Helper function to append to existing log file instead of overwriting."""
+            if Path(src).name == "launcher.log" and Path(dst).exists():
+                with open(src, "rb") as src_file, open(dst, "ab") as dst_file:
+                    dst_file.write(b"\n")
+                    shutil.copyfileobj(src_file, dst_file)
+                return dst
+            return shutil.copy2(src, dst)
+
+        shutil.copytree(self.temp_dir, dst, dirs_exist_ok=True, copy_function=_copy_with_log_append)
         return dst
 
     def save_temp_model(self, model: pydantic.BaseModel, directory: Optional[os.PathLike] = None) -> Path:
