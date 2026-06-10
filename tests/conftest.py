@@ -36,6 +36,9 @@ class MockFrontend(ui.FrontendBase):
     def _ask_autocomplete(self, request):
         return self._ask_autocomplete_mock(request)
 
+    def _ask_acknowledge(self, request):
+        pass
+
 
 @pytest.fixture
 def mock_frontend():
