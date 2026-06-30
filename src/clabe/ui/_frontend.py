@@ -14,6 +14,7 @@ from ._requests import (
     FormRequest,
     NumberRequest,
     PickRequest,
+    ReadOnlyTable,
     TextRequest,
     Validator,
 )
@@ -99,6 +100,10 @@ class Frontend(Protocol):
 
     def prompt_form(self, request: FormRequest) -> Optional[object]:
         """Prompt the user to fill in a Pydantic model form; returns the validated instance or None."""
+        ...
+
+    def prompt_read_only_table(self, request: ReadOnlyTable) -> bool:
+        """Display read-only tabular data and collect a yes/no answer; returns the answer."""
         ...
 
     def prompt_field(self, request: FieldRequest) -> Any:
@@ -273,6 +278,21 @@ class FrontendBase(abc.ABC):
             NotImplementedError: This frontend does not support form prompts.
         """
         raise NotImplementedError(f"{type(self).__name__} does not support form prompts.")
+
+    def prompt_read_only_table(self, request: ReadOnlyTable) -> bool:
+        """
+        Displays read-only tabular data and collects a yes/no answer.
+
+        Args:
+            request: The declarative read-only-table request.
+
+        Returns:
+            bool: ``True`` if the user confirmed, ``False`` otherwise.
+
+        Raises:
+            NotImplementedError: This frontend does not support table prompts.
+        """
+        raise NotImplementedError(f"{type(self).__name__} does not support read-only-table prompts.")
 
     def prompt_acknowledge(self, request: AcknowledgeRequest) -> None:
         """

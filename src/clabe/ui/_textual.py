@@ -19,8 +19,16 @@ from .. import __version__
 from ..logging_helper import _TRANSCRIPT_LOGGER_NAME
 from ._frontend import FrontendBase
 from ._messages import MessageLevel
-from ._requests import AcknowledgeRequest, AutoCompleteRequest, ConfirmRequest, FormRequest, PickRequest, TextRequest
-from ._textual_form import _AcknowledgeScreen, _FormScreen
+from ._requests import (
+    AcknowledgeRequest,
+    AutoCompleteRequest,
+    ConfirmRequest,
+    FormRequest,
+    PickRequest,
+    ReadOnlyTable,
+    TextRequest,
+)
+from ._textual_form import _AcknowledgeScreen, _FormScreen, _ReadOnlyTableScreen
 
 #: Sentinel pushed back to the caller when a prompt is cancelled (e.g. Ctrl+C).
 _CANCELLED = object()
@@ -316,6 +324,15 @@ class _LauncherApp(App):
 
         await self.push_screen(_AcknowledgeScreen(request), _on_dismiss)
 
+    async def ask_read_only_table(self, request: ReadOnlyTable, reply: "queue.Queue") -> None:
+        """Push a read-only table modal; deliver the bool answer via reply."""
+
+        async def _on_dismiss(result: object) -> None:
+            """Put the table answer (True/False) onto the reply queue."""
+            reply.put(result)
+
+        await self.push_screen(_ReadOnlyTableScreen(request), _on_dismiss)
+
     async def _mount(self, *widgets) -> None:
         """Replace the Input pane contents with the given widgets."""
         box = self.query_one("#clabe-prompt", Vertical)
@@ -590,6 +607,19 @@ class TextualFrontend(FrontendBase):
         if result is not None:
             self._record(request.field or request.model.__name__, str(result))
         return result
+
+    def _ask_read_only_table(self, request: ReadOnlyTable) -> bool:
+        """Push the read-only table modal and block until the user answers."""
+        app = self._ensure()
+        reply: "queue.Queue" = queue.Queue()
+        app.call_from_thread(app.ask_read_only_table, request, reply)
+        return bool(_unwrap(reply.get()))
+
+    def prompt_read_only_table(self, request: ReadOnlyTable) -> bool:
+        """Display read-only tabular data; return True on confirm, False on cancel."""
+        answer = self._ask_read_only_table(request)
+        self._record(request.field or request.title or "read_only_table", answer)
+        return answer
 
     def _ask_acknowledge(self, request: AcknowledgeRequest) -> None:
         """Push the acknowledge modal and block until the user dismisses it."""
