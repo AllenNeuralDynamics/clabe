@@ -22,7 +22,15 @@ from clabe.cache_manager import CacheManager
 from clabe.launcher import Launcher, LauncherCliArgs, experiment
 from clabe.pickers import DefaultBehaviorPicker, DefaultBehaviorPickerSettings
 from clabe.runnable import runnable
-from clabe.ui import AcknowledgeRequest, ConfirmRequest, FieldRequest, FormRequest, MessageLevel, notify
+from clabe.ui import (
+    AcknowledgeRequest,
+    ConfirmRequest,
+    FieldRequest,
+    FormRequest,
+    MessageLevel,
+    ReadOnlyTable,
+    notify,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -102,6 +110,22 @@ async def demo_experiment(launcher: Launcher) -> None:
         notify("Form cancelled — using defaults.", MessageLevel.WARNING)
         config = SessionConfig()
 
+    # --- ReadOnlyTable demo (from_object): review the filled config ---------
+    # Renders the model as a read-only "Parameter | Value" table with OK/Cancel.
+    confirmed = launcher.frontend.prompt_read_only_table(
+        ReadOnlyTable.from_object(
+            config,
+            title="Confirm Session Configuration",
+            prompt="Are these settings correct?",
+            confirm_label="Looks good",
+            cancel_label="Go back",
+        )
+    )
+    if not confirmed:
+        notify("Configuration not confirmed — using defaults.", MessageLevel.WARNING)
+        config = SessionConfig()
+    # ----------------------------------------------------------------------
+
     updated_type = launcher.frontend.prompt_field(
         FieldRequest(
             model=SessionConfig,
@@ -151,6 +175,21 @@ async def demo_experiment(launcher: Launcher) -> None:
 
     app_1 = PythonScriptApp(script=fmt("Behavior"))
     app_2 = PythonScriptApp(script=fmt("Physiology"))
+
+    # --- ReadOnlyTable demo (from_records): review the app run plan ---------
+    # A general grid built from a list of dicts; columns are inferred from keys.
+    if not launcher.frontend.prompt_read_only_table(
+        ReadOnlyTable.from_records(
+            [
+                {"App": "Behavior", "Timeout (s)": 2, "Blocking": False},
+                {"App": "Physiology", "Timeout (s)": 2, "Blocking": False},
+            ],
+            title="App Run Plan",
+            prompt="Run these apps?",
+        )
+    ):
+        notify("App run cancelled by user.", MessageLevel.WARNING)
+    # ----------------------------------------------------------------------
 
     notify("Running the behavior and physiology apps…", MessageLevel.INFO)
     app_1_result, app_2_result = await asyncio.gather(

@@ -11,6 +11,7 @@ from ._requests import (
     FormRequest,
     NumberRequest,
     PickRequest,
+    ReadOnlyTable,
     TextRequest,
     Validator,
 )
@@ -70,6 +71,7 @@ __all__ = [
     "MessageLevel",
     "Choice",
     "PickRequest",
+    "ReadOnlyTable",
     "ConfirmRequest",
     "TextRequest",
     "AutoCompleteRequest",

@@ -11,9 +11,9 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, ScrollableContainer, Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Button, DirectoryTree, Footer, Input, Label, OptionList, Select, Switch
+from textual.widgets import Button, DataTable, DirectoryTree, Footer, Input, Label, OptionList, Select, Switch
 
-from ._requests import AcknowledgeRequest, FormRequest
+from ._requests import AcknowledgeRequest, FormRequest, ReadOnlyTable
 
 
 def _humanize(name: str) -> str:
@@ -158,6 +158,21 @@ _HelpPopup { align: center middle; }
 #help-ok { width: 100%; }
 """
 
+_READ_ONLY_TABLE_CSS = """
+_ReadOnlyTableScreen { align: center middle; }
+#table-outer {
+    width: auto; height: auto;
+    max-width: 90vw; max-height: 90vh;
+    background: $surface; border: round $primary;
+    align-horizontal: center; padding: 1 2;
+}
+#table-title { width: auto; color: $accent; text-style: bold; margin-bottom: 1; }
+#table-prompt { width: auto; margin-bottom: 1; }
+#table-data { width: auto; height: auto; max-width: 86vw; max-height: 78vh; }
+#table-buttons { width: auto; min-width: 100%; height: 3; margin-top: 1; align-horizontal: center; }
+#table-buttons Button { margin: 0 1; }
+"""
+
 _ACKNOWLEDGE_CSS = """
 _AcknowledgeScreen { align: center middle; }
 #ack-box {
@@ -236,6 +251,55 @@ class _AcknowledgeScreen(ModalScreen):
     def action_ok(self) -> None:
         """Dismiss the dialog."""
         self.dismiss()
+
+
+def _cell(value: Any) -> str:
+    """Render a cell value as display text (``None`` becomes an empty cell)."""
+    return "" if value is None else str(value)
+
+
+class _ReadOnlyTableScreen(ModalScreen):
+    """Modal that displays read-only tabular data and collects an OK/Cancel answer."""
+
+    DEFAULT_CSS = _READ_ONLY_TABLE_CSS
+    BINDINGS = [Binding("escape", "cancel", "Cancel")]
+
+    def __init__(self, request: ReadOnlyTable) -> None:
+        """Initialize with the declarative read-only-table request."""
+        super().__init__()
+        self._request = request
+        self._title_text = request.title or "Review"
+
+    def compose(self) -> ComposeResult:
+        """Build the table dialog layout."""
+        with Vertical(id="table-outer"):
+            yield Label(self._title_text, id="table-title")
+            if self._request.prompt:
+                yield Label(self._request.prompt, id="table-prompt")
+            yield DataTable(id="table-data", cursor_type="row", zebra_stripes=True)
+            with Horizontal(id="table-buttons"):
+                yield Button(self._request.cancel_label, id="table-cancel", variant="default")
+                yield Button(self._request.confirm_label, id="table-ok", variant="primary")
+
+    def on_mount(self) -> None:
+        """Populate the table and focus the confirm button."""
+        table = self.query_one("#table-data", DataTable)
+        table.add_columns(*[str(column) for column in self._request.columns])
+        for row in self._request.rows:
+            table.add_row(*[_cell(value) for value in row])
+        self.query_one("#table-ok", Button).focus()
+
+    async def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Dismiss True on the confirm button, False on cancel."""
+        btn_id = event.button.id or ""
+        if btn_id == "table-ok":
+            self.dismiss(True)
+        elif btn_id == "table-cancel":
+            self.dismiss(False)
+
+    def action_cancel(self) -> None:
+        """Dismiss the dialog with a negative answer."""
+        self.dismiss(False)
 
 
 class _FilePickerScreen(ModalScreen):
