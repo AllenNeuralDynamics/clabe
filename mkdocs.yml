@@ -134,6 +134,7 @@ nav:
     - runnable: api/runnable/runnable.md
   - Stores:
     - stores: api/stores/stores.md
+    - confierge: api/stores/confierge.md
     - dataverse: api/stores/dataverse.md
   - Ui:
     - ui: api/ui/ui.md

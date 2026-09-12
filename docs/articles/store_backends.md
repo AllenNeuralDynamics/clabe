@@ -7,6 +7,7 @@ This article works through every backend CLABE ships, and how to combine them wi
 | [`LocalFileStore`][clabe.stores.LocalFileStore] | any kind | Pick list over matching files | The config library — a directory of JSON files, e.g. on a shared network drive |
 | [`MemoryStore`][clabe.stores.MemoryStore] | any kind | Pick list over in-process records | Tests, and assembling records without touching disk |
 | [`DataverseStore`][clabe.stores.dataverse.DataverseStore] | `trainer_state` only | Pick list over recent suggestions | Needs the `aind-services` extra |
+| [`ConfiergeStore`][clabe.stores.confierge.ConfiergeStore] | `rig` (configurable) | Never prompts — ficus merges server-side | Needs the `aind-services` extra |
 | [`CompositeStore`][clabe.stores.CompositeStore] | whatever its routes serve | Delegates to the routed backend | Routes a kind name to a backend — the payoff over subclassing |
 
 ## LocalFileStore
@@ -134,6 +135,70 @@ dataverse:
 
 `username`/`password` are not meant for the YAML file — `DataverseStore()` with no `client` builds one from a KeePass entry (`svc_sipe` by default). Pass your own `client=_DataverseRestClient(...)` to bypass KeePass entirely, e.g. in tests.
 
+## ConfiergeStore
+
+[Ficus](https://github.com/AllenNeuralDynamics/ficus) is a config service, and `ConfiergeStore` is a thin wrapper around its client, `confierge.Confierge`. A ficus config lives in layers — a `defaults` folder, then one folder per scope identifier — and ficus deep-merges those layers **server-side**, handing back exactly one merged config, never a list. For a `vr_frg` namespace resolved on rig `RIG-01` for subject `789012`, the stack is concretely `defaults/vr_frg/default.yml`, then `hostname/RIG-01/vr_frg/default.yml`, then `subject_id/789012/vr_frg/default.yml` — precedence is lowest-first, so the subject layer wins over the rig layer, which wins over the defaults.
+
+That merge is also why `resolve` never prompts here: ficus always returns at most one candidate, so `_candidates` yields at most one `Candidate` and `StoreBase.resolve` auto-selects it the same way it would for any backend with a single match. This is the one backend where resolution actually happens on the server rather than in `_candidates`.
+
+`clabe.stores.confierge` isn't imported by `clabe.stores` itself, since it needs the `confierge` package — install the extra and import it explicitly, same as `dataverse`:
+
+```bash
+pip install "aind-clabe[aind-services]"
+```
+
+```python
+from clabe.stores.confierge import ConfiergeSettings, ConfiergeStore
+from clabe.stores import Kind
+
+RIG = Kind.from_rig(MyRigModel)
+
+settings = ConfiergeSettings(namespace="vr_frg")
+store = ConfiergeStore(settings)
+
+rig = store.resolve(RIG)
+```
+
+Settings are a [`ServiceSettings`][clabe.services.ServiceSettings] subclass, so they resolve from the `confierge` section of your known config files (or the environment) by default:
+
+```yaml
+confierge:
+  namespace: vr_frg
+  base_url: http://eng-tools/ficus-dev
+  cache_dir: ./.ficus_cache
+  mode: default
+  scope_map:
+    subject: subject_id
+  scope_order:
+    - hostname
+    - subject_id
+  rig_scope: hostname
+```
+
+### Scope translation
+
+Ficus defines its own scope vocabulary and rejects any scope key it doesn't know about, but `CompositeStore.scoped()` narrows every routed backend at once, so `ConfiergeStore` ends up receiving scope keys meant for its siblings too — a deployment might narrow on `subject`, `task_name`, `computer_name`, whatever the other backends need — and passing those straight through would make ficus's own validation raise. So this store translates before ever calling the client: it drops the reserved `mode` key (that's not a scope, see below), renames the rest through `scope_map` (identity for anything unmapped), drops any key whose ficus name isn't in the configured `scope_order` or `rig_scope` — logged at `logger.debug`, since a narrowing meant for a sibling backend isn't an error here — and then emits what's left ordered by `scope_order`, lowest priority first. That ordering is load-bearing: ficus derives merge precedence from the order scopes arrive in on the request, and clabe's own scope order is incidental to it. This filtering is done against the configured `scope_order`/`rig_scope` lists, not a live call to `client.get_ficus_scopes()` — translation has to work without the network.
+
+The rig identity itself is injected by the store, not read from clabe's own scope: it calls `get_aind_rig_name(required=True)` and puts the result under `rig_scope`. This is deliberately **not** the same as clabe's `computer_name` scope key — `LocalFileStore` fills `computer_name` from `COMPUTERNAME` (or `platform.node()`), while ficus keys a rig on `aibs_comp_id`, and the two are different strings for the same machine. Mapping one onto the other would silently resolve the wrong rig's config.
+
+### `mode` is a reserved scope key
+
+`mode` selects a variant *within* every scope layer (the filename stem — `default.yml`, `high-freq.yml`) rather than being a scope itself, so `ConfiergeStore` reserves it and never forwards it to ficus as a scope:
+
+```python
+store.resolve(RIG, scope={"mode": "high-freq"})
+```
+
+Set a store-wide default instead of passing `scope=` on every call by setting `mode` on `ConfiergeSettings`.
+
+### Writes are closed
+
+`write` raises `NotImplementedError`. Ficus' `POST /v1/configs` is a "deep save" that scatters keys back into their origin layers and won't accept genuinely new fields; the semantics are still unsettled upstream. A future write would target `/v1/leaves` instead, once that lands.
+
+### Offline behaviour
+
+Reads go through `get_config_safe`, not `get_config` — it falls back to a local disk cache when ficus can't be reached, so a rig that loses the network mid-session still starts, though it may be serving a stale config until connectivity is back.
+
 ## CompositeStore: routing by kind
 
 The payoff composition buys over the old picker inheritance: a deployment keeping rigs and tasks on a network share but trainer state in Dataverse is a routing table, not a subclass.
@@ -149,6 +214,7 @@ SUGGESTION = Kind.from_trainer_state()
 store = CompositeStore(
     default=LocalFileStore(root=r"\\allen\aind\scratch\AindBehavior.db\MyProject"),
     routes={"trainer_state": DataverseStore()},
+    # a ficus-backed rig route (routes={"rig": ConfiergeStore(...)}) is the same shape
 )
 
 rig = store.resolve(RIG)  # → LocalFileStore (the default)

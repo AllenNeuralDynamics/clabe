@@ -2,7 +2,7 @@
 
 A **store** is how CLABE reads and writes the records an experiment runs against — rigs, tasks, trainer state, and any per-animal reconfiguration. It replaces the old picker classes, which fused data access, user prompting and `Session` construction into one object and then subclassed themselves sideways every time a *single* record needed a different backend.
 
-A store is composition instead: one small protocol — [`resolve`][clabe.stores.Store.resolve], [`list`][clabe.stores.Store.list], [`write`][clabe.stores.Store.write], [`scoped`][clabe.stores.Store.scoped] — implemented once per backend (local files, Dataverse, an in-memory fake, …) and combined per deployment with [`CompositeStore`][clabe.stores.CompositeStore] rather than an inheritance chain. See [Store Backends](store_backends.md) for concrete examples of every backend and of composing them; this article covers the shared vocabulary.
+A store is composition instead: one small protocol — [`resolve`][clabe.stores.Store.resolve], [`list`][clabe.stores.Store.list], [`write`][clabe.stores.Store.write], [`scoped`][clabe.stores.Store.scoped] — implemented once per backend (local files, Dataverse, ficus, an in-memory fake, …) and combined per deployment with [`CompositeStore`][clabe.stores.CompositeStore] rather than an inheritance chain. See [Store Backends](store_backends.md) for concrete examples of every backend and of composing them; this article covers the shared vocabulary.
 
 ## Kind: naming a record
 
