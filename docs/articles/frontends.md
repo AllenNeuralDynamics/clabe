@@ -8,7 +8,7 @@ logger is a durable diagnostic record, while a frontend is how a human is
 informed and prompted. See [Logging](logging.md) for the other side of that
 split.
 
-Everything downstream — the launcher, the pickers, library `notify()` calls —
+Everything downstream — the launcher, the stores, library `notify()` calls —
 talks to the `Frontend` protocol and never knows which implementation is behind
 it. Adding a new way to interact with CLABE means writing one class, not
 touching the rest of the codebase.
@@ -51,21 +51,32 @@ process-wide so library code can reach it.
 
 ## Talking to the active frontend
 
-High-level code holds a frontend and calls it directly (`self.frontend.notify(...)`,
-`self.frontend.prompt_pick(...)`). Reusable library modules that should not take a
-UI dependency use the process-wide helper instead:
+`clabe.ui` mirrors every `Frontend` method as a module-level function that goes
+to whichever frontend is registered, so library code — stores, `SessionBuilder`,
+modifiers — never has to be handed one:
 
 ```python
-from clabe.ui import MessageLevel, notify
+from clabe import ui
 
-notify("Transferring data…", MessageLevel.INFO)
+ui.notify("Transferring data…", ui.MessageLevel.INFO)
+choice = ui.prompt_pick(ui.PickRequest(label="Choose a rig:", options=paths))
 ```
 
-`notify()` is a **no-op when no launcher/frontend is active**, so it is safe to
-call from library code used standalone. `MessageLevel` (`INFO`, `SUCCESS`,
-`WARNING`, `ERROR`) expresses presentation intent; like the console, the Session
-pane only renders at/above the current verbosity threshold (warnings and above
-by default), while everything is still recorded to the transcript. See
+The two halves behave differently when nothing is registered:
+
+- **Output** — `notify`, `header`, `activity` — is a **no-op**, so it is always
+  safe to call from library code used standalone.
+- **Prompts** — every `prompt_*` — raise `NoFrontendError`. A prompt has to
+  return an answer, and failing loudly beats hanging on a rig.
+
+`ui.require_frontend()` gets the registered frontend directly, with the same
+error. Tests use `ui.use_frontend(fake)` as a context manager, which restores
+whatever was registered before.
+
+`MessageLevel` (`INFO`, `SUCCESS`, `WARNING`, `ERROR`) expresses presentation
+intent; like the console, the Session pane only renders at/above the current
+verbosity threshold (warnings and above by default), while everything is still
+recorded to the transcript. See
 [Logging](logging.md#logging-vs-talking-to-the-user) for `notify()` vs `logger`.
 
 ## TUI shortcuts and clickable paths

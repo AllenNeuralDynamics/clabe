@@ -1,5 +1,24 @@
 from ._console import ConsoleFrontend
-from ._current import current_frontend, notify, set_current_frontend
+from ._current import (
+    NoFrontendError,
+    activity,
+    current_frontend,
+    header,
+    notify,
+    prompt_acknowledge,
+    prompt_autocomplete,
+    prompt_confirm,
+    prompt_field,
+    prompt_form,
+    prompt_number,
+    prompt_path,
+    prompt_pick,
+    prompt_read_only_table,
+    prompt_text,
+    require_frontend,
+    set_current_frontend,
+    use_frontend,
+)
 from ._frontend import Frontend, FrontendBase
 from ._messages import MessageLevel
 from ._requests import (
@@ -76,6 +95,7 @@ __all__ = [
     "Frontend",
     "FrontendBase",
     "MessageLevel",
+    "NoFrontendError",
     "NumberRequest",
     "PathRequest",
     "PickRequest",
@@ -83,9 +103,23 @@ __all__ = [
     "TextRequest",
     "TextualFrontend",
     "Validator",
+    "activity",
     "current_frontend",
     "default_frontend",
+    "header",
     "make_frontend",
     "notify",
+    "prompt_acknowledge",
+    "prompt_autocomplete",
+    "prompt_confirm",
+    "prompt_field",
+    "prompt_form",
+    "prompt_number",
+    "prompt_path",
+    "prompt_pick",
+    "prompt_read_only_table",
+    "prompt_text",
+    "require_frontend",
     "set_current_frontend",
+    "use_frontend",
 ]

@@ -5,10 +5,10 @@ from pathlib import Path
 
 from _mocks import (
     LIB_CONFIG,
+    RIG,
+    SUGGESTION,
     DemoAindDataSchemaSessionDataMapper,
     MockTask,
-    RigModel,
-    Session,
     create_fake_rig,
     create_fake_subjects,
 )
@@ -17,8 +17,9 @@ from clabe import resource_monitor
 from clabe.apps import CurriculumApp, CurriculumSettings, PythonScriptApp
 from clabe.cache_manager import CacheManager
 from clabe.launcher import Launcher, experiment
-from clabe.pickers import DefaultBehaviorPicker, DefaultBehaviorPickerSettings
 from clabe.runnable import runnable
+from clabe.session import SessionBuilder
+from clabe.stores import LocalFileStore
 from clabe.web import serve
 
 logger = logging.getLogger(__name__)
@@ -33,16 +34,13 @@ async def demo_experiment(launcher: Launcher) -> None:
     create_fake_rig()
     _seed_cache()
 
-    picker = DefaultBehaviorPicker(
-        launcher=launcher,
-        settings=DefaultBehaviorPickerSettings(config_library_dir=LIB_CONFIG),
-        experimenter_validator=lambda _: True,
-    )
+    session = SessionBuilder(launcher, experimenter_validator=lambda _: True).build()
+    store = LocalFileStore(LIB_CONFIG).scoped(subject=session.subject)
 
-    session = picker.pick_session(Session)
-    rig = picker.pick_rig(RigModel)
+    rig = store.resolve(RIG)
     launcher.register_session(session, rig.data_directory)
-    trainer_state, task = picker.pick_trainer_state(MockTask)
+    trainer_state = store.resolve(SUGGESTION)
+    task = MockTask.model_validate_json(trainer_state.stage.task.model_dump_json())
     _temp_trainer_state_path = launcher.save_temp_model(trainer_state)
 
     resource_monitor.ResourceMonitor(

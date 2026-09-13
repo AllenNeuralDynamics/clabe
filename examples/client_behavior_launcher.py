@@ -3,9 +3,9 @@ from pathlib import Path
 
 from _mocks import (
     LIB_CONFIG,
+    RIG,
+    SUGGESTION,
     MockTask,
-    RigModel,
-    Session,
     create_fake_rig,
     create_fake_subjects,
 )
@@ -14,7 +14,8 @@ from pydantic_settings import CliApp
 from clabe import resource_monitor
 from clabe.apps import BonsaiApp
 from clabe.launcher import Launcher, LauncherCliArgs, experiment
-from clabe.pickers import DefaultBehaviorPicker, DefaultBehaviorPickerSettings
+from clabe.session import SessionBuilder
+from clabe.stores import LocalFileStore
 from clabe.xml_rpc import XmlRpcClient, XmlRpcClientSettings
 
 logger = logging.getLogger(__name__)
@@ -23,16 +24,14 @@ logger = logging.getLogger(__name__)
 @experiment()
 async def client_experiment(launcher: Launcher) -> None:
     """Demo experiment showcasing CLABE functionality."""
-    picker = DefaultBehaviorPicker(
-        launcher=launcher,
-        settings=DefaultBehaviorPickerSettings(config_library_dir=LIB_CONFIG),
-        experimenter_validator=lambda _: True,
-    )
 
-    session = picker.pick_session(Session)
-    rig = picker.pick_rig(RigModel)
+    session = SessionBuilder(launcher, experimenter_validator=lambda _: True).build()
+    store = LocalFileStore(LIB_CONFIG).scoped(subject=session.subject)
+
+    rig = store.resolve(RIG)
     launcher.register_session(session, rig.data_directory)
-    _trainer_state, task = picker.pick_trainer_state(MockTask)
+    trainer_state = store.resolve(SUGGESTION)
+    task = MockTask.model_validate_json(trainer_state.stage.task.model_dump_json())
 
     resource_monitor.ResourceMonitor(
         constrains=[

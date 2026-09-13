@@ -3,25 +3,20 @@
 
 import logging
 import re
-from collections.abc import Callable
+from collections.abc import Sequence
 from datetime import datetime
 from html import unescape
-from typing import ClassVar
+from typing import ClassVar, TypeVar
 
 import msal
 import pydantic
 import requests
 from aind_behavior_curriculum import TrainerState
-from aind_behavior_services.rig import Rig
 from pydantic import BaseModel, SecretStr, computed_field, field_validator
 
-from .. import ui
-from .._typing import TTask
-from ..launcher import Launcher
 from ..services import ServiceSettings
-from ..utils.aind_validators import validate_rig_computer_name, validate_username
 from ..utils.keepass import KeePass, KeePassSettings
-from .default_behavior import DefaultBehaviorPicker, DefaultBehaviorPickerSettings
+from ._base import Candidate, Kind, KindLike, Scope, StoreBase, as_kind
 
 logger = logging.getLogger(__name__)
 
@@ -488,107 +483,84 @@ def _append_suggestion(client: _DataverseRestClient, subject_id: str, trainer_st
     )
 
 
-class DataversePicker(DefaultBehaviorPicker):
+T = TypeVar("T")
+
+_DEFAULT_HISTORY = 1
+
+
+class DataverseStore(StoreBase):
     """
-    Picker that integrates with Dataverse to fetch and push trainer state suggestions.
+    A store over the Dataverse suggestion tables, serving trainer state only.
+
+    Reads and appends to ``aibs_fact_mouse_proposed_behavior_sessionses``, keyed
+    through ``aibs_dim_mices``. Requires ``subject`` and ``task_name`` in scope.
+
+    Example:
+        ```python
+        store = CompositeStore(
+            default=LocalFileStore(root=VR_LIB),
+            routes={"trainer_state": DataverseStore()},
+        )
+        ```
     """
 
     def __init__(
         self,
         *,
-        dataverse_client: _DataverseRestClient | None = None,
-        settings: DefaultBehaviorPickerSettings,
-        launcher: Launcher,
-        frontend: ui.Frontend | None = None,
-        experimenter_validator: Callable[[str], bool] | None = validate_username,
-        rig_validator: Callable[[Rig], Rig] | None = validate_rig_computer_name,
-    ):
+        client: _DataverseRestClient | None = None,
+        history: int = _DEFAULT_HISTORY,
+        scope: Scope | None = None,
+    ) -> None:
         """
-        Initializes the DataversePicker.
-
         Args:
-            dataverse_client: Optional Dataverse REST client for making API calls. If not provided, a new client will be created using settings from KeePass.
-            settings: Settings containing configuration including config_library_dir
-            frontend: Frontend mediating user interaction
-            experimenter_validator: Function to validate the experimenter's username. If None, no validation is performed
-            rig_validator: Function to validate the rig configuration. If None, no validation is performed
+            client: The REST client. Defaults to one built from KeePass credentials.
+            history: How many recent suggestions to offer. At the default of 1 the
+                latest suggestion is used without prompting.
+            scope: Initial scope.
         """
-        super().__init__(
-            settings=settings,
-            launcher=launcher,
-            frontend=frontend,
-            experimenter_validator=experimenter_validator,
-            rig_validator=rig_validator,
-        )
-        self._dataverse_client = (
-            dataverse_client
-            if dataverse_client is not None
-            else _DataverseRestClient(_DataverseRestClientSettings.from_keepass())
-        )
-        self._dataverse_suggestion: DataverseSuggestion | None = None
+        super().__init__(scope=scope)
+        self._client = client or _DataverseRestClient(_DataverseRestClientSettings.from_keepass())
+        self._history = history
 
-    def pick_trainer_state(self, task_model: type[TTask]) -> tuple[TrainerState, TTask]:
-        """
-        Prompts the user to select or create a trainer state configuration.
+    def __str__(self) -> str:
+        return f"{type(self).__name__}({self._client.config.env_url})"
 
-        Attempts to load trainer state in the following order:
-        1. If task already exists in launcher, will return an empty TrainerState
-        2. From subject-specific folder
+    def _candidates(self, kind: Kind[T], scope: Scope) -> Sequence[Candidate[T]]:
+        """Returns recent suggestions for the subject and task in scope, newest first."""
+        self._require_supported(kind)
+        subject, task_name = self._required_scope(scope)
+        suggestions = _get_last_suggestions(self._client, subject, task_name, self._history)
+        return [
+            Candidate(self._label(s), s.trainer_state)  # type: ignore[arg-type]
+            for s in suggestions
+            if s.trainer_state is not None and s.trainer_state.stage is not None
+        ]
 
-        It will launcher.set_task if the deserialized TrainerState is valid.
+    def write(self, kind: KindLike[T], value: T, *, scope: Scope | None = None) -> None:
+        """Appends a new suggestion for the subject in scope."""
+        self._require_supported(as_kind(kind))
+        subject, _ = self._required_scope(self._merge_scope(scope))
+        if not isinstance(value, TrainerState):
+            raise TypeError(f"Expected a TrainerState, got {type(value).__name__}.")
+        logger.info("Pushing new suggestion to Dataverse for subject %s", subject)
+        _append_suggestion(self._client, subject, value)
 
-        Returns:
-            TrainerState: The deserialized TrainerState object.
+    @staticmethod
+    def _require_supported(kind: Kind[T]) -> None:
+        """Raises unless the kind is trainer state, the only kind this backend serves."""
+        if kind.name != "trainer_state":
+            raise LookupError(f"DataverseStore only serves 'trainer_state', not {kind.name!r}.")
 
-        Raises:
-            ValueError: If no valid task file is found.
-        """
-        if self._session is None:
-            raise ValueError("No session set. Run pick_session first.")
-        task_name = task_model.model_fields["name"].default
-        if not task_name:
-            raise ValueError("Task model does not have a default name.")
-        try:
-            logger.debug("Attempting to load trainer state dataverse")
-            last_suggestions = _get_last_suggestions(self._dataverse_client, self._session.subject, task_name, 1)
-        except requests.exceptions.HTTPError as e:
-            logger.error("Failed to fetch suggestions from Dataverse: %s", e)
-            raise
-        except pydantic.ValidationError as e:
-            logger.error("Failed to validate suggestion from Dataverse: %s", e)
-            raise
-        if len(last_suggestions) == 0:
-            raise ValueError(
-                f"No valid suggestions found in Dataverse for subject {self._session.subject} with task {task_name}."
-            )
+    @staticmethod
+    def _required_scope(scope: Scope) -> tuple[str, str]:
+        """Returns the subject and task name, raising if either is missing from scope."""
+        missing = [k for k in ("subject", "task_name") if not scope.get(k)]
+        if missing:
+            raise LookupError(f"DataverseStore requires {', '.join(missing)} in scope.")
+        return scope["subject"], scope["task_name"]
 
-        _dataverse_suggestion = last_suggestions[0]
-
-        assert _dataverse_suggestion is not None
-        if _dataverse_suggestion.trainer_state is None:
-            raise ValueError("No trainer state found in the latest suggestion.")
-        if _dataverse_suggestion.trainer_state.stage is None:
-            raise ValueError("No stage found in the latest suggestion's trainer state.")
-        self._dataverse_suggestion = _dataverse_suggestion
-        self._trainer_state = _dataverse_suggestion.trainer_state
-
-        assert self._trainer_state is not None
-        if not self._trainer_state.is_on_curriculum:
-            logger.warning("Deserialized TrainerState is NOT on curriculum.")
-        return (
-            self.trainer_state,
-            task_model.model_validate_json(self.trainer_state.stage.task.model_dump_json()),
-        )
-
-    def push_new_suggestion(self, trainer_state: TrainerState) -> None:
-        """
-        Pushes a new suggestion to Dataverse for the current subject in the launcher.
-        Args:
-            launcher: The Launcher instance containing the current session and subject information.
-            trainer_state: The TrainerState object to be pushed as a new suggestion.
-        """
-        if self._session is None:
-            raise ValueError("No session or subject set in launcher.")
-
-        logger.info("Pushing new suggestion to Dataverse for subject %s", self._session.subject)
-        _append_suggestion(self._dataverse_client, self._session.subject, trainer_state)
+    @staticmethod
+    def _label(suggestion: DataverseSuggestion) -> str:
+        """Labels a suggestion by creation date and stage, so a pick list sorts chronologically."""
+        created = suggestion.created_on.isoformat(timespec="minutes") if suggestion.created_on else "unknown date"
+        return f"{created} | {suggestion.stage_name}"

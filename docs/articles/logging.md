@@ -99,9 +99,9 @@ A simple rule of thumb:
 - **A milestone the user cares about, or something they must act on** → surface
   it to the user *as well*.
 
-High-level code (the launcher, pickers) holds a `frontend` and calls
-`self.frontend.notify(...)`. Reusable library modules that should not take a UI
-dependency can still surface a key event through the process-wide helper:
+The launcher holds a `frontend` and calls it directly. Everything else — stores,
+`SessionBuilder`, reusable library modules — reaches the registered frontend
+through `clabe.ui`:
 
 ```python
 import logging

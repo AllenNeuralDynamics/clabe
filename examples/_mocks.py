@@ -11,6 +11,7 @@ from aind_behavior_services.task import Task
 from pydantic import Field
 
 from clabe.data_mapper import DataMapper
+from clabe.stores import Kind
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,11 @@ class RigModel(Rig):
 class MockTask(Task):
     version: Literal["0.0.0"] = "0.0.0"
     name: Literal[TASK_NAME] = TASK_NAME
+
+
+# Record kinds are declared once per project, then passed to any store.
+RIG = Kind.from_rig(RigModel)
+SUGGESTION = Kind.from_trainer_state()
 
 
 mock_trainer_state = TrainerState[Any](

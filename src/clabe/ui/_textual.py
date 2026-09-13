@@ -8,7 +8,7 @@ import re
 import threading
 from collections.abc import Generator
 from pathlib import Path
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from rich.text import Text
 from textual.app import App, ComposeResult
@@ -640,7 +640,7 @@ class TextualFrontend(FrontendBase):
         app.call_from_thread(app.ask_form, request, reply)
         return _unwrap(reply.get())
 
-    def prompt_form(self, request: FormRequest) -> object | None:
+    def prompt_form(self, request: FormRequest) -> Any | None:
         """Present a Pydantic model form; return the filled instance or None if cancelled."""
         result = self._ask_form(request)
         if result is not None:

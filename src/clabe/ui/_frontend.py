@@ -106,7 +106,7 @@ class Frontend(Protocol):
         """Prompt the user for a floating-point number."""
         ...
 
-    def prompt_form(self, request: FormRequest) -> object | None:
+    def prompt_form(self, request: FormRequest) -> Any | None:
         """Prompt the user to fill in a Pydantic model form; returns the validated instance or None."""
         ...
 
@@ -314,7 +314,7 @@ class FrontendBase(abc.ABC):
             self._record(request.field or request.label, value)
             return value
 
-    def prompt_form(self, request: FormRequest) -> object | None:
+    def prompt_form(self, request: FormRequest) -> Any | None:
         """
         Presents a Pydantic model form for the user to fill in.
 
@@ -322,7 +322,7 @@ class FrontendBase(abc.ABC):
             request: The declarative form request.
 
         Returns:
-            Optional[object]: The validated model instance, or ``None`` if cancelled.
+            Optional[Any]: The validated model instance, or ``None`` if cancelled.
 
         Raises:
             NotImplementedError: This frontend does not support form prompts.

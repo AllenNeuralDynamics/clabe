@@ -6,10 +6,10 @@ from typing import Literal
 
 from _mocks import (
     LIB_CONFIG,
+    RIG,
+    SUGGESTION,
     DemoAindDataSchemaSessionDataMapper,
     MockTask,
-    RigModel,
-    Session,
     create_fake_rig,
     create_fake_subjects,
 )
@@ -21,8 +21,9 @@ from clabe.apps import CurriculumApp, CurriculumSettings, PythonScriptApp
 from clabe.cache_manager import CacheManager
 from clabe.launcher import Launcher, LauncherCliArgs, experiment
 from clabe.logging import otel
-from clabe.pickers import DefaultBehaviorPicker, DefaultBehaviorPickerSettings
 from clabe.runnable import runnable
+from clabe.session import SessionBuilder
+from clabe.stores import LocalFileStore
 from clabe.ui import (
     AcknowledgeRequest,
     ConfirmRequest,
@@ -32,6 +33,8 @@ from clabe.ui import (
     PathRequest,
     ReadOnlyTable,
     notify,
+    prompt_acknowledge,
+    prompt_confirm,
 )
 
 logger = logging.getLogger(__name__)
@@ -168,33 +171,30 @@ async def demo_experiment(launcher: Launcher) -> None:
         notify("No rig config picked.", MessageLevel.WARNING)
     # ----------------------------------------------------------------------
 
-    picker = DefaultBehaviorPicker(
-        launcher=launcher,
-        settings=DefaultBehaviorPickerSettings(config_library_dir=LIB_CONFIG),
-        experimenter_validator=lambda _: True,
-    )
-
-    if not picker.frontend.prompt_confirm(
+    if not prompt_confirm(
         ConfirmRequest(label="Is this True", default=True),
     ):
         notify("hahaha", MessageLevel.INFO)
 
-    if not picker.frontend.prompt_confirm(
+    if not prompt_confirm(
         ConfirmRequest(label="Proceed with the experiment?"),
     ):
         notify("Experiment cancelled by user.", MessageLevel.WARNING)
 
-    picker.frontend.prompt_acknowledge(
+    prompt_acknowledge(
         AcknowledgeRequest(
             title="Experiment Starting",
             message="All checks passed. The experiment is about to begin. Press OK to continue.",
         )
     )
 
-    session = picker.pick_session(Session)
-    rig = picker.pick_rig(RigModel)
+    session = SessionBuilder(launcher, experimenter_validator=lambda _: True).build()
+    store = LocalFileStore(LIB_CONFIG).scoped(subject=session.subject)
+
+    rig = store.resolve(RIG)
     launcher.register_session(session, rig.data_directory)
-    trainer_state, task = picker.pick_trainer_state(MockTask)
+    trainer_state = store.resolve(SUGGESTION)
+    task = MockTask.model_validate_json(trainer_state.stage.task.model_dump_json())
     _temp_trainer_state_path = launcher.save_temp_model(trainer_state)
 
     resource_monitor.ResourceMonitor(

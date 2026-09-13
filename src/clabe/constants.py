@@ -1,4 +1,3 @@
-import enum
 import logging
 import os
 from pathlib import Path
@@ -22,21 +21,3 @@ KNOWN_CONFIG_FILES: list[str] = [
 for i, p in enumerate(KNOWN_CONFIG_FILES):
     if Path(p).exists():
         logger.debug("Found config file: %s with rank priority %s", p, i)
-
-
-class ByAnimalFiles(enum.StrEnum):
-    """
-    Enum for file types associated with animals in the experiment.
-
-    Defines the standard file types that can be associated with individual
-    animals/subjects in behavior experiments.
-
-    Example:
-        ```python
-        # Use the task file type
-        filename = f"{ByAnimalFiles.task}.json"
-        ```
-    """
-
-    TASK = "task"
-    TRAINER_STATE = "trainer_state"

@@ -96,8 +96,19 @@ nav:
     - cli: api/cli.md
   - Constants:
     - constants: api/constants.md
+  - Logging Helper:
+    - logging_helper: api/logging_helper.md
+  - Modifiers:
+    - modifiers: api/modifiers.md
   - Services:
     - services: api/services.md
+  - Session:
+    - session: api/session.md
+  - Web:
+    - web: api/web.md
+  - Aind Apps:
+    - aind_apps: api/aind_apps/aind_apps.md
+    - waterlog: api/aind_apps/waterlog.md
   - Apps:
     - apps: api/apps/apps.md
     - open_ephys: api/apps/open_ephys.md
@@ -113,19 +124,23 @@ nav:
     - git_manager: api/git_manager/git_manager.md
   - Launcher:
     - launcher: api/launcher/launcher.md
-  - Logging Helper:
-    - logging_helper: api/logging_helper/logging_helper.md
-  - Pickers:
-    - pickers: api/pickers/pickers.md
-    - dataverse: api/pickers/dataverse.md
-    - default_behavior: api/pickers/default_behavior.md
+  - Logging:
+    - logging: api/logging/logging.md
+  - Logging.Otel:
+    - logging.otel: api/logging_otel/logging_otel.md
   - Resource Monitor:
     - resource_monitor: api/resource_monitor/resource_monitor.md
+  - Runnable:
+    - runnable: api/runnable/runnable.md
+  - Stores:
+    - stores: api/stores/stores.md
+    - dataverse: api/stores/dataverse.md
   - Ui:
     - ui: api/ui/ui.md
   - Utils:
     - utils: api/utils/utils.md
     - aind_auth: api/utils/aind_auth.md
+    - aind_validators: api/utils/aind_validators.md
     - keepass: api/utils/keepass.md
   - Xml Rpc:
     - xml_rpc: api/xml_rpc/xml_rpc.md
@@ -135,6 +150,8 @@ nav:
   - Logging: articles/logging.md
   - Runnables: articles/runnables.md
   - ServiceSettings and yaml tags: articles/service_settings.md
+  - Stores: articles/stores.md
+  - Store Backends: articles/store_backends.md
 - Issues: https://github.com/AllenNeuralDynamics/clabe/issues
 - Examples:
   - AIND Experiment: docs_examples/behavior_launcher.md
