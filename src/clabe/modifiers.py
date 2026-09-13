@@ -15,34 +15,40 @@ class ByAnimalModifier(abc.ABC, Generic[TRig]):
     """
     Injects per-animal state into a rig, and saves it back, through a :class:`~clabe.stores.Store`.
 
-    The store decides where per-animal state lives, so the same modifier works
-    against the config library, Dataverse or an in-memory fake. Narrow the store
-    to the animal before handing it over, e.g. ``store.scoped(subject=...)``.
+    The store decides where per-animal state lives, so the same modifier works against the config
+    library, Dataverse or an in-memory fake. The store is narrowed to ``subject`` on construction.
 
     Example:
         ```python
         class ManipulatorModifier(ByAnimalModifier[MyRig]):
-            def __init__(self, store: Store):
-                super().__init__(store, Kind(ManipulatorPosition), "manipulator.position")
+            def __init__(self, subject: str, store: Store):
+                super().__init__(subject, store, Kind(ManipulatorPosition), "manipulator.position")
 
-            def _process_before_dump(self) -> ManipulatorPosition:
+            def _process_before_update(self) -> ManipulatorPosition:
                 return read_position_from_hardware()
 
-        modifier = ManipulatorModifier(store.scoped(subject=session.subject))
+        modifier = ManipulatorModifier(session.subject, store)
         rig = modifier.inject(rig)
         ...
-        modifier.dump()
+        modifier.update()
         ```
     """
 
-    def __init__(self, store: Store, kind: KindLike[Any], model_path: str) -> None:
+    def __init__(self, subject: str, store: Store, kind: KindLike[Any], model_path: str) -> None:
         """
         Args:
-            store: The store holding this record, already scoped to the animal.
+            subject: The animal this modifier reads and writes state for.
+            store: The store holding this record. Narrowed to ``subject`` here.
             kind: The record kind to read and write.
             model_path: Dot-separated path to the target attribute in the rig model.
+
+        Raises:
+            ValueError: If ``subject`` is empty.
         """
-        self._store = store
+        if not subject:
+            raise ValueError("ByAnimalModifier requires a subject.")
+        self._subject = subject
+        self._store = store.scoped(subject=subject)
         self._kind: Kind[Any] = as_kind(kind)
         self._model_path = model_path
 
@@ -59,7 +65,7 @@ class ByAnimalModifier(abc.ABC, Generic[TRig]):
         return deserialized
 
     @abc.abstractmethod
-    def _process_before_dump(self) -> Any:
+    def _process_before_update(self) -> Any:
         """Returns the object to persist. Subclasses must implement this."""
 
     def inject(self, rig: TRig) -> TRig:
@@ -74,25 +80,27 @@ class ByAnimalModifier(abc.ABC, Generic[TRig]):
         """
         records = self._store.list(self._kind)
         if not records:
-            logger.warning("No %s found in %s. Using default.", self._kind.name, self._store)
+            logger.warning(
+                "No %s found for subject %s in %s. Using default.", self._kind.name, self._subject, self._store
+            )
             return rig
-        logger.info("Loading %s. Deserialized: %s", self._kind.name, records[0])
+        logger.info("Loading %s for subject %s. Deserialized: %s", self._kind.name, self._subject, records[0])
         recursive_setattr(rig, self._model_path, self._process_before_inject(records[0]))
         return rig
 
-    def dump(self) -> None:
+    def update(self) -> None:
         """
-        Persists the record produced by :meth:`_process_before_dump`.
+        Persists the record produced by :meth:`_process_before_update`.
 
         Raises:
-            Exception: Whatever :meth:`_process_before_dump` or the store raises.
+            Exception: Whatever :meth:`_process_before_update` or the store raises.
         """
         try:
-            to_dump = self._process_before_dump()
-            logger.info("Saving %s. Serialized: %s", self._kind.name, to_dump)
-            self._store.write(self._kind, to_dump)
+            to_update = self._process_before_update()
+            logger.info("Saving %s for subject %s. Serialized: %s", self._kind.name, self._subject, to_update)
+            self._store.write(self._kind, to_update)
         except Exception as e:
-            logger.error("Failed to dump modifier: %s", e)
+            logger.error("Failed to update modifier: %s", e)
             raise
 
 

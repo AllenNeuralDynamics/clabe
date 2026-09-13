@@ -22,16 +22,17 @@ NESTED = Kind(NestedModel, "nested_model")
 
 
 class CustomModifier(ByAnimalModifier[Model]):
-    def __init__(self, store, model_path="nested"):
-        super().__init__(store, NESTED, model_path)
+    def __init__(self, store, model_path="nested", subject="123"):
+        super().__init__(subject, store, NESTED, model_path)
 
-    def _process_before_dump(self):
+    def _process_before_update(self):
         return NestedModel(foo="Modified", bar=10, nested2=NestedModel(foo="Modified Nested", bar=20))
 
 
 @pytest.fixture
 def store():
-    return MemoryStore().scoped(subject="123")
+    """Deliberately *not* pre-scoped: the modifier narrows it to the animal itself."""
+    return MemoryStore()
 
 
 @pytest.fixture
@@ -44,7 +45,7 @@ def sample_model():
 
 class TestByAnimalModifier:
     def test_inject_uses_the_stored_record(self, store, sample_model):
-        store.write(NESTED, NestedModel(foo="Loaded", bar=99))
+        store.write(NESTED, NestedModel(foo="Loaded", bar=99), scope={"subject": "123"})
         modified = CustomModifier(store).inject(sample_model)
         assert (modified.nested.foo, modified.nested.bar, modified.nested.nested2) == ("Loaded", 99, None)
 
@@ -52,18 +53,18 @@ class TestByAnimalModifier:
         modified = CustomModifier(store).inject(sample_model)
         assert (modified.nested.foo, modified.nested.bar, modified.something) == ("Original", 5, 3.14)
 
-    def test_dump_writes_through_the_store(self, store, sample_model):
-        CustomModifier(store).dump()
-        assert store.list(NESTED) == [
+    def test_update_writes_through_the_store(self, store, sample_model):
+        CustomModifier(store).update()
+        assert store.scoped(subject="123").list(NESTED) == [
             NestedModel(foo="Modified", bar=10, nested2=NestedModel(foo="Modified Nested", bar=20))
         ]
 
-    def test_dump_is_scoped_to_the_animal(self, store):
-        CustomModifier(store).dump()
+    def test_update_is_scoped_to_the_animal(self, store):
+        CustomModifier(store).update()
         assert store.scoped(subject="456").list(NESTED) == []
 
-    def test_inject_and_dump_round_trip(self, store, sample_model):
-        CustomModifier(store).dump()
+    def test_inject_and_update_round_trip(self, store, sample_model):
+        CustomModifier(store).update()
         modified = CustomModifier(store).inject(sample_model)
         assert (modified.nested.foo, modified.nested.nested2.foo) == ("Modified", "Modified Nested")
 
@@ -79,20 +80,31 @@ class TestByAnimalModifier:
 
         class DeepModifier(ByAnimalModifier[DeepModel]):
             def __init__(self, store):
-                super().__init__(store, Kind(Level2Model, "deep_value"), "level1.level2")
+                super().__init__("123", store, Kind(Level2Model, "deep_value"), "level1.level2")
 
-            def _process_before_dump(self):
+            def _process_before_update(self):
                 return Level2Model(value=999)
 
-        store.write(Kind(Level2Model, "deep_value"), Level2Model(value=42))
+        store.write(Kind(Level2Model, "deep_value"), Level2Model(value=42), scope={"subject": "123"})
         model = DeepModel(level1=Level1Model(level2=Level2Model(value=1)))
         assert DeepModifier(store).inject(model).level1.level2.value == 42
+
+    def test_the_store_is_narrowed_to_the_animal_even_when_handed_an_unscoped_one(self, store):
+        """The mistake this closes: a store that was never scoped does not fail, it quietly reads
+        and writes wherever the backend puts a subject-less record."""
+        CustomModifier(store, subject="789").update()
+        assert store.scoped(subject="789").list(NESTED) != []
+        assert store.list(NESTED) == []
+
+    def test_an_empty_subject_is_refused(self, store):
+        with pytest.raises(ValueError, match="requires a subject"):
+            CustomModifier(store, subject="")
 
     def test_the_pre_inject_hook_can_rewrite_the_record(self, store, sample_model):
         class WithPreProcess(CustomModifier):
             def _process_before_inject(self, deserialized):
                 return deserialized.model_copy(update={"foo": "PreProcessed"})
 
-        store.write(NESTED, NestedModel(foo="Loaded", bar=99))
+        store.write(NESTED, NestedModel(foo="Loaded", bar=99), scope={"subject": "123"})
         modified = WithPreProcess(store).inject(sample_model)
         assert (modified.nested.foo, modified.nested.bar) == ("PreProcessed", 99)

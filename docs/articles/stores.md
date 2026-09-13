@@ -91,7 +91,7 @@ Never prompts, so it's the right primitive for anything that has to make a choic
 store.write(SUGGESTION, trainer_state)
 ```
 
-No confirmation prompt, ever — whether a write clobbers, versions or appends is the backend's contract (a local file overwrites; `DataverseStore` and `MemoryStore` append), decided once per backend rather than asked of the experimenter at 9am.
+No confirmation prompt, ever — whether a write clobbers, versions or appends is the backend's contract (a local file overwrites; `DataverseStore` and `MemoryStore` append; `FicusStore` deep-merges into the stored document), decided once per backend rather than asked of the experimenter at 9am.
 
 ### scoped — narrowing
 
@@ -102,7 +102,7 @@ rig = store.resolve(RIG)  # only this animal's records are visible
 store.write(SUGGESTION, next_state)
 ```
 
-`scoped` returns a new store sharing the same underlying data, narrowed by the given key/value pairs; the store it was called on is untouched. Scope keys are plain strings (`{"subject": "789012", "computer_name": "RIG-01", ...}`) and their meaning is entirely up to the backend — a `LocalFileStore` turns them into path segments, `DataverseStore` turns `subject` and `task_name` into an OData filter. Call `scoped` again to narrow further; each call layers on top of what came before.
+`scoped` returns a new store sharing the same underlying data, narrowed by the given key/value pairs; the store it was called on is untouched. Scope keys are plain strings (`{"subject": "789012", "computer_name": "RIG-01", ...}`) and their meaning is entirely up to the backend — a `LocalFileStore` turns them into path segments, `DataverseStore` turns `subject` and `task_name` into an OData filter, `FicusStore` turns `subject` into a ficus scope and ignores the rest. Call `scoped` again to narrow further; each call layers on top of what came before.
 
 ## Writing your own store
 

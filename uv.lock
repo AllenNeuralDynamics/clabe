@@ -61,6 +61,7 @@ dependencies = [
     { name = "semver" },
     { name = "textual" },
     { name = "textual-fspicker" },
+    { name = "typing-extensions" },
 ]
 
 [package.optional-dependencies]
@@ -68,7 +69,6 @@ aind-services = [
     { name = "aind-data-schema" },
     { name = "aind-data-transfer-service" },
     { name = "aind-watchdog-service" },
-    { name = "confierge" },
     { name = "msal", marker = "sys_platform == 'win32'" },
     { name = "pykeepass" },
     { name = "pyyaml" },
@@ -109,7 +109,6 @@ requires-dist = [
     { name = "aind-data-schema", marker = "extra == 'aind-services'", specifier = ">=2" },
     { name = "aind-data-transfer-service", marker = "extra == 'aind-services'", specifier = ">=2.2.0" },
     { name = "aind-watchdog-service", marker = "extra == 'aind-services'", specifier = ">=0.1.6" },
-    { name = "confierge", marker = "extra == 'aind-services'", git = "https://github.com/AllenNeuralDynamics/ficus?subdirectory=packages%2Fconfierge&tag=v0.2.1" },
     { name = "gitpython" },
     { name = "msal", marker = "sys_platform == 'win32' and extra == 'aind-services'" },
     { name = "opentelemetry-api", specifier = ">=1.24" },
@@ -128,6 +127,7 @@ requires-dist = [
     { name = "textual", specifier = ">=8.2.7" },
     { name = "textual-fspicker", specifier = ">=1.0.1" },
     { name = "textual-serve", marker = "extra == 'web'" },
+    { name = "typing-extensions", specifier = ">=4.13" },
 ]
 provides-extras = ["web", "otel", "aind-services"]
 
@@ -741,16 +741,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/d8/53/6f443c9a4a8358a93a6792e2acffb9d9d5cb0a5cfd8802644b7b1c9a02e4/colorama-0.4.6.tar.gz", hash = "sha256:08695f5cb7ed6e0531a20572697297273c47b8cae5a63ffc6d6ed5c201be6e44", size = 27697, upload-time = "2022-10-25T02:36:22.414Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d1/d6/3965ed04c63042e047cb6a3e6ed1a63a35087b6a609aa3a15ed8ac56c221/colorama-0.4.6-py2.py3-none-any.whl", hash = "sha256:4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6", size = 25335, upload-time = "2022-10-25T02:36:20.889Z" },
-]
-
-[[package]]
-name = "confierge"
-version = "0.1.0"
-source = { git = "https://github.com/AllenNeuralDynamics/ficus?subdirectory=packages%2Fconfierge&tag=v0.2.1#3c3d187efbf21daa782d42f46cef1f7cbadd8ceb" }
-dependencies = [
-    { name = "platformdirs" },
-    { name = "pydantic" },
-    { name = "requests" },
 ]
 
 [[package]]
