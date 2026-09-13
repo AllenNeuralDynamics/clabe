@@ -135,6 +135,7 @@ nav:
   - Stores:
     - stores: api/stores/stores.md
     - dataverse: api/stores/dataverse.md
+    - ficus: api/stores/ficus.md
   - Ui:
     - ui: api/ui/ui.md
   - Utils:

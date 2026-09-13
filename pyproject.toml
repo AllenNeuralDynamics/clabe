@@ -23,6 +23,7 @@ classifiers = [
 dependencies = [
     "pydantic>=2.7",
     "pydantic-settings",
+    "typing-extensions>=4.13",
     "gitpython",
     "requests",
     "semver",

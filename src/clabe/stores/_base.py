@@ -3,7 +3,7 @@ import dataclasses
 import functools
 import logging
 from collections.abc import Callable, Iterable, Mapping, Sequence
-from typing import Any, Generic, Protocol, TypedDict, TypeVar, runtime_checkable
+from typing import Any, Generic, Protocol, Self, TypedDict, TypeVar, runtime_checkable
 
 import pydantic
 from aind_behavior_curriculum import TrainerState
@@ -215,8 +215,11 @@ class StoreBase(abc.ABC):
         """The scope every call on this store is narrowed by."""
         return dict(self._scope)
 
-    def scoped(self, **scope: str) -> "StoreBase":
-        """Returns a view sharing this store's data, narrowed by the given scope."""
+    def scoped(self, **scope: str) -> Self:
+        """Returns a view sharing this store's data, narrowed by the given scope.
+
+        The view is the same concrete store type, so narrowing never loses backend-specific typing.
+        """
         clone = object.__new__(type(self))
         clone.__dict__.update(self.__dict__)
         clone._scope = {**self._scope, **scope}

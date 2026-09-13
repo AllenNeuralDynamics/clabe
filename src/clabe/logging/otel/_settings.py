@@ -1,5 +1,3 @@
-import os
-import socket
 from typing import TYPE_CHECKING, ClassVar, Literal
 
 from opentelemetry.util.types import AttributeValue
@@ -157,7 +155,9 @@ class AindOtelSettings(OtelSettings):
 
 def _default_hostname() -> str:
     """Return the machine name from the environment, falling back to the socket hostname."""
-    return os.environ.get("COMPUTERNAME") or os.environ.get("HOSTNAME") or socket.gethostname()
+    from ...utils import get_computer_name
+
+    return get_computer_name()
 
 
 def _distribution_version(distribution: str) -> str | None:
