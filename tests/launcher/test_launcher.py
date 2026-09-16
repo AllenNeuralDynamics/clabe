@@ -1,3 +1,4 @@
+import contextlib
 import logging
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -111,3 +112,63 @@ def test_copy_tmp_directory_appends_launcher_log(mock_base_launcher, tmp_path: P
 
     other_content = (dst_launcher / "other.txt").read_text(encoding="utf-8")
     assert other_content == "new content\n", "non-log files should be overwritten"
+
+
+def _record_run_order(launcher, experiment):
+    """Run an experiment with the run span and exit stubbed, returning the call order."""
+    order = []
+
+    @contextlib.contextmanager
+    def fake_run_span(_launcher, experiment_name=None):
+        order.append("span opened")
+        try:
+            yield MagicMock()
+        finally:
+            order.append("span closed")
+
+    with (
+        patch("clabe.launcher._base.run_span", fake_run_span),
+        patch.object(Launcher, "validate", return_value=True),
+        patch.object(Launcher, "copy_logs", lambda self, *a, **k: order.append("copy_logs")),
+        patch.object(Launcher, "_exit", lambda self, code=0, _force=False: order.append(f"_exit({code})")),
+    ):
+        launcher.run_experiment(experiment)
+
+    return order
+
+
+def test_exit_prompt_runs_after_the_run_span_closes(mock_base_launcher):
+    """The exit prompt blocks on the user, so it must not run while the root span is open.
+
+    While it did, closing the console window at "Press Enter to exit..." meant the root span
+    was never ended or exported and the finished run looked as though it never closed.
+    """
+    order = _record_run_order(mock_base_launcher, lambda launcher: None)
+
+    assert order == ["span opened", "copy_logs", "span closed", "_exit(0)"]
+
+
+def test_failed_log_copy_still_exits_with_an_error_code(mock_base_launcher):
+    """The ValueError branch used to call _exit(-1) itself; it must still propagate the code."""
+    order = []
+
+    @contextlib.contextmanager
+    def fake_run_span(_launcher, experiment_name=None):
+        order.append("span opened")
+        try:
+            yield MagicMock()
+        finally:
+            order.append("span closed")
+
+    def boom(self, *a, **k):
+        raise ValueError("no session directory")
+
+    with (
+        patch("clabe.launcher._base.run_span", fake_run_span),
+        patch.object(Launcher, "validate", return_value=True),
+        patch.object(Launcher, "copy_logs", boom),
+        patch.object(Launcher, "_exit", lambda self, code=0, _force=False: order.append(f"_exit({code})")),
+    ):
+        mock_base_launcher.run_experiment(lambda launcher: None)
+
+    assert order == ["span opened", "span closed", "_exit(-1)"]
