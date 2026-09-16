@@ -1,5 +1,5 @@
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from opentelemetry.util.types import AttributeValue
 
@@ -15,6 +15,11 @@ _INTERNAL_LOGGERS = ("opentelemetry", "urllib3")
 # every span and log. This is what makes the four write points behave consistently — see
 # :class:`clabe.logging.otel._settings.OtelSettings`.
 _attributes: dict[str, AttributeValue] = {}
+
+# The providers built by :func:`configure`, kept so :func:`flush` can drain them on demand.
+# Typed loosely because the SDK is an optional dependency and is imported lazily.
+_tracer_provider: Any | None = None
+_logger_provider: Any | None = None
 
 
 class _ExcludeInternalLogs(logging.Filter):
@@ -48,6 +53,29 @@ def merge_attributes(attributes: dict[str, AttributeValue]) -> None:
     _attributes.update(attributes)
 
 
+def flush(timeout_millis: int = 5_000) -> None:
+    """Force-export any spans and logs still sitting in the batch processors.
+
+    The batch processors hold a span for up to their schedule delay before shipping it. A
+    run's root span is by construction the last span to end, so without an explicit drain it
+    is the one most likely to be lost when the process goes away before the next batch — and
+    a run whose root span never arrives is indistinguishable, downstream, from one that never
+    finished. Best effort: failures are logged and swallowed, as observability must never
+    break a run.
+
+    Args:
+        timeout_millis: Budget granted to each provider's flush.
+    """
+    for provider in (_tracer_provider, _logger_provider):
+        if provider is None:
+            continue
+        try:
+            if provider.force_flush(timeout_millis) is False:
+                logging.getLogger(__name__).warning("Timed out while flushing telemetry")
+        except Exception:  # observability must never break a run
+            logging.getLogger(__name__).warning("Failed to flush telemetry", exc_info=True)
+
+
 def _build_resource(settings: OtelSettings) -> "Resource":
     """Build the resource shared by every span and log of the run.
 
@@ -77,6 +105,14 @@ def configure(settings: OtelSettings) -> None:
     Args:
         settings: The resolved :class:`~clabe.logging.otel._settings.OtelSettings`.
     """
+    global _tracer_provider, _logger_provider
+
+    # OTel's global providers can only be installed once. Reuse the providers that own the
+    # active tracers and loggers rather than constructing an unregistered provider that a
+    # later flush would drain instead.
+    if _tracer_provider is not None and _logger_provider is not None:
+        return
+
     from opentelemetry import trace
     from opentelemetry._logs import set_logger_provider
     from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
@@ -120,12 +156,14 @@ def configure(settings: OtelSettings) -> None:
         BatchSpanProcessor(OTLPSpanExporter(endpoint=traces_endpoint, headers=headers, **exporter_kwargs))
     )
     trace.set_tracer_provider(tracer_provider)
+    _tracer_provider = tracer_provider
 
     logger_provider = LoggerProvider(resource=resource)
     logger_provider.add_log_record_processor(
         BatchLogRecordProcessor(OTLPLogExporter(endpoint=logs_endpoint, headers=headers, **exporter_kwargs))
     )
     set_logger_provider(logger_provider)
+    _logger_provider = logger_provider
     handler = LoggingHandler(logger_provider=logger_provider)
     handler.addFilter(_ExcludeInternalLogs())
     handler.addFilter(_AttributeLogEnricher())

@@ -245,8 +245,8 @@ An unrecognised query parameter is ignored rather than rejected: `?computers=DT2
 The rig identifier is the **machine name**, held as the `computer_name` scope key. It is seeded at construction from [`get_computer_name`][clabe.utils.get_computer_name], as it is for `LocalFileStore`, and narrowed like any other scope key:
 
 ```python
-store.scope                              # {"computer_name": "RIG-01"}
-store.scoped(computer_name="DT201256")   # address another machine's layer
+store.scope  # {"computer_name": "RIG-01"}
+store.scoped(computer_name="DT201256")  # address another machine's layer
 ```
 
 `CompositeStore.scoped` passes the narrowing to every backend it routes to, so one call moves them together.
@@ -258,7 +258,7 @@ The machine name is not `aibs_comp_id`, which holds the AIND *rig* name (`FRG.4A
 To drop the rig layer, leave it out of `config_scopes`:
 
 ```python
-FicusSettings(namespace=..., config_scopes=[])   # defaults only
+FicusSettings(namespace=..., config_scopes=[])  # defaults only
 ```
 
 ### The subject scope is not in the default merge chain
@@ -315,18 +315,18 @@ To target one layer explicitly:
 ```python
 from clabe.stores.ficus import COMPUTERS, LayerKey
 
-store.client.write(                      # write this document outright
+store.client.write(  # write this document outright
     store.namespace,
     {"manipulator": {"port": "COM4"}},
     scope=COMPUTERS("DT201256"),
 )
 
 current = store.client.get_merged(store.namespace, scopes=[COMPUTERS("DT201256")])
-store.client.write_back(                 # or diff against the chain, into a layer you name
+store.client.write_back(  # or diff against the chain, into a layer you name
     store.namespace,
     current,
     new_config,
-    target=LayerKey(None, "default.json"),   # None scope == the defaults layer
+    target=LayerKey(None, "default.json"),  # None scope == the defaults layer
 )
 ```
 

@@ -239,9 +239,8 @@ class Launcher:
                     self.copy_logs()
                 except ValueError as ve:  # In the case session_directory fails
                     self.frontend.notify(f"Failed to copy logs from {self.temp_dir}: {ve}", MessageLevel.ERROR)
-                    self._exit(-1)
-                else:
-                    self._exit(_code)
+                    _code = -1
+        self._exit(_code)
 
     def copy_logs(self, dst: os.PathLike | None = None, suffix: str = "Behavior/Logs") -> None:
         """

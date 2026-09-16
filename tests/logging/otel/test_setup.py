@@ -3,15 +3,18 @@ from unittest.mock import patch
 
 import pytest
 
+import clabe.logging.otel._setup as setup_mod
 from clabe.logging.otel._settings import OtelSettings
 from clabe.logging.otel._setup import configure
 
 
 @pytest.fixture(autouse=True)
-def _restore_root_handlers():
+def _restore_otel_state(monkeypatch):
     """``configure`` attaches a handler to the root logger; undo that after each test."""
     root = logging.getLogger()
     before = list(root.handlers)
+    monkeypatch.setattr(setup_mod, "_tracer_provider", None)
+    monkeypatch.setattr(setup_mod, "_logger_provider", None)
     yield
     for handler in list(root.handlers):
         if handler not in before:
@@ -66,3 +69,24 @@ def test_configure_forwards_headers():
     mock_span_exporter.assert_called_once_with(
         endpoint="http://collector:4318/v1/traces", headers={"Authorization": "Bearer x"}
     )
+
+
+def test_configure_reuses_the_installed_providers():
+    """A second run must not replace the providers that own its spans and logs."""
+    settings = OtelSettings(enabled=True, protocol="http", endpoint="http://collector:4318")
+
+    with (
+        patch("opentelemetry.exporter.otlp.proto.http.trace_exporter.OTLPSpanExporter") as mock_span_exporter,
+        patch("opentelemetry.exporter.otlp.proto.http._log_exporter.OTLPLogExporter") as mock_log_exporter,
+        patch("opentelemetry.trace.set_tracer_provider") as set_tracer_provider,
+        patch("opentelemetry._logs.set_logger_provider") as set_logger_provider,
+    ):
+        configure(settings)
+        first_providers = (setup_mod._tracer_provider, setup_mod._logger_provider)
+        configure(settings)
+
+    assert (setup_mod._tracer_provider, setup_mod._logger_provider) == first_providers
+    set_tracer_provider.assert_called_once()
+    set_logger_provider.assert_called_once()
+    mock_span_exporter.assert_called_once()
+    mock_log_exporter.assert_called_once()
