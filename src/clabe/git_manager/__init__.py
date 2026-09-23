@@ -1,3 +1,3 @@
-from ._git import GitRepository
+from ._git import GitRepository, GitRepositoryMetadata
 
-__all__ = ["GitRepository"]
+__all__ = ["GitRepository", "GitRepositoryMetadata"]

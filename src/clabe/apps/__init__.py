@@ -11,12 +11,13 @@ from ._base import (
 )
 from ._bonsai import AindBehaviorServicesBonsaiApp, BonsaiApp
 from ._curriculum import CurriculumApp, CurriculumSettings, CurriculumSuggestion
-from ._executors import LocalDetachedExecutor
+from ._executors import AsyncLocalExecutor, LocalDetachedExecutor, LocalExecutor
 from ._python_script import PythonScriptApp
 
 __all__ = [
     "AindBehaviorServicesBonsaiApp",
     "AsyncExecutor",
+    "AsyncLocalExecutor",
     "BonsaiApp",
     "Command",
     "CommandError",
@@ -27,6 +28,7 @@ __all__ = [
     "ExecutableApp",
     "Executor",
     "LocalDetachedExecutor",
+    "LocalExecutor",
     "PythonScriptApp",
     "StdCommand",
     "_OutputParser",

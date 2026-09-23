@@ -1,14 +1,38 @@
 import logging
+import os
 import shutil
+from pathlib import Path
 from typing import Self
 
 from git import Repo
+from pydantic import BaseModel, Field
 
 from .. import ui
 
 logger = logging.getLogger(__name__)
 
 _HAS_GIT = shutil.which("git") is not None
+
+
+class GitRepositoryMetadata(BaseModel):
+    """A serializable snapshot of a Git repository's provenance state.
+
+    Paths are relative to the current working directory when the snapshot is made.
+    """
+
+    url: str | None = Field(description="Preferred remote URL, using origin when configured.")
+    commit_sha: str | None = Field(description="Full SHA of the checked-out commit.")
+    tag: str | None = Field(description="Tag attached exactly to the checked-out commit, if any.")
+    describe: str | None = Field(description="Nearest reachable tag and commit distance from git describe.")
+    branch: str | None = Field(description="Checked-out branch name, or null when HEAD is detached.")
+    is_dirty: bool | None = Field(description="Whether tracked or untracked working-tree changes are present.")
+    name: str = Field(description="Checkout directory name.")
+    path: str = Field(description="Checkout path relative to the current working directory.")
+    is_initialized: bool = Field(default=True, description="Whether the submodule working tree is initialized.")
+    submodules: list["GitRepositoryMetadata"] = Field(
+        default_factory=list,
+        description="Metadata snapshots for declared submodules.",
+    )
 
 
 class GitRepository(Repo):
@@ -109,6 +133,64 @@ class GitRepository(Repo):
         if _is_dirty_repo:
             return True
         return any(submodule.repo.is_dirty(untracked_files=True) for submodule in self.submodules)
+
+    def get_metadata(self) -> GitRepositoryMetadata:
+        """Return a serializable snapshot of this repository and its submodules.
+
+        The snapshot includes every declared submodule recursively when its parent
+        is initialized. An uninitialized submodule records its configured URL and
+        gitlink commit SHA with ``is_initialized=False``. ``branch`` is ``None``
+        when a repository is in a detached-HEAD state, and ``tag`` is ``None``
+        when HEAD has no exact tag. ``describe`` identifies the nearest reachable
+        tag and the number of commits since it.
+
+        Returns:
+            GitRepositoryMetadata: Repository provenance information suitable for
+                inclusion in experiment or data metadata.
+        """
+        return self._get_metadata(self)
+
+    @classmethod
+    def _get_metadata(cls, repo: Repo) -> GitRepositoryMetadata:
+        """Build metadata for a repository and its initialized submodules."""
+        remote = next((remote for remote in repo.remotes if remote.name == "origin"), None)
+        if remote is None:
+            remote = next(iter(repo.remotes), None)
+
+        tags = repo.git.tag("--points-at", "HEAD").splitlines()
+        return GitRepositoryMetadata(
+            url=remote.url if remote else None,
+            commit_sha=repo.head.commit.hexsha,
+            tag=tags[0] if tags else None,
+            describe=repo.git.describe("--tags", "--always"),
+            branch=None if repo.head.is_detached else repo.active_branch.name,
+            is_dirty=repo.is_dirty(untracked_files=True),
+            name=Path(repo.working_tree_dir).name,
+            path=cls._relative_path(repo.working_tree_dir),
+            submodules=[cls._get_submodule_metadata(submodule) for submodule in repo.submodules],
+        )
+
+    @classmethod
+    def _get_submodule_metadata(cls, submodule) -> GitRepositoryMetadata:
+        """Build metadata for a submodule without requiring it to be initialized."""
+        if not (Path(submodule.abspath) / ".git").exists():
+            return GitRepositoryMetadata(
+                url=submodule.url,
+                commit_sha=submodule.hexsha,
+                tag=None,
+                describe=None,
+                branch=None,
+                is_dirty=None,
+                name=Path(submodule.path).name,
+                path=cls._relative_path(submodule.abspath),
+                is_initialized=False,
+            )
+        return cls._get_metadata(submodule.module())
+
+    @staticmethod
+    def _relative_path(path: str) -> str:
+        """Return a path relative to the current working directory."""
+        return Path(os.path.relpath(path, start=Path.cwd())).as_posix()
 
     @staticmethod
     def _get_changes(repo: Repo) -> list[str]:

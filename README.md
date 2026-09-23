@@ -1,3 +1,5 @@
+# clabe
+
 <div align="center">
 
 <pre>
@@ -12,64 +14,111 @@ Command-line-interface Launcher for AIND Behavior Experiments
 </pre>
 </div>
 
-
 [![Documentation](https://img.shields.io/badge/documentation-blue)](https://allenneuraldynamics.github.io/clabe/)
-![CI](https://github.com/AllenNeuralDynamics/Aind.Behavior.ExperimentLauncher/actions/workflows/clabe.yml/badge.svg)
-[![PyPI - Version](https://img.shields.io/pypi/v/aind-clabe)](https://pypi.org/project/aind-clabe/)
+[![CI](https://github.com/AllenNeuralDynamics/clabe/actions/workflows/clabe.yml/badge.svg)](https://github.com/AllenNeuralDynamics/clabe/actions/workflows/clabe.yml)
+[![PyPI version](https://img.shields.io/pypi/v/aind-clabe)](https://pypi.org/project/aind-clabe/)
 [![License](https://img.shields.io/badge/license-MIT-brightgreen)](LICENSE)
-[![ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
-[![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
 
-# clabe
+CLABE is a Python toolkit for building, running, and operating behavioral-experiment workflows. It provides a launcher for experiment scripts alongside composable utilities for user interaction, external applications, configuration and storage, resource checks, data transfer, remote execution, logging, and repository-state capture.
 
-A library for building workflows for behavior experiments.
+The library is designed to be useful both in an interactive experiment session and in scripted or remote workflows.
 
-> ⚠️ **Caution:**
-> This repository is currently under active development and is subject to frequent changes. Features and APIs may evolve without prior notice.
+## Install
 
-## Installing and Upgrading
-
-If you choose to clone the repository, you can install the package by running the following command from the root directory of the repository:
+For a project managed with [uv](https://docs.astral.sh/uv/):
 
 ```bash
-pip install .
+uv add aind-clabe
 ```
 
-Otherwise, you can use pip:
+Or install with pip:
 
 ```bash
 pip install aind-clabe
 ```
 
-## Getting started and API usage
+To work on this repository locally:
 
-The library provides a main class "Launcher" that can be used to create a linear workflow for behavior experiments. These workflows rely on modular interfaces that can be used to interact with various components of the experiment and other services.
-Some of these services are specific for AIND:
+```bash
+git clone https://github.com/AllenNeuralDynamics/clabe.git
+cd clabe
+uv sync
+```
 
-- [aind-data-schema](https://github.com/AllenNeuralDynamics/aind-data-schema)
-- [aind-data-schema-models](https://github.com/AllenNeuralDynamics/aind-data-schema-models)
-- [aind-watchdog-service](https://github.com/AllenNeuralDynamics/aind-watchdog-service)
-- [aind-data-mapper](https://github.com/AllenNeuralDynamics/aind-metadata-mapper)
+## What CLABE provides
 
-We will also try to scope all dependencies of the related to AIND Services to its own optional dependency list in the `./pyproject.toml` file of this repository. Therefore, in order to use this module, you will need to install these optional dependencies by running:
+- **Experiment launcher** — discover and run functions marked with `@experiment`, with console, TUI, and web-served interaction options.
+- **Frontends and forms** — collect typed input from Pydantic models, prompt for paths, confirmations, selections, and read-only reviews.
+- **Applications and executors** — describe external commands once and run them locally, asynchronously, detached, or through XML-RPC.
+- **Stores and services** — compose local, in-memory, Ficus, and optional Dataverse-backed configuration and data services.
+- **Operational helpers** — resource constraints, data transfer, structured logging, OpenTelemetry support, and session construction.
+- **Repository state** — capture a JSON snapshot of a repository and its submodules for dataset or experiment metadata.
 
-```uv sync --extra aind-services```
+## Quick start
 
-A basic example of how to use the Launcher class can be found in the `examples` directory of this repository.
+Define an experiment in a Python module:
 
-## Contributors
+```python
+from clabe.launcher import Launcher, experiment
 
-Contributions to this repository are welcome! However, please ensure that your code adheres to the recommended DevOps practices below:
 
-### Linting
+@experiment()
+async def my_experiment(launcher: Launcher) -> None:
+    launcher.frontend.notify("Experiment started")
+    # Configure the session, check resources, and run applications here.
+```
 
-We use [ruff](https://docs.astral.sh/ruff/) as our primary linting tool.
+Run the module with the CLABE CLI:
 
-### Testing
+```bash
+uv run clabe run path/to/my_experiment.py
+```
 
-Attempt to add tests when new features are added.
-To run the currently available tests, run `uv run pytest` from the root of the repository.
+See [examples/behavior_launcher.py](examples/behavior_launcher.py) for a fuller example that combines sessions, forms, stores, resource checks, applications, and telemetry.
 
-### Lock files
+## Command line
 
-We use [uv](https://docs.astral.sh/uv/) to manage our lock files and therefore encourage everyone to use uv as a package manager as well.
+Show available commands and their options:
+
+```bash
+uv run clabe --help
+```
+
+Run an experiment interactively:
+
+```bash
+uv run clabe run path/to/my_experiment.py
+```
+
+Serve an experiment's text UI locally:
+
+```bash
+uv run clabe serve path/to/my_experiment.py --port 8089
+```
+
+Capture Git state for a repository and all declared submodules:
+
+```bash
+uv run clabe repository-state path/to/repository > repository-state.json
+```
+
+Each repository entry includes its URL, commit SHA, exact and nearest tags, branch, dirty state, name, cwd-relative path, and nested submodules. See [examples/repository_state.py](examples/repository_state.py) for invoking this command through CLABE's executor pattern.
+
+## Optional integrations
+
+Some integrations are optional so a basic installation remains lightweight:
+
+```bash
+uv add "aind-clabe[aind-services]"  # AIND services, data schema, and transfer tooling
+uv add "aind-clabe[web]"            # Web-served Textual UI
+uv add "aind-clabe[otel]"           # OpenTelemetry exporters and YAML support
+```
+
+## Documentation and development
+
+- Browse the [documentation](https://allenneuraldynamics.github.io/clabe/) for API references and guides.
+- Run tests with `uv run pytest`.
+- Check style with `uv run ruff check`.
+- Build documentation locally with `uv run mkdocs serve` after installing the `docs` dependency group.
+
+Contributions are welcome. Please include focused tests for behavior changes and keep the package's cross-platform support in mind.
