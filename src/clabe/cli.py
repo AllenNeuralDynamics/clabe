@@ -9,6 +9,7 @@ from pydantic_settings import BaseSettings, CliApp, CliImplicitFlag, CliPosition
 from clabe.launcher._experiments import _select_experiment
 
 from .cache_manager import _CacheManagerCli
+from .git_manager import GitRepository
 from .launcher import Launcher, LauncherCliArgs
 from .xml_rpc._server import _XmlRpcServerStartCli
 
@@ -110,6 +111,17 @@ class _ServeCli(LauncherCliArgs):
         serve(self._child_command(), host=self.host, port=self.port, open_browser=self.open_browser)
 
 
+class _RepositoryStateCli(BaseSettings):
+    """Print the current Git repository state as JSON."""
+
+    path: CliPositionalArg[Path] = Field(description="Path to the Git repository to inspect")
+
+    def cli_cmd(self):
+        """Print repository metadata to standard output as JSON."""
+        metadata = GitRepository(path=self.path).get_metadata()
+        print(metadata.model_dump_json(indent=2))
+
+
 class CliAppSettings(BaseSettings, cli_prog_name="clabe", cli_kebab_case=True):
     """CLI application settings."""
 
@@ -117,6 +129,7 @@ class CliAppSettings(BaseSettings, cli_prog_name="clabe", cli_kebab_case=True):
     cache: CliSubCommand[_CacheManagerCli]
     run: CliSubCommand[_RunCli]
     serve: CliSubCommand[_ServeCli]
+    repository_state: CliSubCommand[_RepositoryStateCli]
 
     def cli_cmd(self):
         """Run the selected subcommand."""

@@ -1,6 +1,9 @@
+import sys
 from pathlib import Path
 
 from clabe import cli
+from clabe.apps import Command, LocalExecutor
+from clabe.git_manager import GitRepositoryMetadata
 
 
 class TestQuote:
@@ -54,3 +57,17 @@ class TestServeChildCommand:
         command = _serve_cli(repository_directory=repo)._child_command()
         assert "--repository-directory" in command
         assert str(repo) in command
+
+
+def test_repository_state_cli_executes_with_local_executor():
+    """Test repository-state JSON can be captured through the command executor pattern."""
+    repository_root = Path(__file__).parents[1]
+    command = Command(
+        cmd=[sys.executable, "-m", "clabe.cli", "repository-state", "."],
+        output_parser=lambda result: GitRepositoryMetadata.model_validate_json(result.stdout),
+    )
+
+    metadata = command.execute(LocalExecutor(cwd=repository_root))
+
+    assert metadata.name == "clabe"
+    assert metadata.path == "."
