@@ -102,7 +102,7 @@ Capture Git state for a repository and all declared submodules:
 uv run clabe repository-state path/to/repository > repository-state.json
 ```
 
-Each repository entry includes its URL, commit SHA, exact and nearest tags, branch, dirty state, name, cwd-relative path, and nested submodules. The launcher automatically writes this snapshot to `repository-state.json` in each registered session directory.
+Each repository entry includes its URL, commit SHA, exact and nearest tags, branch, dirty state, name, cwd-relative path, and nested submodules. The launcher writes this snapshot alongside its temporary output; when logs are copied, it is saved at `Behavior/Logs/.launcher/repository-state.json` in the session directory.
 
 ## Optional integrations
 

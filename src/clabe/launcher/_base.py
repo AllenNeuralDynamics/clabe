@@ -164,8 +164,8 @@ class Launcher:
         return self
 
     def _save_repository_state(self) -> Path:
-        """Save the repository and submodule state alongside the session data."""
-        destination = self.session_directory / "repository-state.json"
+        """Save the repository and submodule state with the launcher output."""
+        destination = self.temp_dir / "repository-state.json"
         destination.write_text(self.repository.get_metadata().model_dump_json(indent=2), encoding="utf-8")
         logger.debug("Saved repository state to %s", destination)
         return destination

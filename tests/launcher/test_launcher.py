@@ -96,13 +96,13 @@ def test_ensure_directory_structure(mock_session, mock_frontend, tmp_path: Path)
 
 
 def test_register_session_saves_repository_state(mock_base_launcher, mock_session, tmp_path: Path):
-    """Registering a session writes the repository snapshot into its data directory."""
+    """Registering a session writes the repository snapshot with launcher output."""
     expected_json = '{"name":"test-repository"}'
     mock_base_launcher.repository.get_metadata.return_value.model_dump_json.return_value = expected_json
 
     mock_base_launcher.register_session(mock_session, data_directory=tmp_path / "data")
 
-    state_file = mock_base_launcher.session_directory / "repository-state.json"
+    state_file = mock_base_launcher.temp_dir / "repository-state.json"
     assert state_file.read_text(encoding="utf-8") == expected_json
     mock_base_launcher.repository.get_metadata.assert_called_once_with()
 
