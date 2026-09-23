@@ -102,7 +102,7 @@ Capture Git state for a repository and all declared submodules:
 uv run clabe repository-state path/to/repository > repository-state.json
 ```
 
-Each repository entry includes its URL, commit SHA, exact and nearest tags, branch, dirty state, name, cwd-relative path, and nested submodules. See [examples/repository_state.py](examples/repository_state.py) for invoking this command through CLABE's executor pattern.
+Each repository entry includes its URL, commit SHA, exact and nearest tags, branch, dirty state, name, cwd-relative path, and nested submodules. The launcher automatically writes this snapshot to `repository-state.json` in each registered session directory.
 
 ## Optional integrations
 

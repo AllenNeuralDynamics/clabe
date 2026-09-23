@@ -139,8 +139,8 @@ class Launcher:
 
     def register_session(self, session: Session, data_directory: os.PathLike) -> Self:
         """
-        Registers the session model with the launcher and creates the session
-        data directory structure.
+        Registers the session model with the launcher, creates the session data
+        directory structure, and saves repository-state metadata.
 
         Args:
             session: The session model to register
@@ -156,11 +156,19 @@ class Launcher:
             self._session = session
             self._data_directory = Path(data_directory)
             self._ensure_directory_structure()
+            self._save_repository_state()
             logger.debug("Creating session directory at: %s", self.session_directory)
             bind_session(session)
         else:
             raise ValueError("Session already registered.")
         return self
+
+    def _save_repository_state(self) -> Path:
+        """Save the repository and submodule state alongside the session data."""
+        destination = self.session_directory / "repository-state.json"
+        destination.write_text(self.repository.get_metadata().model_dump_json(indent=2), encoding="utf-8")
+        logger.debug("Saved repository state to %s", destination)
+        return destination
 
     @property
     def session(self) -> Session:

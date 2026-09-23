@@ -48,7 +48,11 @@ def test_base_launcher_create_directories(mock_session, mock_frontend, tmp_path:
     ):
         log_mod.return_value = MagicMock()
         mock_git.return_value.working_dir = launcher_args_create_dirs.repository_directory
-        with patch("clabe.launcher.Launcher._ensure_directory_structure") as mock_create_dirs:
+        mock_git.return_value.get_metadata.return_value.model_dump_json.return_value = "{}"
+        with (
+            patch("clabe.launcher.Launcher._ensure_directory_structure") as mock_create_dirs,
+            patch("clabe.launcher.Launcher._save_repository_state"),
+        ):
             Launcher(
                 frontend=mock_frontend,
                 settings=launcher_args_create_dirs,
@@ -76,8 +80,12 @@ def test_ensure_directory_structure(mock_session, mock_frontend, tmp_path: Path)
         patch("os.path.exists", return_value=False),
     ):
         mock_git.return_value.working_dir = tmp_path / "repo"
+        mock_git.return_value.get_metadata.return_value.model_dump_json.return_value = "{}"
         log_mod.return_value = MagicMock()
-        with patch("clabe.launcher.Launcher.create_directory") as mock_create_directory:
+        with (
+            patch("clabe.launcher.Launcher.create_directory") as mock_create_directory,
+            patch("clabe.launcher.Launcher._save_repository_state"),
+        ):
             launcher = Launcher(
                 frontend=mock_frontend,
                 settings=launcher_args,
@@ -85,6 +93,18 @@ def test_ensure_directory_structure(mock_session, mock_frontend, tmp_path: Path)
             ).register_session(mock_session, data_directory=tmp_path / "data")
             mock_create_directory.assert_any_call(launcher.session_directory)
             mock_create_directory.assert_any_call(launcher.temp_dir)
+
+
+def test_register_session_saves_repository_state(mock_base_launcher, mock_session, tmp_path: Path):
+    """Registering a session writes the repository snapshot into its data directory."""
+    expected_json = '{"name":"test-repository"}'
+    mock_base_launcher.repository.get_metadata.return_value.model_dump_json.return_value = expected_json
+
+    mock_base_launcher.register_session(mock_session, data_directory=tmp_path / "data")
+
+    state_file = mock_base_launcher.session_directory / "repository-state.json"
+    assert state_file.read_text(encoding="utf-8") == expected_json
+    mock_base_launcher.repository.get_metadata.assert_called_once_with()
 
 
 def test_copy_tmp_directory_appends_launcher_log(mock_base_launcher, tmp_path: Path):
