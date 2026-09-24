@@ -147,6 +147,7 @@ nav:
     - xml_rpc: api/xml_rpc/xml_rpc.md
     - models: api/xml_rpc/models.md
 - Articles:
+  - Configuration: articles/configuration.md
   - Frontends: articles/frontends.md
   - Logging: articles/logging.md
   - Runnables: articles/runnables.md

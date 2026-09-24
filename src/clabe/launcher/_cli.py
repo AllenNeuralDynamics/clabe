@@ -1,12 +1,12 @@
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, FilePath, model_validator
 from pydantic_settings import (
     CliImplicitFlag,
 )
 
-from ..services import ServiceSettings
+from ..services import ServiceSettings, _read_clabe_yml, set_clabe_yml
 
 
 class LauncherCliArgs(ServiceSettings, cli_prog_name="clabe", cli_kebab_case=True):
@@ -37,3 +37,16 @@ class LauncherCliArgs(ServiceSettings, cli_prog_name="clabe", cli_kebab_case=Tru
     skip_hardware_validation: CliImplicitFlag[bool] = Field(
         default=False, description="Whether to skip hardware validation"
     )
+    clabe_yml: FilePath | None = Field(
+        default=None,
+        description="Path to a clabe.yml file to load in addition to the known config files. "
+        "It ranks right after ./local/clabe.yml and is applied to all service settings created after parsing.",
+    )
+
+    @model_validator(mode="after")
+    def _install_clabe_yml(self) -> "LauncherCliArgs":
+        """Installs the file passed via ``--clabe-yml`` as the process-wide clabe.yml document."""
+        if self.clabe_yml is not None:
+            self.clabe_yml = self.clabe_yml.resolve()
+            set_clabe_yml(_read_clabe_yml(self.clabe_yml))
+        return self

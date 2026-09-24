@@ -30,6 +30,7 @@ def _serve_cli(**overrides):
         "quiet": False,
         "allow_dirty": False,
         "skip_hardware_validation": False,
+        "clabe_yml": None,
     }
     fields.update(overrides)
     return cli._ServeCli.model_construct(**fields)
@@ -57,6 +58,13 @@ class TestServeChildCommand:
         command = _serve_cli(repository_directory=repo)._child_command()
         assert "--repository-directory" in command
         assert str(repo) in command
+
+    def test_forwards_clabe_yml_when_set(self, monkeypatch):
+        monkeypatch.setattr(cli, "_quote", lambda arg: arg)
+        assert "--clabe-yml" not in _serve_cli()._child_command()
+        clabe_yml = Path("/configs/clabe.yml")
+        command = _serve_cli(clabe_yml=clabe_yml)._child_command()
+        assert f"--clabe-yml {clabe_yml}" in command
 
 
 def test_repository_state_cli_executes_with_local_executor():

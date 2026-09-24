@@ -223,6 +223,7 @@ def generate_service_settings_table() -> None:
         "# Service Settings",
         "",
         "This table lists all service settings classes and their YAML section names.",
+        "See [Configuration](configuration.md) for where settings are loaded from.",
         "",
     ]
     content.append("| Class Name | YAML Section |")
