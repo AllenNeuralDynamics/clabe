@@ -94,6 +94,8 @@ class _ServeCli(LauncherCliArgs):
         ]
         if self.repository_directory is not None:
             parts += ["--repository-directory", _quote(str(self.repository_directory))]
+        if self.clabe_yml is not None:
+            parts += ["--clabe-yml", _quote(str(self.clabe_yml))]
         forwarded = (
             ("--debug-mode", self.debug_mode),
             ("--verbose", self.verbose),
