@@ -1,0 +1,4136 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Documentation for the clabe python package.">
+      
+      
+        <meta name="author" content="Bruno F. Cruz">
+      
+      
+      
+        <link rel="prev" href="../stores/">
+      
+      
+        <link rel="next" href="../../docs_examples/behavior_launcher/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../icon.ico">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Store Backends - clabe</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="black">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#store-backends" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="clabe" class="md-header__button md-logo" aria-label="clabe" data-md-component="logo">
+      
+  <img src="../../logo.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            clabe
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Store Backends
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="black"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="white"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/AllenNeuralDynamics/clabe" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../api/cli/" class="md-tabs__link">
+          
+  
+  
+  API Reference
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../configuration/" class="md-tabs__link">
+          
+  
+  
+  Articles
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="https://github.com/AllenNeuralDynamics/clabe/issues" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Issues
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../docs_examples/behavior_launcher/" class="md-tabs__link">
+          
+  
+  
+  Examples
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="clabe" class="md-nav__button md-logo" aria-label="clabe" data-md-component="logo">
+      
+  <img src="../../logo.svg" alt="logo">
+
+    </a>
+    clabe
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/AllenNeuralDynamics/clabe" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_1" id="__nav_2_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cli
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Cli
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    cli
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_2" id="__nav_2_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Modifiers
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Modifiers
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/modifiers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    modifiers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_3" id="__nav_2_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cache Manager
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Cache Manager
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/cache_manager/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    cache_manager
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_4" id="__nav_2_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Services
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Services
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/services/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    services
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_5" id="__nav_2_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Constants
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Constants
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/constants/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    constants
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_6" id="__nav_2_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Session
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Session
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/session/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    session
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_7" id="__nav_2_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Logging Helper
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Logging Helper
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/logging_helper/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    logging_helper
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_8" id="__nav_2_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Web
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Web
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/web/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    web
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_9" id="__nav_2_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Aind Apps
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Aind Apps
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/aind_apps/aind_apps/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    aind_apps
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/aind_apps/waterlog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    waterlog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_10" id="__nav_2_10_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Apps
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Apps
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/apps/apps/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    apps
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/apps/open_ephys/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    open_ephys
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_11" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_11" id="__nav_2_11_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Mapper
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_11">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Data Mapper
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/data_mapper/data_mapper/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    data_mapper
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/data_mapper/aind_data_schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    aind_data_schema
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/data_mapper/helpers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    helpers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_12" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_12" id="__nav_2_12_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Transfer
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_12">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Data Transfer
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/data_transfer/data_transfer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    data_transfer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/data_transfer/aind_watchdog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    aind_watchdog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/data_transfer/robocopy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    robocopy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_13" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_13" id="__nav_2_13_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Git Manager
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_13_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_13">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Git Manager
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/git_manager/git_manager/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    git_manager
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_14" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_14" id="__nav_2_14_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Launcher
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_14_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_14">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Launcher
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/launcher/launcher/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    launcher
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_15" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_15" id="__nav_2_15_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Logging
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_15_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_15">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Logging
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/logging/logging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    logging
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_16" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_16" id="__nav_2_16_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Logging.Otel
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_16_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_16">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Logging.Otel
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/logging_otel/logging_otel/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    logging.otel
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_17" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_17" id="__nav_2_17_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Resource Monitor
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_17_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_17">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Resource Monitor
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/resource_monitor/resource_monitor/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    resource_monitor
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_18" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_18" id="__nav_2_18_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Runnable
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_18_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_18">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Runnable
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/runnable/runnable/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    runnable
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_19" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_19" id="__nav_2_19_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stores
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_19_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_19">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Stores
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/stores/stores/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    stores
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/stores/dataverse/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    dataverse
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/stores/ficus/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ficus
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_20" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_20" id="__nav_2_20_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ui
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_20_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_20">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Ui
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/ui/ui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ui
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_21" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_21" id="__nav_2_21_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Utils
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_21_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_21">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Utils
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/utils/utils/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    utils
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/utils/aind_auth/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    aind_auth
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/utils/aind_validators/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    aind_validators
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/utils/keepass/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    keepass
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_22" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_22" id="__nav_2_22_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Xml Rpc
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_22_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_22">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Xml Rpc
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/xml_rpc/xml_rpc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    xml_rpc
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/xml_rpc/models/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    models
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Articles
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Articles
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../frontends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Frontends
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../logging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Logging
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../runnables/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Runnables
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../service_settings/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ServiceSettings and yaml tags
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../stores/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stores
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Store Backends
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Store Backends
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+  
+
+<nav class="md-nav md-nav--secondary" aria-label="Page contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Page contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#localfilestore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        LocalFileStore
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="LocalFileStore">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-on-disk-layout" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The on-disk layout
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-custom-layout" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A custom layout
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#memorystore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MemoryStore
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dataversestore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DataverseStore
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ficusstore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        FicusStore
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="FicusStore">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#two-shapes-of-document" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Two shapes of document
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#extensions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Extensions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-merge-happens-client-side" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The merge happens client-side
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reads-and-writes-address-a-scope-differently" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reads and writes address a scope differently
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#which-rig-and-which-subject" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Which rig, and which subject
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-subject-scope-is-not-in-the-default-merge-chain" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The subject scope is not in the default merge chain
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#writing-a-flat-record" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Writing a flat record
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#writing-layered-config-back" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Writing layered config back
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#compositestore-routing-by-kind" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CompositeStore: routing by kind
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#recipes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Recipes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Recipes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#scoping-a-store-to-the-animal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scoping a store to the animal
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#per-animal-reconfiguration-with-byanimalmodifier" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Per-animal reconfiguration with ByAnimalModifier
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#recovering-a-past-session" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Recovering a past session
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#testing-against-a-store" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testing against a store
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://github.com/AllenNeuralDynamics/clabe/issues" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Issues
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Examples
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../docs_examples/behavior_launcher/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AIND Experiment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+  
+
+<nav class="md-nav md-nav--secondary" aria-label="Page contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Page contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#localfilestore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        LocalFileStore
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="LocalFileStore">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-on-disk-layout" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The on-disk layout
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-custom-layout" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A custom layout
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#memorystore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MemoryStore
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dataversestore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DataverseStore
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ficusstore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        FicusStore
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="FicusStore">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#two-shapes-of-document" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Two shapes of document
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#extensions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Extensions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-merge-happens-client-side" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The merge happens client-side
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reads-and-writes-address-a-scope-differently" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reads and writes address a scope differently
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#which-rig-and-which-subject" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Which rig, and which subject
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-subject-scope-is-not-in-the-default-merge-chain" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The subject scope is not in the default merge chain
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#writing-a-flat-record" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Writing a flat record
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#writing-layered-config-back" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Writing layered config back
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#compositestore-routing-by-kind" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CompositeStore: routing by kind
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#recipes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Recipes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Recipes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#scoping-a-store-to-the-animal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scoping a store to the animal
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#per-animal-reconfiguration-with-byanimalmodifier" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Per-animal reconfiguration with ByAnimalModifier
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#recovering-a-past-session" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Recovering a past session
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#testing-against-a-store" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testing against a store
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+  
+
+
+  <nav class="md-path" aria-label="Navigation" >
+    <ol class="md-path__list">
+      
+        
+  
+  
+    <li class="md-path__item">
+      <a href="../.." class="md-path__link">
+        
+  <span class="md-ellipsis">
+    Home
+  </span>
+
+      </a>
+    </li>
+  
+
+      
+      
+        
+  
+  
+    
+    
+      <li class="md-path__item">
+        <a href="../configuration/" class="md-path__link">
+          
+  <span class="md-ellipsis">
+    Articles
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ol>
+  </nav>
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="store-backends">Store Backends<a class="headerlink" href="#store-backends" title="Permanent link">&para;</a></h1>
+<p>This article works through every backend CLABE ships, and how to combine them with <a class="autorefs autorefs-internal" href="../../api/stores/stores/#clabe.stores.CompositeStore"><code>CompositeStore</code></a>. See <a href="../stores/">Stores</a> for the shared <code>Kind</code> / <code>Store</code> vocabulary these examples build on.</p>
+<table>
+<thead>
+<tr>
+<th>Backend</th>
+<th>Serves</th>
+<th>Interactivity</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a class="autorefs autorefs-internal" href="../../api/stores/stores/#clabe.stores.LocalFileStore"><code>LocalFileStore</code></a></td>
+<td>any kind</td>
+<td>Pick list over matching files</td>
+<td>The config library — a directory of JSON files, e.g. on a shared network drive</td>
+</tr>
+<tr>
+<td><a class="autorefs autorefs-internal" href="../../api/stores/stores/#clabe.stores.MemoryStore"><code>MemoryStore</code></a></td>
+<td>any kind</td>
+<td>Pick list over in-process records</td>
+<td>Tests, and assembling records without touching disk</td>
+</tr>
+<tr>
+<td><a class="autorefs autorefs-internal" href="../../api/stores/dataverse/#clabe.stores.dataverse.DataverseStore"><code>DataverseStore</code></a></td>
+<td><code>trainer_state</code> only</td>
+<td>Pick list over recent suggestions</td>
+<td>Needs the <code>aind-services</code> extra</td>
+</tr>
+<tr>
+<td><a class="autorefs autorefs-internal" href="../../api/stores/ficus/#clabe.stores.ficus.FicusStore"><code>FicusStore</code></a></td>
+<td><code>rig</code> as layered config, any other kind as a flat record</td>
+<td>Never prompts — the chain yields exactly one document</td>
+<td>Plain HTTP over ficus; no extra needed</td>
+</tr>
+<tr>
+<td><a class="autorefs autorefs-internal" href="../../api/stores/stores/#clabe.stores.CompositeStore"><code>CompositeStore</code></a></td>
+<td>whatever its routes serve</td>
+<td>Delegates to the routed backend</td>
+<td>Routes a kind name to a backend — the payoff over subclassing</td>
+</tr>
+</tbody>
+</table>
+<h2 id="localfilestore">LocalFileStore<a class="headerlink" href="#localfilestore" title="Permanent link">&para;</a></h2>
+<p>A store over a directory of JSON files. Reads glob for matching files; writes overwrite and create any missing parent directories.</p>
+<div class="language-python highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">clabe.stores</span><span class="w"> </span><span class="kn">import</span> <span class="n">Kind</span><span class="p">,</span> <span class="n">LocalFileStore</span>
+
+<span class="n">RIG</span> <span class="o">=</span> <span class="n">Kind</span><span class="o">.</span><span class="n">from_rig</span><span class="p">(</span><span class="n">MyRigModel</span><span class="p">)</span>
+<span class="n">TASK</span> <span class="o">=</span> <span class="n">Kind</span><span class="o">.</span><span class="n">from_task</span><span class="p">(</span><span class="n">MyTaskModel</span><span class="p">)</span>
+
+<span class="n">store</span> <span class="o">=</span> <span class="n">LocalFileStore</span><span class="p">(</span><span class="n">root</span><span class="o">=</span><span class="sa">r</span><span class="s2">"</span><span class="se">\\</span><span class="s2">allen\aind\scratch\AindBehavior.db\MyProject"</span><span class="p">)</span>
+
+<span class="n">rig</span> <span class="o">=</span> <span class="n">store</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="n">RIG</span><span class="p">)</span>
+<span class="n">store</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">TASK</span><span class="p">,</span> <span class="n">my_task_logic</span><span class="p">)</span>
+</code></pre></div>
+<p><code>computer_name</code> is filled into the store's scope automatically — from <code>COMPUTERNAME</code>, falling back to <code>platform.node()</code> — since resolving a rig config needs to know which machine is asking:</p>
+<div class="language-python highlight"><pre><span></span><code><span class="n">store</span><span class="o">.</span><span class="n">scope</span>  <span class="c1"># {"computer_name": "RIG-01"}</span>
+</code></pre></div>
+<h3 id="the-on-disk-layout">The on-disk layout<a class="headerlink" href="#the-on-disk-layout" title="Permanent link">&para;</a></h3>
+<p>The default <a class="autorefs autorefs-internal" href="../../api/stores/stores/#clabe.stores.Layout"><code>Layout</code></a> — <a class="autorefs autorefs-internal" href="../../api/stores/stores/#clabe.stores.DefaultLayout"><code>DefaultLayout</code></a> — reproduces the config-library tree used today:</p>
+<div class="language-text highlight"><pre><span></span><code>&lt;root&gt;/
+  Rig/&lt;computer_name&gt;/*.json
+  Task/*.json
+  Subjects/&lt;subject&gt;/task.json
+  Subjects/&lt;subject&gt;/trainer_state.json
+</code></pre></div>
+<p><code>task</code> reads the subject's folder first and falls back to the shared library — an ordered scope chain, rather than the nested try/while a picker used to do inline:</p>
+<div class="language-python highlight"><pre><span></span><code><span class="n">store</span> <span class="o">=</span> <span class="n">store</span><span class="o">.</span><span class="n">scoped</span><span class="p">(</span><span class="n">subject</span><span class="o">=</span><span class="s2">"789012"</span><span class="p">)</span>
+<span class="n">task_logic</span> <span class="o">=</span> <span class="n">store</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="n">TASK</span><span class="p">)</span>  <span class="c1"># Subjects/789012/task.json, else Task/*.json</span>
+</code></pre></div>
+<p>Kinds other than <code>rig</code> and <code>task</code> are per-subject state living beside the subject's task; with no subject in scope they sit at the library root instead — which is what makes a one-off store pointed at a single directory work (see <a href="#recovering-a-past-session">Recovering a past session</a> below).</p>
+<h3 id="a-custom-layout">A custom layout<a class="headerlink" href="#a-custom-layout" title="Permanent link">&para;</a></h3>
+<p>Pass your own <code>Layout</code> when the on-disk shape doesn't match <code>DefaultLayout</code> — implementing <code>read</code> (glob patterns, highest priority first) and <code>write</code> (the single path to persist to):</p>
+<div class="language-python highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sequence</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">clabe.stores</span><span class="w"> </span><span class="kn">import</span> <span class="n">LocalFileStore</span><span class="p">,</span> <span class="n">Scope</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">FlatLayout</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Every kind lives directly at the library root, no subject nesting."""</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">read</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">kind_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">scope</span><span class="p">:</span> <span class="n">Scope</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="p">[</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">kind_name</span><span class="si">}</span><span class="s2">.json"</span><span class="p">]</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">write</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">kind_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">scope</span><span class="p">:</span> <span class="n">Scope</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">kind_name</span><span class="si">}</span><span class="s2">.json"</span>
+
+
+<span class="n">store</span> <span class="o">=</span> <span class="n">LocalFileStore</span><span class="p">(</span><span class="n">root</span><span class="o">=</span><span class="s2">"./my_lib"</span><span class="p">,</span> <span class="n">layout</span><span class="o">=</span><span class="n">FlatLayout</span><span class="p">())</span>
+</code></pre></div>
+<h2 id="memorystore">MemoryStore<a class="headerlink" href="#memorystore" title="Permanent link">&para;</a></h2>
+<p>Holds records in a process-local list. Nothing touches disk or a network, so it's the right fake for tests and for assembling records in code.</p>
+<div class="language-python highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">clabe.stores</span><span class="w"> </span><span class="kn">import</span> <span class="n">Kind</span><span class="p">,</span> <span class="n">MemoryStore</span>
+
+<span class="n">MANIPULATOR</span> <span class="o">=</span> <span class="n">Kind</span><span class="p">(</span><span class="n">ManipulatorPosition</span><span class="p">)</span>
+
+<span class="n">store</span> <span class="o">=</span> <span class="n">MemoryStore</span><span class="p">()</span>
+<span class="n">store</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">MANIPULATOR</span><span class="p">,</span> <span class="n">ManipulatorPosition</span><span class="p">(</span><span class="n">x</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">z</span><span class="o">=</span><span class="mi">3</span><span class="p">))</span>
+
+<span class="k">assert</span> <span class="n">store</span><span class="o">.</span><span class="n">list</span><span class="p">(</span><span class="n">MANIPULATOR</span><span class="p">)</span> <span class="o">==</span> <span class="p">[</span><span class="n">ManipulatorPosition</span><span class="p">(</span><span class="n">x</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">z</span><span class="o">=</span><span class="mi">3</span><span class="p">)]</span>
+</code></pre></div>
+<p>Like <code>DataverseStore</code>, writes <strong>append</strong> rather than overwrite, so several records of one kind accumulate as candidates — useful for exercising <code>resolve</code>'s many-candidates prompt in a test without a real backend behind it. A record written under a scope is only visible to a read whose scope agrees with every one of those narrowings; a record written unscoped is visible everywhere:</p>
+<div class="language-python highlight"><pre><span></span><code><span class="n">store</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">MANIPULATOR</span><span class="p">,</span> <span class="n">ManipulatorPosition</span><span class="p">(</span><span class="n">x</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">z</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span> <span class="n">scope</span><span class="o">=</span><span class="p">{</span><span class="s2">"subject"</span><span class="p">:</span> <span class="s2">"123"</span><span class="p">})</span>
+
+<span class="n">store</span><span class="o">.</span><span class="n">list</span><span class="p">(</span><span class="n">MANIPULATOR</span><span class="p">)</span>  <span class="c1"># [] — no subject in scope</span>
+<span class="n">store</span><span class="o">.</span><span class="n">scoped</span><span class="p">(</span><span class="n">subject</span><span class="o">=</span><span class="s2">"123"</span><span class="p">)</span><span class="o">.</span><span class="n">list</span><span class="p">(</span><span class="n">MANIPULATOR</span><span class="p">)</span>  <span class="c1"># [ManipulatorPosition(x=0, y=0, z=0)]</span>
+</code></pre></div>
+<h2 id="dataversestore">DataverseStore<a class="headerlink" href="#dataversestore" title="Permanent link">&para;</a></h2>
+<p>A store over the Dataverse suggestion tables — the trainer-state history kept in <code>aibs_fact_mouse_proposed_behavior_sessionses</code>, keyed through <code>aibs_dim_mices</code>. It serves <code>trainer_state</code> only; resolving or writing any other kind raises <code>LookupError</code>.</p>
+<p><code>clabe.stores.dataverse</code> isn't imported by <code>clabe.stores</code> itself, since it needs <code>requests</code>, <code>msal</code> and <code>pyyaml</code> — install the extra and import it explicitly:</p>
+<div class="language-bash highlight"><pre><span></span><code>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"aind-clabe[aind-services]"</span>
+</code></pre></div>
+<div class="language-python highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">clabe.stores.dataverse</span><span class="w"> </span><span class="kn">import</span> <span class="n">DataverseStore</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">clabe.stores</span><span class="w"> </span><span class="kn">import</span> <span class="n">Kind</span>
+
+<span class="n">SUGGESTION</span> <span class="o">=</span> <span class="n">Kind</span><span class="o">.</span><span class="n">from_trainer_state</span><span class="p">()</span>
+
+<span class="n">store</span> <span class="o">=</span> <span class="n">DataverseStore</span><span class="p">(</span><span class="n">history</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>  <span class="c1"># offer the 5 most recent suggestions</span>
+<span class="n">store</span> <span class="o">=</span> <span class="n">store</span><span class="o">.</span><span class="n">scoped</span><span class="p">(</span><span class="n">subject</span><span class="o">=</span><span class="s2">"789012"</span><span class="p">,</span> <span class="n">task_name</span><span class="o">=</span><span class="s2">"MyTask"</span><span class="p">)</span>
+
+<span class="n">trainer_state</span> <span class="o">=</span> <span class="n">store</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="n">SUGGESTION</span><span class="p">)</span>
+<span class="n">store</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">SUGGESTION</span><span class="p">,</span> <span class="n">next_trainer_state</span><span class="p">)</span>
+</code></pre></div>
+<p><code>resolve</code> and <code>list</code> both require <code>subject</code> and <code>task_name</code> in scope — set them once with <code>scoped</code>, as above, rather than passing <code>scope=</code> on every call. At the default <code>history=1</code> the latest suggestion is used without prompting; raise it to offer a short pick list of recent history instead.</p>
+<p>Credentials are a <a class="autorefs autorefs-internal" href="../../api/services/#clabe.services.ServiceSettings"><code>ServiceSettings</code></a> subclass, so they resolve from the <code>dataverse</code> section of your known config files (or the environment) by default:</p>
+<div class="language-yaml highlight"><pre><span></span><code><span class="nt">dataverse</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">tenant_id</span><span class="p">:</span><span class="w"> </span><span class="s">"..."</span>
+<span class="w">  </span><span class="nt">client_id</span><span class="p">:</span><span class="w"> </span><span class="s">"..."</span>
+<span class="w">  </span><span class="nt">org</span><span class="p">:</span><span class="w"> </span><span class="s">"your-org"</span>
+</code></pre></div>
+<p><code>username</code>/<code>password</code> are not meant for the YAML file — <code>DataverseStore()</code> with no <code>client</code> builds one from a KeePass entry (<code>svc_sipe</code> by default). Pass your own <code>client=_DataverseRestClient(...)</code> to bypass KeePass entirely, e.g. in tests.</p>
+<h2 id="ficusstore">FicusStore<a class="headerlink" href="#ficusstore" title="Permanent link">&para;</a></h2>
+<p><a href="https://github.com/AllenNeuralDynamics/ficus">Ficus</a> is a layered configuration service. It stores documents addressed by a <code>namespace</code>, a <code>filename</code> and an optional <em>scope</em> — a computer, a subject — and an effective config is assembled from a <code>defaults</code> document plus one document per scope, deep-merged in a fixed precedence order. <code>FicusStore</code> reads and writes one namespace of it.</p>
+<p>There is no third-party client involved: clabe talks to ficus over plain HTTP through its own <a class="autorefs autorefs-internal" href="../../api/stores/ficus/#clabe.stores.ficus.FicusClient"><code>FicusClient</code></a>. Since <code>requests</code> is already a core dependency, this backend needs <strong>no optional extra</strong> — unlike <code>dataverse</code>, <code>pip install aind-clabe</code> is enough, and <code>FicusStore</code>, <code>FicusSettings</code>, <code>FicusClient</code> and <code>MergePolicy</code> are re-exported straight from <code>clabe.stores</code>:</p>
+<div class="language-python highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">clabe.stores</span><span class="w"> </span><span class="kn">import</span> <span class="n">FicusSettings</span><span class="p">,</span> <span class="n">FicusStore</span><span class="p">,</span> <span class="n">Kind</span>
+
+<span class="n">RIG</span> <span class="o">=</span> <span class="n">Kind</span><span class="o">.</span><span class="n">from_rig</span><span class="p">(</span><span class="n">AindVrForagingRig</span><span class="p">)</span>
+<span class="n">MANIPULATOR</span> <span class="o">=</span> <span class="n">Kind</span><span class="p">(</span><span class="n">ManipulatorPosition</span><span class="p">)</span>
+
+<span class="n">store</span> <span class="o">=</span> <span class="n">FicusStore</span><span class="p">(</span><span class="n">FicusSettings</span><span class="p">(</span><span class="n">namespace</span><span class="o">=</span><span class="s2">"aind-behavior-vr-foraging"</span><span class="p">))</span>
+
+<span class="n">rig</span> <span class="o">=</span> <span class="n">store</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="n">RIG</span><span class="p">)</span>
+<span class="n">position</span> <span class="o">=</span> <span class="n">store</span><span class="o">.</span><span class="n">scoped</span><span class="p">(</span><span class="n">subject</span><span class="o">=</span><span class="s2">"789907"</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="n">MANIPULATOR</span><span class="p">)</span>
+</code></pre></div>
+<p>Settings are a <a class="autorefs autorefs-internal" href="../../api/services/#clabe.services.ServiceSettings"><code>ServiceSettings</code></a> subclass, so they resolve from the <code>ficus</code> section of your known config files (or the environment) by default:</p>
+<div class="language-yaml highlight"><pre><span></span><code><span class="nt">ficus</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">namespace</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">aind-behavior-vr-foraging</span>
+<span class="w">  </span><span class="nt">base_url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">http://eng-tools/ficus-dev</span>
+<span class="w">  </span><span class="nt">config_kinds</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">"rig"</span><span class="p p-Indicator">]</span>
+<span class="w">  </span><span class="nt">config_scopes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">"computers"</span><span class="p p-Indicator">]</span>
+</code></pre></div>
+<p><code>base_url</code> defaults to <code>http://eng-tools/ficus-dev</code>, and like every other setting can be overridden in the <code>ficus</code> section of clabe.yml.</p>
+<h3 id="two-shapes-of-document">Two shapes of document<a class="headerlink" href="#two-shapes-of-document" title="Permanent link">&para;</a></h3>
+<p><code>FicusStore</code> serves two shapes of document, told apart by kind name:</p>
+<ul>
+<li><strong>Layered config</strong> — any kind named in <code>config_kinds</code>, which defaults to <code>{"rig"}</code>. Merged across <code>defaults</code> and then the configured scopes, from ficus' <code>default</code> document.</li>
+<li><strong>Flat records</strong> — every other kind. A standalone document named <code>&lt;kind.name&gt;.json</code>, living in exactly <em>one</em> scope, read and written whole. It never joins a merge chain. This is what <a class="autorefs autorefs-internal" href="../../api/modifiers/#clabe.modifiers.ByAnimalModifier"><code>ByAnimalModifier</code></a> uses for per-animal state.</li>
+</ul>
+<p>Concretely, in the <code>aind-behavior-vr-foraging</code> namespace on rig <code>DT201256</code> running subject <code>789907</code>, the rig comes out of a merge ending at <code>/scratch/computers/DT201256/aind-behavior-vr-foraging/default.json</code>, while the manipulator position is the single document <code>/scratch/subjects/789907/aind-behavior-vr-foraging/manipulator_position.json</code>.</p>
+<p>Either shape yields exactly one document, so <code>resolve</code> never prompts: <code>_candidates</code> returns at most one <code>Candidate</code>, which <code>StoreBase.resolve</code> auto-selects.</p>
+<p>The merge chain for a config kind runs lowest precedence first:</p>
+<div class="language-text highlight"><pre><span></span><code>defaults/default.json
+defaults/&lt;filename&gt;                  # only when FicusSettings.filename is set
+&lt;scope&gt;/&lt;id&gt;/default.json
+&lt;scope&gt;/&lt;id&gt;/&lt;filename&gt;              # only when FicusSettings.filename is set
+</code></pre></div>
+<p><code>filename</code> is an <em>extra</em> document layered on top of <code>default.json</code> at every level — a variant (<code>high-freq.json</code>) rather than a replacement. Left unset, the chain is <code>default.json</code> alone.</p>
+<h3 id="extensions">Extensions<a class="headerlink" href="#extensions" title="Permanent link">&para;</a></h3>
+<p>Ficus accepts <code>.json</code>, <code>.yml</code> and <code>.yaml</code>, and a document is stored under whichever one created it. A read matches the extension exactly: a request for <code>default.json</code> when <code>default.yml</code> is what exists returns "not found". Ficus also allows a stem only one extension at a time — writing <code>default.json</code> alongside an existing <code>default.yml</code> returns 409.</p>
+<p>Each <code>default</code> document in the chain is looked up via <a class="autorefs autorefs-internal" href="../../api/stores/ficus/#clabe.stores.ficus.FicusClient.locate"><code>FicusClient.locate</code></a>, which tries <code>FicusSettings.extension</code> first and falls back through the others. Layers may differ from one another: <code>defaults</code> as <code>.json</code> and one rig as <code>.yml</code> merges normally.</p>
+<p>A document that exists keeps its extension. <code>FicusSettings.extension</code> (<code>.json</code> by default) names only documents that do not exist yet:</p>
+<div class="language-python highlight"><pre><span></span><code><span class="n">FicusSettings</span><span class="p">(</span><span class="n">namespace</span><span class="o">=...</span><span class="p">,</span> <span class="n">extension</span><span class="o">=</span><span class="s2">".yml"</span><span class="p">)</span>
+</code></pre></div>
+<p>When the preferred extension is the stored one, a lookup is a single request; a miss costs one request per remaining extension. Flat-record writes perform this lookup before writing.</p>
+<p>The <code>filename</code> extra document is fetched by exact name, extension included.</p>
+<h3 id="the-merge-happens-client-side">The merge happens client-side<a class="headerlink" href="#the-merge-happens-client-side" title="Permanent link">&para;</a></h3>
+<p>Ficus can merge layers itself. <code>FicusStore</code> does not use that: every layer is fetched individually with <code>merge=false</code> and merged client-side.</p>
+<p>The server's merge returns 404 for the entire request if any requested scope has no document, and requires a named file to exist at the <code>defaults</code> layer. Merging client-side skips a missing layer instead, and records which documents contributed — <a class="autorefs autorefs-internal" href="../../api/stores/ficus/#clabe.stores.ficus.MergeResult"><code>MergeResult.sources</code></a> lists them in the order applied, and that list labels the resulting <code>Candidate</code>.</p>
+<p>The merge reproduces ficus' <code>_deep_update</code>: dicts present on both sides recurse, and everything else — lists included — is replaced outright.</p>
+<p><code>null</code> is a <strong>value, not a deletion</strong>. A downstream layer can blank out a field it inherited: if <code>defaults</code> sets <code>manipulator.port: "COM3"</code> and rig <code>DT201256</code> has no manipulator, the rig layer writes <code>manipulator: null</code> and the merged config resolves to <code>null</code>. Under RFC 7386 semantics the key would be removed instead, and the value would fall back to the pydantic field's default, which is not always <code>None</code>.</p>
+<p><a class="autorefs autorefs-internal" href="../../api/stores/ficus/#clabe.stores.ficus.MergePolicy"><code>MergePolicy</code></a> exposes these as <code>null_means</code>, <code>lists</code>, <code>on_type_conflict</code> and <code>on_missing_layer</code>; the defaults reproduce ficus' behaviour:</p>
+<div class="language-python highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">clabe.stores</span><span class="w"> </span><span class="kn">import</span> <span class="n">FicusSettings</span><span class="p">,</span> <span class="n">MergePolicy</span>
+
+<span class="n">settings</span> <span class="o">=</span> <span class="n">FicusSettings</span><span class="p">(</span>
+    <span class="n">namespace</span><span class="o">=</span><span class="s2">"aind-behavior-vr-foraging"</span><span class="p">,</span>
+    <span class="n">policy</span><span class="o">=</span><span class="n">MergePolicy</span><span class="p">(</span><span class="n">lists</span><span class="o">=</span><span class="s2">"concat"</span><span class="p">,</span> <span class="n">on_type_conflict</span><span class="o">=</span><span class="s2">"raise"</span><span class="p">),</span>
+<span class="p">)</span>
+</code></pre></div>
+<h3 id="reads-and-writes-address-a-scope-differently">Reads and writes address a scope differently<a class="headerlink" href="#reads-and-writes-address-a-scope-differently" title="Permanent link">&para;</a></h3>
+<p>From ficus' OpenAPI spec:</p>
+<div class="language-text highlight"><pre><span></span><code>POST|PATCH|DELETE  /v1/computers/{hostname}/namespaces/{namespace}/config/{filename}
+POST|PATCH|DELETE  /v1/subjects/{subject_id}/namespaces/{namespace}/config/{filename}
+GET                /v1/namespaces/{namespace}/config?hostname=&amp;subject_id=&amp;filename=&amp;merge=
+</code></pre></div>
+<p>A scope has a <strong>collection</strong> (<code>computers</code>, <code>subjects</code>) and a <strong>parameter</strong> (<code>hostname</code>, <code>subject_id</code>). Writes use both: the collection is the path segment, the parameter is the path variable. There is no scoped <code>GET</code> route — a <code>GET</code> on a write path returns <code>405 Method Not Allowed</code> — so reads address a scope by query parameter on the unscoped route.</p>
+<p>An unrecognised query parameter is ignored rather than rejected: <code>?computers=DT201256</code> returns the <code>defaults</code> layer.</p>
+<p><a class="autorefs autorefs-internal" href="../../api/stores/ficus/#clabe.stores.ficus.ScopeRef"><code>ScopeRef</code></a> carries both names; <code>COMPUTERS</code> / <code>SUBJECTS</code> bind them to an identifier.</p>
+<h3 id="which-rig-and-which-subject">Which rig, and which subject<a class="headerlink" href="#which-rig-and-which-subject" title="Permanent link">&para;</a></h3>
+<p>The rig identifier is the <strong>machine name</strong>, held as the <code>computer_name</code> scope key. It is seeded at construction from <a class="autorefs autorefs-internal" href="../../api/utils/utils/#clabe.utils.get_computer_name"><code>get_computer_name</code></a>, as it is for <code>LocalFileStore</code>, and narrowed like any other scope key:</p>
+<div class="language-python highlight"><pre><span></span><code><span class="n">store</span><span class="o">.</span><span class="n">scope</span>  <span class="c1"># {"computer_name": "RIG-01"}</span>
+<span class="n">store</span><span class="o">.</span><span class="n">scoped</span><span class="p">(</span><span class="n">computer_name</span><span class="o">=</span><span class="s2">"DT201256"</span><span class="p">)</span>  <span class="c1"># address another machine's layer</span>
+</code></pre></div>
+<p><code>CompositeStore.scoped</code> passes the narrowing to every backend it routes to, so one call moves them together.</p>
+<p><code>subject</code> behaves the same way: <code>scoped(subject="789907")</code> puts a flat record under <code>subjects/&lt;id&gt;</code>; with no subject in scope it goes under the rig.</p>
+<p>The machine name is not <code>aibs_comp_id</code>, which holds the AIND <em>rig</em> name (<code>FRG.4A</code>). The two are different identifiers for the same machine, and ficus is keyed on the former — <code>/scratch/computers/DT201256/...</code>, <code>/scratch/computers/LEVIATHON/...</code>.</p>
+<p>To drop the rig layer, leave it out of <code>config_scopes</code>:</p>
+<div class="language-python highlight"><pre><span></span><code><span class="n">FicusSettings</span><span class="p">(</span><span class="n">namespace</span><span class="o">=...</span><span class="p">,</span> <span class="n">config_scopes</span><span class="o">=</span><span class="p">[])</span>  <span class="c1"># defaults only</span>
+</code></pre></div>
+<h3 id="the-subject-scope-is-not-in-the-default-merge-chain">The subject scope is not in the default merge chain<a class="headerlink" href="#the-subject-scope-is-not-in-the-default-merge-chain" title="Permanent link">&para;</a></h3>
+<p><code>config_scopes</code> defaults to <code>["computers"]</code>, so the subject layer does not contribute to the merged rig even when a subject is in scope. Per-animal values reach the rig through <a class="autorefs autorefs-internal" href="../../api/modifiers/#clabe.modifiers.ByAnimalModifier"><code>ByAnimalModifier</code></a>, which reads a flat record and injects it; including the subject layer here as well would apply them twice.</p>
+<p>To have ficus own per-animal rig overrides instead, add it:</p>
+<div class="language-python highlight"><pre><span></span><code><span class="n">settings</span> <span class="o">=</span> <span class="n">FicusSettings</span><span class="p">(</span>
+    <span class="n">namespace</span><span class="o">=</span><span class="s2">"aind-behavior-vr-foraging"</span><span class="p">,</span>
+    <span class="n">config_scopes</span><span class="o">=</span><span class="p">[</span><span class="s2">"computers"</span><span class="p">,</span> <span class="s2">"subjects"</span><span class="p">],</span>  <span class="c1"># subject wins over rig, which wins over defaults</span>
+<span class="p">)</span>
+</code></pre></div>
+<h3 id="writing-a-flat-record">Writing a flat record<a class="headerlink" href="#writing-a-flat-record" title="Permanent link">&para;</a></h3>
+<p>A flat record has exactly one home and is written whole. <code>write</code> <code>POST</code>s and falls back to <code>PATCH</code> on a 409; ficus' <code>PATCH</code> deep-merges the payload into that document server-side, so a partial write needs no read-modify-write:</p>
+<div class="language-python highlight"><pre><span></span><code><span class="n">store</span><span class="o">.</span><span class="n">scoped</span><span class="p">(</span><span class="n">subject</span><span class="o">=</span><span class="s2">"789907"</span><span class="p">)</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">MANIPULATOR</span><span class="p">,</span> <span class="n">ManipulatorPosition</span><span class="p">(</span><span class="n">x</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">z</span><span class="o">=</span><span class="mi">3</span><span class="p">))</span>
+<span class="c1"># → /scratch/subjects/789907/aind-behavior-vr-foraging/manipulator_position.json</span>
+</code></pre></div>
+<p>Because <code>PATCH</code> merges, it cannot <em>remove</em> a key. Dropping a field takes a delete followed by a rewrite.</p>
+<h3 id="writing-layered-config-back">Writing layered config back<a class="headerlink" href="#writing-layered-config-back" title="Permanent link">&para;</a></h3>
+<p>Layered config has no single home. <code>write</code> diffs the value against what the config currently resolves to and sends <strong>only the leaves that changed</strong>, to the top of the merge chain:</p>
+<div class="language-python highlight"><pre><span></span><code><span class="n">rig</span> <span class="o">=</span> <span class="n">store</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="n">RIG</span><span class="p">)</span>
+<span class="n">rig</span><span class="o">.</span><span class="n">manipulator</span><span class="o">.</span><span class="n">port</span> <span class="o">=</span> <span class="s2">"COM4"</span>
+<span class="n">store</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">RIG</span><span class="p">,</span> <span class="n">rig</span><span class="p">)</span>
+<span class="c1"># → PATCH /scratch/computers/DT201256/aind-behavior-vr-foraging/default.json</span>
+<span class="c1"># → body: {"manipulator": {"port": "COM4"}}</span>
+</code></pre></div>
+<p>When nothing differs, nothing is written.</p>
+<p>Both sides of the diff are put through the same model first. A stored document omits every field the model defaults and may carry keys the model does not declare; a model dump re-introduces the former and drops the latter. Normalising both sides cancels those differences, leaving only the edit.</p>
+<p>Two cases raise:</p>
+<ul>
+<li><strong>A key present in the resolved config but absent from the value.</strong> <code>PATCH</code> merges and cannot delete, and <code>null</code> is a value here rather than a tombstone. Removing a key takes a delete and a rewrite.</li>
+<li><strong>A write a higher layer would shadow.</strong> The merge records which layer won each leaf (<a class="autorefs autorefs-internal" href="../../api/stores/ficus/#clabe.stores.ficus.MergeResult.origin"><code>MergeResult.origin</code></a>). A write aimed at <code>defaults</code> for a value the rig layer overrides would not change what the next read returns. This cannot arise at the default target, the top of the chain.</li>
+</ul>
+<p><a class="autorefs autorefs-internal" href="../../api/stores/ficus/#clabe.stores.ficus.WritePolicy"><code>WritePolicy</code></a> governs both.</p>
+<p>With an empty <code>config_scopes</code> the only remaining layer is <code>defaults</code>, which every machine in the namespace reads; <code>write</code> raises rather than write it.</p>
+<p>To target one layer explicitly:</p>
+<div class="language-python highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">clabe.stores.ficus</span><span class="w"> </span><span class="kn">import</span> <span class="n">COMPUTERS</span><span class="p">,</span> <span class="n">LayerKey</span>
+
+<span class="n">store</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">write</span><span class="p">(</span>  <span class="c1"># write this document outright</span>
+    <span class="n">store</span><span class="o">.</span><span class="n">namespace</span><span class="p">,</span>
+    <span class="p">{</span><span class="s2">"manipulator"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"port"</span><span class="p">:</span> <span class="s2">"COM4"</span><span class="p">}},</span>
+    <span class="n">scope</span><span class="o">=</span><span class="n">COMPUTERS</span><span class="p">(</span><span class="s2">"DT201256"</span><span class="p">),</span>
+<span class="p">)</span>
+
+<span class="n">current</span> <span class="o">=</span> <span class="n">store</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">get_merged</span><span class="p">(</span><span class="n">store</span><span class="o">.</span><span class="n">namespace</span><span class="p">,</span> <span class="n">scopes</span><span class="o">=</span><span class="p">[</span><span class="n">COMPUTERS</span><span class="p">(</span><span class="s2">"DT201256"</span><span class="p">)])</span>
+<span class="n">store</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">write_back</span><span class="p">(</span>  <span class="c1"># or diff against the chain, into a layer you name</span>
+    <span class="n">store</span><span class="o">.</span><span class="n">namespace</span><span class="p">,</span>
+    <span class="n">current</span><span class="p">,</span>
+    <span class="n">new_config</span><span class="p">,</span>
+    <span class="n">target</span><span class="o">=</span><span class="n">LayerKey</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="s2">"default.json"</span><span class="p">),</span>  <span class="c1"># None scope == the defaults layer</span>
+<span class="p">)</span>
+</code></pre></div>
+<p><a class="autorefs autorefs-internal" href="../../api/stores/ficus/#clabe.stores.ficus.FicusClient.plan_write_back"><code>plan_write_back</code></a> runs the same logic and returns the <a class="autorefs autorefs-internal" href="../../api/stores/ficus/#clabe.stores.ficus.LayerWrite"><code>LayerWrite</code></a> without sending it.</p>
+<h2 id="compositestore-routing-by-kind">CompositeStore: routing by kind<a class="headerlink" href="#compositestore-routing-by-kind" title="Permanent link">&para;</a></h2>
+<p>The payoff composition buys over the old picker inheritance: a deployment keeping rigs and tasks on a network share but trainer state in Dataverse is a routing table, not a subclass.</p>
+<div class="language-python highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">clabe.stores</span><span class="w"> </span><span class="kn">import</span> <span class="n">CompositeStore</span><span class="p">,</span> <span class="n">Kind</span><span class="p">,</span> <span class="n">LocalFileStore</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">clabe.stores.dataverse</span><span class="w"> </span><span class="kn">import</span> <span class="n">DataverseStore</span>
+
+<span class="n">RIG</span> <span class="o">=</span> <span class="n">Kind</span><span class="o">.</span><span class="n">from_rig</span><span class="p">(</span><span class="n">MyRigModel</span><span class="p">)</span>
+<span class="n">TASK</span> <span class="o">=</span> <span class="n">Kind</span><span class="o">.</span><span class="n">from_task</span><span class="p">(</span><span class="n">MyTaskModel</span><span class="p">)</span>
+<span class="n">SUGGESTION</span> <span class="o">=</span> <span class="n">Kind</span><span class="o">.</span><span class="n">from_trainer_state</span><span class="p">()</span>
+
+<span class="n">store</span> <span class="o">=</span> <span class="n">CompositeStore</span><span class="p">(</span>
+    <span class="n">default</span><span class="o">=</span><span class="n">LocalFileStore</span><span class="p">(</span><span class="n">root</span><span class="o">=</span><span class="sa">r</span><span class="s2">"</span><span class="se">\\</span><span class="s2">allen\aind\scratch\AindBehavior.db\MyProject"</span><span class="p">),</span>
+    <span class="n">routes</span><span class="o">=</span><span class="p">{</span><span class="s2">"trainer_state"</span><span class="p">:</span> <span class="n">DataverseStore</span><span class="p">()},</span>
+    <span class="c1"># a ficus-backed rig route (routes={"rig": FicusStore(...)}) is the same shape</span>
+<span class="p">)</span>
+
+<span class="n">rig</span> <span class="o">=</span> <span class="n">store</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="n">RIG</span><span class="p">)</span>  <span class="c1"># → LocalFileStore (the default)</span>
+<span class="n">trainer_state</span> <span class="o">=</span> <span class="n">store</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="n">SUGGESTION</span><span class="p">)</span>  <span class="c1"># → DataverseStore (routed by name)</span>
+</code></pre></div>
+<p>Every method — <code>resolve</code>, <code>list</code>, <code>write</code>, <code>scoped</code> — delegates to whichever backend serves the kind, so each backend's own presentation is used (a flat file pick list for <code>RIG</code>, a queried table of recent suggestions for <code>SUGGESTION</code>). <code>scoped</code> narrows <strong>every</strong> backend at once:</p>
+<div class="language-python highlight"><pre><span></span><code><span class="n">store</span> <span class="o">=</span> <span class="n">store</span><span class="o">.</span><span class="n">scoped</span><span class="p">(</span><span class="n">subject</span><span class="o">=</span><span class="n">session</span><span class="o">.</span><span class="n">subject</span><span class="p">)</span>  <span class="c1"># narrows both the local store and Dataverse</span>
+</code></pre></div>
+<p>A kind with no route and no <code>default</code> raises <code>LookupError</code> naming the kind — which kinds a deployment actually serves is a fact assembled from configuration, not something the type system tracks.</p>
+<h2 id="recipes">Recipes<a class="headerlink" href="#recipes" title="Permanent link">&para;</a></h2>
+<h3 id="scoping-a-store-to-the-animal">Scoping a store to the animal<a class="headerlink" href="#scoping-a-store-to-the-animal" title="Permanent link">&para;</a></h3>
+<div class="language-python highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">clabe.session</span><span class="w"> </span><span class="kn">import</span> <span class="n">SessionBuilder</span>
+
+<span class="n">session</span> <span class="o">=</span> <span class="n">SessionBuilder</span><span class="p">(</span><span class="n">launcher</span><span class="p">)</span><span class="o">.</span><span class="n">build</span><span class="p">()</span>
+<span class="n">store</span> <span class="o">=</span> <span class="n">store</span><span class="o">.</span><span class="n">scoped</span><span class="p">(</span><span class="n">subject</span><span class="o">=</span><span class="n">session</span><span class="o">.</span><span class="n">subject</span><span class="p">)</span>
+</code></pre></div>
+<h3 id="per-animal-reconfiguration-with-byanimalmodifier">Per-animal reconfiguration with ByAnimalModifier<a class="headerlink" href="#per-animal-reconfiguration-with-byanimalmodifier" title="Permanent link">&para;</a></h3>
+<p><a class="autorefs autorefs-internal" href="../../api/modifiers/#clabe.modifiers.ByAnimalModifier"><code>ByAnimalModifier</code></a> reads and writes per-animal state through a store, so the same modifier works against any backend:</p>
+<div class="language-python highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">clabe.modifiers</span><span class="w"> </span><span class="kn">import</span> <span class="n">ByAnimalModifier</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">clabe.stores</span><span class="w"> </span><span class="kn">import</span> <span class="n">Kind</span>
+
+<span class="n">MANIPULATOR</span> <span class="o">=</span> <span class="n">Kind</span><span class="p">(</span><span class="n">ManipulatorPosition</span><span class="p">)</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">ManipulatorModifier</span><span class="p">(</span><span class="n">ByAnimalModifier</span><span class="p">[</span><span class="n">MyRig</span><span class="p">]):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">subject</span><span class="p">,</span> <span class="n">store</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">subject</span><span class="p">,</span> <span class="n">store</span><span class="p">,</span> <span class="n">MANIPULATOR</span><span class="p">,</span> <span class="s2">"manipulator.position"</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_process_before_update</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">read_position_from_hardware</span><span class="p">()</span>
+
+
+<span class="n">modifier</span> <span class="o">=</span> <span class="n">ManipulatorModifier</span><span class="p">(</span><span class="n">session</span><span class="o">.</span><span class="n">subject</span><span class="p">,</span> <span class="n">store</span><span class="p">)</span>
+<span class="n">rig</span> <span class="o">=</span> <span class="n">modifier</span><span class="o">.</span><span class="n">inject</span><span class="p">(</span><span class="n">rig</span><span class="p">)</span>  <span class="c1"># leaves the rig untouched if nothing is stored</span>
+<span class="o">...</span>
+<span class="n">modifier</span><span class="o">.</span><span class="n">update</span><span class="p">()</span>
+</code></pre></div>
+<p>The subject is a constructor argument, and the modifier narrows the store with it. A store with no subject in scope reads and writes wherever the backend places a subject-less record, which for <code>FicusStore</code> is the rig's own scope.</p>
+<h3 id="recovering-a-past-session">Recovering a past session<a class="headerlink" href="#recovering-a-past-session" title="Permanent link">&para;</a></h3>
+<p><code>Session</code> is serializable — a receipt of an acquisition — so <code>Kind.from_session()</code> exists, and a one-off <code>LocalFileStore</code> pointed straight at a session directory can load one back with no subject nesting involved:</p>
+<div class="language-python highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">clabe.stores</span><span class="w"> </span><span class="kn">import</span> <span class="n">Kind</span><span class="p">,</span> <span class="n">LocalFileStore</span>
+
+<span class="n">session</span> <span class="o">=</span> <span class="n">LocalFileStore</span><span class="p">(</span><span class="n">root</span><span class="o">=</span><span class="n">session_directory</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="n">Kind</span><span class="o">.</span><span class="n">from_session</span><span class="p">())</span>
+<span class="n">store</span> <span class="o">=</span> <span class="n">store</span><span class="o">.</span><span class="n">scoped</span><span class="p">(</span><span class="n">subject</span><span class="o">=</span><span class="n">session</span><span class="o">.</span><span class="n">subject</span><span class="p">)</span>
+</code></pre></div>
+<h3 id="testing-against-a-store">Testing against a store<a class="headerlink" href="#testing-against-a-store" title="Permanent link">&para;</a></h3>
+<p><code>MemoryStore</code> needs no frontend for non-interactive calls, which makes it the right fake for exercising <code>list</code>/<code>write</code>-based code (like a modifier) without mocking a UI:</p>
+<div class="language-python highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">clabe.stores</span><span class="w"> </span><span class="kn">import</span> <span class="n">Kind</span><span class="p">,</span> <span class="n">MemoryStore</span>
+
+<span class="n">MANIPULATOR</span> <span class="o">=</span> <span class="n">Kind</span><span class="p">(</span><span class="n">ManipulatorPosition</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">test_inject_uses_the_stored_record</span><span class="p">():</span>
+    <span class="n">store</span> <span class="o">=</span> <span class="n">MemoryStore</span><span class="p">()</span><span class="o">.</span><span class="n">scoped</span><span class="p">(</span><span class="n">subject</span><span class="o">=</span><span class="s2">"123"</span><span class="p">)</span>
+    <span class="n">store</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">MANIPULATOR</span><span class="p">,</span> <span class="n">ManipulatorPosition</span><span class="p">(</span><span class="n">x</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">z</span><span class="o">=</span><span class="mi">3</span><span class="p">))</span>
+
+    <span class="n">rig</span> <span class="o">=</span> <span class="n">ManipulatorModifier</span><span class="p">(</span><span class="n">store</span><span class="p">)</span><span class="o">.</span><span class="n">inject</span><span class="p">(</span><span class="n">MyRig</span><span class="p">())</span>
+
+    <span class="k">assert</span> <span class="n">rig</span><span class="o">.</span><span class="n">manipulator</span><span class="o">.</span><span class="n">position</span> <span class="o">==</span> <span class="n">ManipulatorPosition</span><span class="p">(</span><span class="n">x</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">z</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+</code></pre></div>
+<p>Exercising <code>resolve</code> in a test does need a frontend — register a fake with <a class="autorefs autorefs-internal" href="../../api/ui/ui/#clabe.ui.use_frontend"><code>ui.use_frontend</code></a> for the duration:</p>
+<div class="language-python highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">clabe</span><span class="w"> </span><span class="kn">import</span> <span class="n">ui</span>
+
+<span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">use_frontend</span><span class="p">(</span><span class="n">fake_frontend</span><span class="p">):</span>
+    <span class="n">rig</span> <span class="o">=</span> <span class="n">store</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="n">RIG</span><span class="p">)</span>
+</code></pre></div>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      2026, Allen Institute for Neural Dynamics
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+      <div class="md-progress" data-md-component="progress" role="progressbar"></div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.tabs.link", "content.code.annotate", "content.code.copy", "announce.dismiss", "navigation.tabs", "navigation.instant", "navigation.instant.prefetch", "navigation.instant.preview", "navigation.instant.progress", "navigation.path", "navigation.sections", "navigation.top", "navigation.tracking", "search.suggest", "toc.follow"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
