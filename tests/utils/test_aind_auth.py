@@ -1,5 +1,6 @@
 from unittest.mock import MagicMock, patch
 
+import pydantic
 import pytest
 import requests
 
@@ -45,7 +46,7 @@ def test_validate_username_invalid():
     """Returns False when the metadata service does not find the user."""
     with patch("clabe.utils.aind_validators.requests.get") as mock_get:
         mock_response = MagicMock()
-        mock_response.ok = False
+        mock_response.raise_for_status.side_effect = requests.HTTPError("404")
         mock_get.return_value = mock_response
 
         assert aind_validators.validate_username("no.one") is False
@@ -76,7 +77,7 @@ def test_validate_username_encodes_special_chars():
     """URL-encodes special characters in the username."""
     with patch("clabe.utils.aind_validators.requests.get") as mock_get:
         mock_response = MagicMock()
-        mock_response.ok = False
+        mock_response.raise_for_status.side_effect = requests.HTTPError("404")
         mock_get.return_value = mock_response
 
         aind_validators.validate_username("../admin")
@@ -84,6 +85,60 @@ def test_validate_username_encodes_special_chars():
             "http://aind-metadata-service/api/v2/active_directory/..%2Fadmin",
             timeout=2,
         )
+
+
+# --- get_active_directory_user ---
+
+
+def test_get_active_directory_user_valid():
+    """Returns the deserialized user record when the metadata service finds the user."""
+    with patch("clabe.utils.aind_validators.requests.get") as mock_get:
+        mock_response = MagicMock()
+        mock_response.ok = True
+        mock_response.json.return_value = {
+            "username": "bruno.cruz",
+            "full_name": "Bruno Cruz",
+            "email": "bruno.cruz@alleninstitute.org",
+        }
+        mock_get.return_value = mock_response
+
+        user = aind_validators.get_active_directory_user("bruno.cruz")
+
+        assert user == aind_validators.ActiveDirectoryUser(
+            username="bruno.cruz",
+            full_name="Bruno Cruz",
+            email="bruno.cruz@alleninstitute.org",
+        )
+
+
+def test_get_active_directory_user_invalid():
+    """Raises when the metadata service does not find the user."""
+    with patch("clabe.utils.aind_validators.requests.get") as mock_get:
+        mock_response = MagicMock()
+        mock_response.raise_for_status.side_effect = requests.HTTPError("404")
+        mock_get.return_value = mock_response
+
+        with pytest.raises(requests.HTTPError):
+            aind_validators.get_active_directory_user("no.one")
+
+
+def test_get_active_directory_user_request_exception():
+    """Propagates the network error."""
+    with patch("clabe.utils.aind_validators.requests.get", side_effect=requests.RequestException("timeout")):
+        with pytest.raises(requests.RequestException):
+            aind_validators.get_active_directory_user("j.doe")
+
+
+def test_get_active_directory_user_malformed_payload():
+    """Raises when the payload fails validation."""
+    with patch("clabe.utils.aind_validators.requests.get") as mock_get:
+        mock_response = MagicMock()
+        mock_response.ok = True
+        mock_response.json.return_value = {"full_name": "Jane Doe"}  # missing required "username"
+        mock_get.return_value = mock_response
+
+        with pytest.raises(pydantic.ValidationError):
+            aind_validators.get_active_directory_user("j.doe")
 
 
 # --- validate_rig_computer_name ---

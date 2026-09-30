@@ -17,12 +17,27 @@ from clabe.data_transfer.aind_watchdog import (
     WatchConfig,
     WatchdogDataTransferService,
     WatchdogSettings,
+    _default_email_from_experimenter,
 )
 from clabe.data_transfer.robocopy import RobocopyService, RobocopySettings
 from tests import TESTS_ASSETS
 
 _HAS_ROBOCOPY = shutil.which("robocopy") is not None
 _IS_WINDOWS = sys.platform == "win32"
+
+
+@pytest.fixture(autouse=True)
+def no_active_directory_lookup():
+    """Stubs watchdog's Active Directory email lookup so tests don't hit the network."""
+    with patch("clabe.utils.aind_validators.requests.get") as mock_get:
+        mock_response = MagicMock(ok=True)
+        mock_response.json.return_value = {
+            "username": "mock_experimenter",
+            "full_name": "Mock Experimenter",
+            "email": "mock_experimenter@alleninstitute.org",
+        }
+        mock_get.return_value = mock_response
+        yield mock_get
 
 
 @pytest.fixture
@@ -104,6 +119,38 @@ def watchdog_service(source, settings, mock_session):
         del os.environ["WATCHDOG_EXE"]
     if "WATCHDOG_CONFIG" in os.environ:
         del os.environ["WATCHDOG_CONFIG"]
+
+
+def test_default_email_from_experimenter_success():
+    """Returns the Active Directory email when the lookup succeeds."""
+    with patch("clabe.utils.aind_validators.requests.get") as mock_get:
+        mock_response = MagicMock(ok=True)
+        mock_response.json.return_value = {"username": "j.doe", "email": "j.doe@alleninstitute.org"}
+        mock_get.return_value = mock_response
+
+        assert _default_email_from_experimenter("j.doe") == "j.doe@alleninstitute.org"
+
+
+def test_default_email_from_experimenter_raises_when_lookup_fails():
+    """Propagates the Active Directory error instead of falling back to a constructed address."""
+    with patch("clabe.utils.aind_validators.requests.get") as mock_get:
+        mock_response = MagicMock()
+        mock_response.raise_for_status.side_effect = HTTPError("404")
+        mock_get.return_value = mock_response
+
+        with pytest.raises(HTTPError):
+            _default_email_from_experimenter("j.doe")
+
+
+def test_default_email_from_experimenter_raises_when_no_email_on_file():
+    """Raises ValueError when the Active Directory record has no email."""
+    with patch("clabe.utils.aind_validators.requests.get") as mock_get:
+        mock_response = MagicMock(ok=True)
+        mock_response.json.return_value = {"username": "j.doe"}
+        mock_get.return_value = mock_response
+
+        with pytest.raises(ValueError, match="has no email on file"):
+            _default_email_from_experimenter("j.doe")
 
 
 class TestWatchdogDataTransferService:

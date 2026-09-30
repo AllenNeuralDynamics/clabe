@@ -5,7 +5,9 @@ import os
 from typing import TYPE_CHECKING, TypeVar
 from urllib.parse import quote
 
+import pydantic
 import requests
+from pydantic import BaseModel
 
 if TYPE_CHECKING:
     from aind_behavior_services.rig import Rig
@@ -19,6 +21,14 @@ logger = logging.getLogger(__name__)
 _ACTIVEDIRECTORY_ENDPOINT = "http://aind-metadata-service/api/v2/active_directory"
 
 _RIG_NAME_ENV_VAR = "aibs_comp_id"
+
+
+class ActiveDirectoryUser(BaseModel):
+    """A user record returned by the AIND Active Directory metadata service."""
+
+    username: str
+    full_name: str | None = None
+    email: str | None = None
 
 
 def get_aind_rig_name(*, required: bool = False) -> str | None:
@@ -38,6 +48,34 @@ def get_aind_rig_name(*, required: bool = False) -> str | None:
     if rig_name is None and required:
         raise ValueError(f"Environment variable '{_RIG_NAME_ENV_VAR}' is not set.")
     return rig_name
+
+
+def get_active_directory_user(
+    username: str,
+    timeout: float | None = 2,
+) -> ActiveDirectoryUser:
+    """
+    Fetches a user's record from the AIND Active Directory metadata service.
+
+    Args:
+        username: The username to look up.
+        timeout: Timeout in seconds for the HTTP request. Defaults to 2.
+
+    Returns:
+        The user's record.
+
+    Raises:
+        requests.HTTPError: If the request fails or the user is not found.
+        pydantic.ValidationError: If the response payload is malformed.
+
+    Example:
+        ```python
+        user = get_active_directory_user("j.doe")
+        ```
+    """
+    response = requests.get(f"{_ACTIVEDIRECTORY_ENDPOINT}/{quote(username, safe='')}", timeout=timeout)
+    response.raise_for_status()
+    return ActiveDirectoryUser.model_validate(response.json())
 
 
 def validate_username(
@@ -64,9 +102,9 @@ def validate_username(
         ```
     """
     try:
-        response = requests.get(f"{_ACTIVEDIRECTORY_ENDPOINT}/{quote(username, safe='')}", timeout=timeout)
-        return response.ok
-    except requests.RequestException as e:
+        get_active_directory_user(username, timeout=timeout)
+        return True
+    except (requests.RequestException, pydantic.ValidationError) as e:
         logger.warning("Failed to validate username '%s': %s", username, e)
         return False
 
