@@ -79,6 +79,8 @@ class ConfiergeSettings(ServiceSettings):
 
 
 class ConfiergeStore(StoreBase):
+    """Reads and writes config records through the Concierge backend."""
+
     def __init__(
         self,
         *,

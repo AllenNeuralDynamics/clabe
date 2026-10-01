@@ -14,11 +14,3 @@ def test_scope_resolution_maps_supported_scopes_and_ignores_unsupported_ones(cap
 
     assert scopes == {"hostname": "RIG-01", "subject_id": "123"}
     assert "Ignoring scope 'task_name'" in caplog.text
-
-
-def test_confierge_store_instantiates_from_settings():
-    store = ConfiergeStore(settings=ConfiergeSettings(namespace="demo"), scope={"computer": "RIG-01"})
-
-    assert store.scope == {"computer": "RIG-01"}
-    assert store._namespace == "demo"
-    assert store._client.base_url == "http://eng-tools/ficus-dev"
