@@ -28,6 +28,29 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_TRANSFER_ENDPOINT: str = "http://aind-data-transfer-service-dev/api/v2/submit_jobs"
 
+
+def _default_email_from_experimenter(user_name: str) -> str:
+    """Looks up the experimenter's email via Active Directory.
+
+    Args:
+        user_name: The username of the experimenter.
+
+    Returns:
+        The email address of the experimenter.
+
+    Raises:
+        requests.RequestException: If the Active Directory lookup fails.
+        pydantic.ValidationError: If the Active Directory response is malformed.
+        ValueError: If the user has no email on record.
+    """
+    from ..utils.aind_validators import get_active_directory_user
+
+    user = get_active_directory_user(user_name)
+    if not user.email:
+        raise ValueError(f"Active Directory record for user '{user_name}' has no email on file.")
+    return user.email
+
+
 TransferServiceTask = dict[
     str, aind_data_transfer_service.models.core.Task | dict[str, aind_data_transfer_service.models.core.Task]
 ]
@@ -81,9 +104,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         session: Session,
         *,
         validate: bool = False,
-        email_from_experimenter_builder: Callable[[str], str] | None = lambda user_name: (
-            f"{user_name}@alleninstitute.org"
-        ),
+        email_from_experimenter_builder: Callable[[str], str] | None = _default_email_from_experimenter,
     ) -> None:
         """
         Initializes the WatchdogDataTransferService.
@@ -94,7 +115,9 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
             session: The session data from aind-behavior-services
             validate: Whether to validate the project name
             session_name: Name of the session
-            email_from_experimenter_builder: Function to build email from experimenter name
+            email_from_experimenter_builder: Function to build email from experimenter name. Defaults to
+                looking up the email via Active Directory, raising ``ValueError`` if it cannot be
+                determined.
         """
         self._settings = settings
         self._sources = source if isinstance(source, list) else [source]

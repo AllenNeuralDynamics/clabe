@@ -34,7 +34,7 @@ async def demo_experiment(launcher: Launcher) -> None:
     create_fake_rig()
     _seed_cache()
 
-    session = SessionBuilder(launcher, experimenter_validator=lambda _: True).build()
+    session = SessionBuilder(launcher, experimenter_validator=lambda name: name).build()
     store = LocalFileStore(LIB_CONFIG).scoped(subject=session.subject)
 
     rig = store.resolve(RIG)

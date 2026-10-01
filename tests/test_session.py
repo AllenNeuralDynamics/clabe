@@ -48,7 +48,7 @@ class TestSessionBuilder:
         assert builder.prompt_experimenter() == ["j.doe"]
 
     def test_an_invalid_experimenter_is_rejected_and_reprompted(self, launcher, mock_frontend):
-        builder = SessionBuilder(launcher, experimenter_validator=lambda name: name == "j.doe")
+        builder = SessionBuilder(launcher, experimenter_validator=lambda name: name if name == "j.doe" else None)
         answer(mock_frontend, autocomplete=["nobody", "j.doe"])
         assert builder.prompt_experimenter() == ["j.doe"]
 
