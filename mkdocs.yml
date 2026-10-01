@@ -141,6 +141,7 @@ nav:
   - Utils:
     - utils: api/utils/utils.md
     - aind_auth: api/utils/aind_auth.md
+    - aind_smartsheet: api/utils/aind_smartsheet.md
     - aind_validators: api/utils/aind_validators.md
     - keepass: api/utils/keepass.md
   - Xml Rpc:
