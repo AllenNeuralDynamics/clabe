@@ -302,6 +302,22 @@ class TestWatchdogDataTransferService:
             ).resolve()
         )
 
+    def test_notification_email_uses_last_experimenter(self, watchdog_service: WatchdogDataTransferService):
+        builder = MagicMock(return_value="contact@alleninstitute.org")
+        watchdog_service._email_from_experimenter_builder = builder
+        session = Session(
+            experiment="mock",
+            subject="007",
+            session_name="mock_session",
+            experimenter=["first_experimenter", "scientific_contact"],
+        )
+
+        manifest = watchdog_service._create_manifest_from_session(session)
+
+        builder.assert_called_once_with("scientific_contact")
+        assert manifest.transfer_service_args is not None
+        assert manifest.transfer_service_args.user_email == "contact@alleninstitute.org"
+
     def test_make_transfer_args(self, watchdog_service: WatchdogDataTransferService):
         manifest = watchdog_service._manifest_config
         extra_tasks = {
