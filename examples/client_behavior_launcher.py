@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 async def client_experiment(launcher: Launcher) -> None:
     """Demo experiment showcasing CLABE functionality."""
 
-    session = SessionBuilder(launcher, experimenter_validator=lambda _: True).build()
+    session = SessionBuilder(launcher, experimenter_validator=lambda name: name).build()
     store = LocalFileStore(LIB_CONFIG).scoped(subject=session.subject)
 
     rig = store.resolve(RIG)

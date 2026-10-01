@@ -31,13 +31,14 @@ class SessionBuilder:
         self,
         launcher: Launcher,
         *,
-        experimenter_validator: Callable[[str], bool] | None = validate_username,
+        experimenter_validator: Callable[[str], str | None] | None = validate_username,
         use_cache: bool = True,
     ) -> None:
         """
         Args:
             launcher: Supplies the repository state and hardware-validation settings stamped onto the session.
-            experimenter_validator: Validates each experimenter name. If ``None``, names are accepted as typed.
+            experimenter_validator: Validates each experimenter name, returning the canonical name to store
+                or None to reject it. If ``None``, names are accepted as typed.
             use_cache: Whether to seed the prompts with previously entered values.
         """
         self._launcher = launcher
@@ -106,18 +107,28 @@ class SessionBuilder:
             if strict and not experimenter:
                 ui.notify("Experimenter name is not valid. Try again.", ui.MessageLevel.WARNING)
                 continue
-            invalid = self._invalid_names(experimenter)
+            validated, invalid = self._validate_names(experimenter)
             if invalid:
-                ui.notify(f"Experimenter name: {invalid}, is not valid. Try again", ui.MessageLevel.WARNING)
+                ui.notify(
+                    f"Experimenter name(s): {', '.join(invalid)}, is not valid. Try again", ui.MessageLevel.WARNING
+                )
                 continue
-            self._cache_manager.add_to_cache("experimenters", ",".join(experimenter))
-            return experimenter
+            self._cache_manager.add_to_cache("experimenters", ",".join(validated))
+            return validated
 
-    def _invalid_names(self, names: list[str]) -> str | None:
-        """Returns the first name the validator rejects, or ``None`` if all pass."""
+    def _validate_names(self, names: list[str]) -> tuple[list[str], list[str]]:
+        """Validates every name, returning the canonicalized names and any names rejected."""
         if self._experimenter_validator is None:
-            return None
-        return next((name for name in names if not self._experimenter_validator(name)), None)
+            return names, []
+        validated: list[str] = []
+        invalid: list[str] = []
+        for name in names:
+            canonical = self._experimenter_validator(name)
+            if canonical is None:
+                invalid.append(name)
+            else:
+                validated.append(canonical)
+        return validated, invalid
 
     def _cached_options(self, cache_name: str) -> list[str]:
         """Returns the previously entered values to offer for autocompletion."""

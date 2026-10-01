@@ -30,8 +30,6 @@ DEFAULT_TRANSFER_ENDPOINT: str = "http://aind-data-transfer-service-dev/api/v2/s
 
 
 def _default_email_from_experimenter(user_name: str) -> str:
-    from ..utils.aind_validators import get_active_directory_user
-
     """Looks up the experimenter's email via Active Directory.
 
     Args:
@@ -45,6 +43,8 @@ def _default_email_from_experimenter(user_name: str) -> str:
         pydantic.ValidationError: If the Active Directory response is malformed.
         ValueError: If the user has no email on record.
     """
+    from ..utils.aind_validators import get_active_directory_user
+
     user = get_active_directory_user(user_name)
     if not user.email:
         raise ValueError(f"Active Directory record for user '{user_name}' has no email on file.")

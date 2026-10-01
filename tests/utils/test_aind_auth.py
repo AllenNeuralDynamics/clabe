@@ -24,7 +24,7 @@ def mock_rig():
 
 
 def test_validate_username_valid():
-    """Returns True when the metadata service finds the user."""
+    """Returns the canonical username when the metadata service finds the user."""
     with patch("clabe.utils.aind_validators.requests.get") as mock_get:
         mock_response = MagicMock()
         mock_response.ok = True
@@ -35,7 +35,7 @@ def test_validate_username_valid():
         }
         mock_get.return_value = mock_response
 
-        assert aind_validators.validate_username("j.doe") is True
+        assert aind_validators.validate_username("j.doe") == "j.doe"
         mock_get.assert_called_once_with(
             "http://aind-metadata-service/api/v2/active_directory/j.doe",
             timeout=2,
@@ -43,19 +43,19 @@ def test_validate_username_valid():
 
 
 def test_validate_username_invalid():
-    """Returns False when the metadata service does not find the user."""
+    """Returns None when the metadata service does not find the user."""
     with patch("clabe.utils.aind_validators.requests.get") as mock_get:
         mock_response = MagicMock()
         mock_response.raise_for_status.side_effect = requests.HTTPError("404")
         mock_get.return_value = mock_response
 
-        assert aind_validators.validate_username("no.one") is False
+        assert aind_validators.validate_username("no.one") is None
 
 
 def test_validate_username_request_exception():
-    """Returns False (with a logged warning) on a network error."""
+    """Returns None (with a logged warning) on a network error."""
     with patch("clabe.utils.aind_validators.requests.get", side_effect=requests.RequestException("timeout")):
-        assert aind_validators.validate_username("j.doe") is False
+        assert aind_validators.validate_username("j.doe") is None
 
 
 def test_validate_username_custom_timeout():
@@ -124,9 +124,11 @@ def test_get_active_directory_user_invalid():
 
 def test_get_active_directory_user_request_exception():
     """Propagates the network error."""
-    with patch("clabe.utils.aind_validators.requests.get", side_effect=requests.RequestException("timeout")):
-        with pytest.raises(requests.RequestException):
-            aind_validators.get_active_directory_user("j.doe")
+    with (
+        patch("clabe.utils.aind_validators.requests.get", side_effect=requests.RequestException("timeout")),
+        pytest.raises(requests.RequestException),
+    ):
+        aind_validators.get_active_directory_user("j.doe")
 
 
 def test_get_active_directory_user_malformed_payload():
