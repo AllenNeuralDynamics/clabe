@@ -53,48 +53,49 @@ def test_get_row_network_error_returns_none():
         assert SmartsheetClient().get_row("mouse_1") is None
 
 
-def test_add_scientific_contact_appends_to_end_in_place():
+def test_add_scientific_contact_returns_copy_with_contact_at_end():
     session = _session(["a.user", "b.user"])
     with patch("clabe.utils.aind_smartsheet.requests.get", return_value=_response(payload=ROW)):
         result = SmartsheetClient(validator=lambda n: n).add_scientific_contact(session)
-    assert result is session
-    assert session.experimenter == ["a.user", "b.user", "p.investigator"]
+    assert result is not session
+    assert result.experimenter == ["a.user", "b.user", "p.investigator"]
+    assert session.experimenter == ["a.user", "b.user"]
 
 
 def test_add_scientific_contact_uses_canonical_name_from_validator():
     session = _session()
     with patch("clabe.utils.aind_smartsheet.requests.get", return_value=_response(payload=ROW)):
-        SmartsheetClient(validator=lambda n: n.upper()).add_scientific_contact(session)
-    assert session.experimenter == ["j.doe", "P.INVESTIGATOR"]
+        result = SmartsheetClient(validator=lambda n: n.upper()).add_scientific_contact(session)
+    assert result.experimenter == ["j.doe", "P.INVESTIGATOR"]
 
 
 def test_add_scientific_contact_skips_duplicate():
     session = _session(["p.investigator"])
     with patch("clabe.utils.aind_smartsheet.requests.get", return_value=_response(payload=ROW)):
-        SmartsheetClient(validator=lambda n: n).add_scientific_contact(session)
-    assert session.experimenter == ["p.investigator"]
+        result = SmartsheetClient(validator=lambda n: n).add_scientific_contact(session)
+    assert result.experimenter == ["p.investigator"]
 
 
-def test_add_scientific_contact_invalid_username_leaves_session_untouched():
+def test_add_scientific_contact_invalid_username_returns_unchanged_session():
     session = _session()
     with patch("clabe.utils.aind_smartsheet.requests.get", return_value=_response(payload=ROW)):
-        SmartsheetClient(validator=lambda n: None).add_scientific_contact(session)
-    assert session.experimenter == ["j.doe"]
+        result = SmartsheetClient(validator=lambda n: None).add_scientific_contact(session)
+    assert result.experimenter == ["j.doe"]
 
 
-def test_add_scientific_contact_missing_or_empty_column_leaves_session_untouched():
+def test_add_scientific_contact_missing_or_empty_column_returns_unchanged_session():
     for payload in ({"Project Name": "x"}, {"validated_pi_username": ""}, {"validated_pi_username": "  "}):
         session = _session()
         with patch("clabe.utils.aind_smartsheet.requests.get", return_value=_response(payload=payload)):
-            SmartsheetClient(validator=lambda n: n).add_scientific_contact(session)
-        assert session.experimenter == ["j.doe"]
+            result = SmartsheetClient(validator=lambda n: n).add_scientific_contact(session)
+        assert result.experimenter == ["j.doe"]
 
 
-def test_add_scientific_contact_service_down_leaves_session_untouched():
+def test_add_scientific_contact_service_down_returns_unchanged_session():
     session = _session()
     with patch("clabe.utils.aind_smartsheet.requests.get", side_effect=requests.Timeout("slow")):
-        SmartsheetClient().add_scientific_contact(session)
-    assert session.experimenter == ["j.doe"]
+        result = SmartsheetClient().add_scientific_contact(session)
+    assert result.experimenter == ["j.doe"]
 
 
 def test_get_project_name():

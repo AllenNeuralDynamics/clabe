@@ -26,7 +26,7 @@ class SmartsheetClient:
     Example:
         ```python
         ss = SmartsheetClient()
-        ss.add_scientific_contact(session)
+        session = ss.add_scientific_contact(session)
         watchdog_settings.project_name = ss.get_project_name(session) or watchdog_settings.project_name
         ```
     """
@@ -64,6 +64,7 @@ class SmartsheetClient:
         return self._rows[subject]
 
     def _fetch_row(self, subject: str) -> dict[str, str] | None:
+        """Requests the row from the service, returning None (and logging) on any failure."""
         try:
             response = requests.get(f"{self._base_url}/rows/{quote(subject, safe='')}", timeout=self._timeout)
             response.raise_for_status()
@@ -74,16 +75,17 @@ class SmartsheetClient:
 
     def add_scientific_contact(self, session: Session) -> Session:
         """
-        Appends the animal's validated PI to the end of ``session.experimenter``, in place.
+        Returns a copy of the session with the animal's validated scientific contact added
+        to the end of ``experimenter``. The given session is never modified.
 
-        The session is left untouched if the row or the PI is missing, the username fails
-        validation, or the PI is already listed.
+        The session is returned as-is if the row or the contact is missing, the username
+        fails validation, or the contact is already listed.
 
         Args:
-            session: The session to update.
+            session: The session to build on.
 
         Returns:
-            The same session, for chaining.
+            The updated copy of the session, so callers must use the return value.
         """
         username = self._column(session, SCIENTIFIC_CONTACT_USERNAME_COLUMN)
         if username is None:
@@ -92,9 +94,10 @@ class SmartsheetClient:
         canonical = self._validator(username)
         if canonical is None:
             logger.warning("Scientific contact '%s' for subject '%s' is not valid.", username, session.subject)
-        elif canonical not in session.experimenter:
-            session.experimenter.append(canonical)
-        return session
+            return session
+        if canonical in session.experimenter:
+            return session
+        return session.model_copy(update={"experimenter": [*session.experimenter, canonical]})
 
     def get_project_name(self, session: Session) -> str | None:
         """
@@ -103,6 +106,7 @@ class SmartsheetClient:
         return self._column(session, PROJECT_NAME_COLUMN)
 
     def _column(self, session: Session, column: str) -> str | None:
+        """Returns the stripped value of a column in the session's row, or None if absent or blank."""
         row = self.get_row(session.subject)
         value = (row or {}).get(column)
         return value.strip() or None if isinstance(value, str) else None
