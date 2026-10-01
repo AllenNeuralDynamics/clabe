@@ -14,4 +14,3 @@ def test_scope_resolution_maps_supported_scopes_and_ignores_unsupported_ones(cap
 
     assert scopes == {"hostname": "RIG-01", "subject_id": "123"}
     assert "Ignoring scope 'task_name'" in caplog.text
-

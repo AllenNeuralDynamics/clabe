@@ -1,12 +1,13 @@
-from typing import TypeVar, Literal
-from pydantic import Field, TypeAdapter
 import dataclasses
 import functools
 import logging
+from typing import Literal, TypeVar
+
 from confierge import Confierge
+from pydantic import Field, TypeAdapter
 
 from clabe.services import ServiceSettings
-from clabe.stores import Kind, Scope, StoreBase, Candidate
+from clabe.stores import Candidate, Kind, Scope, StoreBase
 
 DEFAULT_BASE_URL = "http://eng-tools/ficus-dev"
 T = TypeVar("T")
@@ -78,7 +79,6 @@ class ConfiergeSettings(ServiceSettings):
 
 
 class ConfiergeStore(StoreBase):
-
     def __init__(
         self,
         *,
@@ -153,8 +153,10 @@ class ConfiergeStore(StoreBase):
 
 
 if __name__ == "__main__":
-    from clabe import ui
     from aind_behavior_services import Task
+
+    from clabe import ui
+
     ui.set_current_frontend(ui.make_frontend("console"))
 
     rig_settings = ConfiergeSettings(
@@ -162,11 +164,10 @@ if __name__ == "__main__":
     )
     rig_store = ConfiergeStore(
         settings=rig_settings,
-        scope={ "computer":"SIPE-Micah", "subject": "test", "task_name": "AindDynamicForaging"},
+        scope={"computer": "SIPE-Micah", "subject": "test", "task_name": "AindDynamicForaging"},
     )  # extra scopes not found in confierge are ignored
     task = rig_store.resolve(Task)
 
     # push back subject-specific configuration
     task.stage_name = "dummy_stage_name"
-    rig_store.write(value=task.model_dump(include={"stage_name": True}), scope={"subject": "test"}) 
-   
+    rig_store.write(value=task.model_dump(include={"stage_name": True}), scope={"subject": "test"})
