@@ -15,19 +15,20 @@ SCIENTIFIC_CONTACT_USERNAME_COLUMN = "validated_pi_username"
 PROJECT_NAME_COLUMN = "Project Name"
 
 
-class SmartsheetClient:
+class SmartsheetScheduleClient:
     """
-    Client for the AIND behavior smartsheet service, looked up by animal.
+    Client for the AIND behavior scheduling smartsheet, looked up by animal.
 
     Rows are the raw sheet rows (column name to string value) and are cached per
-    subject, so a session only costs one request. Every lookup degrades to a logged
-    warning instead of raising, so an unreachable service never blocks a session.
+    subject, so a session only costs one request. ``get_row`` degrades to a logged warning
+    and ``None`` when the service is unreachable, but ``add_scientific_contact`` and
+    ``get_project_name`` require their values and raise ``ValueError`` without them.
 
     Example:
         ```python
-        ss = SmartsheetClient()
+        ss = SmartsheetScheduleClient()
         session = ss.add_scientific_contact(session)
-        watchdog_settings.project_name = ss.get_project_name(session) or watchdog_settings.project_name
+        watchdog_settings.project_name = ss.get_project_name(session)
         ```
     """
 
@@ -76,34 +77,51 @@ class SmartsheetClient:
     def add_scientific_contact(self, session: Session) -> Session:
         """
         Returns a copy of the session with the animal's validated scientific contact added
-        to the end of ``experimenter``. The given session is never modified.
+        to the end of ``experimenter``, with duplicate names removed (first occurrence kept).
+        The given session is never modified.
 
-        The session is returned as-is if the row or the contact is missing, the username
-        fails validation, or the contact is already listed.
+        The scientific contact is required: this raises instead of degrading.
 
         Args:
             session: The session to build on.
 
         Returns:
             The updated copy of the session, so callers must use the return value.
+
+        Raises:
+            ValueError: If the animal's row or its scientific contact cannot be found, or the
+                username fails validation.
         """
         username = self._column(session, SCIENTIFIC_CONTACT_USERNAME_COLUMN)
         if username is None:
-            logger.warning("No scientific contact found for subject '%s'.", session.subject)
-            return session
+            raise ValueError(
+                f"No scientific contact ('{SCIENTIFIC_CONTACT_USERNAME_COLUMN}') found for subject '{session.subject}'."
+            )
         canonical = self._validator(username)
         if canonical is None:
-            logger.warning("Scientific contact '%s' for subject '%s' is not valid.", username, session.subject)
-            return session
-        if canonical in session.experimenter:
-            return session
-        return session.model_copy(update={"experimenter": [*session.experimenter, canonical]})
+            raise ValueError(f"Scientific contact '{username}' for subject '{session.subject}' is not valid.")
+        experimenter = list(dict.fromkeys([*session.experimenter, canonical]))
+        return session.model_copy(update={"experimenter": experimenter})
 
-    def get_project_name(self, session: Session) -> str | None:
+    def get_project_name(self, session: Session) -> str:
         """
-        Returns the project name recorded for the session's animal, or None if unavailable.
+        Returns the project name recorded for the session's animal.
+
+        The project name is required: this raises instead of degrading.
+
+        Args:
+            session: The session whose animal to look up.
+
+        Returns:
+            The project name.
+
+        Raises:
+            ValueError: If the animal's row or its project name cannot be found.
         """
-        return self._column(session, PROJECT_NAME_COLUMN)
+        project_name = self._column(session, PROJECT_NAME_COLUMN)
+        if project_name is None:
+            raise ValueError(f"No project name ('{PROJECT_NAME_COLUMN}') found for subject '{session.subject}'.")
+        return project_name
 
     def _column(self, session: Session, column: str) -> str | None:
         """Returns the stripped value of a column in the session's row, or None if absent or blank."""
