@@ -7,7 +7,7 @@ This article works through every backend CLABE ships, and how to combine them wi
 | [`LocalFileStore`][clabe.stores.LocalFileStore] | any kind | Pick list over matching files | The config library — a directory of JSON files, e.g. on a shared network drive |
 | [`MemoryStore`][clabe.stores.MemoryStore] | any kind | Pick list over in-process records | Tests, and assembling records without touching disk |
 | [`DataverseStore`][clabe.stores.dataverse.DataverseStore] | `trainer_state` only | Pick list over recent suggestions | Needs the `aind-services` extra |
-| [`FicusStore`][clabe.stores.ficus.FicusStore] | `rig` as layered config, any other kind as a flat record | Never prompts — the chain yields exactly one document | Plain HTTP over ficus; no extra needed |
+| [`ConfiergeStore`][clabe.stores.confierge.ConfiergeStore] | one ficus namespace, whatever the kind | Never prompts — ficus merges the layers | Needs the `aind-services` extra |
 | [`CompositeStore`][clabe.stores.CompositeStore] | whatever its routes serve | Delegates to the routed backend | Routes a kind name to a backend — the payoff over subclassing |
 
 ## LocalFileStore
@@ -135,202 +135,71 @@ dataverse:
 
 `username`/`password` are not meant for the YAML file — `DataverseStore()` with no `client` builds one from a KeePass entry (`svc_sipe` by default). Pass your own `client=_DataverseRestClient(...)` to bypass KeePass entirely, e.g. in tests.
 
-## FicusStore
+## ConfiergeStore
 
-[Ficus](https://github.com/AllenNeuralDynamics/ficus) is a layered configuration service. It stores documents addressed by a `namespace`, a `filename` and an optional *scope* — a computer, a subject — and an effective config is assembled from a `defaults` document plus one document per scope, deep-merged in a fixed precedence order. `FicusStore` reads and writes one namespace of it.
+[Ficus](https://github.com/AllenNeuralDynamics/ficus) is a layered configuration service: documents live under a `namespace` and are overridden per scope — a computer, a subject — with the effective config merged server-side. `ConfiergeStore` is a thin adapter between the store API and ficus' `confierge` client. It translates scopes, and leaves merging, scope validation and the offline cache to ficus and confierge.
 
-There is no third-party client involved: clabe talks to ficus over plain HTTP through its own [`FicusClient`][clabe.stores.ficus.FicusClient]. Since `requests` is already a core dependency, this backend needs **no optional extra** — unlike `dataverse`, `pip install aind-clabe` is enough, and `FicusStore`, `FicusSettings`, `FicusClient` and `MergePolicy` are re-exported straight from `clabe.stores`:
+It needs the `aind-services` extra, so it is imported explicitly:
 
 ```python
-from clabe.stores import FicusSettings, FicusStore, Kind
+from clabe.stores import Kind
+from clabe.stores.confierge import ConfiergeSettings, ConfiergeStore
 
 RIG = Kind.from_rig(AindVrForagingRig)
-MANIPULATOR = Kind(ManipulatorPosition)
 
-store = FicusStore(FicusSettings(namespace="aind-behavior-vr-foraging"))
+store = ConfiergeStore(ConfiergeSettings(namespace="aind-behavior-vr-foraging"))
 
 rig = store.resolve(RIG)
-position = store.scoped(subject="789907").resolve(MANIPULATOR)
+rig = store.scoped(subject="789907").resolve(RIG)  # adds the subject's overrides
+store.scoped(subject="789907").write(RIG, rig)
 ```
 
-Settings are a [`ServiceSettings`][clabe.services.ServiceSettings] subclass, so they resolve from the `ficus` section of your known config files (or the environment) by default:
+A read yields exactly one document, so it never prompts. If ficus is unreachable, confierge serves its last cached copy of the same request.
+
+Settings are a [`ServiceSettings`][clabe.services.ServiceSettings] subclass and resolve from the `confierge` section of your known config files:
 
 ```yaml
-ficus:
+confierge:
   namespace: aind-behavior-vr-foraging
-  base_url: http://eng-tools/ficus-dev
-  config_kinds: ["rig"]
-  config_scopes: ["computers"]
+  base_url: http://eng-tools/ficus-dev  # optional; else $FICUS_BASE_URL, else confierge's default
+  mode: null                            # optional ficus mode
 ```
 
-`base_url` defaults to `http://eng-tools/ficus-dev`, and like every other setting can be overridden in the `ficus` section of clabe.yml.
+`overwrite_defaults`, `create_if_missing` and `append_new_fields_to_last_scope` are passed through to ficus on every write.
 
-### Two shapes of document
+### Scope mapping
 
-`FicusStore` serves two shapes of document, told apart by kind name:
+The store's scope keys are not ficus' scope names. [`DEFAULT_SCOPE_MAPPING`][clabe.stores.confierge.DEFAULT_SCOPE_MAPPING] translates one into the other:
 
-- **Layered config** — any kind named in `config_kinds`, which defaults to `{"rig"}`. Merged across `defaults` and then the configured scopes, from ficus' `default` document.
-- **Flat records** — every other kind. A standalone document named `<kind.name>.json`, living in exactly *one* scope, read and written whole. It never joins a merge chain. This is what [`ByAnimalModifier`][clabe.modifiers.ByAnimalModifier] uses for per-animal state.
+| Store scope key | Ficus scope |
+| --- | --- |
+| `computer_name` | `hostname` |
+| `subject` | `subject_id` |
 
-Concretely, in the `aind-behavior-vr-foraging` namespace on rig `DT201256` running subject `789907`, the rig comes out of a merge ending at `/scratch/computers/DT201256/aind-behavior-vr-foraging/default.json`, while the manipulator position is the single document `/scratch/subjects/789907/aind-behavior-vr-foraging/manipulator_position.json`.
+`computer_name` is filled in with this machine's name, as `LocalFileStore` does. It is the machine name, not the AIND rig name (`aibs_comp_id`, e.g. `FRG.4A`): ficus is keyed on the former. Scope keys outside the mapping, such as `task_name`, are not sent, so one scope can be shared across several stores.
 
-Either shape yields exactly one document, so `resolve` never prompts: `_candidates` returns at most one `Candidate`, which `StoreBase.resolve` auto-selects.
-
-The merge chain for a config kind runs lowest precedence first:
-
-```text
-defaults/default.json
-defaults/<filename>                  # only when FicusSettings.filename is set
-<scope>/<id>/default.json
-<scope>/<id>/<filename>              # only when FicusSettings.filename is set
-```
-
-`filename` is an *extra* document layered on top of `default.json` at every level — a variant (`high-freq.json`) rather than a replacement. Left unset, the chain is `default.json` alone.
-
-### Extensions
-
-Ficus accepts `.json`, `.yml` and `.yaml`, and a document is stored under whichever one created it. A read matches the extension exactly: a request for `default.json` when `default.yml` is what exists returns "not found". Ficus also allows a stem only one extension at a time — writing `default.json` alongside an existing `default.yml` returns 409.
-
-Each `default` document in the chain is looked up via [`FicusClient.locate`][clabe.stores.ficus.FicusClient.locate], which tries `FicusSettings.extension` first and falls back through the others. Layers may differ from one another: `defaults` as `.json` and one rig as `.yml` merges normally.
-
-A document that exists keeps its extension. `FicusSettings.extension` (`.json` by default) names only documents that do not exist yet:
+To address a scope ficus gains later, extend the mapping:
 
 ```python
-FicusSettings(namespace=..., extension=".yml")
+from clabe.stores.confierge import DEFAULT_SCOPE_MAPPING
+
+store = ConfiergeStore(settings, scope_mapping={**DEFAULT_SCOPE_MAPPING, "rig": "rig_id"})
 ```
 
-When the preferred extension is the stored one, a lookup is a single request; a miss costs one request per remaining extension. Flat-record writes perform this lookup before writing.
+### One namespace per store
 
-The `filename` extra document is fetched by exact name, extension included.
-
-### The merge happens client-side
-
-Ficus can merge layers itself. `FicusStore` does not use that: every layer is fetched individually with `merge=false` and merged client-side.
-
-The server's merge returns 404 for the entire request if any requested scope has no document, and requires a named file to exist at the `defaults` layer. Merging client-side skips a missing layer instead, and records which documents contributed — [`MergeResult.sources`][clabe.stores.ficus.MergeResult] lists them in the order applied, and that list labels the resulting `Candidate`.
-
-The merge reproduces ficus' `_deep_update`: dicts present on both sides recurse, and everything else — lists included — is replaced outright.
-
-`null` is a **value, not a deletion**. A downstream layer can blank out a field it inherited: if `defaults` sets `manipulator.port: "COM3"` and rig `DT201256` has no manipulator, the rig layer writes `manipulator: null` and the merged config resolves to `null`. Under RFC 7386 semantics the key would be removed instead, and the value would fall back to the pydantic field's default, which is not always `None`.
-
-[`MergePolicy`][clabe.stores.ficus.MergePolicy] exposes these as `null_means`, `lists`, `on_type_conflict` and `on_missing_layer`; the defaults reproduce ficus' behaviour:
+A store addresses a single namespace whatever the kind, so resolving two kinds from one store returns the same document. To serve several kinds, give each its own namespace and route them with [`CompositeStore`](#compositestore-routing-by-kind):
 
 ```python
-from clabe.stores import FicusSettings, MergePolicy
-
-settings = FicusSettings(
-    namespace="aind-behavior-vr-foraging",
-    policy=MergePolicy(lists="concat", on_type_conflict="raise"),
+store = CompositeStore(
+    routes={
+        "rig": ConfiergeStore(ConfiergeSettings(namespace="vr-foraging-rig")),
+        "task": ConfiergeStore(ConfiergeSettings(namespace="vr-foraging-task")),
+    },
 )
 ```
 
-### Reads and writes address a scope differently
-
-From ficus' OpenAPI spec:
-
-```text
-POST|PATCH|DELETE  /v1/computers/{hostname}/namespaces/{namespace}/config/{filename}
-POST|PATCH|DELETE  /v1/subjects/{subject_id}/namespaces/{namespace}/config/{filename}
-GET                /v1/namespaces/{namespace}/config?hostname=&subject_id=&filename=&merge=
-```
-
-A scope has a **collection** (`computers`, `subjects`) and a **parameter** (`hostname`, `subject_id`). Writes use both: the collection is the path segment, the parameter is the path variable. There is no scoped `GET` route — a `GET` on a write path returns `405 Method Not Allowed` — so reads address a scope by query parameter on the unscoped route.
-
-An unrecognised query parameter is ignored rather than rejected: `?computers=DT201256` returns the `defaults` layer.
-
-[`ScopeRef`][clabe.stores.ficus.ScopeRef] carries both names; `COMPUTERS` / `SUBJECTS` bind them to an identifier.
-
-### Which rig, and which subject
-
-The rig identifier is the **machine name**, held as the `computer_name` scope key. It is seeded at construction from [`get_computer_name`][clabe.utils.get_computer_name], as it is for `LocalFileStore`, and narrowed like any other scope key:
-
-```python
-store.scope  # {"computer_name": "RIG-01"}
-store.scoped(computer_name="DT201256")  # address another machine's layer
-```
-
-`CompositeStore.scoped` passes the narrowing to every backend it routes to, so one call moves them together.
-
-`subject` behaves the same way: `scoped(subject="789907")` puts a flat record under `subjects/<id>`; with no subject in scope it goes under the rig.
-
-The machine name is not `aibs_comp_id`, which holds the AIND *rig* name (`FRG.4A`). The two are different identifiers for the same machine, and ficus is keyed on the former — `/scratch/computers/DT201256/...`, `/scratch/computers/LEVIATHON/...`.
-
-To drop the rig layer, leave it out of `config_scopes`:
-
-```python
-FicusSettings(namespace=..., config_scopes=[])  # defaults only
-```
-
-### The subject scope is not in the default merge chain
-
-`config_scopes` defaults to `["computers"]`, so the subject layer does not contribute to the merged rig even when a subject is in scope. Per-animal values reach the rig through [`ByAnimalModifier`][clabe.modifiers.ByAnimalModifier], which reads a flat record and injects it; including the subject layer here as well would apply them twice.
-
-To have ficus own per-animal rig overrides instead, add it:
-
-```python
-settings = FicusSettings(
-    namespace="aind-behavior-vr-foraging",
-    config_scopes=["computers", "subjects"],  # subject wins over rig, which wins over defaults
-)
-```
-
-### Writing a flat record
-
-A flat record has exactly one home and is written whole. `write` `POST`s and falls back to `PATCH` on a 409; ficus' `PATCH` deep-merges the payload into that document server-side, so a partial write needs no read-modify-write:
-
-```python
-store.scoped(subject="789907").write(MANIPULATOR, ManipulatorPosition(x=1, y=2, z=3))
-# → /scratch/subjects/789907/aind-behavior-vr-foraging/manipulator_position.json
-```
-
-Because `PATCH` merges, it cannot *remove* a key. Dropping a field takes a delete followed by a rewrite.
-
-### Writing layered config back
-
-Layered config has no single home. `write` diffs the value against what the config currently resolves to and sends **only the leaves that changed**, to the top of the merge chain:
-
-```python
-rig = store.resolve(RIG)
-rig.manipulator.port = "COM4"
-store.write(RIG, rig)
-# → PATCH /scratch/computers/DT201256/aind-behavior-vr-foraging/default.json
-# → body: {"manipulator": {"port": "COM4"}}
-```
-
-When nothing differs, nothing is written.
-
-Both sides of the diff are put through the same model first. A stored document omits every field the model defaults and may carry keys the model does not declare; a model dump re-introduces the former and drops the latter. Normalising both sides cancels those differences, leaving only the edit.
-
-Two cases raise:
-
-- **A key present in the resolved config but absent from the value.** `PATCH` merges and cannot delete, and `null` is a value here rather than a tombstone. Removing a key takes a delete and a rewrite.
-- **A write a higher layer would shadow.** The merge records which layer won each leaf ([`MergeResult.origin`][clabe.stores.ficus.MergeResult.origin]). A write aimed at `defaults` for a value the rig layer overrides would not change what the next read returns. This cannot arise at the default target, the top of the chain.
-
-[`WritePolicy`][clabe.stores.ficus.WritePolicy] governs both.
-
-With an empty `config_scopes` the only remaining layer is `defaults`, which every machine in the namespace reads; `write` raises rather than write it.
-
-To target one layer explicitly:
-
-```python
-from clabe.stores.ficus import COMPUTERS, LayerKey
-
-store.client.write(  # write this document outright
-    store.namespace,
-    {"manipulator": {"port": "COM4"}},
-    scope=COMPUTERS("DT201256"),
-)
-
-current = store.client.get_merged(store.namespace, scopes=[COMPUTERS("DT201256")])
-store.client.write_back(  # or diff against the chain, into a layer you name
-    store.namespace,
-    current,
-    new_config,
-    target=LayerKey(None, "default.json"),  # None scope == the defaults layer
-)
-```
-
-[`plan_write_back`][clabe.stores.ficus.FicusClient.plan_write_back] runs the same logic and returns the [`LayerWrite`][clabe.stores.ficus.LayerWrite] without sending it.
+A record must serialize to a JSON object to be written.
 
 ## CompositeStore: routing by kind
 
@@ -347,7 +216,7 @@ SUGGESTION = Kind.from_trainer_state()
 store = CompositeStore(
     default=LocalFileStore(root=r"\\allen\aind\scratch\AindBehavior.db\MyProject"),
     routes={"trainer_state": DataverseStore()},
-    # a ficus-backed rig route (routes={"rig": FicusStore(...)}) is the same shape
+    # a ficus-backed rig route (routes={"rig": ConfiergeStore(...)}) is the same shape
 )
 
 rig = store.resolve(RIG)  # → LocalFileStore (the default)
@@ -398,7 +267,7 @@ rig = modifier.inject(rig)  # leaves the rig untouched if nothing is stored
 modifier.update()
 ```
 
-The subject is a constructor argument, and the modifier narrows the store with it. A store with no subject in scope reads and writes wherever the backend places a subject-less record, which for `FicusStore` is the rig's own scope.
+The subject is a constructor argument, and the modifier narrows the store with it. A store with no subject in scope reads and writes wherever the backend places a subject-less record, which for `ConfiergeStore` is the computer's own scope.
 
 ### Recovering a past session
 

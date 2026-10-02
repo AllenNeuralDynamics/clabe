@@ -50,7 +50,7 @@ uv sync
 - **Experiment launcher** — discover and run functions marked with `@experiment`, with console, TUI, and web-served interaction options.
 - **Frontends and forms** — collect typed input from Pydantic models, prompt for paths, confirmations, selections, and read-only reviews.
 - **Applications and executors** — describe external commands once and run them locally, asynchronously, detached, or through XML-RPC.
-- **Stores and services** — compose local, in-memory, Ficus, and optional Dataverse-backed configuration and data services.
+- **Stores and services** — compose local, in-memory, and optional Ficus (confierge) and Dataverse-backed configuration and data services.
 - **Operational helpers** — resource constraints, data transfer, structured logging, OpenTelemetry support, and session construction.
 - **Repository state** — capture a JSON snapshot of a repository and its submodules for dataset or experiment metadata.
 
