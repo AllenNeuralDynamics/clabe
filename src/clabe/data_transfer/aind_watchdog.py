@@ -255,7 +255,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         """
 
         if (len(session.experimenter) > 0) and self._email_from_experimenter_builder is not None:
-            user_email = self._email_from_experimenter_builder(session.experimenter[0])
+            user_email = self._email_from_experimenter_builder(session.experimenter[-1])
         else:
             user_email = None
 
