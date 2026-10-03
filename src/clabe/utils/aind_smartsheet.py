@@ -35,11 +35,13 @@ class SmartsheetRow(BaseModel):
     @field_validator("scientific_contact_username", "trainer_username", "project_name", mode="before")
     @classmethod
     def _blank_to_none(cls, value: Any) -> Any:
+        """Strips string values, mapping blank ones to None."""
         return value.strip() or None if isinstance(value, str) else value
 
     @field_validator("tags", mode="before")
     @classmethod
     def _null_tags(cls, value: Any) -> Any:
+        """Maps a null tags column to an empty list."""
         return [] if value is None else value
 
 
