@@ -1,9 +1,13 @@
 import logging
 from collections.abc import Callable
+from typing import Any
 from urllib.parse import quote
 
 import requests
 from aind_behavior_services import Session
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+from requests.adapters import HTTPAdapter
+from urllib3.util import Retry
 
 from .aind_validators import validate_username
 
@@ -11,16 +15,41 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_SMARTSHEET_ENDPOINT = "http://aind-behavior.corp.alleninstitute.org:8080/smartsheet"
 
-SCIENTIFIC_CONTACT_USERNAME_COLUMN = "validated_pi_username"
-PROJECT_NAME_COLUMN = "Project Name"
+
+class SmartsheetRow(BaseModel):
+    """
+    A parsed row of the scheduling smartsheet.
+
+    Fields are populated from the sheet's column names (or by field name). Blank or null
+    string values become None, and every column not modeled here is kept in ``model_extra``.
+    """
+
+    model_config = ConfigDict(validate_by_name=True, validate_by_alias=True, extra="allow")
+
+    mouse_id: str = Field(alias="Mouse ID")
+    scientific_contact_username: str | None = Field(default=None, alias="validated_pi_username")
+    trainer_username: str | None = Field(default=None, alias="validated_trainer_username")
+    project_name: str | None = Field(default=None, alias="Project Name")
+    tags: list[str] = Field(default_factory=list, alias="Tags")
+
+    @field_validator("scientific_contact_username", "trainer_username", "project_name", mode="before")
+    @classmethod
+    def _blank_to_none(cls, value: Any) -> Any:
+        """Strips string values, mapping blank ones to None."""
+        return value.strip() or None if isinstance(value, str) else value
+
+    @field_validator("tags", mode="before")
+    @classmethod
+    def _null_tags(cls, value: Any) -> Any:
+        """Maps a null tags column to an empty list."""
+        return [] if value is None else value
 
 
 class SmartsheetScheduleClient:
     """
     Client for the AIND behavior scheduling smartsheet, looked up by animal.
 
-    Rows are the raw sheet rows (column name to string value) and are cached per
-    subject, so a session only costs one request. ``get_row`` degrades to a logged warning
+    Rows are parsed into rows and are cached per subject, so a session only costs one request. ``get_row`` degrades to a logged warning
     and ``None`` when the service is unreachable, but ``add_scientific_contact`` and
     ``get_project_name`` require their values and raise ``ValueError`` without them.
 
@@ -35,42 +64,47 @@ class SmartsheetScheduleClient:
     def __init__(
         self,
         base_url: str = DEFAULT_SMARTSHEET_ENDPOINT,
-        timeout: float | None = 2,
+        timeout: float | tuple[float, float] | None = (1, 4),
         validator: Callable[[str], str | None] = validate_username,
     ) -> None:
         """
         Args:
             base_url: Root URL of the smartsheet service.
-            timeout: Timeout in seconds for each HTTP request.
+            timeout: Timeout in seconds for each HTTP request, or a (connect, read) pair.
             validator: Validates the scientific contact's username, returning the canonical
                 name or None to reject it. Defaults to the Active Directory lookup.
         """
         self._base_url = base_url.rstrip("/")
         self._timeout = timeout
+        self._session = requests.Session()
+        self._session.mount(
+            "http://", HTTPAdapter(max_retries=Retry(total=2, backoff_factor=0.3, status_forcelist=(502, 503, 504)))
+        )
         self._validator = validator
-        self._rows: dict[str, dict[str, str] | None] = {}
+        self._rows: dict[str, SmartsheetRow | None] = {}
 
-    def get_row(self, subject: str) -> dict[str, str] | None:
+    def get_row(self, subject: str) -> SmartsheetRow | None:
         """
-        Fetches the raw sheet row for an animal.
+        Fetches the parsed sheet row for an animal.
 
         Args:
             subject: The animal (mouse) id.
 
         Returns:
             The row, or None if the animal is not found or the service is unreachable.
+            Only found rows and definitive not-found results are cached; failures are retried on the next call.
         """
-        if subject not in self._rows:
-            self._rows[subject] = self._fetch_row(subject)
-        return self._rows[subject]
-
-    def _fetch_row(self, subject: str) -> dict[str, str] | None:
-        """Requests the row from the service, returning None (and logging) on any failure."""
+        if subject in self._rows:
+            return self._rows[subject]
         try:
-            response = requests.get(f"{self._base_url}/rows/{quote(subject, safe='')}", timeout=self._timeout)
+            response = self._session.get(f"{self._base_url}/rows/{quote(subject, safe='')}", timeout=self._timeout)
+            if response.status_code == 404:
+                self._rows[subject] = None  # definitive; transient failures below are not cached
+                return None
             response.raise_for_status()
-            return response.json()
-        except (requests.RequestException, ValueError) as e:
+            self._rows[subject] = SmartsheetRow.model_validate(response.json())
+            return self._rows[subject]
+        except (requests.RequestException, ValueError) as e:  # pydantic's ValidationError is a ValueError
             logger.warning("Failed to fetch smartsheet row for subject '%s': %s", subject, e)
             return None
 
@@ -89,14 +123,12 @@ class SmartsheetScheduleClient:
             The updated copy of the session, so callers must use the return value.
 
         Raises:
-            ValueError: If the animal's row or its scientific contact cannot be found, or the
-                username fails validation.
+            ValueError: If the animal's row cannot be retrieved, the row has no scientific contact,
+                or the username fails validation.
         """
-        username = self._column(session, SCIENTIFIC_CONTACT_USERNAME_COLUMN)
+        username = self._require_row(session).scientific_contact_username
         if username is None:
-            raise ValueError(
-                f"No scientific contact ('{SCIENTIFIC_CONTACT_USERNAME_COLUMN}') found for subject '{session.subject}'."
-            )
+            raise ValueError(f"The smartsheet row for subject '{session.subject}' has no scientific contact.")
         canonical = self._validator(username)
         if canonical is None:
             raise ValueError(f"Scientific contact '{username}' for subject '{session.subject}' is not valid.")
@@ -116,15 +148,19 @@ class SmartsheetScheduleClient:
             The project name.
 
         Raises:
-            ValueError: If the animal's row or its project name cannot be found.
+            ValueError: If the animal's row cannot be retrieved or has no project name.
         """
-        project_name = self._column(session, PROJECT_NAME_COLUMN)
+        project_name = self._require_row(session).project_name
         if project_name is None:
-            raise ValueError(f"No project name ('{PROJECT_NAME_COLUMN}') found for subject '{session.subject}'.")
+            raise ValueError(f"The smartsheet row for subject '{session.subject}' has no project name.")
         return project_name
 
-    def _column(self, session: Session, column: str) -> str | None:
-        """Returns the stripped value of a column in the session's row, or None if absent or blank."""
+    def _require_row(self, session: Session) -> SmartsheetRow:
+        """Returns the session's row, raising ValueError if it could not be retrieved."""
         row = self.get_row(session.subject)
-        value = (row or {}).get(column)
-        return value.strip() or None if isinstance(value, str) else None
+        if row is None:
+            raise ValueError(
+                f"No smartsheet row could be retrieved for subject '{session.subject}' "
+                "(not listed, service unreachable, or malformed response; see the log)."
+            )
+        return row
