@@ -21,7 +21,7 @@ classifiers = [
 ]
 
 dependencies = [
-    "pydantic>=2.7",
+    "pydantic>=2.11",
     "pydantic-settings",
     "typing-extensions>=4.13",
     "gitpython",
@@ -113,7 +113,7 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-markers = ["asyncio: mark test as requiring asyncio"]
+markers = ["asyncio: mark test as requiring asyncio", "network: test that requires access to the live AIND network endpoints"]
 
 [tool.interrogate]
 ignore-init-method = true
