@@ -318,13 +318,24 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
             user_email=user_email,
         )
         if self._settings.data_description_tags:
-            _manifest_config = self.add_data_description_tags(_manifest_config, self._settings.data_description_tags)
+            _manifest_config = self._apply_data_description_tags(_manifest_config)
         return _manifest_config
 
-    @staticmethod
-    def add_data_description_tags(manifest: ManifestConfig, tags: list[str]) -> ManifestConfig:
+    def add_data_description_tags(self, *tags: str) -> None:
         """
-        Mutates a manifest so that the given tags are added to the data description.
+        Registers tags to be added to the data description.
+
+        The tags are stored in the settings and written to the manifest when it is
+        built (i.e. on `transfer`). Duplicates are dropped when written.
+
+        Args:
+            *tags: The tags to add
+        """
+        self._settings.data_description_tags = [*(self._settings.data_description_tags or []), *tags]
+
+    def _apply_data_description_tags(self, manifest: ManifestConfig) -> ManifestConfig:
+        """
+        Mutates a manifest so that the registered tags are added to the data description.
 
         The tags are written to the `data_description_settings.tags` field of the
         `gather_preliminary_metadata` task job settings (see aind-metadata-mapper's
@@ -333,7 +344,6 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
 
         Args:
             manifest: The manifest configuration to mutate
-            tags: The tags to add
 
         Returns:
             The same manifest, with the tags added
@@ -341,6 +351,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         Raises:
             ValueError: If the manifest has no transfer service args
         """
+        tags = set(self._settings.data_description_tags or [])
         if manifest.transfer_service_args is None:
             raise ValueError("Manifest has no transfer service args. Cannot add tags.")
 
@@ -351,8 +362,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
                 job.tasks["gather_preliminary_metadata"] = task
             job_settings = dict(task.job_settings or {})
             data_description = dict(job_settings.get("data_description_settings") or {})
-            existing = list(data_description.get("tags") or [])
-            data_description["tags"] = existing + [t for t in dict.fromkeys(tags) if t not in existing]
+            data_description["tags"] = list(set(data_description.get("tags") or []) | tags)
             job_settings["data_description_settings"] = data_description
             task.job_settings = job_settings
         return manifest
