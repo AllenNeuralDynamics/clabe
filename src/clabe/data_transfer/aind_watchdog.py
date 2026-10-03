@@ -74,6 +74,9 @@ class WatchdogSettings(ServiceSettings):
     extra_identifying_info: dict | None = None
     upload_tasks: SerializeAsAny[TransferServiceTask] | None = None
     job_type: str = "default"
+    data_description_tags: list[str] | None = pydantic.Field(
+        default=None, description="Tags to add to the data description via the gather_preliminary_metadata task"
+    )
     extra_modality_data: dict[str, list[Path]] | None = pydantic.Field(
         default=None, description="Additional modality data to include in the transfer"
     )
@@ -314,7 +317,45 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
             job_type=self._settings.job_type,
             user_email=user_email,
         )
+        if self._settings.data_description_tags:
+            _manifest_config = self.add_data_description_tags(_manifest_config, self._settings.data_description_tags)
         return _manifest_config
+
+    @staticmethod
+    def add_data_description_tags(manifest: ManifestConfig, tags: list[str]) -> ManifestConfig:
+        """
+        Mutates a manifest so that the given tags are added to the data description.
+
+        The tags are written to the `data_description_settings.tags` field of the
+        `gather_preliminary_metadata` task job settings (see aind-metadata-mapper's
+        `JobSettings`). The task is created if missing. Existing tags are preserved
+        and duplicates are dropped.
+
+        Args:
+            manifest: The manifest configuration to mutate
+            tags: The tags to add
+
+        Returns:
+            The same manifest, with the tags added
+
+        Raises:
+            ValueError: If the manifest has no transfer service args
+        """
+        if manifest.transfer_service_args is None:
+            raise ValueError("Manifest has no transfer service args. Cannot add tags.")
+
+        for job in manifest.transfer_service_args.upload_jobs:
+            task = job.tasks.get("gather_preliminary_metadata")
+            if not isinstance(task, aind_data_transfer_service.models.core.Task):
+                task = aind_data_transfer_service.models.core.Task()
+                job.tasks["gather_preliminary_metadata"] = task
+            job_settings = dict(task.job_settings or {})
+            data_description = dict(job_settings.get("data_description_settings") or {})
+            existing = list(data_description.get("tags") or [])
+            data_description["tags"] = existing + [t for t in dict.fromkeys(tags) if t not in existing]
+            job_settings["data_description_settings"] = data_description
+            task.job_settings = job_settings
+        return manifest
 
     @staticmethod
     def _remote_destination_root(manifest: ManifestConfig) -> Path:

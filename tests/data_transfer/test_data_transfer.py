@@ -318,6 +318,31 @@ class TestWatchdogDataTransferService:
         assert manifest.transfer_service_args is not None
         assert manifest.transfer_service_args.user_email == "contact@alleninstitute.org"
 
+    def test_add_data_description_tags(self, watchdog_service: WatchdogDataTransferService):
+        manifest = watchdog_service._manifest_config
+        assert manifest is not None
+        manifest = watchdog_service._make_transfer_args(manifest, extra_tasks={}, user_email="a@b.org")
+        WatchdogDataTransferService.add_data_description_tags(manifest, ["a", "b"])
+        WatchdogDataTransferService.add_data_description_tags(manifest, ["b", "c"])
+        assert manifest.transfer_service_args is not None
+        task = manifest.transfer_service_args.upload_jobs[0].tasks["gather_preliminary_metadata"]
+        assert isinstance(task, Task)
+        assert task.job_settings is not None
+        assert task.job_settings["data_description_settings"]["tags"] == ["a", "b", "c"]
+        assert "metadata_dir" in task.job_settings
+
+    def test_add_data_description_tags_creates_task(self, watchdog_service: WatchdogDataTransferService):
+        manifest = watchdog_service._manifest_config
+        assert manifest is not None
+        manifest = watchdog_service._make_transfer_args(
+            manifest, add_default_tasks=False, extra_tasks={}, user_email="a@b.org"
+        )
+        WatchdogDataTransferService.add_data_description_tags(manifest, ["a"])
+        assert manifest.transfer_service_args is not None
+        task = manifest.transfer_service_args.upload_jobs[0].tasks["gather_preliminary_metadata"]
+        assert isinstance(task, Task)
+        assert task.job_settings == {"data_description_settings": {"tags": ["a"]}}
+
     def test_make_transfer_args(self, watchdog_service: WatchdogDataTransferService):
         manifest = watchdog_service._manifest_config
         extra_tasks = {
