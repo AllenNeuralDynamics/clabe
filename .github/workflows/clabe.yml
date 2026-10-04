@@ -50,7 +50,7 @@ jobs:
         run: uv run codespell --check-filenames
 
       - name: Run pytest
-        run: uv run pytest --cov clabe
+        run: uv run pytest --cov clabe -m "not network"
 
       - name: Build
         run: uv build
