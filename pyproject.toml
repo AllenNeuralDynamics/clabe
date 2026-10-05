@@ -94,7 +94,7 @@ default-groups = ['dev']
 module-name = "clabe"
 
 [tool.uv.sources]
-confierge = { git = "https://github.com/AllenNeuralDynamics/ficus.git", subdirectory = "packages/confierge", tag = "v0.2.3" }
+confierge = { git = "https://github.com/AllenNeuralDynamics/ficus.git", subdirectory = "packages/confierge", tag = "confierge-v0.1.1" }
 
 
 [tool.ruff]
