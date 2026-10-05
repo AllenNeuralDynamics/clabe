@@ -1,6 +1,6 @@
 import logging
 
-from clabe.stores.cofierge import ConfiergeSettings, ConfiergeStore
+from clabe.stores.confierge import ConfiergeSettings, ConfiergeStore
 
 
 class FakeConfierge:
@@ -25,7 +25,7 @@ class FakeConfierge:
 
 
 def test_scope_resolution_maps_supported_scopes_and_ignores_unsupported_ones(caplog, monkeypatch):
-    monkeypatch.setattr("clabe.stores.cofierge.Confierge", FakeConfierge)
+    monkeypatch.setattr("clabe.stores.confierge.Confierge", FakeConfierge)
 
     store = ConfiergeStore(
         settings=ConfiergeSettings(namespace="demo"),
