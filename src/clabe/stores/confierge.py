@@ -1,175 +1,139 @@
-import dataclasses
-import functools
 import logging
-from typing import Literal, TypeVar
+from collections.abc import Mapping, Sequence
+from types import MappingProxyType
+from typing import ClassVar, TypeVar
 
 from confierge import Confierge
-from pydantic import Field, TypeAdapter
+from pydantic import Field
 
-from clabe.services import ServiceSettings
-from clabe.stores import Candidate, Kind, Scope, StoreBase
+from ..services import ServiceSettings
+from ..utils import get_computer_name
+from ._base import Candidate, Kind, KindLike, Scope, StoreBase, as_kind
 
-DEFAULT_BASE_URL = "http://eng-tools/ficus-dev"
 T = TypeVar("T")
 logger = logging.getLogger(__name__)
 
-Segment = Literal["computer", "subject"]
+#: Translates clabe scope keys into the scope names ficus knows, e.g. ``{"computer_name": "hostname"}``.
+#: Scope keys absent from the mapping are not sent to ficus.
+ScopeMapping = Mapping[str, str]
 
-
-@dataclasses.dataclass(frozen=True)
-class ScopeRef:
-    """One ficus scope, narrowed to a single identifier.
-
-    A scope has a collection name and a parameter name. Ficus' routes use them differently::
-
-        POST|PATCH|DELETE  /v1/computers/{hostname}/namespaces/{namespace}/config/{filename}
-        POST|PATCH|DELETE  /v1/subjects/{subject_id}/namespaces/{namespace}/config/{filename}
-        GET                /v1/namespaces/{namespace}/config?hostname=&subject_id=&filename=&merge=
-
-    Writes address a scope by path, under the collection. There is no scoped ``GET`` route -- a
-    ``GET`` on a write path returns 405 -- so reads address it by query parameter on the unscoped
-    route. An unrecognised query parameter is ignored, and such a read returns the ``defaults``
-    layer.
-
-    Attributes:
-        segment: The collection a write addresses this scope under, e.g. ``"computers"``.
-        param: The identifier's parameter name, e.g. ``"hostname"`` -- the path variable when
-            writing, the query parameter when reading.
-        identifier: The machine name or subject id.
-    """
-
-    segment: Segment
-    param: str
-    identifier: str
-
-
-#: The rig scope, bound to a machine name: ``COMPUTERS("DT201256")``.
-COMPUTER = functools.partial(ScopeRef, "computer", "hostname")
-
-#: The per-animal scope, bound to a subject id: ``SUBJECTS("789907")``.
-SUBJECT = functools.partial(ScopeRef, "subject", "subject_id")
+#: The scopes ficus is keyed on today. Extend it by passing ``{**DEFAULT_SCOPE_MAPPING, "rig": "rig_id"}``
+#: to :class:`ConfiergeStore`.
+DEFAULT_SCOPE_MAPPING: ScopeMapping = MappingProxyType(
+    {
+        "computer_name": "hostname",
+        "subject": "subject_id",
+    }
+)
 
 
 class ConfiergeSettings(ServiceSettings):
     """Settings for :class:`ConfiergeStore`, read from the ``confierge`` section of clabe.yml."""
 
+    __yml_section__: ClassVar[str | None] = "confierge"
+
     namespace: str = Field(
-        description="The ficus namespace this store reads, e.g. 'aind-behavior-vr-foraging'. Required.",
+        description="The ficus namespace this store reads and writes, e.g. 'aind-behavior-vr-foraging'. Required.",
     )
-    base_url: str = Field(
-        default=DEFAULT_BASE_URL,
-        description="Ficus' root URL.",
+    base_url: str | None = Field(
+        default=None,
+        description="Ficus' root URL. None defers to confierge: $FICUS_BASE_URL, else its built-in default.",
     )
     mode: str | None = Field(
         default=None,
-        description=("An extra document layered above 'default' for config kinds. None uses 'default' alone."),
+        description="A ficus mode, an extra layer of overrides within each scope. None uses the default mode.",
     )
     overwrite_defaults: bool = Field(
         default=False,
-        description="Whether to overwrite the 'defaults' layer when writing config documents.",
+        description="Whether a write may overwrite the 'defaults' layer.",
     )
     create_if_missing: bool = Field(
         default=True,
-        description="Whether to create the config layer if it does not exist.",
+        description="Whether a write may create a layer that does not exist yet.",
     )
     append_new_fields_to_last_scope: bool = Field(
         default=True,
-        description="Whether to append new fields to the last scope when writing config documents.",
+        description="Whether fields new to the config are written to the last (most specific) scope.",
     )
 
 
 class ConfiergeStore(StoreBase):
-    """Reads and writes config records through the Concierge backend."""
+    """
+    A store over ficus, through the `confierge` client.
+
+    This is a thin adapter: it translates the store API's scope into ficus' scopes (see
+    :data:`DEFAULT_SCOPE_MAPPING`) and leaves merging, validation of scope names and the offline
+    cache to ficus and confierge. Ficus owns the layering, so a read yields exactly one document and
+    never prompts.
+
+    A store addresses one ficus namespace, whatever the kind. To serve several kinds, give each its
+    own store and route them with :class:`~clabe.stores.CompositeStore`.
+
+    Example:
+        ```python
+        store = ConfiergeStore(ConfiergeSettings(namespace="aind-behavior-vr-foraging"))
+        rig = store.scoped(subject="789907").resolve(Kind.from_rig(MyRig))
+        ```
+    """
 
     def __init__(
         self,
-        *,
         settings: ConfiergeSettings,
+        *,
         scope: Scope | None = None,
+        scope_mapping: ScopeMapping | None = None,
+        client: Confierge | None = None,
     ) -> None:
-        super().__init__(scope=scope)
-
-        self._client = Confierge(base_url=settings.base_url)
+        """
+        Args:
+            settings: Which namespace and server to use, and how writes behave.
+            scope: Initial scope. ``computer_name`` defaults to this machine's, as in
+                :class:`~clabe.stores.LocalFileStore`.
+            scope_mapping: Translates scope keys into ficus scope names. Defaults to
+                :data:`DEFAULT_SCOPE_MAPPING`.
+            client: A ready confierge client. Built from ``settings.base_url`` when omitted.
+        """
+        super().__init__(scope={"computer_name": get_computer_name(), **(scope or {})})
         self._settings = settings
-        self._namespace = settings.namespace
-        self._mode = settings.mode
+        self._scope_mapping = dict(DEFAULT_SCOPE_MAPPING if scope_mapping is None else scope_mapping)
+        self._client = client if client is not None else Confierge(base_url=settings.base_url)
 
-    def _candidates(self, kind: Kind, scope: Scope) -> list[Candidate[Kind]]:
-        """Fetch the current config record for a scope and package it as a candidate.
+    def __str__(self) -> str:
+        return f"{type(self).__name__}({self._settings.namespace!r})"
 
-        Args:
-            kind: The config kind to deserialize from the returned JSON.
-            scope: The active experiment scope used to resolve the config.
+    def _ficus_scopes(self, scope: Scope) -> dict[str, str]:
+        """Translates a store scope into ficus scopes, dropping keys ficus has no scope for."""
+        mapped = {self._scope_mapping[k]: v for k, v in scope.items() if v and k in self._scope_mapping}
+        for key in scope.keys() - self._scope_mapping.keys():
+            logger.debug("Scope key %r has no ficus scope and is not sent.", key)
+        return mapped
 
-        Returns:
-            A single candidate containing the validated config model for this namespace.
-        """
-        data = self._client.get_config(
-            namespace=self._namespace,
-            mode=self._mode,
-            scopes=self._config_scopes(scope),
+    def _candidates(self, kind: Kind[T], scope: Scope) -> Sequence[Candidate[T]]:
+        """Fetches the document ficus merges for this scope, falling back to confierge's cache offline."""
+        data = self._client.get_config_safe(
+            namespace=self._settings.namespace,
+            mode=self._settings.mode,
+            scopes=self._ficus_scopes(scope),
         )
-        config = TypeAdapter(kind.model).validate_python(data)
+        return [Candidate(self._settings.namespace, kind.adapter.validate_python(data))]
 
-        return [Candidate(label=self._namespace, value=config)]
-
-    def write(self, value: dict, *, scope: Scope) -> None:
-        """Write a config document to the current namespace and scope.
-
-        Args:
-            value: The config payload to persist as JSON.
-            scope: The experiment scope that determines the target machine or subject.
+    def write(self, kind: KindLike[T], value: T, *, scope: Scope | None = None) -> None:
         """
+        Posts a record to ficus, which decides which layer receives it from the scope.
+
+        Raises:
+            TypeError: If the record does not serialize to a JSON object.
+        """
+        _kind = as_kind(kind)
+        payload = _kind.adapter.dump_python(value, mode="json")
+        if not isinstance(payload, dict):
+            raise TypeError(f"{_kind!r} must serialize to a JSON object to be written, got {type(payload).__name__}.")
         self._client.post_config_file(
-            namespace=self._namespace,
-            config_data=value,
-            mode=self._mode,
-            scopes=self._config_scopes(scope),
+            namespace=self._settings.namespace,
+            config_data=payload,
+            mode=self._settings.mode,
+            scopes=self._ficus_scopes(self._merge_scope(scope)),
             overwrite_defaults=self._settings.overwrite_defaults,
             create_if_missing=self._settings.create_if_missing,
             append_new_fields_to_last_scope=self._settings.append_new_fields_to_last_scope,
         )
-
-    def _config_scopes(self, scope: Scope) -> dict[str, str]:
-        """Builds the merge chain's scopes, lowest precedence first.
-
-        Args:
-            scope: The merged scope for this call.
-
-        Returns:
-            dict[str, str]: The bound scopes, skipping any this store cannot resolve an identifier
-                for.
-        """
-        refs: list[ScopeRef] = []
-        if computer := scope.get("computer"):
-            refs.append(COMPUTER(computer))
-        if subject := scope.get("subject"):
-            refs.append(SUBJECT(subject))
-
-        scopes = {value.param: value.identifier for value in refs}
-        ignored_scopes = [key for key in scope if key not in {"computer", "subject"}]
-        for key in ignored_scopes:
-            logger.warning("Ignoring scope '%s' because it is not included in the configuration scope mapping.", key)
-
-        return scopes
-
-
-if __name__ == "__main__":
-    from aind_behavior_services import Task
-
-    from clabe import ui
-
-    ui.set_current_frontend(ui.make_frontend("console"))
-
-    rig_settings = ConfiergeSettings(
-        namespace="clabe-example",
-    )
-    rig_store = ConfiergeStore(
-        settings=rig_settings,
-        scope={"computer": "SIPE-Micah", "subject": "test", "task_name": "AindDynamicForaging"},
-    )  # extra scopes not found in confierge are ignored
-    task = rig_store.resolve(Task)
-
-    # push back subject-specific configuration
-    task.stage_name = "dummy_stage_name"
-    rig_store.write(value=task.model_dump(include={"stage_name": True}), scope={"subject": "test"})

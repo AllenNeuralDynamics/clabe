@@ -110,7 +110,7 @@ requires-dist = [
     { name = "aind-data-schema", marker = "extra == 'aind-services'", specifier = ">=2" },
     { name = "aind-data-transfer-service", marker = "extra == 'aind-services'", specifier = ">=2.2.0" },
     { name = "aind-watchdog-service", marker = "extra == 'aind-services'", specifier = ">=0.1.6" },
-    { name = "confierge", marker = "extra == 'aind-services'", git = "https://github.com/AllenNeuralDynamics/ficus.git?subdirectory=packages%2Fconfierge&tag=v0.2.3" },
+    { name = "confierge", marker = "extra == 'aind-services'", git = "https://github.com/AllenNeuralDynamics/ficus.git?subdirectory=packages%2Fconfierge&tag=confierge-v0.1.2" },
     { name = "gitpython" },
     { name = "msal", marker = "sys_platform == 'win32' and extra == 'aind-services'" },
     { name = "opentelemetry-api", specifier = ">=1.24" },
@@ -747,8 +747,8 @@ wheels = [
 
 [[package]]
 name = "confierge"
-version = "0.1.0"
-source = { git = "https://github.com/AllenNeuralDynamics/ficus.git?subdirectory=packages%2Fconfierge&tag=v0.2.3#8789e09625ed8fe95a3421d35bd00a80f90d3a13" }
+version = "0.1.2"
+source = { git = "https://github.com/AllenNeuralDynamics/ficus.git?subdirectory=packages%2Fconfierge&tag=confierge-v0.1.2#d25dba266c4f5cd003f9ddeb47fe143bd0f39965" }
 dependencies = [
     { name = "platformdirs" },
     { name = "pydantic" },
