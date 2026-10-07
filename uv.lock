@@ -69,6 +69,7 @@ aind-services = [
     { name = "aind-data-schema" },
     { name = "aind-data-transfer-service" },
     { name = "aind-watchdog-service" },
+    { name = "confierge" },
     { name = "msal", marker = "sys_platform == 'win32'" },
     { name = "pykeepass" },
     { name = "pyyaml" },
@@ -109,6 +110,7 @@ requires-dist = [
     { name = "aind-data-schema", marker = "extra == 'aind-services'", specifier = ">=2" },
     { name = "aind-data-transfer-service", marker = "extra == 'aind-services'", specifier = ">=2.2.0" },
     { name = "aind-watchdog-service", marker = "extra == 'aind-services'", specifier = ">=0.1.6" },
+    { name = "confierge", marker = "extra == 'aind-services'", git = "https://github.com/AllenNeuralDynamics/ficus.git?subdirectory=packages%2Fconfierge&tag=confierge-v0.1.2" },
     { name = "gitpython" },
     { name = "msal", marker = "sys_platform == 'win32' and extra == 'aind-services'" },
     { name = "opentelemetry-api", specifier = ">=1.24" },
@@ -745,6 +747,16 @@ wheels = [
 ]
 
 [[package]]
+name = "confierge"
+version = "0.1.2"
+source = { git = "https://github.com/AllenNeuralDynamics/ficus.git?subdirectory=packages%2Fconfierge&tag=confierge-v0.1.2#d25dba266c4f5cd003f9ddeb47fe143bd0f39965" }
+dependencies = [
+    { name = "platformdirs" },
+    { name = "pydantic" },
+    { name = "requests" },
+]
+
+[[package]]
 name = "construct"
 version = "2.10.70"
 source = { registry = "https://pypi.org/simple" }
@@ -877,7 +889,7 @@ name = "cryptography"
 version = "50.0.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "cffi", marker = "platform_python_implementation != 'PyPy'" },
+    { name = "cffi", marker = "platform_python_implementation != 'PyPy' and sys_platform == 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/9d/af/182eb91b0df3fe75c4d9f26fe70684569566745f6ba7e5c9c73a862c5252/cryptography-50.0.2.tar.gz", hash = "sha256:7b46165bb56eb4704e2eaaf86f3c940d19154535d9b0ca7d6d590b04060e00d5", size = 880623, upload-time = "2026-09-30T15:30:04.884Z" }
 wheels = [
@@ -1662,9 +1674,9 @@ name = "msal"
 version = "1.39.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "cryptography" },
-    { name = "pyjwt", extra = ["crypto"] },
-    { name = "requests" },
+    { name = "cryptography", marker = "sys_platform == 'win32'" },
+    { name = "pyjwt", extra = ["crypto"], marker = "sys_platform == 'win32'" },
+    { name = "requests", marker = "sys_platform == 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/bb/85/747d28986a44b715cc51cf57aa021c8fd94e9614064261ceec77320e8b0b/msal-1.39.0.tar.gz", hash = "sha256:6ab7de335e6d7f5717e2c7e1dbf86e4dda2f6acf3c56773b78dc53ebc6395b5f", size = 205360, upload-time = "2026-09-17T16:07:45.1Z" }
 wheels = [
@@ -2575,7 +2587,7 @@ wheels = [
 
 [package.optional-dependencies]
 crypto = [
-    { name = "cryptography" },
+    { name = "cryptography", marker = "sys_platform == 'win32'" },
 ]
 
 [[package]]
