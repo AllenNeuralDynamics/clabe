@@ -62,7 +62,7 @@ class OpenEphysApp(ExecutableApp, _DefaultExecutorMixin):
         self.settings = settings
         self.signal_chain = Path(self.settings.signal_chain).resolve()
         self.executable = Path(self.settings.executable).resolve()
-        self._client = OpenEphysGuiClient(host=self.settings.address, port=self.settings.port)
+        self._client = _OpenEphysGuiClient(host=self.settings.address, port=self.settings.port)
 
         if not skip_validation:
             self.validate()
@@ -89,7 +89,7 @@ class OpenEphysApp(ExecutableApp, _DefaultExecutorMixin):
         return self._command
 
     @property
-    def client(self) -> "OpenEphysGuiClient":
+    def client(self) -> "_OpenEphysGuiClient":
         """Get the Open Ephys GUI client."""
         return self._client
 
@@ -196,7 +196,7 @@ class WindowRequest(BaseModel):
     command: Literal["quit"]
 
 
-class OpenEphysGuiClient:
+class _OpenEphysGuiClient:
     """Client for interacting with the Open Ephys GUI HTTP Server.
 
     The Open Ephys HTTP Server runs on port 37497 and provides a RESTful API
@@ -475,7 +475,3 @@ class OpenEphysGuiClient:
         """
         request = WindowRequest(command="quit")
         return self._put("/window", request)
-
-
-# Preserve imports used by existing integrations.
-_OpenEphysGuiClient = OpenEphysGuiClient
