@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 from enum import Enum
@@ -61,7 +62,7 @@ class OpenEphysApp(ExecutableApp, _DefaultExecutorMixin):
         self.settings = settings
         self.signal_chain = Path(self.settings.signal_chain).resolve()
         self.executable = Path(self.settings.executable).resolve()
-        self._client = _OpenEphysGuiClient(host=self.settings.address, port=self.settings.port)
+        self._client = OpenEphysGuiClient(host=self.settings.address, port=self.settings.port)
 
         if not skip_validation:
             self.validate()
@@ -88,7 +89,7 @@ class OpenEphysApp(ExecutableApp, _DefaultExecutorMixin):
         return self._command
 
     @property
-    def client(self) -> "_OpenEphysGuiClient":
+    def client(self) -> "OpenEphysGuiClient":
         """Get the Open Ephys GUI client."""
         return self._client
 
@@ -195,7 +196,7 @@ class WindowRequest(BaseModel):
     command: Literal["quit"]
 
 
-class _OpenEphysGuiClient:
+class OpenEphysGuiClient:
     """Client for interacting with the Open Ephys GUI HTTP Server.
 
     The Open Ephys HTTP Server runs on port 37497 and provides a RESTful API
@@ -238,6 +239,23 @@ class _OpenEphysGuiClient:
         result = response.json()
         logger.debug("PUT response from %s: %s", url, result)
         return result
+
+    def get_config(self) -> str:
+        """Retrieve the running GUI's current XML configuration.
+
+        Returns:
+            The XML text from the ``info`` field of GET /api/config, unchanged.
+
+        Raises:
+            ValueError: The response does not contain a string in ``info``.
+            requests.RequestException: The HTTP request fails.
+        """
+        response = self._get("/config")
+        xml_text = response.get("info") if isinstance(response, dict) else None
+        if not isinstance(xml_text, str):
+            # This is invalid server data, not an invalid caller argument type.
+            raise ValueError("Configuration response must contain XML text in 'info'.")  # noqa: TRY004
+        return xml_text
 
     def get_status(self) -> Status:
         """Query the GUI's acquisition/recording status.
@@ -396,6 +414,36 @@ class _OpenEphysGuiClient:
         request = ConfigRequest(text=message)
         return self._put(f"/processors/{processor_id}/config", request)
 
+    def get_processor_metadata(self, processor_id: int) -> list[dict[str, Any]]:
+        """Read metadata history from an Ephys Metadata Generator processor.
+
+        The GUI wraps the processor's JSON string in the response's ``info``
+        field. This method decodes that string without adding an AIND schema
+        dependency. It does not clear history or change recording state.
+
+        Args:
+            processor_id: ID of the metadata generator, not a Record Node.
+
+        Returns:
+            Metadata objects in the order returned by the processor.
+
+        Raises:
+            ValueError: The response does not contain a JSON array of objects.
+            requests.RequestException: The HTTP request fails.
+        """
+        response = self.send_processor_config(processor_id, "get metadata")
+        info = response.get("info") if isinstance(response, dict) else None
+        if not isinstance(info, str):
+            # This is invalid server data, not an invalid caller argument type.
+            raise ValueError("Metadata response must contain a JSON string in 'info'.")  # noqa: TRY004
+        try:
+            metadata = json.loads(info)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"Processor {processor_id} did not return valid metadata JSON.") from exc
+        if not isinstance(metadata, list) or any(not isinstance(item, dict) for item in metadata):
+            raise ValueError("Processor metadata must be a JSON array of objects.")
+        return metadata
+
     def broadcast_message(self, message: str) -> dict[str, Any]:
         """Broadcast a message to all processors during acquisition.
 
@@ -427,3 +475,7 @@ class _OpenEphysGuiClient:
         """
         request = WindowRequest(command="quit")
         return self._put("/window", request)
+
+
+# Preserve imports used by existing integrations.
+_OpenEphysGuiClient = OpenEphysGuiClient
