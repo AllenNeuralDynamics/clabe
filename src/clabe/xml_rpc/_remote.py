@@ -1,5 +1,6 @@
 import logging
 import os
+import socket
 import time
 from collections.abc import Mapping
 from pathlib import Path, PureWindowsPath
@@ -11,10 +12,10 @@ from aind_behavior_services import Session
 from .. import __version__
 from ..apps import Command, CommandResult, identity_parser
 from ..git_manager import GitRepository, GitRepositoryMetadata
-from ._client import XmlRpcClient
+from ._client import XmlRpcClient, XmlRpcClientSettings
 from ._executor import XmlRpcExecutor
 from ._scheduled_task import TASK_NAME, start_task
-from .models import ServerInfoResponse
+from .models import DEFAULT_PORT, ServerInfoResponse
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,41 @@ def _normalize_url(url: str | None) -> str | None:
     if url is None:
         return None
     return url.rstrip("/").removesuffix(".git").lower()
+
+
+def to_unc(path: os.PathLike | str, data_roots: Mapping[str, str]) -> PureWindowsPath:
+    """Translates a path on another machine to the network share path it is reached by.
+
+    Needs no connection to that machine, e.g. to find the data of a session recorded there earlier.
+
+    Args:
+        path: A path on the other machine, under one of the ``data_roots``.
+        data_roots: Maps data directories on that machine to the network shares exposing them,
+            e.g. ``{r"D:\\data": r"\\\\rig-b\\data"}``.
+
+    Returns:
+        The same location under its network share.
+
+    Raises:
+        ValueError: If the path is not under any of the ``data_roots``.
+    """
+    path = PureWindowsPath(path)
+    roots = {PureWindowsPath(local): PureWindowsPath(unc) for local, unc in data_roots.items()}
+    # Most specific root first, so nested roots map to their own share
+    for root in sorted(roots, key=lambda r: len(r.parts), reverse=True):
+        if path.is_relative_to(root):
+            return roots[root] / path.relative_to(root)
+    raise ValueError(f"{path} is not under any data root: {[str(r) for r in roots]}")
+
+
+def _check_resolvable(host: str) -> None:
+    """Raises a clear error when ``host`` cannot be resolved to an address, e.g. a misspelled computer name."""
+    try:
+        socket.getaddrinfo(host, None)
+    except socket.gaierror as e:
+        raise ConnectionError(
+            f"Cannot resolve '{host}' to an address. Check the computer name, and that it is on the same network."
+        ) from e
 
 
 class RemoteRepository:
@@ -86,6 +122,30 @@ class RemoteRepository:
         self._session: Session | None = None
         self._data_directory: PureWindowsPath | None = None
 
+    @classmethod
+    def from_computer_name(
+        cls,
+        computer_name: str,
+        port: int = DEFAULT_PORT,
+        path: str | None = None,
+        *,
+        local_path: os.PathLike | str = ".",
+        data_roots: Mapping[str, str] | None = None,
+    ) -> Self:
+        """Connects to the server on a machine by its computer name, e.g. a rig's ``computer_name``.
+
+        The remaining client settings, such as the token, are read from the ``xml_rpc_client`` section.
+
+        Args:
+            computer_name: Network name of the remote machine.
+            port: Port the remote server listens on.
+            path: Path of the repository on the remote machine. See :meth:`__init__`.
+            local_path: Path of the local repository the remote one is compared against.
+            data_roots: Maps data directories on the remote machine to the network shares exposing them.
+        """
+        client = XmlRpcClient(XmlRpcClientSettings(server_url=f"http://{computer_name}:{port}"))
+        return cls(client, path, local_path=local_path, data_roots=data_roots)
+
     @property
     def host(self) -> str:
         """Hostname of the remote machine, as given in the server URL."""
@@ -113,10 +173,12 @@ class RemoteRepository:
             poll_interval: Seconds between connection attempts.
 
         Raises:
+            ConnectionError: If the remote machine's name cannot be resolved to an address.
             TimeoutError: If the server does not respond within ``timeout``.
         """
         if self.client.ping():
             return
+        _check_resolvable(self.host)
         logger.info("Server on %s is not responding; starting scheduled task '%s'", self.host, TASK_NAME)
         start_task(host=self.host)
         deadline = time.monotonic() + timeout
@@ -189,12 +251,10 @@ class RemoteRepository:
         Raises:
             ValueError: If the path is not under any of the ``data_roots``.
         """
-        path = PureWindowsPath(path)
-        # Most specific root first, so nested roots map to their own share
-        for root in sorted(self.data_roots, key=lambda r: len(r.parts), reverse=True):
-            if path.is_relative_to(root):
-                return self.data_roots[root] / path.relative_to(root)
-        raise ValueError(f"{path} is not under any data root of {self.host}: {[str(r) for r in self.data_roots]}")
+        try:
+            return to_unc(path, {str(local): str(unc) for local, unc in self.data_roots.items()})
+        except ValueError as e:
+            raise ValueError(f"{e} (on {self.host})") from e
 
     def register_session(self, session: Session, data_directory: os.PathLike | str) -> Self:
         """Registers the session this machine records data for, and creates its session directory there.

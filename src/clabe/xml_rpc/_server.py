@@ -23,6 +23,7 @@ from ..constants import TMP_DIR
 from ..services import ServiceSettings
 from ._scheduled_task import TASK_NAME, register_task, unregister_task
 from .models import (
+    DEFAULT_PORT,
     FileBulkDeleteResponse,
     FileDeleteResponse,
     FileDownloadResponse,
@@ -47,7 +48,7 @@ class XmlRpcServerSettings(ServiceSettings):
 
     token: SecretStr = Field(description="Authentication token for RPC access")
     address: IPvAnyAddress = Field(default="0.0.0.0", validate_default=True)
-    port: int = Field(default=8000, description="Port to listen on")
+    port: int = Field(default=DEFAULT_PORT, description="Port to listen on")
     max_workers: int = Field(default=4, description="Maximum number of concurrent RPC commands")
     max_file_size: int = Field(default=5 * 1024 * 1024, description="Maximum file size in bytes (default 5MB)")
     file_transfer_dir: Path = Field(

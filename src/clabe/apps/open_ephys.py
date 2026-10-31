@@ -3,7 +3,7 @@ import json
 import logging
 import os
 from enum import Enum
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any, Literal
 
 import requests
@@ -169,6 +169,45 @@ class OpenEphysApp(ExecutableApp, _DefaultExecutorMixin):
             The GUI's mode after the request.
         """
         return self._client.start_recording() if record else self._client.start_acquisition()
+
+    def set_recording_directory(self, directory: os.PathLike | str) -> "RecordingResponse":
+        """Makes every Record Node record to exactly ``directory``, e.g. ``<data directory>/<session>/ecephys``.
+
+        The path is as the machine running the GUI sees it. Call it after :meth:`launch` and before :meth:`start`.
+        Its parent must already exist, e.g. created by :meth:`clabe.xml_rpc.RemoteRepository.register_session`.
+        The directory itself must not: the GUI creates it when recording starts, and if it already exists, records
+        to a new sibling instead (e.g. ``ecephys (1)``). So do not create it, or anything inside it, beforehand.
+
+        Args:
+            directory: Directory to record to.
+
+        Returns:
+            The recording configuration after the change.
+
+        Raises:
+            ValueError: If the GUI did not accept the directory, e.g. because its parent does not exist.
+        """
+        directory = PureWindowsPath(directory)
+        # The GUI names the directory prepend_text + base_text + append_text, under parent_directory
+        response = self._client.set_recording_config(
+            parent_directory=str(directory.parent), base_text=directory.name, prepend_text="", append_text=""
+        )
+        # Record Nodes saved in the signal chain with their own directory may not follow the default
+        for node in response.record_nodes:
+            if PureWindowsPath(node.parent_directory) != directory.parent:
+                response = self._client.set_record_node_config(node.node_id, parent_directory=str(directory.parent))
+        # The GUI ignores a parent that does not exist, without an error, and keeps recording to its previous one
+        ignored = [
+            str(PureWindowsPath(p))
+            for p in [response.parent_directory, *(n.parent_directory for n in response.record_nodes)]
+            if PureWindowsPath(p) != directory.parent
+        ]
+        if ignored:
+            raise ValueError(
+                f"Open Ephys did not accept {directory.parent} as the recording directory's parent and would record "
+                f"to {sorted(set(ignored))}. Check that it exists on the machine running the GUI."
+            )
+        return response
 
     def stop(self) -> "Status":
         """Stops recording and acquisition.
@@ -476,7 +515,8 @@ class _OpenEphysGuiClient:
             Updated recording configuration.
 
         Note:
-            Changes only apply to future Record Nodes, not existing ones.
+            In GUI v1.1, changing ``parent_directory`` also moves the Record Nodes that use the default. To set
+            the directory of every Record Node, use :meth:`OpenEphysApp.set_recording_directory`.
         """
         request = RecordingRequest(
             parent_directory=parent_directory,

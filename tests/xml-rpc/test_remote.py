@@ -14,6 +14,7 @@ from pydantic import BaseModel, SecretStr
 
 from clabe.apps import AindBehaviorServicesBonsaiApp, Command, CommandError, identity_parser
 from clabe.apps.open_ephys import OpenEphysApp, OpenEphysAppSettings, Status
+from clabe.services import override_clabe_yml
 from clabe.xml_rpc import (
     RemoteRepository,
     RepositoryMismatchError,
@@ -22,6 +23,7 @@ from clabe.xml_rpc import (
     XmlRpcExecutor,
     XmlRpcServer,
     XmlRpcServerSettings,
+    to_unc,
 )
 from clabe.xml_rpc._staged_command import StagedCommand, StagedFile, main, run_staged
 
@@ -264,6 +266,22 @@ class TestToUnc:
         with pytest.raises(ValueError, match="not under any data root"):
             remote.to_unc(r"E:\other")
 
+    def test_function_needs_no_connection(self):
+        assert to_unc(r"D:\data\s\ecephys", {r"D:\data": r"\\rig-b\data"}) == PureWindowsPath(r"\\rig-b\data\s\ecephys")
+        with pytest.raises(ValueError, match="not under any data root"):
+            to_unc(r"E:\other", {r"D:\data": r"\\rig-b\data"})
+
+
+class TestFromComputerName:
+    def test_builds_server_url_and_reads_the_rest_from_config(self):
+        with override_clabe_yml({"xml_rpc_client": {"token": "secret", "timeout": 5}}):
+            remote = RemoteRepository.from_computer_name("ephys-pc", port=8123, data_roots={r"D:\data": r"\\x\d"})
+        assert str(remote.client.settings.server_url) == "http://ephys-pc:8123/"
+        assert remote.client.settings.token.get_secret_value() == "secret"
+        assert remote.client.settings.timeout == 5
+        assert remote.host == "ephys-pc"
+        assert remote.to_unc(r"D:\data\s") == PureWindowsPath(r"\\x\d\s")
+
 
 class TestEnsureRunning:
     def test_does_nothing_when_server_responds(self, remote: RemoteRepository):
@@ -286,6 +304,18 @@ class TestEnsureRunning:
             pytest.raises(TimeoutError),
         ):
             remote.ensure_running(timeout=0.05, poll_interval=0.01)
+
+    def test_unresolvable_host_raises_before_starting_task(self):
+        remote = RemoteRepository(
+            XmlRpcClient(XmlRpcClientSettings(server_url="http://no-such-computer.invalid:8000", token="t"))
+        )
+        with (
+            patch.object(remote.client, "ping", return_value=False),
+            patch("clabe.xml_rpc._remote.start_task") as start,
+            pytest.raises(ConnectionError, match="no-such-computer.invalid"),
+        ):
+            remote.ensure_running()
+        start.assert_not_called()
 
 
 class TestOpenEphysOnRemote:

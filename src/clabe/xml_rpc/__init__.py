@@ -1,6 +1,6 @@
 from ._client import XmlRpcClient, XmlRpcClientSettings
 from ._executor import XmlRpcExecutor
-from ._remote import RemoteRepository, RepositoryMismatchError
+from ._remote import RemoteRepository, RepositoryMismatchError, to_unc
 from ._server import XmlRpcServer, XmlRpcServerSettings
 from .models import FileInfo, JobResult
 
@@ -14,4 +14,5 @@ __all__ = [
     "XmlRpcExecutor",
     "XmlRpcServer",
     "XmlRpcServerSettings",
+    "to_unc",
 ]
