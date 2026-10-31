@@ -523,6 +523,15 @@ class TestWatchdogDataTransferService:
         expected_root = Path(manifest.destination) / manifest.name
         assert root == expected_root
 
+    def test_create_manifest_raises_for_unreachable_source(
+        self, watchdog_service: WatchdogDataTransferService, mock_session: Session, tmp_path: Path
+    ):
+        missing = tmp_path / "rig-b" / "session"
+        watchdog_service._sources.append(missing)
+        with pytest.raises(FileNotFoundError, match="not reachable") as exc_info:
+            watchdog_service._create_manifest_from_session(mock_session)
+        assert str(missing) in str(exc_info.value)
+
     def test_find_modality_candidates(self, watchdog_service: WatchdogDataTransferService, source: Path):
         candidates = watchdog_service._find_modality_candidates(source)
         assert set(candidates.keys()) == {"behavior", "behavior-videos"}

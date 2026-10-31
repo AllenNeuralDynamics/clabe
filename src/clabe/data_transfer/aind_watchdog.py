@@ -265,6 +265,10 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         destination = Path(self._settings.destination).resolve()
 
         sources = {Path(s).resolve() for s in self._sources}
+        # Sources may be network shares on other machines, so report every unreachable one up front
+        missing = sorted(str(s) for s in sources if not s.is_dir())
+        if missing:
+            raise FileNotFoundError(f"Watchdog source directories not found or not reachable: {', '.join(missing)}")
 
         if self._validate_project_name:
             project_names = self._get_project_names()
