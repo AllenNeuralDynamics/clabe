@@ -13,6 +13,7 @@ import pytest
 from pydantic import BaseModel, SecretStr
 
 from clabe.apps import AindBehaviorServicesBonsaiApp, Command, CommandError, identity_parser
+from clabe.apps.open_ephys import OpenEphysApp, OpenEphysAppSettings, Status
 from clabe.xml_rpc import (
     RemoteRepository,
     RepositoryMismatchError,
@@ -24,6 +25,7 @@ from clabe.xml_rpc import (
 )
 from clabe.xml_rpc._staged_command import StagedCommand, StagedFile, main, run_staged
 
+_OPEN_EPHYS_DIR = Path(__file__).parents[1] / "assets" / "Aind.Physiology.OpenEphys" / ".open-ephys"
 _PRINT_FILE = [sys.executable, "-c", "import sys; print(open(sys.argv[1]).read())"]
 
 # Stands in for bonsai.exe: reports where it runs from and the content of each -p:Name=path property
@@ -282,3 +284,37 @@ class TestEnsureRunning:
             pytest.raises(TimeoutError),
         ):
             remote.ensure_running(timeout=0.05, poll_interval=0.01)
+
+
+class TestOpenEphysOnRemote:
+    @pytest.mark.asyncio
+    async def test_launch_on_remote_executor(self, remote: RemoteRepository, fake_open_ephys_gui):
+        script, port = fake_open_ephys_gui(delay=0.5)
+        app = OpenEphysApp(OpenEphysAppSettings(signal_chain=script, executable=sys.executable, port=port))
+
+        async with app.launch(executor=remote, poll_interval=0.05) as client:
+            # The settings say localhost, so the client follows the executor to the remote host
+            assert client.base_url == f"http://127.0.0.1:{port}/api"
+            assert client.get_status() == Status.IDLE
+
+        assert app.command.result.exit_code == 0
+        assert "quit" in (app.command.result.stdout or "")
+
+    @pytest.mark.asyncio
+    @pytest.mark.skipif(
+        not (_OPEN_EPHYS_DIR / "open-ephys.exe").exists(),
+        reason="Open Ephys GUI not downloaded: run tests/assets/Aind.Physiology.OpenEphys/.open-ephys/setup.ps1 -NoLaunch",
+    )
+    async def test_real_headless_gui_on_remote_executor(self, remote: RemoteRepository):
+        app = OpenEphysApp(
+            OpenEphysAppSettings(
+                signal_chain=_OPEN_EPHYS_DIR / "configs" / "file_reader_config.xml",
+                executable=_OPEN_EPHYS_DIR / "open-ephys.exe",
+                headless=True,
+            )
+        )
+        async with app.launch(executor=remote, timeout=120.0) as client:
+            assert client.base_url == "http://127.0.0.1:37497/api"
+            assert client.start_acquisition() == Status.ACQUIRE
+            assert client.stop() == Status.IDLE
+        assert app.command.result.exit_code == 0

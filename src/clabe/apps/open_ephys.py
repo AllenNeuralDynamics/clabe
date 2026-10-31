@@ -1,6 +1,9 @@
+import asyncio
+import contextlib
 import json
 import logging
 import os
+from collections.abc import AsyncIterator
 from enum import Enum
 from pathlib import Path
 from typing import Any, Literal
@@ -9,10 +12,12 @@ import requests
 from pydantic import BaseModel, Field
 
 from ..services import ServiceSettings
-from ._base import Command, CommandResult, ExecutableApp, identity_parser
+from ._base import AsyncExecutor, Command, CommandResult, ExecutableApp, identity_parser
 from ._executors import _DefaultExecutorMixin
 
 logger = logging.getLogger(__name__)
+
+_LOOPBACK_ADDRESSES = {"localhost", "127.0.0.1", "::1"}
 
 
 class OpenEphysAppSettings(ServiceSettings):
@@ -21,9 +26,10 @@ class OpenEphysAppSettings(ServiceSettings):
     __yml_section__ = "open_ephys"
 
     signal_chain: os.PathLike
-    executable: os.PathLike = Path("./.open_ephys/open_ephys.exe")
+    executable: os.PathLike = Path("./.open-ephys/open-ephys.exe")
     address: str = "localhost"
     port: int = 37497
+    headless: bool = Field(default=False, description="Run the GUI without a window (--headless)")
 
 
 class OpenEphysApp(ExecutableApp, _DefaultExecutorMixin):
@@ -68,7 +74,8 @@ class OpenEphysApp(ExecutableApp, _DefaultExecutorMixin):
             self.validate()
 
         self._command = Command[CommandResult](
-            cmd=[str(self.executable), str(self.signal_chain)], output_parser=identity_parser
+            cmd=[str(self.executable), str(self.signal_chain), *(["--headless"] if self.settings.headless else [])],
+            output_parser=identity_parser,
         )
 
     def validate(self):
@@ -92,6 +99,100 @@ class OpenEphysApp(ExecutableApp, _DefaultExecutorMixin):
     def client(self) -> "_OpenEphysGuiClient":
         """Get the Open Ephys GUI client."""
         return self._client
+
+    @contextlib.asynccontextmanager
+    async def launch(
+        self,
+        executor: AsyncExecutor | None = None,
+        *,
+        timeout: float = 180.0,
+        poll_interval: float = 0.5,
+        shutdown_timeout: float = 30.0,
+    ) -> AsyncIterator["_OpenEphysGuiClient"]:
+        """Starts the GUI, waits until its HTTP API responds, and quits it on exit.
+
+        When ``executor`` runs commands on another machine (it has a ``host``, like
+        ``clabe.xml_rpc.RemoteRepository``) and ``settings.address`` is a loopback address, the client
+        is pointed at that machine instead. The GUI's port must then be reachable from this machine.
+
+        Args:
+            executor: Executor to run the GUI with. Defaults to a local executor.
+            timeout: Seconds to wait for the API to respond after starting the GUI. Startup can take
+                minutes while hardware processors (e.g. Neuropix-PXI, NI-DAQmx) search for devices.
+            poll_interval: Seconds between attempts to reach the API.
+            shutdown_timeout: Seconds to wait for the GUI to exit after asking it to quit.
+
+        Yields:
+            The client connected to the running GUI.
+
+        Raises:
+            TimeoutError: If the API does not respond within ``timeout``.
+            RuntimeError: If the GUI exits before its API responds.
+            CommandError: If the GUI exits with a non-zero code.
+
+        Example:
+            ```python
+            async with app.launch(executor=remote) as client:
+                client.start_recording()
+                await behavior_app.run_async()
+                client.stop()
+            ```
+        """
+        host = getattr(executor, "host", None)
+        if host is not None and self.settings.address in _LOOPBACK_ADDRESSES:
+            self._client = _OpenEphysGuiClient(host=host, port=self.settings.port)
+
+        gui = asyncio.create_task(self.run_async(executor=executor))
+        try:
+            await self._wait_until_ready(gui, timeout, poll_interval)
+            yield self._client
+        except BaseException:
+            # The caller's error is the one to report; a GUI failure is only logged
+            await self._shutdown(gui, shutdown_timeout, raise_on_error=False)
+            raise
+        else:
+            await self._shutdown(gui, shutdown_timeout, raise_on_error=True)
+
+    async def _wait_until_ready(self, gui: asyncio.Task, timeout: float, poll_interval: float) -> None:
+        """Polls the GUI's API until it responds, failing if the GUI exits first or ``timeout`` passes."""
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + timeout
+        await asyncio.sleep(0)  # let the GUI task start, so an immediate failure is seen before polling
+        while True:
+            if gui.done():
+                gui.result()  # raises the GUI's own error if it failed
+                raise RuntimeError("Open Ephys GUI exited before its HTTP API became available.")
+            try:
+                await asyncio.to_thread(self._client.get_status)
+                logger.info("Open Ephys GUI is ready at %s", self._client.base_url)
+                return
+            except requests.RequestException:
+                pass
+            if loop.time() >= deadline:
+                raise TimeoutError(f"Open Ephys GUI API at {self._client.base_url} did not respond within {timeout}s")
+            await asyncio.sleep(poll_interval)
+
+    async def _shutdown(self, gui: asyncio.Task, timeout: float, raise_on_error: bool) -> None:
+        """Asks the GUI to quit and waits for it to exit."""
+        if not gui.done():
+            try:
+                await asyncio.to_thread(self._client.quit)
+            except requests.RequestException as e:
+                # The GUI may close the connection as it quits, or not be reachable at all
+                logger.debug("Quit request to Open Ephys GUI failed: %s", e)
+            done, _ = await asyncio.wait({gui}, timeout=timeout)
+            if not done:
+                gui.cancel()
+                # Cancelling stops waiting for the process but does not end it
+                logger.warning("Open Ephys GUI did not exit within %ss of quitting; it may still be running", timeout)
+                return
+        if gui.cancelled():
+            return
+        error = gui.exception()
+        if error is not None:
+            if raise_on_error:
+                raise error
+            logger.error("Open Ephys GUI failed: %s", error)
 
 
 class Status(str, Enum):
@@ -191,9 +292,13 @@ class MessageRequest(BaseModel):
 
 
 class WindowRequest(BaseModel):
-    """Request to control GUI window."""
+    """Request to control GUI window (GUI versions before v1.1)."""
 
     command: Literal["quit"]
+
+
+class QuitRequest(BaseModel):
+    """Request to shut down the GUI (``/api/quit``, GUI v1.1+)."""
 
 
 class _OpenEphysGuiClient:
@@ -470,8 +575,15 @@ class _OpenEphysGuiClient:
     def quit(self) -> dict[str, Any]:
         """Shut down the GUI remotely.
 
+        Uses ``/api/quit`` (GUI v1.1+, which also works headless), falling back to the
+        ``/api/window`` command of older GUI versions.
+
         Returns:
             Response from the API.
         """
-        request = WindowRequest(command="quit")
-        return self._put("/window", request)
+        try:
+            return self._put("/quit", QuitRequest())
+        except requests.HTTPError as e:
+            if e.response is None or e.response.status_code != 404:
+                raise
+        return self._put("/window", WindowRequest(command="quit"))

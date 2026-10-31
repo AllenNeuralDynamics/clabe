@@ -2,3 +2,6 @@
 [submodule "tests/assets/Aind.Behavior.VrForaging"]
 	path = tests/assets/Aind.Behavior.VrForaging
 	url = https://github.com/AllenNeuralDynamics/Aind.Behavior.VrForaging
+[submodule "tests/assets/Aind.Physiology.OpenEphys"]
+	path = tests/assets/Aind.Physiology.OpenEphys
+	url = https://github.com/AllenNeuralDynamics/Aind.Physiology.OpenEphys

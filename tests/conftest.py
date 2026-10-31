@@ -1,4 +1,5 @@
 import os
+import socket
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -117,3 +118,62 @@ def mock_base_launcher(mock_rig, mock_session, mock_task, mock_frontend, tmp_pat
         launcher.temp_dir.mkdir(parents=True, exist_ok=True)
 
         return launcher
+
+
+_FAKE_OPEN_EPHYS_GUI = """
+import json, sys, threading, time
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
+time.sleep(DELAY)
+if EXIT_CODE is not None:
+    sys.exit(EXIT_CODE)
+
+
+class Handler(BaseHTTPRequestHandler):
+    def _reply(self, body):
+        data = json.dumps(body).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def do_GET(self):
+        self._reply({"mode": "IDLE"})
+
+    def do_PUT(self):
+        body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
+        self._reply({})
+        if self.path == "/api/quit":
+            threading.Thread(target=server.shutdown).start()
+
+    def log_message(self, *args):
+        pass
+
+
+server = HTTPServer(("127.0.0.1", PORT), Handler)
+server.serve_forever()
+print("quit")
+"""
+
+
+@pytest.fixture
+def fake_open_ephys_gui(tmp_path: Path):
+    """Factory for a script standing in for the Open Ephys GUI: serves /api/status and exits on PUT /api/quit.
+
+    Returns the script path (used as the signal chain, run with the Python interpreter as executable) and its port.
+    """
+
+    def make(delay: float = 0.0, exit_code: int | None = None) -> tuple[Path, int]:
+        with socket.socket() as s:
+            s.bind(("127.0.0.1", 0))
+            port = s.getsockname()[1]
+        script = tmp_path / f"fake_open_ephys_{port}.py"
+        script.write_text(
+            _FAKE_OPEN_EPHYS_GUI.replace("DELAY", repr(delay))
+            .replace("EXIT_CODE", repr(exit_code))
+            .replace("PORT", str(port))
+        )
+        return script, port
+
+    return make
