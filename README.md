@@ -49,7 +49,8 @@ uv sync
 
 - **Experiment launcher** — discover and run functions marked with `@experiment`, with console, TUI, and web-served interaction options.
 - **Frontends and forms** — collect typed input from Pydantic models, prompt for paths, confirmations, selections, and read-only reviews.
-- **Applications and executors** — describe external commands once and run them locally, asynchronously, detached, or through XML-RPC.
+- **Applications and executors** — describe external commands once and run them locally, asynchronously, detached, or on another rig through XML-RPC.
+- **Multi-rig experiments** — run apps in a matching checkout on another computer (`RemoteRepository`), start its server automatically, and transfer both machines' data through one watchdog manifest. See [Running on other rigs](https://github.com/AllenNeuralDynamics/clabe/blob/main/docs/articles/remote_execution.md).
 - **Stores and services** — compose local, in-memory, and optional Ficus (confierge) and Dataverse-backed configuration and data services.
 - **Operational helpers** — resource constraints, data transfer, structured logging, OpenTelemetry support, and session construction.
 - **Repository state** — capture a JSON snapshot of a repository and its submodules for dataset or experiment metadata.

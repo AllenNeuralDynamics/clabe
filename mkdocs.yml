@@ -151,6 +151,7 @@ nav:
   - Configuration: articles/configuration.md
   - Frontends: articles/frontends.md
   - Logging: articles/logging.md
+  - Remote execution: articles/remote_execution.md
   - Runnables: articles/runnables.md
   - ServiceSettings and yaml tags: articles/service_settings.md
   - Stores: articles/stores.md
@@ -158,5 +159,6 @@ nav:
 - Issues: https://github.com/AllenNeuralDynamics/clabe/issues
 - Examples:
   - AIND Experiment: docs_examples/behavior_launcher.md
+  - Remote execution: docs_examples/remote_execution.md
 watch:
 - src/clabe
