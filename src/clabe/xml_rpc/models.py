@@ -9,6 +9,9 @@ from enum import Enum
 
 from pydantic import Base64Bytes, BaseModel, Field
 
+PROTOCOL_VERSION = 2
+"""Version of the RPC interface. Bumped whenever a client of an older version could misbehave against the server."""
+
 
 class JobStatus(str, Enum):
     """Enumeration of possible job statuses."""
@@ -43,6 +46,18 @@ class RpcResponse(BaseModel):
 
     success: bool = Field(description="Whether the operation was successful")
     error: str | None = Field(default=None, description="Error message if operation failed")
+
+
+class ServerInfoResponse(RpcResponse):
+    """Response model for server information queries."""
+
+    clabe_version: str = Field(description="Version of clabe the server is running")
+    protocol_version: int = Field(description="Version of the RPC interface the server implements")
+    hostname: str = Field(description="Hostname of the machine running the server")
+    working_dir: str = Field(description="Default working directory for submitted commands")
+    python_executable: str = Field(
+        description="Python interpreter the server runs in, i.e. the repository's environment"
+    )
 
 
 class JobSubmissionResponse(RpcResponse):

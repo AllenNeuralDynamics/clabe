@@ -59,7 +59,7 @@ class TestXmlRpcExecutor:
         assert result.stderr == ""
         assert result.exit_code == 0
         assert result.ok
-        executor.client.run_command.assert_called_once_with("echo 'Hello World'", timeout=None)
+        executor.client.run_command.assert_called_once_with("echo 'Hello World'", timeout=None, cwd=None)
 
     def test_run_with_custom_timeout(self, executor):
         """Test synchronous command execution with custom timeout."""
@@ -72,7 +72,7 @@ class TestXmlRpcExecutor:
         cmd = Command(cmd="sleep 5", output_parser=identity_parser)
         executor.run(cmd)
 
-        executor.client.run_command.assert_called_once_with("sleep 5", timeout=120.0)
+        executor.client.run_command.assert_called_once_with("sleep 5", timeout=120.0, cwd=None)
 
     @pytest.mark.asyncio
     async def test_run_async_success(self, executor):
@@ -93,7 +93,7 @@ class TestXmlRpcExecutor:
         assert result.stderr == ""
         assert result.exit_code == 0
 
-        executor.client.submit_command.assert_called_once_with("echo 'Async output'")
+        executor.client.submit_command.assert_called_once_with("echo 'Async output'", cwd=None)
         executor.client.get_result.assert_called_with("async-job")
 
     @pytest.mark.asyncio
@@ -139,4 +139,4 @@ class TestXmlRpcExecutor:
         assert result.stdout == "Monitored async output"
         assert result.exit_code == 0
 
-        executor.client.submit_command.assert_called_once_with("long_async_command")
+        executor.client.submit_command.assert_called_once_with("long_async_command", cwd=None)
