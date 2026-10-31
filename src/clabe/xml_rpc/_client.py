@@ -89,7 +89,7 @@ class XmlRpcClient:
 
     def server_info(self) -> ServerInfoResponse:
         """
-        Get the server's clabe version, RPC protocol version, hostname and default working directory.
+        Get the server's clabe version, hostname, default working directory and Python interpreter.
 
         Returns:
             ServerInfoResponse describing the server
