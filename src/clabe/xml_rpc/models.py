@@ -45,6 +45,17 @@ class RpcResponse(BaseModel):
     error: str | None = Field(default=None, description="Error message if operation failed")
 
 
+class ServerInfoResponse(RpcResponse):
+    """Response model for server information queries."""
+
+    clabe_version: str = Field(description="Version of clabe the server is running")
+    hostname: str = Field(description="Hostname of the machine running the server")
+    working_dir: str = Field(description="Default working directory for submitted commands")
+    python_executable: str = Field(
+        description="Python interpreter the server runs in, i.e. the repository's environment"
+    )
+
+
 class JobSubmissionResponse(RpcResponse):
     """Response model for job submission."""
 

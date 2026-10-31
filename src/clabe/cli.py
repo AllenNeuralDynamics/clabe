@@ -11,7 +11,7 @@ from clabe.launcher._experiments import _select_experiment
 from .cache_manager import _CacheManagerCli
 from .git_manager import GitRepository
 from .launcher import Launcher, LauncherCliArgs
-from .xml_rpc._server import _XmlRpcServerStartCli
+from .xml_rpc._server import _XmlRpcServerCli
 
 logger = logging.getLogger(__name__)
 
@@ -127,7 +127,7 @@ class _RepositoryStateCli(BaseSettings):
 class CliAppSettings(BaseSettings, cli_prog_name="clabe", cli_kebab_case=True):
     """CLI application settings."""
 
-    xml_rpc_server: CliSubCommand[_XmlRpcServerStartCli]
+    xml_rpc_server: CliSubCommand[_XmlRpcServerCli]
     cache: CliSubCommand[_CacheManagerCli]
     run: CliSubCommand[_RunCli]
     serve: CliSubCommand[_ServeCli]

@@ -4,6 +4,7 @@ import time
 import xmlrpc.client
 from pathlib import Path
 
+from opentelemetry import propagate
 from pydantic import BaseModel, Field, HttpUrl, SecretStr
 
 from ..apps import Command
@@ -20,6 +21,7 @@ from .models import (
     JobResult,
     JobStatus,
     JobSubmissionResponse,
+    ServerInfoResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -85,12 +87,24 @@ class XmlRpcClient:
 
         return result
 
-    def submit_command(self, cmd_args: list[str] | str) -> JobSubmissionResponse:
+    def server_info(self) -> ServerInfoResponse:
+        """
+        Get the server's clabe version, hostname, default working directory and Python interpreter.
+
+        Returns:
+            ServerInfoResponse describing the server
+        """
+        return ServerInfoResponse(**self._call_with_auth("info"))
+
+    def submit_command(self, cmd_args: list[str] | str, cwd: str | None = None) -> JobSubmissionResponse:
         """
         Submit a command for background execution.
 
+        The current trace context is sent along, so the job's span nests under the caller's trace.
+
         Args:
             cmd_args: List of command arguments (e.g., ["python", "-c", "print('hello')"])
+            cwd: Working directory on the server. Defaults to the server's working directory
 
         Returns:
             JobSubmissionResponse with job ID and success status
@@ -104,7 +118,9 @@ class XmlRpcClient:
         """
         if isinstance(cmd_args, str):
             cmd_args = [cmd_args]
-        result = self._call_with_auth("run", cmd_args)
+        trace_context: dict[str, str] = {}
+        propagate.inject(trace_context)
+        result = self._call_with_auth("run", cmd_args, cwd, trace_context)
         response = JobSubmissionResponse(**result)
         logger.info("Submitted command %s with job ID: %s", cmd_args, response.job_id)
         return response
@@ -189,13 +205,14 @@ class XmlRpcClient:
 
             time.sleep(self.settings.poll_interval)
 
-    def run_command(self, cmd_args: list[str] | str, timeout: float | None = None) -> JobResult:
+    def run_command(self, cmd_args: list[str] | str, timeout: float | None = None, cwd: str | None = None) -> JobResult:
         """
         Submit a command and wait for it to complete.
 
         Args:
             cmd_args: List of command arguments
             timeout: Maximum time to wait in seconds (uses default if None)
+            cwd: Working directory on the server. Defaults to the server's working directory
 
         Returns:
             JobResult object with execution details
@@ -206,7 +223,7 @@ class XmlRpcClient:
             print(f"Python version: {result.stdout.strip()}")
             ```
         """
-        submission = self.submit_command(cmd_args)
+        submission = self.submit_command(cmd_args, cwd=cwd)
         if submission.job_id is None:
             raise RuntimeError("Job submission failed: no job ID returned")
         return self.wait_for_result(submission.job_id, timeout)

@@ -52,6 +52,7 @@ class XmlRpcExecutor:
         timeout: float | None = None,
         poll_interval: float | None = None,
         monitor: bool = True,
+        cwd: str | None = None,
     ) -> None:
         """
         Initialize the RPC executor.
@@ -63,6 +64,7 @@ class XmlRpcExecutor:
             monitor: If True, timeout becomes a liveness check window. As long as the job
                 is confirmed running within the timeout period, waiting continues indefinitely.
                 If False, timeout is the total execution time limit.
+            cwd: Working directory on the server. Defaults to the server's working directory.
 
         Example:
             ```python
@@ -80,6 +82,7 @@ class XmlRpcExecutor:
         self.timeout = timeout
         self.poll_interval = poll_interval
         self.monitor = monitor
+        self.cwd = cwd
 
         logger.info("RPC executor initialized for server: %s", client.settings.server_url)
 
@@ -107,7 +110,7 @@ class XmlRpcExecutor:
         """
         logger.info("Executing command via RPC: %s", command.cmd)
 
-        job_result = self.client.run_command(command.cmd, timeout=self.timeout)
+        job_result = self.client.run_command(command.cmd, timeout=self.timeout, cwd=self.cwd)
 
         result = CommandResult(stdout=job_result.stdout, stderr=job_result.stderr, exit_code=job_result.returncode or 0)
         result.check_returncode()
@@ -137,7 +140,7 @@ class XmlRpcExecutor:
             ```
         """
         logger.info("Executing command asynchronously via RPC: %s", command.cmd)
-        submission = self.client.submit_command(command.cmd)
+        submission = self.client.submit_command(command.cmd, cwd=self.cwd)
         if submission.job_id is None:
             raise RuntimeError("Job submission failed: no job ID returned")
 
