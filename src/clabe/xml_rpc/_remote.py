@@ -14,7 +14,7 @@ from ..git_manager import GitRepository, GitRepositoryMetadata
 from ._client import XmlRpcClient
 from ._executor import XmlRpcExecutor
 from ._scheduled_task import DEFAULT_TASK_NAME, start_task
-from .models import PROTOCOL_VERSION, ServerInfoResponse
+from .models import ServerInfoResponse
 
 logger = logging.getLogger(__name__)
 
@@ -133,10 +133,10 @@ class RemoteRepository:
     def verify(self, allow_dirty: bool = False) -> None:
         """Checks that the remote repository runs the same code as the local one.
 
-        Compares the RPC protocol and clabe versions (which catches an environment that was not
-        synced), the server's working directory, and the repository URL and commit of the repository
+        Compares the server's working directory, and the repository URL and commit of the repository
         and each submodule. Because the lockfile is tracked, a matching clean commit also implies the
-        same locked dependencies.
+        same locked dependencies. A different clabe version (e.g. an environment that was not synced)
+        is only warned about: the remote is then used on a best-effort basis.
 
         Args:
             allow_dirty: Whether to accept uncommitted changes in the remote repository.
@@ -145,11 +145,14 @@ class RemoteRepository:
             RepositoryMismatchError: Listing every difference found.
         """
         info = self.info(refresh=True)
-        problems: list[str] = []
-        if info.protocol_version != PROTOCOL_VERSION:
-            problems.append(f"RPC protocol version {info.protocol_version} != local {PROTOCOL_VERSION}")
         if info.clabe_version != __version__:
-            problems.append(f"clabe version {info.clabe_version} != local {__version__}")
+            logger.warning(
+                "Remote server on %s runs clabe %s, not %s; continuing on a best-effort basis",
+                self.host,
+                info.clabe_version,
+                __version__,
+            )
+        problems: list[str] = []
         if self._path is not None and PureWindowsPath(self._path) != PureWindowsPath(info.working_dir):
             problems.append(f"server runs from {info.working_dir}, not {self._path}")
         if problems:

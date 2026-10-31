@@ -237,9 +237,10 @@ class TestVerify:
     def test_path_matching_working_dir_is_accepted(self, client: XmlRpcClient, repo: Path, local_clone: Path):
         RemoteRepository(client, path=str(repo).upper(), local_path=local_clone).verify()
 
-    def test_clabe_version_mismatch(self, remote: RemoteRepository):
-        with patch("clabe.xml_rpc._remote.__version__", "0.0.0-other"), pytest.raises(RepositoryMismatchError):
+    def test_clabe_version_mismatch_only_warns(self, remote: RemoteRepository, caplog):
+        with patch("clabe.xml_rpc._remote.__version__", "0.0.0-other"), caplog.at_level("WARNING"):
             remote.verify()
+        assert "best-effort" in caplog.text
 
 
 class TestToUnc:
