@@ -145,60 +145,70 @@ def _launchable_app(script: Path, port: int) -> OpenEphysApp:
 
 class TestLaunch:
     @pytest.mark.asyncio
-    async def test_waits_for_api_and_quits_on_exit(self, fake_open_ephys_gui):
+    async def test_launch_waits_for_api_and_close_quits(self, fake_open_ephys_gui):
         app = _launchable_app(*fake_open_ephys_gui(delay=0.5))
-        async with app.launch(poll_interval=0.05) as client:
-            assert client is app.client
-            assert client.get_status() == Status.IDLE
-        assert app.command.result.exit_code == 0
-        assert "quit" in (app.command.result.stdout or "")
+        client = await app.launch(poll_interval=0.05)
+        assert client is app.client
+        assert client.get_status() == Status.IDLE
+
+        result = await app.close()
+        assert result is not None and result.exit_code == 0
+        assert "quit" in (result.stdout or "")
+        assert await app.close() is None, "closing again does nothing"
 
     @pytest.mark.asyncio
     async def test_raises_when_gui_exits_before_api(self, fake_open_ephys_gui):
         app = _launchable_app(*fake_open_ephys_gui(exit_code=3))
         with pytest.raises(CommandError):
-            async with app.launch(poll_interval=0.05):
-                pytest.fail("should not yield")
+            await app.launch(poll_interval=0.05)
+        assert await app.close() is None, "a failed launch closes the GUI itself"
 
     @pytest.mark.asyncio
     async def test_times_out_when_api_never_responds(self, fake_open_ephys_gui):
         app = _launchable_app(*fake_open_ephys_gui(delay=2.0, exit_code=0))
         with pytest.raises(TimeoutError):
-            async with app.launch(timeout=0.3, poll_interval=0.05, shutdown_timeout=10.0):
-                pytest.fail("should not yield")
+            await app.launch(timeout=0.3, poll_interval=0.05)
+        assert await app.close() is None
 
     @pytest.mark.asyncio
-    async def test_caller_error_propagates_and_gui_quits(self, fake_open_ephys_gui):
+    async def test_launch_twice_raises(self, fake_open_ephys_gui):
         app = _launchable_app(*fake_open_ephys_gui())
-        with pytest.raises(ValueError, match="experiment failed"):
-            async with app.launch(poll_interval=0.05):
-                raise ValueError("experiment failed")
-        assert app.command.result.exit_code == 0
+        await app.launch(poll_interval=0.05)
+        try:
+            with pytest.raises(RuntimeError, match="already launched"):
+                await app.launch(poll_interval=0.05)
+        finally:
+            await app.close()
+
+    @pytest.mark.asyncio
+    async def test_close_without_launch_does_nothing(self):
+        app = OpenEphysApp(OpenEphysAppSettings(signal_chain="x.xml"), skip_validation=True)
+        assert await app.close() is None
+
+    def test_start_and_stop_use_the_client(self):
+        app = OpenEphysApp(OpenEphysAppSettings(signal_chain="x.xml"), skip_validation=True)
+        app._client = Mock(spec=_OpenEphysGuiClient)
+        app.start()
+        app.start(record=False)
+        app.stop()
+        app._client.start_recording.assert_called_once_with()
+        app._client.start_acquisition.assert_called_once_with()
+        app._client.stop.assert_called_once_with()
 
     def test_loopback_address_follows_remote_executor_host(self):
         app = OpenEphysApp(OpenEphysAppSettings(signal_chain="x.xml", port=1), skip_validation=True)
         executor = Mock(host="rig-b")
         executor.run_async = AsyncMock(side_effect=RuntimeError("not reachable"))
-
-        async def launch():
-            async with app.launch(executor=executor, poll_interval=0.01):
-                pass
-
         with pytest.raises(RuntimeError, match="not reachable"):
-            asyncio.run(launch())
+            asyncio.run(app.launch(executor=executor, poll_interval=0.01))
         assert app.client.base_url == "http://rig-b:1/api"
 
     def test_explicit_address_is_kept_with_remote_executor(self):
         app = OpenEphysApp(OpenEphysAppSettings(signal_chain="x.xml", address="ephys-pc", port=1), skip_validation=True)
         executor = Mock(host="rig-b")
         executor.run_async = AsyncMock(side_effect=RuntimeError("not reachable"))
-
-        async def launch():
-            async with app.launch(executor=executor, poll_interval=0.01):
-                pass
-
         with pytest.raises(RuntimeError):
-            asyncio.run(launch())
+            asyncio.run(app.launch(executor=executor, poll_interval=0.01))
         assert app.client.base_url == "http://ephys-pc:1/api"
 
 
@@ -222,13 +232,16 @@ class TestRealGuiHeadless:
                 headless=True,
             )
         )
-        async with app.launch(timeout=120.0) as client:
+        client = await app.launch(timeout=120.0)
+        try:
             assert client.get_status() == Status.IDLE
             assert client.get_processors().processors
-            assert client.start_acquisition() == Status.ACQUIRE
-            assert client.stop() == Status.IDLE
-        assert app.command.result.exit_code == 0
-        assert "headless mode" in (app.command.result.stdout or "")
+            assert app.start(record=False) == Status.ACQUIRE
+            assert app.stop() == Status.IDLE
+        finally:
+            result = await app.close()
+        assert result is not None and result.exit_code == 0
+        assert "headless mode" in (result.stdout or "")
 
 
 def test_headless_adds_flag():

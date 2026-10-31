@@ -294,13 +294,15 @@ class TestOpenEphysOnRemote:
         script, port = fake_open_ephys_gui(delay=0.5)
         app = OpenEphysApp(OpenEphysAppSettings(signal_chain=script, executable=sys.executable, port=port))
 
-        async with app.launch(executor=remote, poll_interval=0.05) as client:
+        client = await app.launch(executor=remote, poll_interval=0.05)
+        try:
             # The settings say localhost, so the client follows the executor to the remote host
             assert client.base_url == f"http://127.0.0.1:{port}/api"
             assert client.get_status() == Status.IDLE
-
-        assert app.command.result.exit_code == 0
-        assert "quit" in (app.command.result.stdout or "")
+        finally:
+            result = await app.close()
+        assert result is not None and result.exit_code == 0
+        assert "quit" in (result.stdout or "")
 
     @pytest.mark.asyncio
     @pytest.mark.skipif(
@@ -315,11 +317,14 @@ class TestOpenEphysOnRemote:
                 headless=True,
             )
         )
-        async with app.launch(executor=remote, timeout=120.0) as client:
+        client = await app.launch(executor=remote, timeout=120.0)
+        try:
             assert client.base_url == "http://127.0.0.1:37497/api"
-            assert client.start_acquisition() == Status.ACQUIRE
-            assert client.stop() == Status.IDLE
-        assert app.command.result.exit_code == 0
+            assert app.start(record=False) == Status.ACQUIRE
+            assert app.stop() == Status.IDLE
+        finally:
+            result = await app.close()
+        assert result is not None and result.exit_code == 0
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="remote paths are Windows paths")
