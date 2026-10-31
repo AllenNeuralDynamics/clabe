@@ -23,7 +23,6 @@ from ..constants import TMP_DIR
 from ..services import ServiceSettings
 from ._scheduled_task import DEFAULT_TASK_NAME, register_task, unregister_task
 from .models import (
-    PROTOCOL_VERSION,
     FileBulkDeleteResponse,
     FileDeleteResponse,
     FileDownloadResponse,
@@ -139,11 +138,10 @@ class XmlRpcServer:
         return ctypes.c_int32(returncode).value
 
     def server_info(self) -> dict:
-        """Report the server's clabe version, RPC protocol version, host, working directory and interpreter."""
+        """Report the server's clabe version, host, working directory and interpreter."""
         return ServerInfoResponse(
             success=True,
             clabe_version=__version__,
-            protocol_version=PROTOCOL_VERSION,
             hostname=socket.gethostname(),
             working_dir=str(self.settings.working_dir.resolve()),
             python_executable=sys.executable,
