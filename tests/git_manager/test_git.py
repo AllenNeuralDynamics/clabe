@@ -211,3 +211,13 @@ def test_try_prompt_full_reset_force_reset(temp_git_repo: Path):
     repo.try_prompt_full_reset(mock_ui, force_reset=True)
     assert not repo.is_dirty()
     mock_ui.prompt_confirm.assert_not_called()
+
+
+def test_relative_path_falls_back_to_absolute_across_drives(tmp_path: Path, monkeypatch):
+    """Windows has no relative path between drives, e.g. a repository on C: seen from a D: working directory."""
+
+    def relpath_across_drives(path, start=None):
+        raise ValueError("path is on mount 'C:', start on mount 'D:'")
+
+    monkeypatch.setattr("clabe.git_manager._git.os.path.relpath", relpath_across_drives)
+    assert GitRepository._relative_path(str(tmp_path)) == tmp_path.as_posix()

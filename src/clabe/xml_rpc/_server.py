@@ -1,10 +1,11 @@
 import base64
 import ctypes
+import getpass
 import logging
 import os
-import secrets
 import socket
 import subprocess
+import sys
 import uuid
 from concurrent.futures import Future, ThreadPoolExecutor
 from functools import wraps
@@ -12,11 +13,15 @@ from pathlib import Path
 from typing import ClassVar
 from xmlrpc.server import SimpleXMLRPCServer
 
+from opentelemetry import propagate, trace
+from opentelemetry.trace import Status, StatusCode
 from pydantic import Field, IPvAnyAddress, SecretStr
-from pydantic_settings import CliApp, CliImplicitFlag
+from pydantic_settings import BaseSettings, CliApp, CliImplicitFlag, CliSubCommand
 
+from .. import __version__
 from ..constants import TMP_DIR
 from ..services import ServiceSettings
+from ._scheduled_task import TASK_NAME, register_task, unregister_task
 from .models import (
     FileBulkDeleteResponse,
     FileDeleteResponse,
@@ -28,14 +33,11 @@ from .models import (
     JobStatus,
     JobStatusResponse,
     JobSubmissionResponse,
+    ServerInfoResponse,
 )
 
 logger = logging.getLogger(__name__)
-
-
-def _default_token() -> SecretStr:
-    """Generate a default authentication token."""
-    return SecretStr(secrets.token_urlsafe(32))
+_tracer = trace.get_tracer("clabe.xml_rpc")
 
 
 class XmlRpcServerSettings(ServiceSettings):
@@ -43,13 +45,17 @@ class XmlRpcServerSettings(ServiceSettings):
 
     __yml_section__: ClassVar[str] = "xml_rpc_server"
 
-    token: SecretStr = Field(default_factory=_default_token, description="Authentication token for RPC access")
+    token: SecretStr = Field(description="Authentication token for RPC access")
     address: IPvAnyAddress = Field(default="0.0.0.0", validate_default=True)
     port: int = Field(default=8000, description="Port to listen on")
     max_workers: int = Field(default=4, description="Maximum number of concurrent RPC commands")
     max_file_size: int = Field(default=5 * 1024 * 1024, description="Maximum file size in bytes (default 5MB)")
     file_transfer_dir: Path = Field(
         default_factory=lambda: Path(os.environ.get("TEMP", TMP_DIR)), description="Directory for file transfers"
+    )
+    working_dir: Path = Field(
+        default_factory=Path.cwd,
+        description="Default working directory for submitted commands. Defaults to the directory the server starts in",
     )
 
 
@@ -64,6 +70,11 @@ class XmlRpcServer:
     """XML-RPC server for remote command execution and file transfer."""
 
     def __init__(self, settings: XmlRpcServerSettings):
+        if not settings.token.get_secret_value():
+            raise ValueError("XML-RPC server requires a non-empty authentication token.")
+        if not settings.working_dir.is_dir():
+            raise ValueError(f"Working directory does not exist: {settings.working_dir}")
+
         self.settings = settings
         self.executor = ThreadPoolExecutor(max_workers=settings.max_workers)
         self.jobs: dict[str, Future] = {}
@@ -72,6 +83,7 @@ class XmlRpcServer:
         os.makedirs(settings.file_transfer_dir, exist_ok=True)
 
         server = SimpleXMLRPCServer((str(settings.address), settings.port), allow_none=True)
+        server.register_function(self.require_auth(self.server_info), "info")
         server.register_function(self.require_auth(self.submit_command), "run")
         server.register_function(self.require_auth(self.get_result), "result")
         server.register_function(self.require_auth(self.list_jobs), "jobs")
@@ -83,10 +95,9 @@ class XmlRpcServer:
         server.register_function(self.require_auth(self.delete_file), "delete_file")
         server.register_function(self.require_auth(self.delete_all_files), "delete_all_files")
 
-        logger.info("Authentication token: %s", settings.token.get_secret_value())
         logger.info("XML-RPC server running on %s:%s...", settings.address, settings.port)
+        logger.info("Working directory: %s", settings.working_dir.resolve())
         logger.info("File transfer directory: %s", settings.file_transfer_dir.resolve())
-        logger.info("Use the token above to authenticate requests")
 
         self.server = server
 
@@ -126,11 +137,22 @@ class XmlRpcServer:
             return None
         return ctypes.c_int32(returncode).value
 
-    def _run_command_sync(self, cmd_args):
+    def server_info(self) -> dict:
+        """Report the server's clabe version, host, working directory and interpreter."""
+        return ServerInfoResponse(
+            success=True,
+            clabe_version=__version__,
+            hostname=socket.gethostname(),
+            working_dir=str(self.settings.working_dir.resolve()),
+            python_executable=sys.executable,
+        ).model_dump()
+
+    def _run_command_sync(self, cmd_args, cwd: str | None = None):
         """Internal method: actually runs the subprocess"""
-        logger.debug("Executing command: %s", cmd_args)
+        cwd = cwd or str(self.settings.working_dir)
+        logger.debug("Executing command: %s (cwd: %s)", cmd_args, cwd)
         try:
-            proc = subprocess.run(cmd_args, capture_output=True, text=True, check=True)
+            proc = subprocess.run(cmd_args, capture_output=True, text=True, check=True, cwd=cwd)
             returncode = self._normalize_returncode(proc.returncode)
             logger.debug(
                 "Command completed successfully. Return code: %s, stdout: %s",
@@ -146,11 +168,39 @@ class XmlRpcServer:
             logger.error("Command execution error: %s", e)
             return {"error": str(e)}
 
-    def submit_command(self, cmd_args):
-        """Submit a command for background execution"""
+    def _run_traced_job(self, span: trace.Span, cmd_args, cwd: str | None):
+        """Runs a job inside its span, recording the outcome before ending it."""
+        with trace.use_span(span, end_on_exit=True):
+            result = self._run_command_sync(cmd_args, cwd)
+            if "error" in result:
+                span.set_status(Status(StatusCode.ERROR, result["error"]))
+            else:
+                span.set_attribute("process.exit.code", result["returncode"])
+                if result["returncode"] != 0:
+                    span.set_status(Status(StatusCode.ERROR))
+            return result
+
+    def submit_command(self, cmd_args, cwd: str | None = None, trace_context: dict[str, str] | None = None):
+        """Submit a command for background execution.
+
+        Args:
+            cmd_args: The command to run, as a list of arguments.
+            cwd: Working directory for this command. Defaults to the server's ``working_dir``.
+            trace_context: W3C trace context propagated by the client, so the job's span nests
+                under the caller's trace.
+        """
         job_id = str(uuid.uuid4())
+        span = _tracer.start_span(
+            "xml_rpc.job",
+            context=propagate.extract(trace_context or {}),
+            attributes={
+                "xml_rpc.job_id": job_id,
+                "process.command_args": [str(a) for a in cmd_args] if isinstance(cmd_args, list) else [str(cmd_args)],
+                "process.working_directory": cwd or str(self.settings.working_dir),
+            },
+        )
         logger.debug("Submitting job %s to executor", job_id)
-        future = self.executor.submit(self._run_command_sync, cmd_args)
+        future = self.executor.submit(self._run_traced_job, span, cmd_args, cwd)
         self.jobs[job_id] = future
         logger.info("Submitted job %s: %s", job_id, cmd_args)
         logger.debug("Active jobs: %s", len(self.jobs))
@@ -472,41 +522,157 @@ class XmlRpcServer:
             return response.model_dump()
 
 
-class _XmlRpcServerStartCli(XmlRpcServerSettings):
-    """CLI application wrapper for the RPC server."""
+def _stdin_is_console() -> bool:
+    """Whether stdin is an interactive console a token can be typed into.
 
+    On Windows ``isatty()`` is also true for the NUL device, so a console is confirmed with ``GetConsoleMode``.
+    """
+    if sys.stdin is None or not sys.stdin.isatty():
+        return False
+    if sys.platform != "win32":
+        return True
+    import msvcrt
+
+    handle = msvcrt.get_osfhandle(sys.stdin.fileno())
+    return bool(ctypes.windll.kernel32.GetConsoleMode(handle, ctypes.byref(ctypes.c_ulong())))
+
+
+def _configure_telemetry() -> bool:
+    """Install the OTEL SDK from the ``otel`` section of clabe.yml, if enabled.
+
+    Telemetry is best effort: a missing SDK or bad config is logged and the server runs untraced.
+
+    Returns:
+        True if telemetry was configured.
+    """
+    try:
+        from ..logging.otel import AindOtelSettings
+
+        settings = AindOtelSettings()
+        if not settings.enabled:
+            return False
+        from ..logging.otel._setup import configure
+
+        configure(settings)
+        logger.info("Telemetry enabled, exporting to %s", settings.endpoint)
+        return True
+    except Exception:  # observability must never prevent the server from starting
+        logger.warning("Failed to set up telemetry; continuing without it", exc_info=True)
+        return False
+
+
+class _ServeCli(XmlRpcServerSettings):
+    """Start the XML-RPC server and run it until interrupted."""
+
+    # Optional here so a missing token can be prompted for instead of failing validation
+    token: SecretStr | None = Field(  # type: ignore[assignment]
+        default=None, description="Authentication token for RPC access. Read from clabe.yml if not passed"
+    )
     debug: CliImplicitFlag[bool] = Field(default=False, description="Enable debug logging")
     dump: Path | None = Field(default=None, description="Path to dump logs to file")
+    non_interactive: CliImplicitFlag[bool] = Field(
+        default=False, description="Fail instead of prompting when no token is configured"
+    )
+
+    def _resolve_token(self) -> SecretStr:
+        """Returns the configured token, prompting for one when running interactively."""
+        if self.token is not None and self.token.get_secret_value():
+            return self.token
+        if self.non_interactive or not _stdin_is_console():
+            raise SystemExit(
+                "No authentication token configured. Add 'token' to the 'xml_rpc_server' section of clabe.yml "
+                "or pass --token."
+            )
+        token = getpass.getpass("XML-RPC server token: ")
+        if not token:
+            raise SystemExit("An authentication token is required.")
+        return SecretStr(token)
 
     def cli_cmd(self):
         """Start the RPC server and run it until interrupted."""
-        log_level = logging.DEBUG if self.debug else logging.INFO
-        log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        token = self._resolve_token()
 
-        handlers = [logging.StreamHandler()]
-
+        log_format = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+        handlers: list[logging.Handler] = [logging.StreamHandler()]
         if self.dump:
             self.dump.parent.mkdir(parents=True, exist_ok=True)
-            file_handler = logging.FileHandler(self.dump, mode="w")
-            file_handler.setFormatter(logging.Formatter(log_format))
-            handlers.append(file_handler)
-            logger.info("Logging dumped to file: %s", self.dump)
-
+            handlers.append(logging.FileHandler(self.dump, mode="w"))
         module_logger = logging.getLogger("clabe.xml_rpc")
-        module_logger.setLevel(log_level)
+        module_logger.setLevel(logging.DEBUG if self.debug else logging.INFO)
         for handler in handlers:
-            handler.setFormatter(logging.Formatter(log_format))
+            handler.setFormatter(log_format)
             module_logger.addHandler(handler)
 
-        if self.debug:
-            logger.debug("Debug logging enabled")
-
-        server = XmlRpcServer(settings=self)
+        telemetry_enabled = _configure_telemetry()
+        settings = XmlRpcServerSettings.model_validate(
+            {name: getattr(self, name) for name in XmlRpcServerSettings.model_fields} | {"token": token}
+        )
+        server = XmlRpcServer(settings=settings)
         try:
             server.server.serve_forever()
         except KeyboardInterrupt:
             logger.info("Server shutting down...")
+        finally:
+            if telemetry_enabled:
+                from ..logging.otel._setup import flush
+
+                flush()
+
+
+class _RegisterTaskCli(BaseSettings):
+    """Register a Windows scheduled task that starts the server at logon, from the current directory.
+
+    The server reads its settings, including the token, from clabe.yml in that directory.
+    """
+
+    debug: CliImplicitFlag[bool] = Field(default=False, description="Enable debug logging in the server")
+    dump: Path | None = Field(default=None, description="Path the server dumps its logs to")
+
+    def _task_command(self) -> list[str]:
+        """Builds the command the scheduled task runs to start the server."""
+        # The task has a console window nobody watches, so a missing token must fail rather than prompt
+        command = [sys.executable, "-m", "clabe.cli", "xml-rpc-server", "serve", "--non-interactive"]
+        if self.dump is not None:
+            command += ["--dump", str(self.dump.resolve())]
+        if self.debug:
+            command.append("--debug")
+        return command
+
+    def cli_cmd(self):
+        """Register and start the scheduled task."""
+        working_dir = Path.cwd()
+        register_task(self._task_command(), working_dir)
+        print(f"Registered and started scheduled task '{TASK_NAME}' in {working_dir}.")
+        if _ServeCli().token is None:
+            print(
+                "Warning: no token is configured. The server will not start until 'token' is set in the "
+                "'xml_rpc_server' section of clabe.yml.",
+                file=sys.stderr,
+            )
+
+
+class _UnregisterTaskCli(BaseSettings):
+    """Remove the Windows scheduled task registered with register-task."""
+
+    def cli_cmd(self):
+        """Remove the scheduled task."""
+        unregister_task()
+        print(f"Removed scheduled task '{TASK_NAME}'.")
+
+
+class _XmlRpcServerCli(BaseSettings):
+    """Run the XML-RPC server, or install it as a Windows scheduled task."""
+
+    serve: CliSubCommand[_ServeCli] = Field(description="Start the server and run it until interrupted")
+    register_task: CliSubCommand[_RegisterTaskCli] = Field(
+        description="Register a scheduled task that starts the server at logon, from the current directory"
+    )
+    unregister_task: CliSubCommand[_UnregisterTaskCli] = Field(description="Remove the scheduled task")
+
+    def cli_cmd(self):
+        """Run the selected subcommand."""
+        CliApp.run_subcommand(self)
 
 
 if __name__ == "__main__":
-    CliApp().run(_XmlRpcServerStartCli, cli_args=["--token", "42", "--debug"])
+    CliApp().run(_ServeCli, cli_args=["--token", "42", "--debug"])

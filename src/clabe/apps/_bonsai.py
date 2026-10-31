@@ -253,15 +253,17 @@ class AindBehaviorServicesBonsaiApp(BonsaiApp):
         self._temp_directory = Path(temp_directory or TMP_DIR)
 
         additional_externalized_properties = kwargs.pop("additional_externalized_properties", {}) or {}
-        if rig:
-            additional_externalized_properties["RigPath"] = os.path.abspath(self._save_temp_model(model=rig))
-        if session:
-            additional_externalized_properties["SessionPath"] = os.path.abspath(self._save_temp_model(model=session))
-        if task:
-            additional_externalized_properties["TaskPath"] = os.path.abspath(self._save_temp_model(model=task))
+        inputs = {
+            name: Path(os.path.abspath(self._save_temp_model(model=model)))
+            for name, model in (("RigPath", rig), ("SessionPath", session), ("TaskPath", task))
+            if model
+        }
+        additional_externalized_properties.update({name: str(path) for name, path in inputs.items()})
         super().__init__(
             workflow=workflow, additional_externalized_properties=additional_externalized_properties, **kwargs
         )
+        # Registered as inputs so a remote executor can stage them on the machine that runs the workflow
+        self.command.inputs.update(inputs)
 
     def _save_temp_model(self, model: pydantic.BaseModel) -> Path:
         """

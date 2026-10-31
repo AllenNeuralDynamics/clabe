@@ -1,5 +1,6 @@
 import logging
 from collections.abc import Callable
+from pathlib import Path
 from typing import Generic, Protocol, Self, TypeAlias, TypeVar, runtime_checkable
 
 from pydantic import BaseModel
@@ -210,13 +211,18 @@ class Command(Generic[TOutput]):
         ```
     """
 
-    def __init__(self, cmd: list[str], output_parser: _OutputParser[TOutput]) -> None:
+    def __init__(
+        self, cmd: list[str], output_parser: _OutputParser[TOutput], inputs: dict[str, Path] | None = None
+    ) -> None:
         """Initialize the Command instance.
 
         Args:
             cmd: The command to execute as a list of strings. The first element
                 is the program to run, followed by its arguments.
             output_parser: Function to parse the command result into desired output type
+            inputs: Local files the command reads, keyed by name, whose paths appear in ``cmd``.
+                Local executors ignore them; remote executors copy each file to the remote
+                machine and point the command at the copy.
 
         Example:
             ```python
@@ -226,6 +232,12 @@ class Command(Generic[TOutput]):
         self._cmd: list[str] = cmd
         self._output_parser = output_parser
         self._result: CommandResult | None = None
+        self._inputs: dict[str, Path] = dict(inputs or {})
+
+    @property
+    def inputs(self) -> dict[str, Path]:
+        """Local files the command reads, keyed by name, whose paths appear in ``cmd``."""
+        return self._inputs
 
     @property
     def result(self) -> CommandResult:
