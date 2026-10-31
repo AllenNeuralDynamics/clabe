@@ -154,23 +154,15 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         Executes the data transfer by generating a Watchdog manifest configuration.
 
         Creates and deploys a manifest configuration file that the watchdog service
-        will use to monitor and transfer data.
+        will use to monitor and transfer data. The manifest is written even if the service
+        is not running, since the service processes existing manifests when it starts; the
+        service is then started if needed.
+
+        Raises:
+            RuntimeError: If the service cannot be started. The manifest is already written,
+                so the transfer happens once the service runs.
         """
         try:
-            if not self.is_running():
-                logger.warning("Watchdog service is not running. Attempting to start it.")
-                try:
-                    self.force_restart(kill_if_running=False)
-                except subprocess.CalledProcessError as e:
-                    logger.error("Failed to start watchdog service. %s", e)
-                    raise RuntimeError("Failed to start watchdog service.") from e
-                else:
-                    if not self.is_running():
-                        logger.error("Failed to start watchdog service.")
-                        raise RuntimeError("Failed to start watchdog service.")
-                    else:
-                        logger.info("Watchdog service restarted successfully.")
-
             logger.debug("Creating watchdog manifest config.")
 
             if self._watch_config is None:
@@ -186,6 +178,20 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         except (OSError, pydantic.ValidationError, ValueError) as e:
             logger.error("Failed to create watchdog manifest config. %s", e)
             raise
+
+        if self.is_running():
+            return
+        logger.warning("Watchdog service is not running. Attempting to start it.")
+        queued = f"The manifest {_manifest_path} is written and will be transferred once the watchdog service runs."
+        try:
+            self.force_restart(kill_if_running=False)
+        except subprocess.CalledProcessError as e:
+            logger.error("Failed to start watchdog service. %s", e)
+            raise RuntimeError(f"Failed to start watchdog service. {queued}") from e
+        if not self.is_running():
+            logger.error("Watchdog service is still not running after starting it.")
+            raise RuntimeError(f"Watchdog service is still not running after starting it. {queued}")
+        logger.info("Watchdog service restarted successfully.")
 
     def validate(self) -> bool:
         """

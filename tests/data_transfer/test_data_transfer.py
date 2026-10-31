@@ -5,7 +5,7 @@ import sys
 import tempfile
 from datetime import UTC, datetime, time
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 from aind_behavior_services import Session
@@ -407,10 +407,34 @@ class TestWatchdogDataTransferService:
         "clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.force_restart",
         side_effect=subprocess.CalledProcessError(1, "cmd"),
     )
-    def test_transfer_service_not_running_restart_fail(self, mock_force_restart, mock_is_running, watchdog_service):
-        with pytest.raises(RuntimeError):
+    @patch(
+        "clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.dump_manifest_config",
+        return_value=Path("flag_dir/manifest_session.yaml"),
+    )
+    def test_transfer_service_not_running_restart_fail(
+        self, mock_dump_manifest_config, mock_force_restart, mock_is_running, watchdog_service
+    ):
+        with pytest.raises(RuntimeError, match="manifest_session.yaml"):
             watchdog_service.transfer()
         mock_force_restart.assert_called_once_with(kill_if_running=False)
+        # The watchdog processes existing manifests when it starts, so the session is still queued
+        mock_dump_manifest_config.assert_called_once()
+
+    @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.is_running", return_value=False)
+    @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.force_restart", return_value=None)
+    @patch(
+        "clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.dump_manifest_config",
+        return_value=Path("flag_dir/manifest_session.yaml"),
+    )
+    def test_transfer_writes_manifest_before_starting_service(
+        self, mock_dump_manifest_config, mock_force_restart, mock_is_running, watchdog_service
+    ):
+        calls = Mock()
+        calls.attach_mock(mock_dump_manifest_config, "dump")
+        calls.attach_mock(mock_force_restart, "restart")
+        with pytest.raises(RuntimeError, match="still not running"):
+            watchdog_service.transfer()
+        assert [c[0] for c in calls.mock_calls] == ["dump", "restart"]
 
     @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.is_running", return_value=True)
     @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.dump_manifest_config")
