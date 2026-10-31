@@ -286,19 +286,29 @@ class _DefaultExecutorMixin:
             ...
 
     @runnable
-    def run(self, executor_kwargs: dict[str, Any] | None = None) -> CommandResult:
-        """Execute the command using a local executor and return the result.
+    def run(self, executor_kwargs: dict[str, Any] | None = None, *, executor: Executor | None = None) -> CommandResult:
+        """Execute the command and return the result.
 
         Args:
             executor_kwargs: Keyword arguments forwarded to the local executor.
+            executor: Executor to run the command with, e.g. a ``RemoteRepository`` to run it on
+                another machine. Defaults to a local executor built from ``executor_kwargs``.
         """
-        return self.command.execute(LocalExecutor(**(executor_kwargs or {})))
+        if executor is not None and executor_kwargs is not None:
+            raise ValueError("Pass either executor or executor_kwargs, not both.")
+        return self.command.execute(executor or LocalExecutor(**(executor_kwargs or {})))
 
     @runnable
-    async def run_async(self, executor_kwargs: dict[str, Any] | None = None) -> CommandResult:
-        """Execute the command asynchronously using a local executor and return the result.
+    async def run_async(
+        self, executor_kwargs: dict[str, Any] | None = None, *, executor: AsyncExecutor | None = None
+    ) -> CommandResult:
+        """Execute the command asynchronously and return the result.
 
         Args:
             executor_kwargs: Keyword arguments forwarded to the local executor.
+            executor: Executor to run the command with, e.g. a ``RemoteRepository`` to run it on
+                another machine. Defaults to a local executor built from ``executor_kwargs``.
         """
-        return await self.command.execute_async(AsyncLocalExecutor(**(executor_kwargs or {})))
+        if executor is not None and executor_kwargs is not None:
+            raise ValueError("Pass either executor or executor_kwargs, not both.")
+        return await self.command.execute_async(executor or AsyncLocalExecutor(**(executor_kwargs or {})))

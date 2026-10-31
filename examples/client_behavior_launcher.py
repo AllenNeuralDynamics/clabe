@@ -12,11 +12,11 @@ from _mocks import (
 from pydantic_settings import CliApp
 
 from clabe import resource_monitor
-from clabe.apps import BonsaiApp
+from clabe.apps import AindBehaviorServicesBonsaiApp
 from clabe.launcher import Launcher, LauncherCliArgs, experiment
 from clabe.session import SessionBuilder
 from clabe.stores import LocalFileStore
-from clabe.xml_rpc import XmlRpcClient, XmlRpcClientSettings
+from clabe.xml_rpc import RemoteRepository, XmlRpcClient, XmlRpcClientSettings
 
 logger = logging.getLogger(__name__)
 
@@ -39,27 +39,25 @@ async def client_experiment(launcher: Launcher) -> None:
         ]
     ).run()
 
-    xml_rpc_client = XmlRpcClient(settings=XmlRpcClientSettings(server_url="http://localhost:8000", token="42"))
-
-    bonsai_root = Path(r"C:\git\AllenNeuralDynamics\Aind.Behavior.VrForaging")
-    session_response = xml_rpc_client.upload_model(session, "session.json")
-    rig_response = xml_rpc_client.upload_model(rig, "rig.json")
-    task_response = xml_rpc_client.upload_model(task, "task.json")
-    assert rig_response.path is not None
-    assert session_response.path is not None
-    assert task_response.path is not None
-
-    bonsai_app_result = await xml_rpc_client.run_async(
-        BonsaiApp(
-            workflow=bonsai_root / "src/test_deserialization.bonsai",
-            executable=bonsai_root / "bonsai/bonsai.exe",
-            additional_externalized_properties={
-                "RigPath": rig_response.path,
-                "SessionPath": session_response.path,
-                "TaskPath": task_response.path,
-            },
-        ).command
+    remote = RemoteRepository(
+        XmlRpcClient(settings=XmlRpcClientSettings(server_url="http://localhost:8000", token="42")),
+        local_path=".",
     )
+    remote.ensure_running()
+    remote.verify(allow_dirty=True)
+
+    # The app is built exactly as for a local run. Running it on the remote executor copies the
+    # rig, session and task to the remote machine and maps paths in this repository to the remote one.
+    bonsai_root = Path(r"C:\git\AllenNeuralDynamics\Aind.Behavior.VrForaging")
+    bonsai_app = AindBehaviorServicesBonsaiApp(
+        workflow=bonsai_root / "src/test_deserialization.bonsai",
+        executable=bonsai_root / "bonsai/bonsai.exe",
+        temp_directory=launcher.temp_dir,
+        rig=rig,
+        session=session,
+        task=task,
+    )
+    bonsai_app_result = await bonsai_app.run_async(executor=remote)
     print(bonsai_app_result)
 
 

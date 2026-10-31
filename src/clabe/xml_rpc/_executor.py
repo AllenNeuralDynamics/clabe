@@ -1,9 +1,15 @@
 import asyncio
 import logging
+import os
+import re
 import time
+import uuid
+from collections.abc import Mapping
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from ..apps._base import Command, CommandResult
+from ._staged_command import StagedCommand, StagedFile
 from .models import JobStatus
 
 if TYPE_CHECKING:
@@ -53,6 +59,7 @@ class XmlRpcExecutor:
         poll_interval: float | None = None,
         monitor: bool = True,
         cwd: str | None = None,
+        path_mapping: Mapping[str, str] | None = None,
     ) -> None:
         """
         Initialize the RPC executor.
@@ -65,6 +72,8 @@ class XmlRpcExecutor:
                 is confirmed running within the timeout period, waiting continues indefinitely.
                 If False, timeout is the total execution time limit.
             cwd: Working directory on the server. Defaults to the server's working directory.
+            path_mapping: Local path prefixes to rewrite in commands, mapped to their location on the
+                server, e.g. the local repository to the remote one.
 
         Example:
             ```python
@@ -83,8 +92,52 @@ class XmlRpcExecutor:
         self.poll_interval = poll_interval
         self.monitor = monitor
         self.cwd = cwd
+        self.path_mapping = dict(path_mapping or {})
+        self._python_executable: str | None = None
 
         logger.info("RPC executor initialized for server: %s", client.settings.server_url)
+
+    def _map_paths(self, arg: str) -> str:
+        """Rewrites local path prefixes in a command argument to their location on the server."""
+        flags = re.IGNORECASE if os.name == "nt" else 0
+        for local, remote in self.path_mapping.items():
+            pattern = re.escape(local.rstrip("\\/")) + r"(?=[\\/]|$)"  # whole components: C:\repo is not C:\repo2
+            replacement = remote.rstrip("\\/")
+            # A function replacement keeps the backslashes of Windows paths literal
+            arg = re.sub(pattern, lambda _, r=replacement: r, arg, flags=flags)
+        return arg
+
+    def _prepare(self, command: Command[Any]) -> list[str]:
+        """Builds the command line to submit to the server.
+
+        Paths in ``path_mapping`` are rewritten. When the command has ``inputs``, their contents are
+        uploaded together with the command, which then runs through the staged command runner so the
+        inputs are written on the server and the command points at them.
+        """
+        if not command.inputs:
+            return [self._map_paths(arg) for arg in command.cmd] if self.path_mapping else command.cmd
+
+        placeholders = {str(path): name for name, path in command.inputs.items()}
+
+        def substitute(arg: str) -> str:
+            # Inputs first: they may live under a mapped prefix, e.g. a temporary directory in the repository
+            for local, name in placeholders.items():
+                arg = arg.replace(local, f"{{{name}}}")
+            return self._map_paths(arg)
+
+        spec = StagedCommand(
+            cmd=[substitute(arg) for arg in command.cmd],
+            files={
+                name: StagedFile(filename=Path(path).name, content=Path(path).read_text(encoding="utf-8"))
+                for name, path in command.inputs.items()
+            },
+        )
+        upload = self.client.upload_model(spec, f"clabe_staged_{uuid.uuid4().hex}.json")
+        if upload.path is None:
+            raise RuntimeError("Uploading the staged command returned no path")
+        if self._python_executable is None:
+            self._python_executable = self.client.server_info().python_executable
+        return [self._python_executable, "-m", "clabe.xml_rpc._staged_command", upload.path]
 
     def run(self, command: Command[Any]) -> CommandResult:
         """
@@ -110,7 +163,7 @@ class XmlRpcExecutor:
         """
         logger.info("Executing command via RPC: %s", command.cmd)
 
-        job_result = self.client.run_command(command.cmd, timeout=self.timeout, cwd=self.cwd)
+        job_result = self.client.run_command(self._prepare(command), timeout=self.timeout, cwd=self.cwd)
 
         result = CommandResult(stdout=job_result.stdout, stderr=job_result.stderr, exit_code=job_result.returncode or 0)
         result.check_returncode()
@@ -140,7 +193,8 @@ class XmlRpcExecutor:
             ```
         """
         logger.info("Executing command asynchronously via RPC: %s", command.cmd)
-        submission = self.client.submit_command(command.cmd, cwd=self.cwd)
+        cmd = await asyncio.to_thread(self._prepare, command)
+        submission = self.client.submit_command(cmd, cwd=self.cwd)
         if submission.job_id is None:
             raise RuntimeError("Job submission failed: no job ID returned")
 

@@ -17,7 +17,8 @@ _HAS_GIT = shutil.which("git") is not None
 class GitRepositoryMetadata(BaseModel):
     """A serializable snapshot of a Git repository's provenance state.
 
-    Paths are relative to the current working directory when the snapshot is made.
+    Paths are relative to the current working directory when the snapshot is made, or absolute
+    when the checkout is on another drive.
     """
 
     url: str | None = Field(description="Preferred remote URL, using origin when configured.")
@@ -27,7 +28,9 @@ class GitRepositoryMetadata(BaseModel):
     branch: str | None = Field(description="Checked-out branch name, or null when HEAD is detached.")
     is_dirty: bool | None = Field(description="Whether tracked or untracked working-tree changes are present.")
     name: str = Field(description="Checkout directory name.")
-    path: str = Field(description="Checkout path relative to the current working directory.")
+    path: str = Field(
+        description="Checkout path relative to the current working directory, or absolute when on another drive."
+    )
     is_initialized: bool = Field(default=True, description="Whether the submodule working tree is initialized.")
     submodules: list["GitRepositoryMetadata"] = Field(
         default_factory=list,
@@ -189,8 +192,12 @@ class GitRepository(Repo):
 
     @staticmethod
     def _relative_path(path: str) -> str:
-        """Return a path relative to the current working directory."""
-        return Path(os.path.relpath(path, start=Path.cwd())).as_posix()
+        """Return a path relative to the current working directory, or absolute if it is on another drive."""
+        try:
+            return Path(os.path.relpath(path, start=Path.cwd())).as_posix()
+        except ValueError:
+            # On Windows no relative path exists between drives, e.g. a repository on C: from a D: working directory
+            return Path(path).as_posix()
 
     @staticmethod
     def _get_changes(repo: Repo) -> list[str]:
