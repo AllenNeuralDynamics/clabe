@@ -180,7 +180,9 @@ class XmlRpcServer:
                     span.set_status(Status(StatusCode.ERROR))
             return result
 
-    def submit_command(self, cmd_args, cwd: str | None = None, trace_context: dict[str, str] | None = None):
+    def submit_command(
+        self, cmd_args: list[str] | str, cwd: str | None = None, trace_context: dict[str, str] | None = None
+    ):
         """Submit a command for background execution.
 
         Args:

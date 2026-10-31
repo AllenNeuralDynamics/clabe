@@ -20,28 +20,33 @@ logger = logging.getLogger(__name__)
 
 class XmlRpcExecutor:
     """
-    Executor that runs commands remotely via RPC client.
+    Executor that runs commands remotely via an XML-RPC client.
 
     This executor implements both synchronous and asynchronous execution interfaces
-    by wrapping an RPC client. Commands are submitted to the remote RPC server for
-    execution and results are retrieved when complete.
+    by wrapping an XML-RPC client. Commands are submitted to the remote server for
+    execution and results are retrieved when complete. Inputs a command declares
+    (``Command.inputs``) are copied to the server first, and ``path_mapping`` rewrites
+    local path prefixes to their location on the server. To run apps in a checkout of
+    this repository on another machine, use :class:`~clabe.xml_rpc.RemoteRepository`, which
+    builds on this executor.
 
     Attributes:
-        client: The RPC client instance for communication with the remote server
+        client: The XML-RPC client instance for communication with the remote server
 
     Example:
         ```python
-        from clabe.rpc._client import RpcClient, RpcClientSettings
+        from clabe.apps import Command, identity_parser
+        from clabe.xml_rpc import XmlRpcClient, XmlRpcClientSettings, XmlRpcExecutor
 
-        # Create RPC client
-        settings = RpcClientSettings(
+        # Create the client
+        settings = XmlRpcClientSettings(
             server_url="http://localhost:8000",
             token="your-auth-token"
         )
-        client = RpcClient(settings)
+        client = XmlRpcClient(settings)
 
         # Create executor
-        executor = RpcExecutor(client)
+        executor = XmlRpcExecutor(client)
 
         # Use as synchronous executor
         cmd = Command(cmd=["echo", "hello"], output_parser=identity_parser)
@@ -77,14 +82,14 @@ class XmlRpcExecutor:
 
         Example:
             ```python
-            from clabe.rpc._client import RpcClient, RpcClientSettings
+            from clabe.xml_rpc import XmlRpcClient, XmlRpcClientSettings, XmlRpcExecutor
 
-            settings = RpcClientSettings(
+            settings = XmlRpcClientSettings(
                 server_url="http://localhost:8000",
                 token="auth-token"
             )
-            client = RpcClient(settings)
-            executor = RpcExecutor(client, timeout=60.0, poll_interval=1.0)
+            client = XmlRpcClient(settings)
+            executor = XmlRpcExecutor(client, timeout=60.0, poll_interval=1.0)
             ```
         """
         self.client = client
@@ -155,7 +160,7 @@ class XmlRpcExecutor:
 
         Example:
             ```python
-            executor = RpcExecutor(settings)
+            executor = XmlRpcExecutor(client)
             cmd = Command(cmd=["python", "--version"], output_parser=identity_parser)
             result = executor.run(cmd)
             print(f"Output: {result.stdout}")
@@ -186,7 +191,7 @@ class XmlRpcExecutor:
 
         Example:
             ```python
-            executor = RpcExecutor(settings)
+            executor = XmlRpcExecutor(client)
             cmd = Command(cmd=["python", "-c", "print('done')"], output_parser=identity_parser)
             result = await executor.run_async(cmd)
             print(f"Output: {result.stdout}")

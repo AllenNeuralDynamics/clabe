@@ -111,7 +111,7 @@ class XmlRpcClient:
 
         Example:
             ```python
-            client = RpcClient(settings)
+            client = XmlRpcClient(settings)
             response = client.submit_command(["echo", "hello world"])
             job_id = response.job_id
             ```
