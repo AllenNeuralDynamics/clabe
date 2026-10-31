@@ -17,7 +17,7 @@ from clabe.apps import (
     identity_parser,
 )
 from clabe.apps._executors import AsyncLocalExecutor, LocalExecutor
-from clabe.apps.open_ephys import OpenEphysApp, Status, _OpenEphysGuiClient
+from clabe.apps.open_ephys import Status, _OpenEphysGuiClient
 
 # ============================================================================
 # Test Fixtures
@@ -724,16 +724,6 @@ class TestEdgeCases:
         cmd = app.command.cmd
         assert isinstance(cmd, list)
         assert "test.py" in cmd
-
-
-@pytest.fixture
-def open_ephys_app() -> OpenEphysApp:
-    """OpenEphysApp fixture."""
-    signal_chain = Path("test_signal_chain.xml")
-    executable = Path(".open_ephys/open_ephys.exe")
-    mock_client = MagicMock(spec=_OpenEphysGuiClient)
-    app = OpenEphysApp(signal_chain=signal_chain, executable=executable, client=mock_client)
-    return app
 
 
 class TestOpenEphysGuiClient:
