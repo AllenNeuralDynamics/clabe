@@ -11,11 +11,13 @@ from unittest.mock import patch
 
 import pytest
 from pydantic import SecretStr
+from pydantic_settings import CliApp
 
 from clabe import __version__
+from clabe.cli import CliAppSettings
 from clabe.xml_rpc import XmlRpcClient, XmlRpcClientSettings
-from clabe.xml_rpc._scheduled_task import build_task_xml, register_task, start_task, unregister_task
-from clabe.xml_rpc._server import XmlRpcServer, XmlRpcServerSettings, _stdin_is_console, _XmlRpcServerStartCli
+from clabe.xml_rpc._scheduled_task import TASK_NAME, build_task_xml, register_task, start_task, unregister_task
+from clabe.xml_rpc._server import XmlRpcServer, XmlRpcServerSettings, _RegisterTaskCli, _ServeCli, _stdin_is_console
 
 _NS = {"t": "http://schemas.microsoft.com/windows/2004/02/mit/task"}
 _PRINT_CWD = [sys.executable, "-c", "import os; print(os.getcwd())"]
@@ -65,11 +67,11 @@ class TestToken:
             XmlRpcServer(settings)
 
     def test_cli_uses_configured_token(self):
-        cli = _XmlRpcServerStartCli(token=SecretStr("from-config"))
+        cli = _ServeCli(token=SecretStr("from-config"))
         assert cli._resolve_token().get_secret_value() == "from-config"
 
     def test_cli_raises_without_token_when_not_interactive(self):
-        cli = _XmlRpcServerStartCli(token=None)
+        cli = _ServeCli(token=None)
         with (
             patch("clabe.xml_rpc._server._stdin_is_console", return_value=False),
             pytest.raises(SystemExit, match="clabe.yml"),
@@ -77,7 +79,7 @@ class TestToken:
             cli._resolve_token()
 
     def test_cli_prompts_for_token_when_interactive(self):
-        cli = _XmlRpcServerStartCli(token=None)
+        cli = _ServeCli(token=None)
         with (
             patch("clabe.xml_rpc._server._stdin_is_console", return_value=True),
             patch("clabe.xml_rpc._server.getpass.getpass", return_value="typed"),
@@ -85,7 +87,7 @@ class TestToken:
             assert cli._resolve_token().get_secret_value() == "typed"
 
     def test_cli_non_interactive_never_prompts(self):
-        cli = _XmlRpcServerStartCli(token=None, non_interactive=True)
+        cli = _ServeCli(token=None, non_interactive=True)
         with (
             patch("clabe.xml_rpc._server._stdin_is_console", return_value=True),
             patch("clabe.xml_rpc._server.getpass.getpass") as prompt,
@@ -150,7 +152,15 @@ class TestTracing:
 
 class TestScheduledTask:
     def test_task_xml(self, working_dir: Path):
-        command = [r"C:\repo\.venv\Scripts\python.exe", "-m", "clabe.cli", "xml-rpc-server", "--dump", r"C:\a b\log"]
+        command = [
+            r"C:\repo\.venv\Scripts\python.exe",
+            "-m",
+            "clabe.cli",
+            "xml-rpc-server",
+            "serve",
+            "--dump",
+            r"C:\a b\log",
+        ]
         root = ET.fromstring(build_task_xml(command, working_dir, user="DOMAIN\\rig"))
 
         assert root.find("t:Principals/t:Principal/t:LogonType", _NS).text == "InteractiveToken"
@@ -160,7 +170,7 @@ class TestScheduledTask:
         assert root.find("t:Settings/t:RestartOnFailure/t:Interval", _NS).text == "PT1M"
         exec_ = root.find("t:Actions/t:Exec", _NS)
         assert exec_.find("t:Command", _NS).text == command[0]
-        assert exec_.find("t:Arguments", _NS).text == '-m clabe.cli xml-rpc-server --dump "C:\\a b\\log"'
+        assert exec_.find("t:Arguments", _NS).text == '-m clabe.cli xml-rpc-server serve --dump "C:\\a b\\log"'
         assert exec_.find("t:WorkingDirectory", _NS).text == str(working_dir)
 
     @pytest.mark.skipif(sys.platform != "win32", reason="schtasks is Windows-only")
@@ -174,7 +184,7 @@ class TestScheduledTask:
                 seen["xml_path"] = xml_path
 
         with patch("clabe.xml_rpc._scheduled_task.subprocess.run", side_effect=fake_run) as run:
-            register_task("MyTask", ["python.exe", "-m", "clabe.cli"], working_dir)
+            register_task(["python.exe", "-m", "clabe.cli"], working_dir)
 
         assert [call.args[0][:3] for call in run.call_args_list] == [
             ["schtasks", "/create", "/tn"],
@@ -186,25 +196,56 @@ class TestScheduledTask:
     @pytest.mark.skipif(sys.platform != "win32", reason="schtasks is Windows-only")
     def test_start_task_on_remote_host(self):
         with patch("clabe.xml_rpc._scheduled_task.subprocess.run") as run:
-            start_task("MyTask", host="rig-b")
-        assert run.call_args.args[0] == ["schtasks", "/run", "/s", "rig-b", "/tn", "MyTask"]
+            start_task(host="rig-b")
+        assert run.call_args.args[0] == ["schtasks", "/run", "/s", "rig-b", "/tn", TASK_NAME]
 
     @pytest.mark.skipif(sys.platform != "win32", reason="schtasks is Windows-only")
     def test_unregister_deletes_task(self):
         with patch("clabe.xml_rpc._scheduled_task.subprocess.run") as run:
-            unregister_task("MyTask")
-        assert run.call_args.args[0] == ["schtasks", "/delete", "/tn", "MyTask", "/f"]
+            unregister_task()
+        assert run.call_args.args[0] == ["schtasks", "/delete", "/tn", TASK_NAME, "/f"]
 
-    def test_cli_registers_task_from_working_dir(self, working_dir: Path):
-        cli = _XmlRpcServerStartCli(
-            token=SecretStr("t"), register_task=True, port=9001, working_dir=working_dir, task_name="MyTask"
-        )
+    def test_register_task_cli_uses_current_directory(self, working_dir: Path, monkeypatch):
+        monkeypatch.chdir(working_dir)
         with patch("clabe.xml_rpc._server.register_task") as register:
-            cli.cli_cmd()
+            _RegisterTaskCli(dump=Path("server.log")).cli_cmd()
 
-        name, command, task_working_dir = register.call_args.args
-        assert name == "MyTask"
-        assert task_working_dir == working_dir.resolve()
-        assert command[:5] == [sys.executable, "-m", "clabe.cli", "xml-rpc-server", "--non-interactive"]
-        assert command[command.index("--port") + 1] == "9001"
+        command, task_working_dir = register.call_args.args
+        assert task_working_dir == working_dir
+        assert command[:6] == [sys.executable, "-m", "clabe.cli", "xml-rpc-server", "serve", "--non-interactive"]
+        assert command[command.index("--dump") + 1] == str(working_dir / "server.log")
         assert "--token" not in command
+        assert "--port" not in command, "settings are read from clabe.yml when the server starts"
+
+
+class TestCli:
+    def test_register_task_subcommand(self):
+        with patch("clabe.xml_rpc._server.register_task") as register:
+            CliApp.run(CliAppSettings, cli_args=["xml-rpc-server", "register-task"])
+        register.assert_called_once()
+
+    def test_unregister_task_subcommand(self):
+        with patch("clabe.xml_rpc._server.unregister_task") as unregister:
+            CliApp.run(CliAppSettings, cli_args=["xml-rpc-server", "unregister-task"])
+        unregister.assert_called_once_with()
+
+    def test_serve_subcommand(self, tmp_path: Path):
+        with patch("clabe.xml_rpc._server.XmlRpcServer") as server:
+            CliApp.run(
+                CliAppSettings,
+                cli_args=[
+                    "xml-rpc-server",
+                    "serve",
+                    "--token",
+                    "abc",
+                    "--port",
+                    "9100",
+                    "--working-dir",
+                    str(tmp_path),
+                ],
+            )
+        settings = server.call_args.kwargs["settings"]
+        assert settings.token.get_secret_value() == "abc"
+        assert settings.port == 9100
+        assert settings.working_dir == tmp_path
+        server.return_value.server.serve_forever.assert_called_once()

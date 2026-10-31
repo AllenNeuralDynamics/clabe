@@ -16,12 +16,12 @@ from xmlrpc.server import SimpleXMLRPCServer
 from opentelemetry import propagate, trace
 from opentelemetry.trace import Status, StatusCode
 from pydantic import Field, IPvAnyAddress, SecretStr
-from pydantic_settings import CliApp, CliImplicitFlag
+from pydantic_settings import BaseSettings, CliApp, CliImplicitFlag, CliSubCommand
 
 from .. import __version__
 from ..constants import TMP_DIR
 from ..services import ServiceSettings
-from ._scheduled_task import DEFAULT_TASK_NAME, register_task, unregister_task
+from ._scheduled_task import TASK_NAME, register_task, unregister_task
 from .models import (
     FileBulkDeleteResponse,
     FileDeleteResponse,
@@ -561,8 +561,8 @@ def _configure_telemetry() -> bool:
         return False
 
 
-class _XmlRpcServerStartCli(XmlRpcServerSettings):
-    """CLI application wrapper for the RPC server."""
+class _ServeCli(XmlRpcServerSettings):
+    """Start the XML-RPC server and run it until interrupted."""
 
     # Optional here so a missing token can be prompted for instead of failing validation
     token: SecretStr | None = Field(  # type: ignore[assignment]
@@ -573,14 +573,6 @@ class _XmlRpcServerStartCli(XmlRpcServerSettings):
     non_interactive: CliImplicitFlag[bool] = Field(
         default=False, description="Fail instead of prompting when no token is configured"
     )
-    register_task: CliImplicitFlag[bool] = Field(
-        default=False,
-        description="Register a Windows scheduled task that starts this server at logon, from the working directory",
-    )
-    unregister_task: CliImplicitFlag[bool] = Field(
-        default=False, description="Remove the Windows scheduled task registered with --register-task"
-    )
-    task_name: str = Field(default=DEFAULT_TASK_NAME, description="Name of the Windows scheduled task")
 
     def _resolve_token(self) -> SecretStr:
         """Returns the configured token, prompting for one when running interactively."""
@@ -596,66 +588,20 @@ class _XmlRpcServerStartCli(XmlRpcServerSettings):
             raise SystemExit("An authentication token is required.")
         return SecretStr(token)
 
-    def _task_command(self) -> list[str]:
-        """Builds the command the scheduled task runs to start the server."""
-        command = [
-            sys.executable,
-            "-m",
-            "clabe.cli",
-            "xml-rpc-server",
-            # The task has a console window nobody watches, so a missing token must fail rather than prompt
-            "--non-interactive",
-            "--address",
-            str(self.address),
-            "--port",
-            str(self.port),
-        ]
-        if self.dump is not None:
-            command += ["--dump", str(self.dump.resolve())]
-        if self.debug:
-            command.append("--debug")
-        return command
-
     def cli_cmd(self):
-        """Start the RPC server and run it until interrupted, or manage its scheduled task."""
-        if self.unregister_task:
-            unregister_task(self.task_name)
-            print(f"Removed scheduled task '{self.task_name}'.")
-            return
-        if self.register_task:
-            working_dir = self.working_dir.resolve()
-            register_task(self.task_name, self._task_command(), working_dir)
-            print(f"Registered and started scheduled task '{self.task_name}' in {working_dir}.")
-            if self.token is None:
-                print(
-                    "Warning: no token is configured. The server will not start until 'token' is set in the "
-                    "'xml_rpc_server' section of clabe.yml.",
-                    file=sys.stderr,
-                )
-            return
-
+        """Start the RPC server and run it until interrupted."""
         token = self._resolve_token()
 
-        log_level = logging.DEBUG if self.debug else logging.INFO
-        log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-
-        handlers = [logging.StreamHandler()]
-
+        log_format = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+        handlers: list[logging.Handler] = [logging.StreamHandler()]
         if self.dump:
             self.dump.parent.mkdir(parents=True, exist_ok=True)
-            file_handler = logging.FileHandler(self.dump, mode="w")
-            file_handler.setFormatter(logging.Formatter(log_format))
-            handlers.append(file_handler)
-            logger.info("Logging dumped to file: %s", self.dump)
-
+            handlers.append(logging.FileHandler(self.dump, mode="w"))
         module_logger = logging.getLogger("clabe.xml_rpc")
-        module_logger.setLevel(log_level)
+        module_logger.setLevel(logging.DEBUG if self.debug else logging.INFO)
         for handler in handlers:
-            handler.setFormatter(logging.Formatter(log_format))
+            handler.setFormatter(log_format)
             module_logger.addHandler(handler)
-
-        if self.debug:
-            logger.debug("Debug logging enabled")
 
         telemetry_enabled = _configure_telemetry()
         settings = XmlRpcServerSettings.model_validate(
@@ -673,5 +619,60 @@ class _XmlRpcServerStartCli(XmlRpcServerSettings):
                 flush()
 
 
+class _RegisterTaskCli(BaseSettings):
+    """Register a Windows scheduled task that starts the server at logon, from the current directory.
+
+    The server reads its settings, including the token, from clabe.yml in that directory.
+    """
+
+    debug: CliImplicitFlag[bool] = Field(default=False, description="Enable debug logging in the server")
+    dump: Path | None = Field(default=None, description="Path the server dumps its logs to")
+
+    def _task_command(self) -> list[str]:
+        """Builds the command the scheduled task runs to start the server."""
+        # The task has a console window nobody watches, so a missing token must fail rather than prompt
+        command = [sys.executable, "-m", "clabe.cli", "xml-rpc-server", "serve", "--non-interactive"]
+        if self.dump is not None:
+            command += ["--dump", str(self.dump.resolve())]
+        if self.debug:
+            command.append("--debug")
+        return command
+
+    def cli_cmd(self):
+        """Register and start the scheduled task."""
+        working_dir = Path.cwd()
+        register_task(self._task_command(), working_dir)
+        print(f"Registered and started scheduled task '{TASK_NAME}' in {working_dir}.")
+        if _ServeCli().token is None:
+            print(
+                "Warning: no token is configured. The server will not start until 'token' is set in the "
+                "'xml_rpc_server' section of clabe.yml.",
+                file=sys.stderr,
+            )
+
+
+class _UnregisterTaskCli(BaseSettings):
+    """Remove the Windows scheduled task registered with register-task."""
+
+    def cli_cmd(self):
+        """Remove the scheduled task."""
+        unregister_task()
+        print(f"Removed scheduled task '{TASK_NAME}'.")
+
+
+class _XmlRpcServerCli(BaseSettings):
+    """Run the XML-RPC server, or install it as a Windows scheduled task."""
+
+    serve: CliSubCommand[_ServeCli] = Field(description="Start the server and run it until interrupted")
+    register_task: CliSubCommand[_RegisterTaskCli] = Field(
+        description="Register a scheduled task that starts the server at logon, from the current directory"
+    )
+    unregister_task: CliSubCommand[_UnregisterTaskCli] = Field(description="Remove the scheduled task")
+
+    def cli_cmd(self):
+        """Run the selected subcommand."""
+        CliApp.run_subcommand(self)
+
+
 if __name__ == "__main__":
-    CliApp().run(_XmlRpcServerStartCli, cli_args=["--token", "42", "--debug"])
+    CliApp().run(_ServeCli, cli_args=["--token", "42", "--debug"])

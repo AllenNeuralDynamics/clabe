@@ -276,7 +276,7 @@ class TestEnsureRunning:
             patch("clabe.xml_rpc._remote.start_task") as start,
         ):
             remote.ensure_running(poll_interval=0.01)
-        start.assert_called_once_with(remote.task_name, host="127.0.0.1")
+        start.assert_called_once_with(host="127.0.0.1")
 
     def test_times_out(self, remote: RemoteRepository):
         with (
