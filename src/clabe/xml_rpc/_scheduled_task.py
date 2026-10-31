@@ -2,7 +2,7 @@
 
 The task runs at logon in the user's interactive session ("run only when user is logged on"),
 so applications it launches can show windows and reach network shares with the user's
-credentials. It can then be started remotely with ``schtasks /run /s <host> /tn <name>``.
+credentials. It can then be started remotely with ``schtasks /run /s <host> /tn ClabeXmlRpcServer``.
 
 The task is defined in Task Scheduler XML because ``schtasks /create`` flags cannot set the
 working directory, restart-on-failure or an unlimited execution time.
@@ -19,7 +19,7 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_TASK_NAME = "ClabeXmlRpcServer"
+TASK_NAME = "ClabeXmlRpcServer"
 
 _TASK_NAMESPACE = "http://schemas.microsoft.com/windows/2004/02/mit/task"
 
@@ -99,11 +99,10 @@ def _schtasks(*args: str) -> subprocess.CompletedProcess[str]:
         raise RuntimeError(f"schtasks {' '.join(args)} failed: {(e.stderr or e.stdout).strip()}") from e
 
 
-def register_task(name: str, command: list[str], working_dir: Path, *, start: bool = True) -> None:
+def register_task(command: list[str], working_dir: Path, *, start: bool = True) -> None:
     """Registers (or replaces) the scheduled task and optionally starts it.
 
     Args:
-        name: Name of the scheduled task.
         command: The command the task runs.
         working_dir: Directory the command starts in.
         start: Whether to start the task immediately after registering it.
@@ -114,33 +113,28 @@ def register_task(name: str, command: list[str], working_dir: Path, *, start: bo
         f.write(definition)
         xml_path = f.name
     try:
-        _schtasks("/create", "/tn", name, "/xml", xml_path, "/f")
-        logger.info("Registered scheduled task '%s'", name)
+        _schtasks("/create", "/tn", TASK_NAME, "/xml", xml_path, "/f")
+        logger.info("Registered scheduled task '%s'", TASK_NAME)
     finally:
         os.unlink(xml_path)
     if start:
-        start_task(name)
+        start_task()
 
 
-def start_task(name: str, host: str | None = None) -> None:
+def start_task(host: str | None = None) -> None:
     """Starts the scheduled task, on this machine or on a remote one.
 
     Starting a task on another machine requires rights on it (typically local administrator)
     and that the firewall allows remote task scheduling.
 
     Args:
-        name: Name of the scheduled task.
         host: Machine to start the task on. Defaults to this machine.
     """
-    _schtasks("/run", *(("/s", host) if host else ()), "/tn", name)
-    logger.info("Started scheduled task '%s' on %s", name, host or "this machine")
+    _schtasks("/run", *(("/s", host) if host else ()), "/tn", TASK_NAME)
+    logger.info("Started scheduled task '%s' on %s", TASK_NAME, host or "this machine")
 
 
-def unregister_task(name: str) -> None:
-    """Removes the scheduled task.
-
-    Args:
-        name: Name of the scheduled task.
-    """
-    _schtasks("/delete", "/tn", name, "/f")
-    logger.info("Removed scheduled task '%s'", name)
+def unregister_task() -> None:
+    """Removes the scheduled task."""
+    _schtasks("/delete", "/tn", TASK_NAME, "/f")
+    logger.info("Removed scheduled task '%s'", TASK_NAME)
