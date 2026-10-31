@@ -3,8 +3,10 @@ import os
 import time
 from collections.abc import Mapping
 from pathlib import Path, PureWindowsPath
-from typing import Any
+from typing import Any, Self
 from urllib.parse import urlparse
+
+from aind_behavior_services import Session
 
 from .. import __version__
 from ..apps import Command, CommandResult, identity_parser
@@ -50,9 +52,10 @@ class RemoteRepository:
         )
         remote.ensure_running()
         remote.verify()
+        remote.register_session(session, fip_rig.data_directory)
         fip_app = AindBehaviorServicesBonsaiApp("./Aind.Physiology.Fip/src/main.bonsai", rig=fip_rig, session=session)
         await fip_app.run_async(executor=remote)
-        source = remote.to_unc(rf"D:\\data\\{session.session_name}")
+        source = remote.session_directory_unc  # e.g. \\\\rig-b\\data\\<session name>
         ```
     """
 
@@ -83,6 +86,8 @@ class RemoteRepository:
         self.data_roots = {PureWindowsPath(local): PureWindowsPath(unc) for local, unc in (data_roots or {}).items()}
         self.task_name = task_name
         self._info: ServerInfoResponse | None = None
+        self._session: Session | None = None
+        self._data_directory: PureWindowsPath | None = None
 
     @property
     def host(self) -> str:
@@ -190,6 +195,62 @@ class RemoteRepository:
             if path.is_relative_to(root):
                 return self.data_roots[root] / path.relative_to(root)
         raise ValueError(f"{path} is not under any data root of {self.host}: {[str(r) for r in self.data_roots]}")
+
+    def register_session(self, session: Session, data_directory: os.PathLike | str) -> Self:
+        """Registers the session this machine records data for, and creates its session directory there.
+
+        The remote counterpart of :meth:`~clabe.launcher.Launcher.register_session`. Optional: only
+        :attr:`data_directory`, :attr:`session_directory` and :attr:`session_directory_unc` need it.
+
+        Args:
+            session: The session, shared with the launcher.
+            data_directory: Root data directory on the remote machine, e.g. the remote rig's ``data_directory``.
+
+        Returns:
+            Self: The updated instance.
+
+        Raises:
+            ValueError: If a session is already registered, or the session has no name.
+        """
+        if self._session is not None:
+            raise ValueError("Session already registered.")
+        if session.session_name is None:
+            raise ValueError("session.session_name is not set.")
+        self._session = session
+        self._data_directory = PureWindowsPath(data_directory)
+        # Created by a command on the remote machine, since its local paths are not reachable from here
+        mkdir = "import pathlib, sys; pathlib.Path(sys.argv[1]).mkdir(parents=True, exist_ok=True)"
+        self.run(
+            Command(
+                cmd=[self.info().python_executable, "-c", mkdir, str(self.session_directory)],
+                output_parser=identity_parser,
+            )
+        )
+        logger.debug("Created session directory on %s at %s", self.host, self.session_directory)
+        return self
+
+    @property
+    def data_directory(self) -> PureWindowsPath:
+        """Root data directory on the remote machine, set by :meth:`register_session`."""
+        if self._data_directory is None:
+            raise ValueError("Data directory is not set. Call register_session first.")
+        return self._data_directory
+
+    @property
+    def session_directory(self) -> PureWindowsPath:
+        """Session directory as the remote machine sees it, e.g. to configure where an app saves its data."""
+        if self._session is None or self._session.session_name is None:
+            raise ValueError("Session is not registered. Call register_session first.")
+        return self.data_directory / self._session.session_name
+
+    @property
+    def session_directory_unc(self) -> PureWindowsPath:
+        """Session directory as other machines reach it through its network share, e.g. for watchdog or mappers.
+
+        Raises:
+            ValueError: If no session is registered, or the data directory is not under any of the ``data_roots``.
+        """
+        return self.to_unc(self.session_directory)
 
     def _executor(self) -> XmlRpcExecutor:
         """Returns an executor that runs commands in the remote repository, mapping local repository paths to it."""
