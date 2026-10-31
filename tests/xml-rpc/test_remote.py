@@ -236,6 +236,7 @@ class TestVerify:
         with pytest.raises(RepositoryMismatchError, match="server runs from"):
             RemoteRepository(client, path=str(tmp_path / "elsewhere"), local_path=local_clone).verify()
 
+    @pytest.mark.skipif(sys.platform != "win32", reason="Windows paths compare case-insensitively")
     def test_path_matching_working_dir_is_accepted(self, client: XmlRpcClient, repo: Path, local_clone: Path):
         RemoteRepository(client, path=str(repo).upper(), local_path=local_clone).verify()
 
@@ -321,6 +322,7 @@ class TestOpenEphysOnRemote:
         assert app.command.result.exit_code == 0
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="remote paths are Windows paths")
 class TestSessionDirectory:
     @pytest.fixture
     def remote(self, client: XmlRpcClient, local_clone: Path, tmp_path: Path) -> RemoteRepository:
