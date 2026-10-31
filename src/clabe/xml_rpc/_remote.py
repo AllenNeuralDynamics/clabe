@@ -13,7 +13,7 @@ from ..apps import Command, CommandResult, identity_parser
 from ..git_manager import GitRepository, GitRepositoryMetadata
 from ._client import XmlRpcClient
 from ._executor import XmlRpcExecutor
-from ._scheduled_task import DEFAULT_TASK_NAME, start_task
+from ._scheduled_task import TASK_NAME, start_task
 from .models import ServerInfoResponse
 
 logger = logging.getLogger(__name__)
@@ -41,7 +41,7 @@ def _normalize_url(url: str | None) -> str | None:
 class RemoteRepository:
     """A checkout of this repository on another machine, reached through its XML-RPC server.
 
-    The server is expected to run from the remote checkout (see ``clabe xml-rpc-server --register-task``),
+    The server is expected to run from the remote checkout (see ``clabe xml-rpc-server register-task``),
     so commands run in the remote repository and in its Python environment by default.
 
     Example:
@@ -66,7 +66,6 @@ class RemoteRepository:
         *,
         local_path: os.PathLike | str = ".",
         data_roots: Mapping[str, str] | None = None,
-        task_name: str = DEFAULT_TASK_NAME,
     ) -> None:
         """
         Initializes the remote repository.
@@ -78,13 +77,11 @@ class RemoteRepository:
             local_path: Path of the local repository the remote one is compared against.
             data_roots: Maps data directories on the remote machine to the network shares exposing them,
                 e.g. ``{r"D:\\data": r"\\\\rig-b\\data"}``. Used by :meth:`to_unc`.
-            task_name: Name of the scheduled task that starts the remote server.
         """
         self.client = client
         self._path = path
         self.local_path = local_path
         self.data_roots = {PureWindowsPath(local): PureWindowsPath(unc) for local, unc in (data_roots or {}).items()}
-        self.task_name = task_name
         self._info: ServerInfoResponse | None = None
         self._session: Session | None = None
         self._data_directory: PureWindowsPath | None = None
@@ -120,8 +117,8 @@ class RemoteRepository:
         """
         if self.client.ping():
             return
-        logger.info("Server on %s is not responding; starting scheduled task '%s'", self.host, self.task_name)
-        start_task(self.task_name, host=self.host)
+        logger.info("Server on %s is not responding; starting scheduled task '%s'", self.host, TASK_NAME)
+        start_task(host=self.host)
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             time.sleep(poll_interval)
