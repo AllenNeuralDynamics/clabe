@@ -282,3 +282,35 @@ class TestEnsureRunning:
             pytest.raises(TimeoutError),
         ):
             remote.ensure_running(timeout=0.05, poll_interval=0.01)
+
+
+class TestSessionDirectory:
+    @pytest.fixture
+    def remote(self, client: XmlRpcClient, local_clone: Path, tmp_path: Path) -> RemoteRepository:
+        return RemoteRepository(client, local_path=local_clone, data_roots={str(tmp_path / "data"): r"\rig-b\data"})
+
+    def test_register_creates_session_directory_on_remote(self, remote: RemoteRepository, mock_session, tmp_path):
+        data_directory = tmp_path / "data"
+        assert remote.register_session(mock_session, data_directory) is remote
+
+        assert remote.data_directory == PureWindowsPath(data_directory)
+        assert remote.session_directory == PureWindowsPath(data_directory / mock_session.session_name)
+        assert remote.session_directory_unc == PureWindowsPath(rf"\rig-b\data\{mock_session.session_name}")
+        assert (data_directory / mock_session.session_name).is_dir()
+
+    def test_directories_require_registration(self, remote: RemoteRepository):
+        for attribute in ("data_directory", "session_directory", "session_directory_unc"):
+            with pytest.raises(ValueError, match="register_session"):
+                getattr(remote, attribute)
+
+    def test_register_twice_raises(self, remote: RemoteRepository, mock_session, tmp_path: Path):
+        remote.register_session(mock_session, tmp_path / "data")
+        with pytest.raises(ValueError, match="already registered"):
+            remote.register_session(mock_session, tmp_path / "data")
+
+    def test_unc_requires_data_root(self, client: XmlRpcClient, local_clone: Path, mock_session, tmp_path: Path):
+        remote = RemoteRepository(client, local_path=local_clone)
+        remote.register_session(mock_session, tmp_path / "unshared")
+        assert remote.session_directory.name == mock_session.session_name
+        with pytest.raises(ValueError, match="not under any data root"):
+            _ = remote.session_directory_unc
