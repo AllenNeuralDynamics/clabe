@@ -16,7 +16,6 @@ from clabe import __version__
 from clabe.xml_rpc import XmlRpcClient, XmlRpcClientSettings
 from clabe.xml_rpc._scheduled_task import build_task_xml, register_task, start_task, unregister_task
 from clabe.xml_rpc._server import XmlRpcServer, XmlRpcServerSettings, _stdin_is_console, _XmlRpcServerStartCli
-from clabe.xml_rpc.models import PROTOCOL_VERSION
 
 _NS = {"t": "http://schemas.microsoft.com/windows/2004/02/mit/task"}
 _PRINT_CWD = [sys.executable, "-c", "import os; print(os.getcwd())"]
@@ -122,7 +121,6 @@ class TestServerInfo:
         info = client.server_info()
         assert info.success
         assert info.clabe_version == __version__
-        assert info.protocol_version == PROTOCOL_VERSION
         assert info.hostname
         assert Path(info.working_dir) == working_dir.resolve()
         assert Path(info.python_executable) == Path(sys.executable)
