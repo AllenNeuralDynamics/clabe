@@ -412,11 +412,12 @@ class TestWatchdogDataTransferService:
         return_value=Path("flag_dir/manifest_session.yaml"),
     )
     def test_transfer_service_not_running_restart_fail(
-        self, mock_dump_manifest_config, mock_force_restart, mock_is_running, watchdog_service
+        self, mock_dump_manifest_config, mock_force_restart, mock_is_running, watchdog_service, caplog
     ):
-        with pytest.raises(RuntimeError, match="manifest_session.yaml"):
-            watchdog_service.transfer()
+        with caplog.at_level("ERROR"):
+            watchdog_service.transfer()  # never raises once the manifest is written
         mock_force_restart.assert_called_once_with(kill_if_running=False)
+        assert "manifest_session.yaml" in caplog.text
         # The watchdog processes existing manifests when it starts, so the session is still queued
         mock_dump_manifest_config.assert_called_once()
 
@@ -432,9 +433,20 @@ class TestWatchdogDataTransferService:
         calls = Mock()
         calls.attach_mock(mock_dump_manifest_config, "dump")
         calls.attach_mock(mock_force_restart, "restart")
-        with pytest.raises(RuntimeError, match="still not running"):
-            watchdog_service.transfer()
+        watchdog_service.transfer()
         assert [c[0] for c in calls.mock_calls] == ["dump", "restart"]
+
+    @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.is_running", return_value=False)
+    @patch(
+        "clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.force_restart",
+        side_effect=FileNotFoundError("watchdog.exe"),
+    )
+    @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.dump_manifest_config")
+    def test_transfer_never_raises_when_service_cannot_start(
+        self, mock_dump_manifest_config, mock_force_restart, mock_is_running, watchdog_service
+    ):
+        watchdog_service.transfer()
+        mock_dump_manifest_config.assert_called_once()
 
     @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.is_running", return_value=True)
     @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.dump_manifest_config")
