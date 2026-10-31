@@ -13,12 +13,17 @@ from pydantic_settings import CliApp
 
 from clabe import resource_monitor
 from clabe.apps import AindBehaviorServicesBonsaiApp
+from clabe.data_transfer.aind_watchdog import WatchdogDataTransferService, WatchdogSettings
 from clabe.launcher import Launcher, LauncherCliArgs, experiment
 from clabe.session import SessionBuilder
 from clabe.stores import LocalFileStore
 from clabe.xml_rpc import RemoteRepository, XmlRpcClient, XmlRpcClientSettings
 
 logger = logging.getLogger(__name__)
+
+# Data root on the remote machine, and the network share other machines reach it through
+REMOTE_DATA_DIRECTORY = r"D:\data"
+REMOTE_DATA_SHARE = r"\\rig-b\data"
 
 
 @experiment()
@@ -42,9 +47,12 @@ async def client_experiment(launcher: Launcher) -> None:
     remote = RemoteRepository(
         XmlRpcClient(settings=XmlRpcClientSettings(server_url="http://localhost:8000", token="42")),
         local_path=".",
+        data_roots={REMOTE_DATA_DIRECTORY: REMOTE_DATA_SHARE},
     )
     remote.ensure_running()
     remote.verify(allow_dirty=True)
+    # The remote machine saves its data under its own session directory, named like the launcher's
+    remote.register_session(session, REMOTE_DATA_DIRECTORY)
 
     # The app is built exactly as for a local run. Running it on the remote executor copies the
     # rig, session and task to the remote machine and maps paths in this repository to the remote one.
@@ -59,6 +67,15 @@ async def client_experiment(launcher: Launcher) -> None:
     )
     bonsai_app_result = await bonsai_app.run_async(executor=remote)
     print(bonsai_app_result)
+
+    # One watchdog manifest covering both machines: the local session directory, and the remote one
+    # through its network share. Requires the WATCHDOG_EXE and WATCHDOG_CONFIG environment variables.
+    watchdog = WatchdogDataTransferService(
+        source=[launcher.session_directory, remote.session_directory_unc],
+        settings=WatchdogSettings(destination=r"\\allen\aind\scratch\data-uploads", project_name="clabe"),
+        session=session,
+    )
+    watchdog.transfer()
 
 
 def main():

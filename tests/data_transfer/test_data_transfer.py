@@ -5,7 +5,7 @@ import sys
 import tempfile
 from datetime import UTC, datetime, time
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 from aind_behavior_services import Session
@@ -407,10 +407,46 @@ class TestWatchdogDataTransferService:
         "clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.force_restart",
         side_effect=subprocess.CalledProcessError(1, "cmd"),
     )
-    def test_transfer_service_not_running_restart_fail(self, mock_force_restart, mock_is_running, watchdog_service):
-        with pytest.raises(RuntimeError):
-            watchdog_service.transfer()
+    @patch(
+        "clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.dump_manifest_config",
+        return_value=Path("flag_dir/manifest_session.yaml"),
+    )
+    def test_transfer_service_not_running_restart_fail(
+        self, mock_dump_manifest_config, mock_force_restart, mock_is_running, watchdog_service, caplog
+    ):
+        with caplog.at_level("ERROR"):
+            watchdog_service.transfer()  # never raises once the manifest is written
         mock_force_restart.assert_called_once_with(kill_if_running=False)
+        assert "manifest_session.yaml" in caplog.text
+        # The watchdog processes existing manifests when it starts, so the session is still queued
+        mock_dump_manifest_config.assert_called_once()
+
+    @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.is_running", return_value=False)
+    @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.force_restart", return_value=None)
+    @patch(
+        "clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.dump_manifest_config",
+        return_value=Path("flag_dir/manifest_session.yaml"),
+    )
+    def test_transfer_writes_manifest_before_starting_service(
+        self, mock_dump_manifest_config, mock_force_restart, mock_is_running, watchdog_service
+    ):
+        calls = Mock()
+        calls.attach_mock(mock_dump_manifest_config, "dump")
+        calls.attach_mock(mock_force_restart, "restart")
+        watchdog_service.transfer()
+        assert [c[0] for c in calls.mock_calls] == ["dump", "restart"]
+
+    @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.is_running", return_value=False)
+    @patch(
+        "clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.force_restart",
+        side_effect=FileNotFoundError("watchdog.exe"),
+    )
+    @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.dump_manifest_config")
+    def test_transfer_never_raises_when_service_cannot_start(
+        self, mock_dump_manifest_config, mock_force_restart, mock_is_running, watchdog_service
+    ):
+        watchdog_service.transfer()
+        mock_dump_manifest_config.assert_called_once()
 
     @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.is_running", return_value=True)
     @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.dump_manifest_config")
@@ -522,6 +558,15 @@ class TestWatchdogDataTransferService:
         assert manifest.name is not None
         expected_root = Path(manifest.destination) / manifest.name
         assert root == expected_root
+
+    def test_create_manifest_raises_for_unreachable_source(
+        self, watchdog_service: WatchdogDataTransferService, mock_session: Session, tmp_path: Path
+    ):
+        missing = tmp_path / "rig-b" / "session"
+        watchdog_service._sources.append(missing)
+        with pytest.raises(FileNotFoundError, match="not reachable") as exc_info:
+            watchdog_service._create_manifest_from_session(mock_session)
+        assert str(missing) in str(exc_info.value)
 
     def test_find_modality_candidates(self, watchdog_service: WatchdogDataTransferService, source: Path):
         candidates = watchdog_service._find_modality_candidates(source)

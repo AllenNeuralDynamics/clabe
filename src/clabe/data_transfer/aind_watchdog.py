@@ -154,23 +154,12 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         Executes the data transfer by generating a Watchdog manifest configuration.
 
         Creates and deploys a manifest configuration file that the watchdog service
-        will use to monitor and transfer data.
+        will use to monitor and transfer data. The manifest is written even if the service
+        is not running, since the service processes existing manifests when it starts; the
+        service is then started if needed. Failing to start it is logged, never raised, since
+        the manifest is already queued.
         """
         try:
-            if not self.is_running():
-                logger.warning("Watchdog service is not running. Attempting to start it.")
-                try:
-                    self.force_restart(kill_if_running=False)
-                except subprocess.CalledProcessError as e:
-                    logger.error("Failed to start watchdog service. %s", e)
-                    raise RuntimeError("Failed to start watchdog service.") from e
-                else:
-                    if not self.is_running():
-                        logger.error("Failed to start watchdog service.")
-                        raise RuntimeError("Failed to start watchdog service.")
-                    else:
-                        logger.info("Watchdog service restarted successfully.")
-
             logger.debug("Creating watchdog manifest config.")
 
             if self._watch_config is None:
@@ -186,6 +175,24 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         except (OSError, pydantic.ValidationError, ValueError) as e:
             logger.error("Failed to create watchdog manifest config. %s", e)
             raise
+
+        try:
+            if self.is_running():
+                return
+            logger.warning("Watchdog service is not running. Attempting to start it.")
+            self.force_restart(kill_if_running=False)
+            started = self.is_running()
+        except Exception as e:  # noqa: BLE001 -- the manifest is queued, so a failed start must not fail the transfer
+            logger.error("Failed to start watchdog service: %s", e)
+            started = False
+        if started:
+            logger.info("Watchdog service restarted successfully.")
+        else:
+            logger.error(
+                "Watchdog service is not running. The manifest %s is written and will be transferred "
+                "once the watchdog service runs.",
+                _manifest_path,
+            )
 
     def validate(self) -> bool:
         """
@@ -265,6 +272,10 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         destination = Path(self._settings.destination).resolve()
 
         sources = {Path(s).resolve() for s in self._sources}
+        # Sources may be network shares on other machines, so report every unreachable one up front
+        missing = sorted(str(s) for s in sources if not s.is_dir())
+        if missing:
+            raise FileNotFoundError(f"Watchdog source directories not found or not reachable: {', '.join(missing)}")
 
         if self._validate_project_name:
             project_names = self._get_project_names()
