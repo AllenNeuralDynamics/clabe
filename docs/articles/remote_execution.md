@@ -14,7 +14,7 @@ There are three pieces, and each has one job:
 
 ```python
 remote = RemoteRepository(
-    XmlRpcClient(XmlRpcClientSettings(server_url="http://rig-b:8000", token=token)),
+    XmlRpcClient(XmlRpcClientSettings(server_url="http://rig-b:25223", token=token)),
     data_roots={r"D:\data": r"\\rig-b\data"},
 )
 remote.ensure_running()
@@ -43,14 +43,14 @@ does. Keyword arguments on the command line (`--port 9000`) win over the file.
 ```yaml
 xml_rpc_server:
   token: "<a secret shared with the launchers>"   # required
-  port: 8000
+  port: 25223
 ```
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
 | `token` | none, **required** | Shared secret every request must carry. |
 | `address` | `0.0.0.0` | Interface to listen on. |
-| `port` | `8000` | Port to listen on. |
+| `port` | `25223` | Port to listen on. |
 | `working_dir` | the folder the server starts in | Folder commands run in, unless a call passes its own `cwd`. |
 | `max_workers` | `4` | How many commands run at the same time. |
 | `max_file_size` | 5 MB | Largest file the transfer calls accept. |
@@ -100,7 +100,7 @@ The client reads its settings from the `xml_rpc_client` section, so a launcher d
 
 ```yaml
 xml_rpc_client:
-  server_url: http://rig-b:8000
+  server_url: http://rig-b:25223
   token: "<the same secret>"
 ```
 
@@ -115,7 +115,18 @@ remote = RemoteRepository(XmlRpcClient(XmlRpcClientSettings()), data_roots={r"D:
 | `client` | The client for that machine's server. |
 | `path` | Where the repository is on that machine. Optional: it defaults to the server's working directory. When given, `verify()` checks the server runs from it. |
 | `local_path` | The local repository to compare with. Defaults to the current folder. |
-| `data_roots` | Maps data folders on that machine to the network share that exposes them. Used by [`to_unc`](#reading-the-data-it-saved). |
+| `data_roots` | Maps data folders on that machine to the network share that exposes them. Optional: other folders are reached through the drive's administrative share. Used by [`to_unc`](#reading-the-data-it-saved). |
+
+When the other machine is described by a rig, connect by its computer name instead. The server URL is built from the
+name and port, and the rest of the client settings, such as the token, still come from `xml_rpc_client`:
+
+```python
+remote = RemoteRepository.from_computer_name(ephys_rig.computer_name)
+```
+
+`ensure_running()` fails with a `ConnectionError` naming the machine when its name does not resolve to an address,
+for example because it is misspelled or on another network. To decide whether a rig is this machine, and so whether
+to run its app locally instead, use `clabe.utils.is_this_computer(rig.computer_name)`.
 
 ### Starting the server if it is down
 
@@ -211,8 +222,15 @@ exist there. These are Windows paths, because they describe the other machine's 
 
 ### Reading the data it saved
 
-`session_directory_unc` needs the data folder to be one of the `data_roots`. For other paths, translate them
-yourself with `remote.to_unc(path)`. When roots are nested, the most specific one wins.
+`session_directory_unc` translates the session folder with `remote.to_unc(path)`, which you can also use for other
+paths. A path under one of the `data_roots` goes to that share; when roots are nested, the most specific one wins.
+Any other path is reached through its drive's administrative share, e.g. `D:\data` on `rig-b` as `\\rig-b\D$\data`,
+which every Windows machine has but which needs administrator rights there, like `ensure_running()`. Pass
+`data_roots` when the reader is not an administrator, or the data lives on a dedicated share.
+
+To find data saved earlier, for example when recovering a session after the launcher crashed, the other machine's
+server does not need to be running: `clabe.xml_rpc.to_unc(path, data_roots, host=...)` does the same translation
+without a connection.
 
 The share must be readable by the account the reader runs as. That is the launcher's user for mappers, and the
 watchdog's user for transfers, which are not always the same account.

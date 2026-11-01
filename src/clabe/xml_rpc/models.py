@@ -9,6 +9,8 @@ from enum import Enum
 
 from pydantic import Base64Bytes, BaseModel, Field
 
+DEFAULT_PORT = 25223  # Spells "CLABE" on a phone keypad
+
 
 class JobStatus(str, Enum):
     """Enumeration of possible job statuses."""

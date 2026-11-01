@@ -1,6 +1,9 @@
 import logging
 import os
+import socket
+import tempfile
 import time
+import uuid
 from collections.abc import Mapping
 from pathlib import Path, PureWindowsPath
 from typing import Any, Self
@@ -11,10 +14,10 @@ from aind_behavior_services import Session
 from .. import __version__
 from ..apps import Command, CommandResult, identity_parser
 from ..git_manager import GitRepository, GitRepositoryMetadata
-from ._client import XmlRpcClient
+from ._client import XmlRpcClient, XmlRpcClientSettings
 from ._executor import XmlRpcExecutor
 from ._scheduled_task import TASK_NAME, start_task
-from .models import ServerInfoResponse
+from .models import DEFAULT_PORT, ServerInfoResponse
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +39,49 @@ def _normalize_url(url: str | None) -> str | None:
     if url is None:
         return None
     return url.rstrip("/").removesuffix(".git").lower()
+
+
+def to_unc(
+    path: os.PathLike | str, data_roots: Mapping[str, str] | None = None, host: str | None = None
+) -> PureWindowsPath:
+    """Translates a path on another machine to the network share path it is reached by.
+
+    Needs no connection to that machine, e.g. to find the data of a session recorded there earlier. A path under
+    none of the ``data_roots`` is reached through its drive's administrative share on ``host``, e.g. ``D:\\data``
+    on ``rig-b`` as ``\\\\rig-b\\D$\\data``, which needs administrator rights on that machine.
+
+    Args:
+        path: An absolute path on the other machine.
+        data_roots: Maps data directories on that machine to the network shares exposing them,
+            e.g. ``{r"D:\\data": r"\\\\rig-b\\data"}``. Takes precedence over the administrative share.
+        host: Name of the other machine, for its administrative shares.
+
+    Returns:
+        The same location under its network share.
+
+    Raises:
+        ValueError: If the path is under none of the ``data_roots`` and there is no ``host`` or drive to fall back on.
+    """
+    path = PureWindowsPath(path)
+    roots = {PureWindowsPath(local): PureWindowsPath(unc) for local, unc in (data_roots or {}).items()}
+    # Most specific root first, so nested roots map to their own share
+    for root in sorted(roots, key=lambda r: len(r.parts), reverse=True):
+        if path.is_relative_to(root):
+            return roots[root] / path.relative_to(root)
+    # A drive letter path, e.g. D:\data, but not a path that already is a share
+    if host is not None and len(path.drive) == 2 and path.drive.endswith(":"):
+        return PureWindowsPath(f"//{host}/{path.drive[0]}$/") / path.relative_to(path.anchor)
+    raise ValueError(f"{path} is not under any data root: {[str(r) for r in roots]}")
+
+
+def _check_resolvable(host: str) -> None:
+    """Raises a clear error when ``host`` cannot be resolved to an address, e.g. a misspelled computer name."""
+    try:
+        socket.getaddrinfo(host, None)
+    except socket.gaierror as e:
+        raise ConnectionError(
+            f"Cannot resolve '{host}' to an address. Check the computer name, and that it is on the same network."
+        ) from e
 
 
 class RemoteRepository:
@@ -76,7 +122,8 @@ class RemoteRepository:
                 When given, :meth:`verify` checks that the server runs from it.
             local_path: Path of the local repository the remote one is compared against.
             data_roots: Maps data directories on the remote machine to the network shares exposing them,
-                e.g. ``{r"D:\\data": r"\\\\rig-b\\data"}``. Used by :meth:`to_unc`.
+                e.g. ``{r"D:\\data": r"\\\\rig-b\\data"}``. Used by :meth:`to_unc`; paths under none of them are
+                reached through the drive's administrative share.
         """
         self.client = client
         self._path = path
@@ -85,6 +132,31 @@ class RemoteRepository:
         self._info: ServerInfoResponse | None = None
         self._session: Session | None = None
         self._data_directory: PureWindowsPath | None = None
+
+    @classmethod
+    def from_computer_name(
+        cls,
+        computer_name: str,
+        port: int = DEFAULT_PORT,
+        path: str | None = None,
+        *,
+        local_path: os.PathLike | str = ".",
+        data_roots: Mapping[str, str] | None = None,
+    ) -> Self:
+        """Connects to the server on a machine by its computer name, e.g. a rig's ``computer_name``.
+
+        The remaining client settings, such as the token, are read from the ``xml_rpc_client`` section.
+
+        Args:
+            computer_name: Network name of the remote machine.
+            port: Port the remote server listens on.
+            path: Path of the repository on the remote machine. See :meth:`__init__`.
+            local_path: Path of the local repository the remote one is compared against.
+            data_roots: Maps data directories on the remote machine to the network shares exposing them.
+                Defaults to the drives' administrative shares.
+        """
+        client = XmlRpcClient(XmlRpcClientSettings(server_url=f"http://{computer_name}:{port}"))
+        return cls(client, path, local_path=local_path, data_roots=data_roots)
 
     @property
     def host(self) -> str:
@@ -113,10 +185,12 @@ class RemoteRepository:
             poll_interval: Seconds between connection attempts.
 
         Raises:
+            ConnectionError: If the remote machine's name cannot be resolved to an address.
             TimeoutError: If the server does not respond within ``timeout``.
         """
         if self.client.ping():
             return
+        _check_resolvable(self.host)
         logger.info("Server on %s is not responding; starting scheduled task '%s'", self.host, TASK_NAME)
         start_task(host=self.host)
         deadline = time.monotonic() + timeout
@@ -180,21 +254,22 @@ class RemoteRepository:
     def to_unc(self, path: os.PathLike | str) -> PureWindowsPath:
         """Translates a path on the remote machine to the network share path other machines reach it by.
 
+        Paths under none of the ``data_roots`` are reached through the drive's administrative share; see
+        :func:`to_unc`.
+
         Args:
-            path: A path on the remote machine, under one of the ``data_roots``.
+            path: An absolute path on the remote machine.
 
         Returns:
             The same location under its network share.
 
         Raises:
-            ValueError: If the path is not under any of the ``data_roots``.
+            ValueError: If the path is under none of the ``data_roots`` and has no drive letter.
         """
-        path = PureWindowsPath(path)
-        # Most specific root first, so nested roots map to their own share
-        for root in sorted(self.data_roots, key=lambda r: len(r.parts), reverse=True):
-            if path.is_relative_to(root):
-                return self.data_roots[root] / path.relative_to(root)
-        raise ValueError(f"{path} is not under any data root of {self.host}: {[str(r) for r in self.data_roots]}")
+        try:
+            return to_unc(path, {str(local): str(unc) for local, unc in self.data_roots.items()}, host=self.host)
+        except ValueError as e:
+            raise ValueError(f"{e} (on {self.host})") from e
 
     def register_session(self, session: Session, data_directory: os.PathLike | str) -> Self:
         """Registers the session this machine records data for, and creates its session directory there.
@@ -218,16 +293,51 @@ class RemoteRepository:
             raise ValueError("session.session_name is not set.")
         self._session = session
         self._data_directory = PureWindowsPath(data_directory)
+        self.mkdir(self.session_directory)
+        logger.debug("Created session directory on %s at %s", self.host, self.session_directory)
+        return self
+
+    def mkdir(self, path: os.PathLike | str) -> None:
+        """Creates a directory, and its missing parents, on the remote machine.
+
+        Args:
+            path: The directory, as the remote machine sees it.
+        """
         # Created by a command on the remote machine, since its local paths are not reachable from here
-        mkdir = "import pathlib, sys; pathlib.Path(sys.argv[1]).mkdir(parents=True, exist_ok=True)"
+        self._run_python("import pathlib, sys; pathlib.Path(sys.argv[1]).mkdir(parents=True, exist_ok=True)", path)
+
+    def write_file(self, path: os.PathLike | str, content: str | bytes) -> None:
+        """Writes a file on the remote machine, creating its directory if needed.
+
+        The client can only upload to the server's transfer directory, so the content is uploaded there and then
+        moved into place on the remote machine. It is limited to the client's ``max_file_size``.
+
+        Args:
+            path: The file, as the remote machine sees it. Replaced if it exists.
+            content: The content. Text is written as UTF-8.
+        """
+        name = PureWindowsPath(path).name
+        with tempfile.TemporaryDirectory() as staging:
+            upload_path = Path(staging) / f"clabe_{uuid.uuid4().hex}_{name}"
+            upload_path.write_bytes(content.encode("utf-8") if isinstance(content, str) else content)
+            upload = self.client.upload_file(upload_path)
+        if upload.path is None:
+            raise RuntimeError(f"Uploading {name} returned no path")
+        move = (
+            "import pathlib, shutil, sys; target = pathlib.Path(sys.argv[2]); "
+            "target.parent.mkdir(parents=True, exist_ok=True); shutil.move(sys.argv[1], target)"
+        )
+        self._run_python(move, upload.path, path)
+        logger.debug("Wrote %s on %s", path, self.host)
+
+    def _run_python(self, code: str, *args: os.PathLike | str) -> None:
+        """Runs Python ``code`` with ``args`` on the remote machine, in the server's environment."""
         self.run(
             Command(
-                cmd=[self.info().python_executable, "-c", mkdir, str(self.session_directory)],
+                cmd=[self.info().python_executable, "-c", code, *(str(arg) for arg in args)],
                 output_parser=identity_parser,
             )
         )
-        logger.debug("Created session directory on %s at %s", self.host, self.session_directory)
-        return self
 
     @property
     def data_directory(self) -> PureWindowsPath:
@@ -248,7 +358,7 @@ class RemoteRepository:
         """Session directory as other machines reach it through its network share, e.g. for watchdog or mappers.
 
         Raises:
-            ValueError: If no session is registered, or the data directory is not under any of the ``data_roots``.
+            ValueError: If no session is registered, or the data directory cannot be translated (see :meth:`to_unc`).
         """
         return self.to_unc(self.session_directory)
 

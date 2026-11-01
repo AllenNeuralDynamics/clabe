@@ -14,6 +14,7 @@ from pydantic import BaseModel, SecretStr
 
 from clabe.apps import AindBehaviorServicesBonsaiApp, Command, CommandError, identity_parser
 from clabe.apps.open_ephys import OpenEphysApp, OpenEphysAppSettings, Status
+from clabe.services import override_clabe_yml
 from clabe.xml_rpc import (
     RemoteRepository,
     RepositoryMismatchError,
@@ -22,6 +23,7 @@ from clabe.xml_rpc import (
     XmlRpcExecutor,
     XmlRpcServer,
     XmlRpcServerSettings,
+    to_unc,
 )
 from clabe.xml_rpc._staged_command import StagedCommand, StagedFile, main, run_staged
 
@@ -171,6 +173,29 @@ class TestRun:
             remote.run(_command([sys.executable, "-c", "raise SystemExit(2)"]))
 
 
+class TestRemoteFiles:
+    def test_mkdir_creates_parents(self, remote: RemoteRepository, tmp_path: Path):
+        directory = tmp_path / "data" / "session" / "ecephys"
+        remote.mkdir(directory)
+        remote.mkdir(directory)  # already existing is fine
+        assert directory.is_dir()
+
+    @pytest.mark.parametrize("content", ['{"name": "rig-b"}', b"\x00\x01binary"])
+    def test_write_file_creates_directory_and_cleans_up(
+        self, remote: RemoteRepository, server: XmlRpcServer, tmp_path: Path, content: str | bytes
+    ):
+        target = tmp_path / "data" / "session" / "Logs" / "rig_input.json"
+        remote.write_file(target, content)
+        assert target.read_bytes() == (content.encode() if isinstance(content, str) else content)
+        assert not any(server.settings.file_transfer_dir.iterdir()), "upload should be moved, not copied"
+
+    def test_write_file_replaces_existing(self, remote: RemoteRepository, tmp_path: Path):
+        target = tmp_path / "file.txt"
+        target.write_text("old")
+        remote.write_file(target, "new")
+        assert target.read_text() == "new"
+
+
 class TestBonsaiAppOnRemote:
     def test_app_registers_models_as_inputs(self, tmp_path: Path):
         app = AindBehaviorServicesBonsaiApp(
@@ -260,9 +285,33 @@ class TestToUnc:
     def test_is_case_insensitive(self, remote: RemoteRepository):
         assert remote.to_unc(r"d:\DATA\s") == PureWindowsPath(r"\\rig-b\data\s")
 
-    def test_unmapped_path_raises(self, remote: RemoteRepository):
+    def test_unmapped_path_uses_administrative_share(self, remote: RemoteRepository):
+        assert remote.to_unc(r"E:\other\s") == PureWindowsPath(r"\\127.0.0.1\E$\other\s")
+
+    def test_path_without_drive_raises(self, remote: RemoteRepository):
         with pytest.raises(ValueError, match="not under any data root"):
-            remote.to_unc(r"E:\other")
+            remote.to_unc(r"other\s")
+
+    def test_function_needs_no_connection(self):
+        assert to_unc(r"D:\data\s\ecephys", {r"D:\data": r"\\rig-b\data"}) == PureWindowsPath(r"\\rig-b\data\s\ecephys")
+        assert to_unc(r"D:\data\s", host="ephys-pc") == PureWindowsPath(r"\\ephys-pc\D$\data\s")
+        with pytest.raises(ValueError, match="not under any data root"):
+            to_unc(r"E:\other", {r"D:\data": r"\\rig-b\data"})  # no host to fall back on
+
+    def test_share_paths_are_not_shared_again(self):
+        with pytest.raises(ValueError, match="not under any data root"):
+            to_unc(r"\\nas\data\s", host="ephys-pc")
+
+
+class TestFromComputerName:
+    def test_builds_server_url_and_reads_the_rest_from_config(self):
+        with override_clabe_yml({"xml_rpc_client": {"token": "secret", "timeout": 5}}):
+            remote = RemoteRepository.from_computer_name("ephys-pc", port=8123, data_roots={r"D:\data": r"\\x\d"})
+        assert str(remote.client.settings.server_url) == "http://ephys-pc:8123/"
+        assert remote.client.settings.token.get_secret_value() == "secret"
+        assert remote.client.settings.timeout == 5
+        assert remote.host == "ephys-pc"
+        assert remote.to_unc(r"D:\data\s") == PureWindowsPath(r"\\x\d\s")
 
 
 class TestEnsureRunning:
@@ -286,6 +335,18 @@ class TestEnsureRunning:
             pytest.raises(TimeoutError),
         ):
             remote.ensure_running(timeout=0.05, poll_interval=0.01)
+
+    def test_unresolvable_host_raises_before_starting_task(self):
+        remote = RemoteRepository(
+            XmlRpcClient(XmlRpcClientSettings(server_url="http://no-such-computer.invalid:8000", token="t"))
+        )
+        with (
+            patch.object(remote.client, "ping", return_value=False),
+            patch("clabe.xml_rpc._remote.start_task") as start,
+            pytest.raises(ConnectionError, match="no-such-computer.invalid"),
+        ):
+            remote.ensure_running()
+        start.assert_not_called()
 
 
 class TestOpenEphysOnRemote:
@@ -352,9 +413,13 @@ class TestSessionDirectory:
         with pytest.raises(ValueError, match="already registered"):
             remote.register_session(mock_session, tmp_path / "data")
 
-    def test_unc_requires_data_root(self, client: XmlRpcClient, local_clone: Path, mock_session, tmp_path: Path):
+    def test_unc_defaults_to_administrative_share(
+        self, client: XmlRpcClient, local_clone: Path, mock_session, tmp_path: Path
+    ):
         remote = RemoteRepository(client, local_path=local_clone)
         remote.register_session(mock_session, tmp_path / "unshared")
-        assert remote.session_directory.name == mock_session.session_name
-        with pytest.raises(ValueError, match="not under any data root"):
-            _ = remote.session_directory_unc
+        drive = PureWindowsPath(tmp_path).drive
+        expected = PureWindowsPath(rf"\\127.0.0.1\{drive[0]}$") / PureWindowsPath(remote.session_directory).relative_to(
+            drive + "\\"
+        )
+        assert remote.session_directory_unc == expected

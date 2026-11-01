@@ -11,6 +11,8 @@ from clabe.apps import CommandError
 from clabe.apps.open_ephys import (
     OpenEphysApp,
     OpenEphysAppSettings,
+    RecordingResponse,
+    RecordNode,
     Status,
     _OpenEphysGuiClient,
 )
@@ -195,6 +197,54 @@ class TestLaunch:
         app._client.start_acquisition.assert_called_once_with()
         app._client.stop.assert_called_once_with()
 
+    def test_set_recording_directory_moves_default_and_stray_nodes(self):
+        app = OpenEphysApp(OpenEphysAppSettings(signal_chain="x.xml"), skip_validation=True)
+        app._client = Mock(spec=_OpenEphysGuiClient)
+
+        def node(node_id: int, parent: str) -> RecordNode:
+            return RecordNode(
+                node_id=node_id,
+                parent_directory=parent,
+                record_engine="BINARY",
+                experiment_number=1,
+                recording_number=0,
+                is_synchronized=True,
+            )
+
+        def response(*nodes: RecordNode) -> RecordingResponse:
+            return RecordingResponse(
+                parent_directory=r"D:\data\s",
+                base_text="ecephys",
+                prepend_text="",
+                append_text="",
+                record_nodes=list(nodes),
+            )
+
+        app._client.set_recording_config.return_value = response(node(101, r"D:\data\s"), node(105, r"E:\custom"))
+        app._client.set_record_node_config.return_value = response(node(101, r"D:\data\s"), node(105, r"D:\data\s"))
+
+        result = app.set_recording_directory(r"D:\data\s\ecephys")
+
+        app._client.set_recording_config.assert_called_once_with(
+            parent_directory=r"D:\data\s", base_text="ecephys", prepend_text="", append_text=""
+        )
+        app._client.set_record_node_config.assert_called_once_with(105, parent_directory=r"D:\data\s")
+        assert all(n.parent_directory == r"D:\data\s" for n in result.record_nodes)
+
+    def test_set_recording_directory_raises_when_gui_ignores_it(self):
+        app = OpenEphysApp(OpenEphysAppSettings(signal_chain="x.xml"), skip_validation=True)
+        app._client = Mock(spec=_OpenEphysGuiClient)
+        # What the GUI answers when the parent does not exist: the previous directory, unchanged
+        app._client.set_recording_config.return_value = RecordingResponse(
+            parent_directory=r"C:\Users\me\Documents\Open Ephys",
+            base_text="ecephys",
+            prepend_text="",
+            append_text="",
+            record_nodes=[],
+        )
+        with pytest.raises(ValueError, match=r"Documents\\\\Open Ephys"):
+            app.set_recording_directory(r"D:\data\missing\ecephys")
+
     def test_loopback_address_follows_remote_executor_host(self):
         app = OpenEphysApp(OpenEphysAppSettings(signal_chain="x.xml", port=1), skip_validation=True)
         executor = Mock(host="rig-b")
@@ -242,6 +292,46 @@ class TestRealGuiHeadless:
             result = await app.close()
         assert result is not None and result.exit_code == 0
         assert "headless mode" in (result.stdout or "")
+
+    @staticmethod
+    def _headless_app() -> OpenEphysApp:
+        return OpenEphysApp(
+            OpenEphysAppSettings(
+                signal_chain=_FILE_READER_CHAIN,
+                executable=_OPEN_EPHYS_DIR / "open-ephys.exe",
+                address="127.0.0.1",
+                headless=True,
+            )
+        )
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("pre_existing", [False, True])
+    async def test_records_to_recording_directory(self, tmp_path: Path, pre_existing: bool):
+        directory = tmp_path / "session" / "ecephys"
+        directory.parent.mkdir()
+        if pre_existing:
+            directory.mkdir()
+        app = self._headless_app()
+        await app.launch(timeout=120.0)
+        try:
+            app.set_recording_directory(directory)
+            assert app.start() == Status.RECORD
+            app.stop()
+        finally:
+            await app.close()
+        # An existing directory is not reused, as documented by set_recording_directory
+        recorded = directory.with_name("ecephys (1)") if pre_existing else directory
+        assert sorted(p.name for p in recorded.iterdir()) == ["Record Node 101", "Record Node 105"]
+
+    @pytest.mark.asyncio
+    async def test_missing_parent_is_rejected(self, tmp_path: Path):
+        app = self._headless_app()
+        await app.launch(timeout=120.0)
+        try:
+            with pytest.raises(ValueError, match="did not accept"):
+                app.set_recording_directory(tmp_path / "missing" / "ecephys")
+        finally:
+            await app.close()
 
 
 def test_headless_adds_flag():
