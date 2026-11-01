@@ -285,14 +285,22 @@ class TestToUnc:
     def test_is_case_insensitive(self, remote: RemoteRepository):
         assert remote.to_unc(r"d:\DATA\s") == PureWindowsPath(r"\\rig-b\data\s")
 
-    def test_unmapped_path_raises(self, remote: RemoteRepository):
+    def test_unmapped_path_uses_administrative_share(self, remote: RemoteRepository):
+        assert remote.to_unc(r"E:\other\s") == PureWindowsPath(r"\\127.0.0.1\E$\other\s")
+
+    def test_path_without_drive_raises(self, remote: RemoteRepository):
         with pytest.raises(ValueError, match="not under any data root"):
-            remote.to_unc(r"E:\other")
+            remote.to_unc(r"other\s")
 
     def test_function_needs_no_connection(self):
         assert to_unc(r"D:\data\s\ecephys", {r"D:\data": r"\\rig-b\data"}) == PureWindowsPath(r"\\rig-b\data\s\ecephys")
+        assert to_unc(r"D:\data\s", host="ephys-pc") == PureWindowsPath(r"\\ephys-pc\D$\data\s")
         with pytest.raises(ValueError, match="not under any data root"):
-            to_unc(r"E:\other", {r"D:\data": r"\\rig-b\data"})
+            to_unc(r"E:\other", {r"D:\data": r"\\rig-b\data"})  # no host to fall back on
+
+    def test_share_paths_are_not_shared_again(self):
+        with pytest.raises(ValueError, match="not under any data root"):
+            to_unc(r"\\nas\data\s", host="ephys-pc")
 
 
 class TestFromComputerName:
@@ -405,9 +413,13 @@ class TestSessionDirectory:
         with pytest.raises(ValueError, match="already registered"):
             remote.register_session(mock_session, tmp_path / "data")
 
-    def test_unc_requires_data_root(self, client: XmlRpcClient, local_clone: Path, mock_session, tmp_path: Path):
+    def test_unc_defaults_to_administrative_share(
+        self, client: XmlRpcClient, local_clone: Path, mock_session, tmp_path: Path
+    ):
         remote = RemoteRepository(client, local_path=local_clone)
         remote.register_session(mock_session, tmp_path / "unshared")
-        assert remote.session_directory.name == mock_session.session_name
-        with pytest.raises(ValueError, match="not under any data root"):
-            _ = remote.session_directory_unc
+        drive = PureWindowsPath(tmp_path).drive
+        expected = PureWindowsPath(rf"\\127.0.0.1\{drive[0]}$") / PureWindowsPath(remote.session_directory).relative_to(
+            drive + "\\"
+        )
+        assert remote.session_directory_unc == expected

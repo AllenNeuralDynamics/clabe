@@ -41,28 +41,36 @@ def _normalize_url(url: str | None) -> str | None:
     return url.rstrip("/").removesuffix(".git").lower()
 
 
-def to_unc(path: os.PathLike | str, data_roots: Mapping[str, str]) -> PureWindowsPath:
+def to_unc(
+    path: os.PathLike | str, data_roots: Mapping[str, str] | None = None, host: str | None = None
+) -> PureWindowsPath:
     """Translates a path on another machine to the network share path it is reached by.
 
-    Needs no connection to that machine, e.g. to find the data of a session recorded there earlier.
+    Needs no connection to that machine, e.g. to find the data of a session recorded there earlier. A path under
+    none of the ``data_roots`` is reached through its drive's administrative share on ``host``, e.g. ``D:\\data``
+    on ``rig-b`` as ``\\\\rig-b\\D$\\data``, which needs administrator rights on that machine.
 
     Args:
-        path: A path on the other machine, under one of the ``data_roots``.
+        path: An absolute path on the other machine.
         data_roots: Maps data directories on that machine to the network shares exposing them,
-            e.g. ``{r"D:\\data": r"\\\\rig-b\\data"}``.
+            e.g. ``{r"D:\\data": r"\\\\rig-b\\data"}``. Takes precedence over the administrative share.
+        host: Name of the other machine, for its administrative shares.
 
     Returns:
         The same location under its network share.
 
     Raises:
-        ValueError: If the path is not under any of the ``data_roots``.
+        ValueError: If the path is under none of the ``data_roots`` and there is no ``host`` or drive to fall back on.
     """
     path = PureWindowsPath(path)
-    roots = {PureWindowsPath(local): PureWindowsPath(unc) for local, unc in data_roots.items()}
+    roots = {PureWindowsPath(local): PureWindowsPath(unc) for local, unc in (data_roots or {}).items()}
     # Most specific root first, so nested roots map to their own share
     for root in sorted(roots, key=lambda r: len(r.parts), reverse=True):
         if path.is_relative_to(root):
             return roots[root] / path.relative_to(root)
+    # A drive letter path, e.g. D:\data, but not a path that already is a share
+    if host is not None and len(path.drive) == 2 and path.drive.endswith(":"):
+        return PureWindowsPath(f"//{host}/{path.drive[0]}$/") / path.relative_to(path.anchor)
     raise ValueError(f"{path} is not under any data root: {[str(r) for r in roots]}")
 
 
@@ -114,7 +122,8 @@ class RemoteRepository:
                 When given, :meth:`verify` checks that the server runs from it.
             local_path: Path of the local repository the remote one is compared against.
             data_roots: Maps data directories on the remote machine to the network shares exposing them,
-                e.g. ``{r"D:\\data": r"\\\\rig-b\\data"}``. Used by :meth:`to_unc`.
+                e.g. ``{r"D:\\data": r"\\\\rig-b\\data"}``. Used by :meth:`to_unc`; paths under none of them are
+                reached through the drive's administrative share.
         """
         self.client = client
         self._path = path
@@ -144,6 +153,7 @@ class RemoteRepository:
             path: Path of the repository on the remote machine. See :meth:`__init__`.
             local_path: Path of the local repository the remote one is compared against.
             data_roots: Maps data directories on the remote machine to the network shares exposing them.
+                Defaults to the drives' administrative shares.
         """
         client = XmlRpcClient(XmlRpcClientSettings(server_url=f"http://{computer_name}:{port}"))
         return cls(client, path, local_path=local_path, data_roots=data_roots)
@@ -244,17 +254,20 @@ class RemoteRepository:
     def to_unc(self, path: os.PathLike | str) -> PureWindowsPath:
         """Translates a path on the remote machine to the network share path other machines reach it by.
 
+        Paths under none of the ``data_roots`` are reached through the drive's administrative share; see
+        :func:`to_unc`.
+
         Args:
-            path: A path on the remote machine, under one of the ``data_roots``.
+            path: An absolute path on the remote machine.
 
         Returns:
             The same location under its network share.
 
         Raises:
-            ValueError: If the path is not under any of the ``data_roots``.
+            ValueError: If the path is under none of the ``data_roots`` and has no drive letter.
         """
         try:
-            return to_unc(path, {str(local): str(unc) for local, unc in self.data_roots.items()})
+            return to_unc(path, {str(local): str(unc) for local, unc in self.data_roots.items()}, host=self.host)
         except ValueError as e:
             raise ValueError(f"{e} (on {self.host})") from e
 
@@ -345,7 +358,7 @@ class RemoteRepository:
         """Session directory as other machines reach it through its network share, e.g. for watchdog or mappers.
 
         Raises:
-            ValueError: If no session is registered, or the data directory is not under any of the ``data_roots``.
+            ValueError: If no session is registered, or the data directory cannot be translated (see :meth:`to_unc`).
         """
         return self.to_unc(self.session_directory)
 
