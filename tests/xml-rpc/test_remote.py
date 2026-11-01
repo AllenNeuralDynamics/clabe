@@ -173,6 +173,29 @@ class TestRun:
             remote.run(_command([sys.executable, "-c", "raise SystemExit(2)"]))
 
 
+class TestRemoteFiles:
+    def test_mkdir_creates_parents(self, remote: RemoteRepository, tmp_path: Path):
+        directory = tmp_path / "data" / "session" / "ecephys"
+        remote.mkdir(directory)
+        remote.mkdir(directory)  # already existing is fine
+        assert directory.is_dir()
+
+    @pytest.mark.parametrize("content", ['{"name": "rig-b"}', b"\x00\x01binary"])
+    def test_write_file_creates_directory_and_cleans_up(
+        self, remote: RemoteRepository, server: XmlRpcServer, tmp_path: Path, content: str | bytes
+    ):
+        target = tmp_path / "data" / "session" / "Logs" / "rig_input.json"
+        remote.write_file(target, content)
+        assert target.read_bytes() == (content.encode() if isinstance(content, str) else content)
+        assert not any(server.settings.file_transfer_dir.iterdir()), "upload should be moved, not copied"
+
+    def test_write_file_replaces_existing(self, remote: RemoteRepository, tmp_path: Path):
+        target = tmp_path / "file.txt"
+        target.write_text("old")
+        remote.write_file(target, "new")
+        assert target.read_text() == "new"
+
+
 class TestBonsaiAppOnRemote:
     def test_app_registers_models_as_inputs(self, tmp_path: Path):
         app = AindBehaviorServicesBonsaiApp(

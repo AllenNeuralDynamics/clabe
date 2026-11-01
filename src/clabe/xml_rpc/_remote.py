@@ -1,7 +1,9 @@
 import logging
 import os
 import socket
+import tempfile
 import time
+import uuid
 from collections.abc import Mapping
 from pathlib import Path, PureWindowsPath
 from typing import Any, Self
@@ -278,16 +280,51 @@ class RemoteRepository:
             raise ValueError("session.session_name is not set.")
         self._session = session
         self._data_directory = PureWindowsPath(data_directory)
+        self.mkdir(self.session_directory)
+        logger.debug("Created session directory on %s at %s", self.host, self.session_directory)
+        return self
+
+    def mkdir(self, path: os.PathLike | str) -> None:
+        """Creates a directory, and its missing parents, on the remote machine.
+
+        Args:
+            path: The directory, as the remote machine sees it.
+        """
         # Created by a command on the remote machine, since its local paths are not reachable from here
-        mkdir = "import pathlib, sys; pathlib.Path(sys.argv[1]).mkdir(parents=True, exist_ok=True)"
+        self._run_python("import pathlib, sys; pathlib.Path(sys.argv[1]).mkdir(parents=True, exist_ok=True)", path)
+
+    def write_file(self, path: os.PathLike | str, content: str | bytes) -> None:
+        """Writes a file on the remote machine, creating its directory if needed.
+
+        The client can only upload to the server's transfer directory, so the content is uploaded there and then
+        moved into place on the remote machine. It is limited to the client's ``max_file_size``.
+
+        Args:
+            path: The file, as the remote machine sees it. Replaced if it exists.
+            content: The content. Text is written as UTF-8.
+        """
+        name = PureWindowsPath(path).name
+        with tempfile.TemporaryDirectory() as staging:
+            upload_path = Path(staging) / f"clabe_{uuid.uuid4().hex}_{name}"
+            upload_path.write_bytes(content.encode("utf-8") if isinstance(content, str) else content)
+            upload = self.client.upload_file(upload_path)
+        if upload.path is None:
+            raise RuntimeError(f"Uploading {name} returned no path")
+        move = (
+            "import pathlib, shutil, sys; target = pathlib.Path(sys.argv[2]); "
+            "target.parent.mkdir(parents=True, exist_ok=True); shutil.move(sys.argv[1], target)"
+        )
+        self._run_python(move, upload.path, path)
+        logger.debug("Wrote %s on %s", path, self.host)
+
+    def _run_python(self, code: str, *args: os.PathLike | str) -> None:
+        """Runs Python ``code`` with ``args`` on the remote machine, in the server's environment."""
         self.run(
             Command(
-                cmd=[self.info().python_executable, "-c", mkdir, str(self.session_directory)],
+                cmd=[self.info().python_executable, "-c", code, *(str(arg) for arg in args)],
                 output_parser=identity_parser,
             )
         )
-        logger.debug("Created session directory on %s at %s", self.host, self.session_directory)
-        return self
 
     @property
     def data_directory(self) -> PureWindowsPath:
