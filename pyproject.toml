@@ -57,7 +57,7 @@ aind-services = [
     "msal; sys_platform == 'win32'",
     "aind-data-schema>=2",
     "aind-data-transfer-service >= 2.2.0",
-    "aind-watchdog-service >= 0.1.6",
+    "aind-watchdog-service >= 0.1.10.dev0",
     "confierge",
 ]
 
