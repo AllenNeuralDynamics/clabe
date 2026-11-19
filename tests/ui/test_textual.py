@@ -182,3 +182,54 @@ class TestAskPath:
             await pilot.press("escape")
             await pilot.pause()
             assert reply.get_nowait() is None
+
+
+class TestCancelPending:
+    @pytest.mark.asyncio
+    async def test_cancels_inline_text_prompt(self):
+        from textual.containers import Vertical
+
+        from clabe.ui._requests import TextRequest
+        from clabe.ui._textual import _PROMPT_CANCELLED
+
+        app = _LauncherApp()
+        async with app.run_test() as pilot:
+            reply: queue.Queue = queue.Queue()
+            await app.ask_text(TextRequest(label="Press Enter to exit..."), reply)
+            await pilot.pause()
+            await app.cancel_pending()
+            assert reply.get_nowait() is _PROMPT_CANCELLED
+            assert app._pending is None
+            assert len(app.query_one("#clabe-prompt", Vertical).children) == 0
+
+    @pytest.mark.asyncio
+    async def test_cancels_acknowledge_modal(self):
+        from clabe.ui._requests import AcknowledgeRequest
+        from clabe.ui._textual import _PROMPT_CANCELLED
+
+        app = _LauncherApp()
+        async with app.run_test() as pilot:
+            reply: queue.Queue = queue.Queue()
+            await app.ask_acknowledge(AcknowledgeRequest(message="Read me"), reply)
+            await pilot.pause()
+            assert len(app.screen_stack) == 2
+            await app.cancel_pending()
+            await pilot.pause()
+            assert len(app.screen_stack) == 1
+            assert reply.get_nowait() is _PROMPT_CANCELLED
+            assert reply.empty()
+
+    @pytest.mark.asyncio
+    async def test_no_pending_prompt_is_a_no_op(self):
+        app = _LauncherApp()
+        async with app.run_test():
+            await app.cancel_pending()
+            assert app._pending is None
+
+
+def test_unwrap_prompt_cancelled_raises():
+    from clabe.ui import PromptCancelledError
+    from clabe.ui._textual import _PROMPT_CANCELLED, _unwrap
+
+    with pytest.raises(PromptCancelledError):
+        _unwrap(_PROMPT_CANCELLED)

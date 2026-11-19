@@ -1,10 +1,13 @@
 import contextlib
 import logging
+import threading
+import time
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from clabe.launcher import Launcher
 from clabe.launcher._cli import LauncherCliArgs
+from clabe.ui import PromptCancelledError
 
 
 def test_base_launcher_with_attached_logger(mock_base_launcher, mock_frontend):
@@ -150,7 +153,9 @@ def _record_run_order(launcher, experiment):
         patch("clabe.launcher._base.run_span", fake_run_span),
         patch.object(Launcher, "validate", return_value=True),
         patch.object(Launcher, "copy_logs", lambda self, *a, **k: order.append("copy_logs")),
-        patch.object(Launcher, "_exit", lambda self, code=0, _force=False: order.append(f"_exit({code})")),
+        patch.object(
+            Launcher, "_exit", lambda self, code=0, _force=False, timeout=None: order.append(f"_exit({code})")
+        ),
     ):
         launcher.run_experiment(experiment)
 
@@ -187,8 +192,98 @@ def test_failed_log_copy_still_exits_with_an_error_code(mock_base_launcher):
         patch("clabe.launcher._base.run_span", fake_run_span),
         patch.object(Launcher, "validate", return_value=True),
         patch.object(Launcher, "copy_logs", boom),
-        patch.object(Launcher, "_exit", lambda self, code=0, _force=False: order.append(f"_exit({code})")),
+        patch.object(
+            Launcher, "_exit", lambda self, code=0, _force=False, timeout=None: order.append(f"_exit({code})")
+        ),
     ):
         mock_base_launcher.run_experiment(lambda launcher: None)
 
     assert order == ["span opened", "span closed", "_exit(-1)"]
+
+
+def _record_exit_call(launcher, experiment):
+    """Run ``experiment`` and return the kwargs ``_exit`` was called with."""
+    calls = []
+    with (
+        patch.object(Launcher, "validate", return_value=True),
+        patch.object(Launcher, "copy_logs", lambda self, *a, **k: None),
+        patch.object(
+            Launcher,
+            "_exit",
+            lambda self, code=0, _force=False, timeout=None: calls.append(
+                {"code": code, "_force": _force, "timeout": timeout}
+            ),
+        ),
+    ):
+        launcher.run_experiment(experiment)
+    assert len(calls) == 1
+    return calls[0]
+
+
+def test_exit_prompt_shown_by_default(mock_base_launcher):
+    call = _record_exit_call(mock_base_launcher, lambda launcher: None)
+    assert call == {"code": 0, "_force": False, "timeout": None}
+
+
+def test_exit_prompt_timeout_is_forwarded(mock_base_launcher):
+    mock_base_launcher._settings = mock_base_launcher.settings.model_copy(update={"exit_prompt_timeout": 60.0})
+    assert _record_exit_call(mock_base_launcher, lambda launcher: None)["timeout"] == 60.0
+
+
+class _CancellableFrontend:
+    """A frontend whose text prompt blocks until ``cancel_prompt`` is called.
+
+    ``ignore_cancels`` drops the first few cancellations, standing in for ones that
+    land before the prompt is on screen.
+    """
+
+    def __init__(self, ignore_cancels: int = 0):
+        self._cancelled = threading.Event()
+        self._ignore = ignore_cancels
+        self.cancel_calls = 0
+        self.labels: list[str] = []
+
+    def prompt_text(self, request):
+        self.labels.append(request.label)
+        if not self._cancelled.wait(5):
+            raise AssertionError("prompt was never cancelled")
+        raise PromptCancelledError()
+
+    def cancel_prompt(self):
+        self.cancel_calls += 1
+        if self.cancel_calls > self._ignore:
+            self._cancelled.set()
+
+
+def test_exit_timeout_cancels_prompt(mock_base_launcher):
+    frontend = _CancellableFrontend()
+    mock_base_launcher.frontend = frontend
+    started = time.monotonic()
+    mock_base_launcher._exit(0, timeout=0.2)
+    assert 0.2 <= time.monotonic() - started < 2
+    assert frontend.labels == ["Press Enter to exit (closing automatically in 0.2 s)..."]
+
+
+def test_exit_timeout_retries_until_prompt_is_cancelled(mock_base_launcher):
+    frontend = _CancellableFrontend(ignore_cancels=2)
+    mock_base_launcher.frontend = frontend
+    mock_base_launcher._exit(0, timeout=0.05)
+    assert frontend.cancel_calls == 3
+
+
+def test_exit_answered_before_timeout_does_not_cancel(mock_base_launcher, mock_frontend):
+    mock_frontend.cancel_prompt = MagicMock()
+    mock_base_launcher._exit(0, timeout=0.2)
+    time.sleep(0.3)
+    mock_frontend._ask_text_mock.assert_called_once()
+    mock_frontend.cancel_prompt.assert_not_called()
+
+
+def test_exit_force_skips_prompt(mock_base_launcher, mock_frontend):
+    mock_base_launcher._exit(0, _force=True)
+    mock_frontend._ask_text_mock.assert_not_called()
+
+
+def test_exit_zero_timeout_skips_prompt(mock_base_launcher, mock_frontend):
+    mock_base_launcher._exit(0, timeout=0)
+    mock_frontend._ask_text_mock.assert_not_called()

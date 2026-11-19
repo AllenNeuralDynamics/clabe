@@ -7,6 +7,7 @@ returned verbatim.
 """
 
 import sys
+import threading
 
 #: Normalized key names returned by :func:`read_key`.
 UP = "up"
@@ -18,6 +19,10 @@ ESCAPE = "escape"
 BACKSPACE = "backspace"
 TAB = "tab"
 INTERRUPT = "interrupt"
+CANCELLED = "cancelled"
+
+#: How often a cancellable read checks whether it has been cancelled, in seconds.
+_POLL_INTERVAL = 0.05
 
 _WIN_SPECIAL = {"H": UP, "P": DOWN, "K": LEFT, "M": RIGHT}
 _POSIX_SEQ = {"[A": UP, "[B": DOWN, "[C": RIGHT, "[D": LEFT}
@@ -38,10 +43,14 @@ def _normalize(ch: str) -> str:
     return ch
 
 
-def _read_key_windows() -> str:
+def _read_key_windows(cancel: threading.Event | None) -> str:
     """Read and normalize one key press on Windows via ``msvcrt``."""
     import msvcrt
 
+    if cancel is not None:
+        while not msvcrt.kbhit():
+            if cancel.wait(_POLL_INTERVAL):
+                return CANCELLED
     ch = msvcrt.getwch()
     if ch in ("\x00", "\xe0"):
         code = msvcrt.getwch()
@@ -49,7 +58,7 @@ def _read_key_windows() -> str:
     return _normalize(ch)
 
 
-def _read_key_posix() -> str:
+def _read_key_posix(cancel: threading.Event | None) -> str:
     """Read and normalize one key press on POSIX via ``termios``/``tty``."""
     import select
     import termios
@@ -59,6 +68,10 @@ def _read_key_posix() -> str:
     old = termios.tcgetattr(fd)
     try:
         tty.setcbreak(fd)
+        if cancel is not None:
+            while not select.select([sys.stdin], [], [], _POLL_INTERVAL)[0]:
+                if cancel.is_set():
+                    return CANCELLED
         ch = sys.stdin.read(1)
         if ch == "\x1b":
             if select.select([sys.stdin], [], [], 0.05)[0]:
@@ -70,9 +83,13 @@ def _read_key_posix() -> str:
         termios.tcsetattr(fd, termios.TCSADRAIN, old)
 
 
-def read_key() -> str:
+def read_key(cancel: threading.Event | None = None) -> str:
     """
     Block until a single key is pressed and return its normalized name.
+
+    Args:
+        cancel: Optional event that aborts the wait when set; the read then
+            returns :data:`CANCELLED` instead of a key.
 
     Returns:
         str: One of the module-level key-name constants (e.g. :data:`UP`,
@@ -80,5 +97,5 @@ def read_key() -> str:
         printable input. Unrecognized control sequences yield an empty string.
     """
     if sys.platform == "win32":
-        return _read_key_windows()
-    return _read_key_posix()
+        return _read_key_windows(cancel)
+    return _read_key_posix(cancel)

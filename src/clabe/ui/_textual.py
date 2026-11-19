@@ -18,7 +18,7 @@ from textual.widgets import Footer, Header, Input, Label, OptionList, RichLog, S
 
 from .. import __version__
 from ..logging import _TRANSCRIPT_LOGGER_NAME
-from ._frontend import FrontendBase
+from ._frontend import FrontendBase, PromptCancelledError
 from ._messages import MessageLevel
 from ._requests import (
     AcknowledgeRequest,
@@ -36,6 +36,8 @@ logger = logging.getLogger(__name__)
 
 #: Sentinel pushed back to the caller when a prompt is cancelled (e.g. Ctrl+C).
 _CANCELLED = object()
+#: Sentinel pushed back to the caller when a prompt is aborted via ``cancel_prompt``.
+_PROMPT_CANCELLED = object()
 #: Sentinel representing the "none" option in a pick list.
 _NONE = object()
 
@@ -349,19 +351,25 @@ class _LauncherApp(App):
 
     async def ask_acknowledge(self, request: AcknowledgeRequest, reply: "queue.Queue") -> None:
         """Push an acknowledge modal; deliver True via reply once dismissed."""
+        self._pending, self._kind = reply, "acknowledge"
 
         async def _on_dismiss(_: None) -> None:
             """Helper to put True onto the reply queue when the user dismisses the modal."""
-            reply.put(True)
+            if self._pending is reply:
+                self._pending, self._kind = None, None
+                reply.put(True)
 
         await self.push_screen(_AcknowledgeScreen(request), _on_dismiss)
 
     async def ask_read_only_table(self, request: ReadOnlyTable, reply: "queue.Queue") -> None:
         """Push a read-only table modal; deliver the bool answer via reply."""
+        self._pending, self._kind = reply, "table"
 
         async def _on_dismiss(result: object) -> None:
             """Put the table answer (True/False) onto the reply queue."""
-            reply.put(result)
+            if self._pending is reply:
+                self._pending, self._kind = None, None
+                reply.put(result)
 
         await self.push_screen(_ReadOnlyTableScreen(request), _on_dismiss)
 
@@ -422,7 +430,21 @@ class _LauncherApp(App):
                 self.query_one("#clabe-input", Input).focus()
                 event.stop()
 
-    def action_cancel(self) -> None:
+    async def _release_pending(self, value: object) -> None:
+        """Tear down the waiting prompt (inline or modal) and hand ``value`` to its caller."""
+        reply, self._pending, self._kind = self._pending, None, None
+        while len(self.screen_stack) > 1:
+            await self.pop_screen()
+        await self.query_one("#clabe-prompt", Vertical).remove_children()
+        if reply is not None:
+            reply.put(value)
+
+    async def cancel_pending(self) -> None:
+        """Abort the waiting prompt, if any; its caller raises PromptCancelledError."""
+        if self._pending is not None:
+            await self._release_pending(_PROMPT_CANCELLED)
+
+    async def action_cancel(self) -> None:
         """Abort on Ctrl+C.
 
         Textual consumes Ctrl+C as a key event, not a signal, so we propagate
@@ -431,8 +453,7 @@ class _LauncherApp(App):
         otherwise we interrupt the main thread directly.
         """
         if self._pending is not None:
-            reply, self._pending, self._kind = self._pending, None, None
-            reply.put(_CANCELLED)
+            await self._release_pending(_CANCELLED)
         else:
             import _thread
 
@@ -487,6 +508,8 @@ def _unwrap(value: object) -> object:
     """Translate the cancellation sentinel into KeyboardInterrupt."""
     if value is _CANCELLED:
         raise KeyboardInterrupt("Cancelled by user.")
+    if value is _PROMPT_CANCELLED:
+        raise PromptCancelledError("Prompt cancelled.")
     return value
 
 
@@ -559,6 +582,16 @@ class TextualFrontend(FrontendBase):
             self._thread.join(timeout=5)
         self._app = None
         self._thread = None
+
+    def cancel_prompt(self) -> None:
+        """Abort the waiting prompt from any thread; it raises :class:`PromptCancelledError`."""
+        app = self._app
+        if app is None:
+            return
+        try:
+            app.call_from_thread(app.cancel_pending)
+        except RuntimeError as exc:  # the app is shutting down or this is the app's own thread
+            logger.debug("Could not cancel the TUI prompt: %s", exc)
 
     def _write_user(self, renderable: object) -> None:
         """Forward a renderable to the Session pane on the app thread."""
