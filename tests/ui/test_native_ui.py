@@ -1,11 +1,22 @@
 import io
 import os
+import threading
 from pathlib import Path
 
 import pytest
 from rich.console import Console
 
-from clabe.ui import AutoCompleteRequest, ConfirmRequest, ConsoleFrontend, PathRequest, PickRequest, TextRequest, _keys
+from clabe.ui import (
+    AcknowledgeRequest,
+    AutoCompleteRequest,
+    ConfirmRequest,
+    ConsoleFrontend,
+    PathRequest,
+    PickRequest,
+    PromptCancelledError,
+    TextRequest,
+    _keys,
+)
 
 
 @pytest.fixture
@@ -131,7 +142,7 @@ class TestConsoleFrontendPath:
 def _keys_returning(*sequence):
     """Returns a callable that yields the given keys in order on each call."""
     iterator = iter(sequence)
-    return lambda: next(iterator)
+    return lambda cancel=None: next(iterator)
 
 
 class TestConsoleFrontendInteractive:
@@ -213,3 +224,67 @@ class TestConsoleFrontendInteractive:
         monkeypatch.setattr(_keys, "read_key", _keys_returning(_keys.INTERRUPT))
         with pytest.raises(KeyboardInterrupt):
             terminal_frontend.prompt_path(PathRequest(label="Rig", start=str(tmp_path)))
+
+
+class TestConsoleCancelPrompt:
+    @pytest.fixture
+    def tty_frontend(self, terminal_frontend, monkeypatch):
+        monkeypatch.setattr("clabe.ui._console._stdin_is_tty", lambda: True)
+        return terminal_frontend
+
+    def test_text_prompt_reads_keys_on_a_terminal(self, tty_frontend, monkeypatch):
+        monkeypatch.setattr(_keys, "read_key", _keys_returning("a", "x", _keys.BACKSPACE, "b", _keys.ENTER))
+        assert tty_frontend.prompt_text(TextRequest(label="Notes")) == "ab"
+
+    def test_cancelled_text_prompt_raises(self, tty_frontend, monkeypatch):
+        monkeypatch.setattr(_keys, "read_key", _keys_returning("a", _keys.CANCELLED))
+        with pytest.raises(PromptCancelledError):
+            tty_frontend.prompt_text(TextRequest(label="Notes"))
+
+    def test_cancelled_confirm_raises(self, tty_frontend, monkeypatch):
+        monkeypatch.setattr(_keys, "read_key", _keys_returning(_keys.CANCELLED))
+        with pytest.raises(PromptCancelledError):
+            tty_frontend.prompt_confirm(ConfirmRequest(label="Sure?"))
+
+    def test_cancelled_acknowledge_raises(self, tty_frontend, monkeypatch):
+        monkeypatch.setattr(_keys, "read_key", _keys_returning(_keys.CANCELLED))
+        with pytest.raises(PromptCancelledError):
+            tty_frontend.prompt_acknowledge(AcknowledgeRequest(message="Read me"))
+
+    def test_cancelled_pick_raises(self, tty_frontend, monkeypatch):
+        monkeypatch.setattr(_keys, "read_key", _keys_returning(_keys.DOWN, _keys.CANCELLED))
+        with pytest.raises(PromptCancelledError):
+            tty_frontend.prompt_pick(PickRequest(label="Choose", options=["a", "b"], allow_none=False))
+
+    def test_cancel_prompt_stops_a_waiting_read(self, tty_frontend, monkeypatch):
+        def read_key(cancel=None):
+            assert cancel is not None and cancel.wait(5)
+            return _keys.CANCELLED
+
+        monkeypatch.setattr(_keys, "read_key", read_key)
+        threading.Timer(0.05, tty_frontend.cancel_prompt).start()
+        with pytest.raises(PromptCancelledError):
+            tty_frontend.prompt_text(TextRequest(label="Notes"))
+
+    def test_cancel_while_idle_does_not_hit_the_next_prompt(self, tty_frontend, monkeypatch):
+        tty_frontend.cancel_prompt()
+        monkeypatch.setattr(_keys, "read_key", lambda cancel=None: _keys.CANCELLED if cancel.is_set() else _keys.ENTER)
+        assert tty_frontend.prompt_text(TextRequest(label="Notes")) == ""
+
+
+class TestReadKeyCancel:
+    def test_windows_read_returns_cancelled(self, monkeypatch):
+        import sys
+        import types
+
+        monkeypatch.setitem(sys.modules, "msvcrt", types.SimpleNamespace(kbhit=lambda: False))
+        cancel = threading.Event()
+        threading.Timer(0.05, cancel.set).start()
+        assert _keys._read_key_windows(cancel) == _keys.CANCELLED
+
+    def test_windows_read_returns_key_when_pressed(self, monkeypatch):
+        import sys
+        import types
+
+        monkeypatch.setitem(sys.modules, "msvcrt", types.SimpleNamespace(kbhit=lambda: True, getwch=lambda: "q"))
+        assert _keys._read_key_windows(threading.Event()) == "q"

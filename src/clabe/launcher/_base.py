@@ -1,11 +1,12 @@
 import asyncio
+import contextlib
 import hashlib
 import logging
 import os
 import random
 import shutil
 import threading
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Generator
 from pathlib import Path
 from typing import Self, TypeVar
 
@@ -19,7 +20,7 @@ from ..constants import TMP_DIR
 from ..git_manager import GitRepository
 from ..logging.otel import bind_session, record_exception, run_span
 from ..runnable import set_include_timing
-from ..ui import Frontend, MessageLevel, TextRequest, make_frontend, set_current_frontend
+from ..ui import Frontend, MessageLevel, PromptCancelledError, TextRequest, make_frontend, set_current_frontend
 from ..utils import abspath, format_datetime, utcnow
 from ._cli import LauncherCliArgs
 from ._experiments import get_experiment_name
@@ -248,7 +249,7 @@ class Launcher:
                 except ValueError as ve:  # In the case session_directory fails
                     self.frontend.notify(f"Failed to copy logs from {self.temp_dir}: {ve}", MessageLevel.ERROR)
                     _code = -1
-        self._exit(_code)
+        self._exit(_code, timeout=self.settings.exit_prompt_timeout)
 
     def copy_logs(self, dst: os.PathLike | None = None, suffix: str = "Behavior/Logs") -> None:
         """
@@ -320,7 +321,7 @@ class Launcher:
 
         return _str
 
-    def _exit(self, code: int = 0, _force: bool = False) -> None:
+    def _exit(self, code: int = 0, _force: bool = False, timeout: float | None = None) -> None:
         """
         Exits the launcher with the specified exit code.
 
@@ -330,20 +331,63 @@ class Launcher:
         Args:
             code: The exit code to use. Defaults to 0
             _force: Whether to force exit without user prompt. Defaults to False
+            timeout: Seconds to wait at the exit prompt before exiting anyway.
+                ``None`` waits until the user presses Enter; ``0`` skips the
+                prompt. Defaults to None
         """
         logger.debug("Exiting with code %s", code)
+        if timeout and not callable(getattr(self.frontend, "cancel_prompt", None)):
+            logger.warning(
+                "%s cannot cancel prompts; ignoring the %s s exit prompt timeout.",
+                type(self.frontend).__name__,
+                timeout,
+            )
+            timeout = None
         if logger is not None:
             clabe_logging.shutdown_logger(logger)
-        if not _force:
-            try:
-                self.frontend.prompt_text(TextRequest(label="Press Enter to exit...", field="exit"))
-            except KeyboardInterrupt:
-                pass  # a second Ctrl+C at the exit prompt should just exit
+        if not _force and timeout != 0:
+            label = "Press Enter to exit..."
+            if timeout is not None:
+                label = f"Press Enter to exit (closing automatically in {timeout:g} s)..."
+            with self._cancel_prompt_after(timeout):
+                try:
+                    self.frontend.prompt_text(TextRequest(label=label, field="exit"))
+                except KeyboardInterrupt:
+                    pass  # a second Ctrl+C at the exit prompt should just exit
+                except PromptCancelledError:
+                    logger.debug("Exit prompt timed out after %s s", timeout)
         # Tear down the frontend (e.g. leave the persistent TUI) if it supports it.
         close = getattr(self.frontend, "close", None)
         if callable(close):
             close()
         set_current_frontend(None)
+
+    @contextlib.contextmanager
+    def _cancel_prompt_after(self, timeout: float | None) -> Generator[None]:
+        """Cancels the frontend prompt running inside this block once ``timeout`` seconds pass.
+
+        Keeps cancelling until the block exits, so a cancellation that lands before
+        the prompt is on screen is not lost. ``None`` never cancels.
+        """
+        if timeout is None:
+            yield
+            return
+        done = threading.Event()
+
+        def _cancel_when_due() -> None:
+            if done.wait(timeout):
+                return
+            while not done.is_set():
+                self.frontend.cancel_prompt()
+                done.wait(0.1)
+
+        timer = threading.Thread(target=_cancel_when_due, name="clabe-exit-timeout", daemon=True)
+        timer.start()
+        try:
+            yield
+        finally:
+            done.set()
+            timer.join()
 
     def _generate_diagnostic_info(self) -> str:
         """

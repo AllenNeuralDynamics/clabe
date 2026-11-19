@@ -2,6 +2,7 @@ from ._console import ConsoleFrontend
 from ._current import (
     NoFrontendError,
     activity,
+    cancel_prompt,
     current_frontend,
     header,
     notify,
@@ -19,7 +20,7 @@ from ._current import (
     set_current_frontend,
     use_frontend,
 )
-from ._frontend import Frontend, FrontendBase
+from ._frontend import Frontend, FrontendBase, PromptCancelledError
 from ._messages import MessageLevel
 from ._requests import (
     AcknowledgeRequest,
@@ -99,11 +100,13 @@ __all__ = [
     "NumberRequest",
     "PathRequest",
     "PickRequest",
+    "PromptCancelledError",
     "ReadOnlyTable",
     "TextRequest",
     "TextualFrontend",
     "Validator",
     "activity",
+    "cancel_prompt",
     "current_frontend",
     "default_frontend",
     "header",

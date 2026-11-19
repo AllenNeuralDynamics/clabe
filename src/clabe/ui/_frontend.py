@@ -24,6 +24,10 @@ from ._requests import (
 )
 
 
+class PromptCancelledError(Exception):
+    """Raised by a prompt that was aborted through :meth:`Frontend.cancel_prompt`."""
+
+
 def _humanize_field(name: str) -> str:
     """Converts snake_case / kebab-case field names to Title Case."""
     return name.replace("_", " ").replace("-", " ").title()
@@ -122,6 +126,14 @@ class Frontend(Protocol):
         """Display a message in a modal and block until the user dismisses it."""
         ...
 
+    def cancel_prompt(self) -> None:
+        """Abort the prompt that is currently waiting for the user, if any.
+
+        Safe to call from any thread. The waiting ``prompt_*`` call raises
+        :class:`PromptCancelledError`. Has no effect when no prompt is waiting.
+        """
+        ...
+
 
 class FrontendBase(abc.ABC):
     """
@@ -176,6 +188,15 @@ class FrontendBase(abc.ABC):
         return get_activity_indicator().activity(description)
 
     # --- prompts ----------------------------------------------------------
+    def cancel_prompt(self) -> None:
+        """
+        Aborts the prompt that is currently waiting for the user, if any.
+
+        Safe to call from any thread; the waiting ``prompt_*`` call raises
+        :class:`PromptCancelledError`. Frontends that cannot interrupt their
+        prompts leave this as a no-op.
+        """
+
     def prompt_text(self, request: TextRequest) -> str:
         """
         Prompts for text, applying validators and recording the answer.

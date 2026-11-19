@@ -102,6 +102,12 @@ def activity(description: str) -> contextlib.AbstractContextManager[None]:
     return _current_frontend.activity(description)
 
 
+def cancel_prompt() -> None:
+    """Aborts the waiting prompt, or does nothing if no frontend is registered."""
+    if _current_frontend is not None:
+        _current_frontend.cancel_prompt()
+
+
 # Prompting passthroughs. These need an answer, so they fail loudly rather than
 # guess or hang when nothing can ask the user.
 

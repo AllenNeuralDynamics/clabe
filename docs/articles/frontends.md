@@ -69,6 +69,10 @@ The two halves behave differently when nothing is registered:
 - **Prompts** — every `prompt_*` — raise `NoFrontendError`. A prompt has to
   return an answer, and failing loudly beats hanging on a rig.
 
+`ui.cancel_prompt()` is the exception among the non-output calls: it aborts
+whatever prompt is currently waiting and is a no-op when nothing is registered
+(see [Cancelling a prompt](#cancelling-a-prompt)).
+
 `ui.require_frontend()` gets the registered frontend directly, with the same
 error. Tests use `ui.use_frontend(fake)` as a context manager, which restores
 whatever was registered before.
@@ -78,6 +82,54 @@ intent; like the console, the Session pane only renders at/above the current
 verbosity threshold (warnings and above by default), while everything is still
 recorded to the transcript. See
 [Logging](logging.md#logging-vs-talking-to-the-user) for `notify()` vs `logger`.
+
+## Cancelling a prompt
+
+`frontend.cancel_prompt()` (or `ui.cancel_prompt()`) aborts the prompt that is
+currently waiting for the user. It is safe to call from any thread; the blocked
+`prompt_*` call raises `PromptCancelledError`. Calling it when no prompt is
+waiting does nothing, so a cancel that races ahead of a prompt is simply
+dropped; retry until the prompt returns if you need to be sure.
+
+```python
+import threading
+
+from clabe import ui
+
+threading.Timer(30, ui.cancel_prompt).start()
+try:
+    notes = ui.prompt_text(ui.TextRequest(label="Notes (30 s)"))
+except ui.PromptCancelledError:
+    notes = ""
+```
+
+In the TUI, cancelling also closes any open dialog (acknowledge, table, form,
+path picker). The console reads the keyboard key by key on a real terminal so
+its prompts can be cancelled too; when stdin or stdout is not a terminal it
+falls back to `input()`, which cannot be interrupted, and cancelling has no
+effect.
+
+## The exit prompt
+
+When an experiment finishes, the launcher waits at **Press Enter to exit...**
+so the last messages (and any error) stay on screen. `exit_prompt_timeout`
+controls that wait:
+
+| Value | Result |
+| --- | --- |
+| *unset* (default) | Wait until Enter is pressed |
+| `0` | Exit immediately, without prompting |
+| `N` | Wait up to `N` seconds, then exit on its own |
+
+Set it per run with `--exit-prompt-timeout 60`, or per machine as a top-level
+key in `clabe.yml`, e.g. on rigs that must not stay blocked between sessions:
+
+```yaml
+exit_prompt_timeout: 60
+```
+
+The timeout relies on `cancel_prompt`, so it has no effect on a frontend that
+cannot cancel its prompts.
 
 ## TUI shortcuts and clickable paths
 
@@ -117,8 +169,10 @@ class MyFrontend(FrontendBase):
     def _ask_acknowledge(self, request): ...
 ```
 
-Optional hooks: `_render_header`, `_on_answer`, `set_min_level`, and `close`
-(for frontends that own a resource, like the TUI's background app).
+Optional hooks: `_render_header`, `_on_answer`, `set_min_level`, `close`
+(for frontends that own a resource, like the TUI's background app), and
+`cancel_prompt` (abort the waiting prompt from another thread by making it
+raise `PromptCancelledError`; the base class leaves it a no-op).
 
 ## Serving the TUI over the web
 
