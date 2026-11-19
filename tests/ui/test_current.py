@@ -14,6 +14,15 @@ class TestOutputPassthroughs:
         ui.header("hello")
         with ui.activity("working"):
             pass
+        ui.cancel_prompt()
+
+    def test_cancel_prompt_reaches_the_registered_frontend(self):
+        from unittest.mock import MagicMock
+
+        frontend = MagicMock()
+        with ui.use_frontend(frontend):
+            ui.cancel_prompt()
+        frontend.cancel_prompt.assert_called_once_with()
 
 
 class TestPromptPassthroughs:

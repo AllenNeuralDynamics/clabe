@@ -336,6 +336,13 @@ class Launcher:
                 prompt. Defaults to None
         """
         logger.debug("Exiting with code %s", code)
+        if timeout and not callable(getattr(self.frontend, "cancel_prompt", None)):
+            logger.warning(
+                "%s cannot cancel prompts; ignoring the %s s exit prompt timeout.",
+                type(self.frontend).__name__,
+                timeout,
+            )
+            timeout = None
         if logger is not None:
             clabe_logging.shutdown_logger(logger)
         if not _force and timeout != 0:

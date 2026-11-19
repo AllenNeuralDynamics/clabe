@@ -2,6 +2,7 @@ from ._console import ConsoleFrontend
 from ._current import (
     NoFrontendError,
     activity,
+    cancel_prompt,
     current_frontend,
     header,
     notify,
@@ -105,6 +106,7 @@ __all__ = [
     "TextualFrontend",
     "Validator",
     "activity",
+    "cancel_prompt",
     "current_frontend",
     "default_frontend",
     "header",

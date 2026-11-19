@@ -287,3 +287,20 @@ def test_exit_force_skips_prompt(mock_base_launcher, mock_frontend):
 def test_exit_zero_timeout_skips_prompt(mock_base_launcher, mock_frontend):
     mock_base_launcher._exit(0, timeout=0)
     mock_frontend._ask_text_mock.assert_not_called()
+
+
+def test_exit_timeout_without_cancel_prompt_waits_for_the_user(mock_base_launcher, caplog):
+    class _NoCancelFrontend:
+        def __init__(self):
+            self.labels = []
+
+        def prompt_text(self, request):
+            self.labels.append(request.label)
+            return ""
+
+    frontend = _NoCancelFrontend()
+    mock_base_launcher.frontend = frontend
+    with caplog.at_level(logging.WARNING, logger="clabe.launcher._base"):
+        mock_base_launcher._exit(0, timeout=0.05)
+    assert frontend.labels == ["Press Enter to exit..."]
+    assert "cannot cancel prompts" in caplog.text
