@@ -57,7 +57,7 @@ class SmartsheetScheduleClient:
         ```python
         ss = SmartsheetScheduleClient()
         session = ss.add_scientific_contact(session)
-        watchdog_settings.project_name = ss.get_project_name(session)
+        project_name = ss.get_project_name(session)
         ```
     """
 

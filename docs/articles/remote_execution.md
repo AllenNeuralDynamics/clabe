@@ -248,7 +248,7 @@ manifest that covers both:
 ```python
 watchdog = WatchdogDataTransferService(
     source=[launcher.session_directory, remote.session_directory_unc],
-    settings=WatchdogSettings(destination=..., project_name=...),
+    settings=WatchdogSettings(destination=...),
     session=session,
 )
 watchdog.transfer()
