@@ -72,7 +72,7 @@ async def client_experiment(launcher: Launcher) -> None:
     # through its network share. Requires the WATCHDOG_EXE and WATCHDOG_CONFIG environment variables.
     watchdog = WatchdogDataTransferService(
         source=[launcher.session_directory, remote.session_directory_unc],
-        settings=WatchdogSettings(destination=r"\\allen\aind\scratch\data-uploads", project_name="clabe"),
+        settings=WatchdogSettings(destination=r"\\allen\aind\scratch\data-uploads"),
         session=session,
     )
     watchdog.transfer()

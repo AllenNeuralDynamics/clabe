@@ -10,7 +10,6 @@ from typing import ClassVar
 
 import aind_data_transfer_service.models.core
 import pydantic
-import requests
 import yaml
 from aind_behavior_services import Session
 from aind_watchdog_service.models import (
@@ -18,7 +17,6 @@ from aind_watchdog_service.models import (
 )
 from aind_watchdog_service.models.watch_config import WatchConfig
 from pydantic import BaseModel, SerializeAsAny, TypeAdapter
-from requests.exceptions import HTTPError
 
 from ..runnable import runnable
 from ..services import ServiceSettings
@@ -68,7 +66,6 @@ class WatchdogSettings(ServiceSettings):
 
     destination: Path
     schedule_time: datetime.time | None = datetime.time(hour=20)
-    project_name: str
     transfer_endpoint: str = DEFAULT_TRANSFER_ENDPOINT
     delete_modalities_source_after_success: bool = False
     extra_identifying_info: dict | None = None
@@ -93,7 +90,6 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
     Methods:
         transfer: Executes the data transfer by generating a manifest configuration
         validate: Validates the Watchdog service and its configuration
-        is_valid_project_name: Checks if the project name is valid
         is_running: Checks if the Watchdog service is currently running
         force_restart: Attempts to restart the Watchdog application
         dump_manifest_config: Dumps the manifest configuration to a YAML file
@@ -116,8 +112,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
             source: The source directory or file to monitor
             settings: Configuration for the watchdog service
             session: The session data from aind-behavior-services
-            validate: Whether to validate the project name
-            session_name: Name of the session
+            validate: Whether to validate the Watchdog service on construction
             email_from_experimenter_builder: Function to build email from experimenter name. Defaults to
                 looking up the email via Active Directory, raising ``ValueError`` if it cannot be
                 determined.
@@ -138,8 +133,6 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
 
         self._watch_config: WatchConfig | None = None
         self._manifest_config: ManifestConfig | None = None
-
-        self._validate_project_name = validate
 
         if validate:
             self.validate()
@@ -198,15 +191,13 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         """
         Validates the Watchdog service and its configuration.
 
-        Checks for required executables, configuration files, service status,
-        and project name validity.
+        Checks for required executables, configuration files and service status.
 
         Returns:
             True if the service is valid, False otherwise
 
         Raises:
             FileNotFoundError: If required files are missing
-            HTTPError: If the project name validation fails
         """
         logger.debug("Attempting to validate Watchdog service.")
         if not self.executable_path.exists():
@@ -222,29 +213,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
             )
             return False
 
-        if self.settings.project_name is None:
-            logger.warning("Watchdog project name is not set. Skipping validation.")
-        else:
-            try:
-                _valid_proj = self.is_valid_project_name()
-                if not _valid_proj:
-                    logger.warning("Watchdog project name is not valid.")
-            except HTTPError as e:
-                logger.error("Failed to fetch project names from endpoint. %s", e)
-                raise
-            return _valid_proj
-
         return True
-
-    def is_valid_project_name(self) -> bool:
-        """
-        Checks if the project name is valid by querying the metadata service.
-
-        Returns:
-            True if the project name is valid, False otherwise
-        """
-        project_names = self._get_project_names()
-        return self._settings.project_name in project_names
 
     def _create_manifest_from_session(self, session: Session) -> ManifestConfig:
         """
@@ -260,8 +229,6 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         Returns:
             A ManifestConfig object
 
-        Raises:
-            ValueError: If the project name is invalid
         """
 
         if (len(session.experimenter) > 0) and self._email_from_experimenter_builder is not None:
@@ -276,11 +243,6 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         missing = sorted(str(s) for s in sources if not s.is_dir())
         if missing:
             raise FileNotFoundError(f"Watchdog source directories not found or not reachable: {', '.join(missing)}")
-
-        if self._validate_project_name:
-            project_names = self._get_project_names()
-            if self._settings.project_name not in project_names:
-                raise ValueError(f"Project name {self._settings.project_name} not found in {project_names}")
 
         # Invert so that unique modality names map to lists of paths
         _modality_candidates: dict[str, list[Path]] = {}
@@ -312,7 +274,6 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
             acquisition_datetime=session.date,
             schemas=[str(Path(value)) for value in schema_candidates],
             destination=str(Path(destination)),
-            project_name=self._settings.project_name,
             schedule_time=self._settings.schedule_time,
             transfer_endpoint=self._settings.transfer_endpoint,
             delete_modalities_source_after_success=self._settings.delete_modalities_source_after_success,
@@ -443,7 +404,6 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
 
         upload_job_configs_v2 = aind_data_transfer_service.models.core.UploadJobConfigsV2(
             job_type=job_type,
-            project_name=manifest.project_name,
             modalities=[
                 aind_data_transfer_service.models.core.Modality.from_abbreviation(m) for m in manifest.modalities
             ],
@@ -512,29 +472,6 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
             if _dir.is_dir():
                 logger.warning("Directory %s is not a recognized modality directory. Will not be appended", _dir.name)
         return modality_dirs
-
-    @staticmethod
-    def _get_project_names(
-        end_point: str = "http://aind-metadata-service/api/v2/project_names", timeout: int = 5
-    ) -> list[str]:
-        """
-        Fetches the list of valid project names from the metadata service.
-
-        Args:
-            end_point: The endpoint URL for the metadata service.
-            timeout: Timeout for the request in seconds.
-
-        Returns:
-            A list of valid project names.
-
-        Raises:
-            HTTPError: If the request fails.
-        """
-        response = requests.get(end_point, timeout=timeout)
-        if response.ok:
-            return response.json()
-        else:
-            raise HTTPError(f"Failed to fetch project names from endpoint. {response.content.decode('utf-8')}")
 
     def is_running(self) -> bool:
         """
