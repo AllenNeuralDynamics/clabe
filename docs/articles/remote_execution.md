@@ -267,6 +267,9 @@ folders found on both machines under the same modality name are all added to tha
 - **Deleting sources.** `delete_modalities_source_after_success` deletes the original folders, including on the other
   machine, over the network.
 
+To upload the other machine's modalities as their own job, e.g. so the behavior data does not wait for them, give them
+their own upload group. See [Uploading data with the watchdog](data_transfer.md#data-recorded-on-another-machine).
+
 ## Troubleshooting
 
 | Symptom | Likely cause |

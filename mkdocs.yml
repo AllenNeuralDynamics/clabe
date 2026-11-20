@@ -149,6 +149,7 @@ nav:
     - models: api/xml_rpc/models.md
 - Articles:
   - Configuration: articles/configuration.md
+  - Data transfer: articles/data_transfer.md
   - Frontends: articles/frontends.md
   - Logging: articles/logging.md
   - Remote execution: articles/remote_execution.md
