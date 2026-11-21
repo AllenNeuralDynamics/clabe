@@ -84,8 +84,8 @@ class TestGroupRequest:
         assert (gain["minimum"], gain["maximum"], gain["x-widget"]) == (0, 1, "slider")
         spec = group.spec()
         assert spec["title"] == "Session"
-        assert spec["items"]["gain"]["kind"] == "number" and spec["items"]["gain"]["widget"] == "slider"
-        assert spec["items"]["trials"]["kind"] == "field"
+        assert spec["items"]["gain"]["prompt_kind"] == "number" and spec["items"]["gain"]["widget"] == "slider"
+        assert spec["items"]["trials"]["prompt_kind"] == "field"
 
     def test_model_instances_are_accepted(self):
         group = _group()

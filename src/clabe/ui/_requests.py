@@ -866,8 +866,9 @@ class GroupRequest(Request):
         return self._model
 
     def _spec_fields(self) -> dict[str, Any]:
-        """The title and the description of every item."""
-        items = {name: {"kind": item.prompt_kind, **item.spec()} for name, item in self.items.items()}
+        """The title and the description of every item (its prompt kind as ``prompt_kind``: a path's spec has its own
+        ``kind``)."""
+        items = {name: {**item.spec(), "prompt_kind": item.prompt_kind} for name, item in self.items.items()}
         return {"title": self.title, "field": self.field, "items": items}
 
     def answer_schema(self) -> dict[str, Any]:

@@ -1,0 +1,156 @@
+@* The page: a header with the run's identity and Abort, the stepper, the open prompt (or what is running), recent
+   messages and the full event log. *@
+@inject RunConnection Connection
+@inject IJSRuntime JS
+@implements IDisposable
+
+<div class="shell">
+    <header class="bar">
+        <span class="brand">clabe</span>
+        @if (Connection.Info is { } info)
+        {
+            <span>@info.Workflow</span>
+            <span class="muted">@info.Hostname</span>
+        }
+        @if (Connection.Header is { } header)
+        {
+            <span class="header-text">@header</span>
+        }
+        <span class="spacer"></span>
+        @if (Connection.State is { } s)
+        {
+            <span class="status @s.Status">@s.Status</span>
+        }
+        <span class="connection @Connection.Status" title="Event stream">● @Connection.Status</span>
+        @if (Connection.State is not null && !Connection.Finished)
+        {
+            <button type="button" class="danger" @onclick="Abort">Abort</button>
+        }
+    </header>
+
+    @if (Connection.Error is { } error)
+    {
+        <main class="center"><p class="error">@error</p></main>
+    }
+    else if (Connection.State is not { } state)
+    {
+        <main class="center"><p class="muted">Connecting to the run…</p></main>
+    }
+    else
+    {
+        <div class="body">
+            <Stepper State="state" Finished="Connection.Finished" OnGoBack="GoBack" />
+            <main>
+                @if (_notice is not null)
+                {
+                    <p class="notice @(_noticeIsError ? "error" : null)">@_notice <button type="button" class="link" @onclick="() => _notice = null">✕</button></p>
+                }
+                @if (Connection.ClosedElsewhere is { } elsewhere)
+                {
+                    <p class="notice">@elsewhere <button type="button" class="link" @onclick="Connection.DismissClosedElsewhere">✕</button></p>
+                }
+                @if (state.Prompt is { } prompt)
+                {
+                    <PromptPanel Prompt="prompt" Connection="Connection" />
+                }
+                else if (Connection.Finished)
+                {
+                    <section class="prompt done">
+                        <h2>Run @state.Status</h2>
+                        @if (Connection.Log.LastOrDefault(e => e.Type == "run_finished")?.Reason is { } reason)
+                        {
+                            <p>@reason</p>
+                        }
+                    </section>
+                }
+                else
+                {
+                    <section class="prompt idle">
+                        <p class="muted">@(CurrentTitle(state) is { } title ? $"Running {title}…" : "Waiting…")</p>
+                    </section>
+                }
+                @if (Connection.Activities.Any())
+                {
+                    <ul class="activities">
+                        @foreach (var activity in Connection.Activities)
+                        {
+                            <li><span class="spinner"></span> @activity.Description</li>
+                        }
+                    </ul>
+                }
+                <section class="messages">
+                    @foreach (var message in Connection.Messages.TakeLast(6).Reverse())
+                    {
+                        <p class="message @message.Level"><time>@message.Ts.ToLocalTime().ToString("HH:mm:ss")</time> @message.Message</p>
+                    }
+                </section>
+                <details class="log">
+                    <summary>Log (@Connection.Log.Count events)</summary>
+                    <ol>
+                        @foreach (var e in Enumerable.Reverse(Connection.Log).Take(300))
+                        {
+                            <li><time>@e.Ts.ToLocalTime().ToString("HH:mm:ss")</time> <code>@e.Type</code> @Describe(e)</li>
+                        }
+                    </ol>
+                </details>
+            </main>
+        </div>
+    }
+</div>
+
+@code {
+    private string? _notice;
+    private bool _noticeIsError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Connection.Changed += Changed;
+        await Connection.StartAsync();
+    }
+
+    private void Changed() => InvokeAsync(StateHasChanged);
+
+    private static string? CurrentTitle(RunState state) =>
+        state.Steps.FirstOrDefault(s => s.Name == state.CurrentStep)?.Title;
+
+    private static string Describe(RunEvent e) => e.Type switch
+    {
+        "step_started" or "step_skipped" => e.Step ?? "",
+        "step_finished" => e.Summary is null ? e.Step ?? "" : $"{e.Step}: {e.Summary}",
+        "step_failed" => $"{e.Step}: {e.Error}",
+        "steps_invalidated" => string.Join(", ", e.Steps ?? []),
+        "prompt_opened" => $"{e.Kind} {e.Spec?["label"] ?? e.Spec?["title"]}",
+        "prompt_closed" => e.Outcome == "answered" ? $"by {e.AnsweredBy}: {e.Answer?.ToJsonString() ?? "null"}" : "cancelled",
+        "notify" => $"[{e.Level}] {e.Message}",
+        "header" => e.Text ?? "",
+        "activity_started" => e.Description ?? "",
+        "artifact_exported" => e.Path ?? "",
+        "run_started" => e.Workflow ?? "",
+        "run_finished" => $"{e.Status} {e.Reason}",
+        _ => "",
+    };
+
+    private async Task GoBack(string step)
+    {
+        var result = await Connection.Api.BackAsync(step);
+        Notice(result.Ok ? null : result.Reason);
+    }
+
+    private async Task Abort()
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", "Abort the run?"))
+        {
+            return;
+        }
+        var result = await Connection.Api.AbortAsync($"Aborted from the web UI ({Connection.Api.ClientName}).");
+        Notice(result.Ok ? null : result.Reason);
+    }
+
+    private void Notice(string? error)
+    {
+        _notice = error;
+        _noticeIsError = error is not null;
+    }
+
+    public void Dispose() => Connection.Changed -= Changed;
+}

@@ -1,0 +1,53 @@
+@* The run's steps. A finished step that is not locked behind a barrier can be clicked to go back to it. *@
+
+<nav class="stepper">
+    <ol>
+        @foreach (var step in State.Steps)
+        {
+            var current = step.Name == State.CurrentStep;
+            var canGoBack = !Finished && !step.Locked && !current && step.Status is "done" or "skipped" or "failed";
+            <li class="@step.Status @(current ? "current" : null)" title="@StepTooltip(step, canGoBack)">
+                <span class="icon">@Icon(step, current)</span>
+                @if (canGoBack)
+                {
+                    <button type="button" class="link" @onclick="() => OnGoBack.InvokeAsync(step.Name)">@step.Title</button>
+                    <span class="back" aria-hidden="true">↶</span>
+                }
+                else
+                {
+                    <span class="title">@step.Title</span>
+                }
+                @if (step.Optional is not null)
+                {
+                    <span class="tag">optional</span>
+                }
+                @if (step.Locked)
+                {
+                    <span class="lock" title="Locked: a later barrier step has run">🔒</span>
+                }
+                @if (step.Summary is { } summary)
+                {
+                    <small>@summary</small>
+                }
+            </li>
+        }
+    </ol>
+</nav>
+
+@code {
+    [Parameter, EditorRequired] public RunState State { get; set; } = default!;
+    [Parameter] public bool Finished { get; set; }
+    [Parameter] public EventCallback<string> OnGoBack { get; set; }
+
+    private static string Icon(StepState step, bool current) => step.Status switch
+    {
+        "done" => "✓",
+        "skipped" => "–",
+        "failed" => "✕",
+        "running" => "●",
+        _ => current ? "●" : "○",
+    };
+
+    private static string StepTooltip(StepState step, bool canGoBack) =>
+        canGoBack ? $"Go back to {step.Title}: it and the steps depending on it run again" : step.Name;
+}

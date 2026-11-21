@@ -1,0 +1,228 @@
+@* One field of a schema-driven form (the answer schema of a "form" prompt, i.e. a pydantic model's JSON Schema).
+   Objects nest; primitives, enums and paths are edited by ValueEditor; lists of primitives are one item per line;
+   anything else is edited as JSON. Mirrors the type mapping of the TUI form (src/clabe/ui/_textual_form.py). *@
+@using System.Globalization
+
+@if (Resolved is { } schema)
+{
+    var kind = KindOf(schema);
+    @if (kind == "object")
+    {
+        <fieldset class="@(Root ? "root" : null)">
+            @if (!Root && Title is { } legend)
+            {
+                <legend>@legend</legend>
+            }
+            @foreach (var (name, child) in Properties(schema))
+            {
+                var key = name;
+                <SchemaField Schema="child" Defs="Defs" Name="@key" Required="RequiredOf(schema).Contains(key)"
+                             Value="ObjectValue[key]" ValueChanged="v => SetProperty(key, v)" />
+            }
+        </fieldset>
+    }
+    else
+    {
+        <div class="field">
+            @if (kind != "confirm")
+            {
+                <label for="@_id">@Title</label>
+            }
+            @if (kind == "list")
+            {
+                <textarea id="@_id" rows="3" placeholder="One per line"
+                          @oninput="e => SetList(e.Value?.ToString())">@ListText</textarea>
+            }
+            else if (kind == "json")
+            {
+                <textarea id="@_id" rows="3" class="@(_jsonInvalid ? "invalid" : null)"
+                          @oninput="e => SetJson(e.Value?.ToString())">@(Value?.ToJsonString())</textarea>
+            }
+            else
+            {
+                <ValueEditor Id="@_id" Spec="EditorSpec(schema, kind)" Value="Value" ValueChanged="Set" Nullable="IsNullable" />
+            }
+            @if (schema["description"]?.ToString() is { } help)
+            {
+                <small>@help</small>
+            }
+        </div>
+    }
+}
+
+@code {
+    [Parameter, EditorRequired] public JsonObject Schema { get; set; } = default!;
+    [Parameter] public JsonObject? Defs { get; set; }
+    [Parameter] public string? Name { get; set; }
+    [Parameter] public bool Required { get; set; }
+    [Parameter] public bool Root { get; set; }
+    [Parameter] public JsonNode? Value { get; set; }
+    [Parameter] public EventCallback<JsonNode?> ValueChanged { get; set; }
+
+    private readonly string _id = $"f{Guid.NewGuid():N}";
+    private bool _jsonInvalid;
+
+    /// <summary>The schema with references resolved and <c>X | None</c> unwrapped to X.</summary>
+    private JsonObject? Resolved => Unwrap(Schema, Defs);
+    private bool IsNullable => NullableSchema(Schema);
+    private string? Title => Schema["title"]?.ToString() ?? Resolved?["title"]?.ToString() ?? Name;
+    private JsonObject ObjectValue => Value as JsonObject ?? [];
+
+    private string ListText => Value is JsonArray items ? string.Join("\n", items.Select(i => i?.ToString())) : "";
+
+    public static JsonObject? Unwrap(JsonObject schema, JsonObject? defs)
+    {
+        var current = schema;
+        for (var depth = 0; depth < 10; depth++)
+        {
+            if (current["$ref"]?.ToString() is { } reference)
+            {
+                var target = defs?[reference.Split('/').Last()] as JsonObject;
+                if (target is null)
+                {
+                    return current;
+                }
+                // keep the referencing schema's title, description and default
+                var merged = (JsonObject)target.DeepClone();
+                foreach (var (key, value) in current)
+                {
+                    if (key != "$ref")
+                    {
+                        merged[key] = value?.DeepClone();
+                    }
+                }
+                current = merged;
+                continue;
+            }
+            if (current["anyOf"] is JsonArray variants)
+            {
+                var concrete = variants.OfType<JsonObject>().Where(v => v["type"]?.ToString() != "null").ToList();
+                if (concrete.Count == 1)
+                {
+                    var merged = (JsonObject)concrete[0].DeepClone();
+                    foreach (var (key, value) in current)
+                    {
+                        if (key != "anyOf")
+                        {
+                            merged[key] = value?.DeepClone();
+                        }
+                    }
+                    current = merged;
+                    continue;
+                }
+            }
+            return current;
+        }
+        return current;
+    }
+
+    public static bool NullableSchema(JsonObject schema) =>
+        schema["anyOf"] is JsonArray variants && variants.OfType<JsonObject>().Any(v => v["type"]?.ToString() == "null");
+
+    private static string KindOf(JsonObject schema)
+    {
+        if (schema["enum"] is JsonArray)
+        {
+            return "pick";
+        }
+        return schema["type"]?.ToString() switch
+        {
+            "object" when schema["properties"] is JsonObject => "object",
+            "boolean" => "confirm",
+            "integer" or "number" => "number",
+            "string" when schema["format"]?.ToString() is "path" or "file-path" or "directory-path" => "path",
+            "string" => "text",
+            "array" when schema["items"] is JsonObject items && items["type"]?.ToString() is "string" or "integer" or "number" => "list",
+            _ => "json",
+        };
+    }
+
+    private JsonObject EditorSpec(JsonObject schema, string kind)
+    {
+        var spec = new JsonObject { ["prompt_kind"] = kind, ["label"] = Title };
+        switch (kind)
+        {
+            case "number":
+                spec["minimum"] = (schema["minimum"] ?? schema["exclusiveMinimum"])?.DeepClone();
+                spec["maximum"] = (schema["maximum"] ?? schema["exclusiveMaximum"])?.DeepClone();
+                spec["step"] = schema["multipleOf"]?.DeepClone();
+                spec["widget"] = schema["x-widget"]?.DeepClone();
+                spec["integer"] = schema["type"]?.ToString() == "integer";
+                break;
+            case "pick":
+                spec["options"] = new JsonArray(schema["enum"]!.AsArray()
+                    .Where(v => v is not null)
+                    .Select(v => (JsonNode?)new JsonObject { ["value"] = v!.DeepClone(), ["label"] = v.ToString() })
+                    .ToArray());
+                spec["allow_none"] = IsNullable || schema["enum"]!.AsArray().Any(v => v is null);
+                break;
+            case "path":
+                spec["kind"] = "any";
+                break;
+            case "text":
+                spec["secret"] = schema["writeOnly"]?.GetValueKind() == JsonValueKind.True
+                                 || schema["format"]?.ToString() == "password";
+                break;
+        }
+        return spec;
+    }
+
+    private static IEnumerable<(string, JsonObject)> Properties(JsonObject schema) =>
+        schema["properties"]!.AsObject().Where(p => p.Value is JsonObject).Select(p => (p.Key, (JsonObject)p.Value!));
+
+    private static HashSet<string> RequiredOf(JsonObject schema) =>
+        schema["required"]?.AsArray().Select(r => r!.ToString()).ToHashSet() ?? [];
+
+    private Task Set(JsonNode? value)
+    {
+        Value = value;
+        return ValueChanged.InvokeAsync(value);
+    }
+
+    private Task SetProperty(string name, JsonNode? value)
+    {
+        var updated = (JsonObject)ObjectValue.DeepClone();
+        if (value is null)
+        {
+            updated.Remove(name); // let the model's default apply
+        }
+        else
+        {
+            updated[name] = value.DeepClone();
+        }
+        return Set(updated);
+    }
+
+    private Task SetList(string? text)
+    {
+        var itemType = Resolved?["items"]?["type"]?.ToString();
+        var items = new JsonArray();
+        foreach (var line in (text ?? "").Split('\n').Select(l => l.Trim()).Where(l => l.Length > 0))
+        {
+            items.Add(itemType is "integer" or "number" && double.TryParse(line, NumberStyles.Float, CultureInfo.InvariantCulture, out var n)
+                ? (itemType == "integer" ? JsonValue.Create((long)n) : JsonValue.Create(n))
+                : JsonValue.Create(line));
+        }
+        return Set(items);
+    }
+
+    private Task SetJson(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            _jsonInvalid = false;
+            return Set(null);
+        }
+        try
+        {
+            var parsed = JsonNode.Parse(text);
+            _jsonInvalid = false;
+            return Set(parsed);
+        }
+        catch (JsonException)
+        {
+            _jsonInvalid = true;
+            return Task.CompletedTask;
+        }
+    }
+}

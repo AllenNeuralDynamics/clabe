@@ -4,6 +4,7 @@ import asyncio
 import contextlib
 import hmac
 import logging
+import mimetypes
 import socket
 from collections.abc import AsyncIterable
 from pathlib import Path
@@ -29,6 +30,11 @@ from ._models import (
 )
 
 logger = logging.getLogger(__name__)
+
+# The web UI's types, which the platform's registry may not know (Windows often lacks .wasm).
+mimetypes.add_type("application/wasm", ".wasm")
+mimetypes.add_type("text/javascript", ".js")
+mimetypes.add_type("application/json", ".json")
 
 #: Where the built web UI (milestone 3) is packaged.
 STATIC_DIR = Path(__file__).parent / "static"

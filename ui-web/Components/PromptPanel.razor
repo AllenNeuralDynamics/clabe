@@ -1,0 +1,252 @@
+@* The open prompt: rendered by kind, answered through the API. A rejected answer shows the reason and the prompt
+   stays open; a prompt answered elsewhere disappears when the run moves on. *@
+
+<section class="prompt" @key="Prompt.PromptId">
+    @switch (Prompt.Kind)
+    {
+        case "confirm":
+            <h2>@Label</h2>
+            @Failure
+            <div class="actions">
+                <button type="button" class="@(Default(true) ? null : "secondary")" disabled="@_busy" @onclick="() => Send(JsonValue.Create(true))">Yes</button>
+                <button type="button" class="@(Default(false) ? null : "secondary")" disabled="@_busy" @onclick="() => Send(JsonValue.Create(false))">No</button>
+            </div>
+            break;
+        case "pick":
+            <h2>@Label</h2>
+            @Failure
+            @Help
+            <div class="choices">
+                @foreach (var option in Spec["options"]?.AsArray().OfType<JsonObject>() ?? [])
+                {
+                    var value = option["value"];
+                    <button type="button" class="@(JsonNode.DeepEquals(value, Spec["default"]) ? null : "secondary")" disabled="@_busy"
+                            @onclick="() => Send(value?.DeepClone())">@ValueEditor.OptionLabel(option)</button>
+                }
+                @if (Spec["allow_none"]?.GetValueKind() == JsonValueKind.True)
+                {
+                    <button type="button" class="secondary" disabled="@_busy" @onclick="() => Send(null)">@(Spec["none_label"]?.ToString() ?? "None")</button>
+                }
+            </div>
+            break;
+        case "acknowledge":
+            <h2>@(Spec["title"]?.ToString() ?? "Please confirm")</h2>
+            <p class="message">@Spec["message"]</p>
+            <div class="actions">
+                <button type="button" disabled="@_busy" @onclick="() => Send(null)">@(Spec["button_label"]?.ToString() ?? "OK")</button>
+            </div>
+            break;
+        case "table":
+            <h2>@(Spec["title"]?.ToString() ?? "Review")</h2>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr>@foreach (var column in Spec["columns"]?.AsArray() ?? []) { <th>@column</th> }</tr></thead>
+                    <tbody>
+                        @foreach (var row in Spec["rows"]?.AsArray() ?? [])
+                        {
+                            <tr>@foreach (var cell in row?.AsArray() ?? []) { <td>@Display(cell)</td> }</tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            @if (Spec["prompt"]?.ToString() is { } question)
+            {
+                <p>@question</p>
+            }
+            <div class="actions">
+                <button type="button" disabled="@_busy" @onclick="() => Send(JsonValue.Create(true))">@(Spec["confirm_label"]?.ToString() ?? "OK")</button>
+                <button type="button" class="secondary" disabled="@_busy" @onclick="() => Send(JsonValue.Create(false))">@(Spec["cancel_label"]?.ToString() ?? "Cancel")</button>
+            </div>
+            break;
+        case "form":
+            <h2>@(Spec["title"]?.ToString() ?? FormSchema?["title"]?.ToString() ?? "Form")</h2>
+            @if (FormSchema is { } schema)
+            {
+                <form novalidate @onsubmit="() => Send(_value)">
+                    <SchemaField Root="true" Schema="schema" Defs="Defs" Value="_value" ValueChanged="v => _value = v" />
+                    <div class="actions">
+                        <button type="submit" disabled="@_busy">Submit</button>
+                        @if (SchemaField.NullableSchema(Prompt.AnswerSchema!))
+                        {
+                            <button type="button" class="secondary" disabled="@_busy" @onclick="() => Send(null)">Cancel</button>
+                        }
+                    </div>
+                </form>
+            }
+            break;
+        case "group":
+            <h2>@(Spec["title"]?.ToString() ?? "")</h2>
+            <form novalidate @onsubmit="() => Send(_value)">
+                <fieldset class="root">
+                    @foreach (var (name, item) in Spec["items"]?.AsObject().Where(i => i.Value is JsonObject).Select(i => (i.Key, (JsonObject)i.Value!)) ?? [])
+                    {
+                        var key = name;
+                        var id = $"{Prompt.PromptId}-{key}";
+                        @if (item["prompt_kind"]?.ToString() is "text" or "number" or "confirm" or "pick" or "autocomplete" or "path")
+                        {
+                            <div class="field">
+                                @if (item["prompt_kind"]?.ToString() != "confirm")
+                                {
+                                    <label for="@id">@(item["label"]?.ToString() ?? key)</label>
+                                }
+                                <ValueEditor Id="@id" Spec="item" Value="(_value as JsonObject)?[key]" ValueChanged="v => SetItem(key, v)" />
+                                @if (item["help"]?.ToString() is { } help)
+                                {
+                                    <small>@help</small>
+                                }
+                            </div>
+                        }
+                        else if (Prompt.AnswerSchema?["properties"]?[key] is JsonObject property)
+                        {
+                            @* a model field: edited from the group's compiled schema *@
+                            <SchemaField Schema="property" Defs="Defs" Name="@key" Value="(_value as JsonObject)?[key]" ValueChanged="v => SetItem(key, v)" />
+                        }
+                    }
+                </fieldset>
+                <div class="actions"><button type="submit" disabled="@_busy">Submit</button></div>
+            </form>
+            break;
+        default:
+            @* text, number, autocomplete, path: one editor and a submit button *@
+            <form novalidate @onsubmit="() => Send(_value)">
+                <label class="title" for="@Prompt.PromptId">@Label</label>
+                @Failure
+                <ValueEditor Id="@Prompt.PromptId" Spec="EditorSpec" Value="_value" ValueChanged="v => _value = v"
+                             Nullable="@(Prompt.Kind == "path")" />
+                @Help
+                <div class="actions"><button type="submit" disabled="@_busy">Submit</button></div>
+            </form>
+            break;
+    }
+    @if (_rejected is not null)
+    {
+        <p class="error">@_rejected</p>
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired] public RunEvent Prompt { get; set; } = default!;
+    [Parameter, EditorRequired] public RunConnection Connection { get; set; } = default!;
+
+    private JsonNode? _value;
+    private string? _rejected;
+    private bool _busy;
+    private string? _promptId;
+
+    private JsonObject Spec => Prompt.Spec ?? [];
+    private string Label => Spec["label"]?.ToString() ?? "";
+    private JsonObject? Defs => FormSchema?["$defs"] as JsonObject ?? Prompt.AnswerSchema?["$defs"] as JsonObject;
+    private JsonObject? FormSchema => Prompt.AnswerSchema is { } schema ? SchemaField.Unwrap(schema, schema["$defs"] as JsonObject) : null;
+
+    private JsonObject EditorSpec
+    {
+        get
+        {
+            var spec = (JsonObject)Spec.DeepClone();
+            spec["prompt_kind"] = Prompt.Kind;
+            return spec;
+        }
+    }
+
+    private RenderFragment? Failure => Prompt.Field is { } asked && asked.EndsWith(".failed") && Prompt.Step is { } step
+        && Connection.FailureOf(step) is { } failure
+        ? @<details class="failure"><summary>@failure.Error</summary><pre>@failure.Traceback</pre></details>
+        : null;
+
+    private RenderFragment? Help => Spec["help"]?.ToString() is { } help ? @<small>@help</small> : null;
+
+    protected override void OnParametersSet()
+    {
+        if (_promptId == Prompt.PromptId)
+        {
+            return;
+        }
+        _promptId = Prompt.PromptId;
+        _rejected = null;
+        _busy = false;
+        _value = Prompt.Kind switch
+        {
+            "form" => FormSchema is { } schema ? Initial(schema, Spec["initial"]) : null,
+            "group" => GroupInitial(),
+            _ => Spec["default"]?.DeepClone(),
+        };
+    }
+
+    private bool Default(bool answer) => Spec["default"]?.GetValueKind() == (answer ? JsonValueKind.True : JsonValueKind.False);
+
+    private static string Display(JsonNode? cell) => cell switch
+    {
+        null => "",
+        JsonValue value when value.GetValueKind() == JsonValueKind.String => value.ToString(),
+        _ => cell.ToJsonString(),
+    };
+
+    /// <summary>The form's starting values: the request's initial model, else the schema's defaults. Secrets are never
+    /// prefilled (their masked defaults would be sent back as the secret).</summary>
+    private JsonNode? Initial(JsonObject schema, JsonNode? initial)
+    {
+        if (schema["properties"] is not JsonObject properties)
+        {
+            return initial?.DeepClone() ?? schema["default"]?.DeepClone();
+        }
+        var given = initial as JsonObject ?? schema["default"] as JsonObject;
+        var result = new JsonObject();
+        foreach (var (name, node) in properties)
+        {
+            if (node is not JsonObject raw || SchemaField.Unwrap(raw, Defs) is not { } property)
+            {
+                continue;
+            }
+            if (property["writeOnly"]?.GetValueKind() == JsonValueKind.True || property["format"]?.ToString() == "password")
+            {
+                continue;
+            }
+            JsonNode? value = given is not null && given.ContainsKey(name) ? given[name] : null;
+            value = property["properties"] is JsonObject ? Initial(property, value) : value?.DeepClone() ?? property["default"]?.DeepClone();
+            if (value is not null)
+            {
+                result[name] = value;
+            }
+        }
+        return result;
+    }
+
+    private JsonObject GroupInitial()
+    {
+        var result = new JsonObject();
+        foreach (var (name, item) in Spec["items"]?.AsObject() ?? [])
+        {
+            if (item?["default"] is { } value)
+            {
+                result[name] = value.DeepClone();
+            }
+        }
+        return result;
+    }
+
+    private void SetItem(string name, JsonNode? value)
+    {
+        var updated = (JsonObject)((_value as JsonObject)?.DeepClone() ?? new JsonObject());
+        if (value is null)
+        {
+            updated.Remove(name);
+        }
+        else
+        {
+            updated[name] = value.DeepClone();
+        }
+        _value = updated;
+    }
+
+    private async Task Send(JsonNode? value)
+    {
+        _busy = true;
+        _rejected = null;
+        var result = await Connection.Api.AnswerAsync(Prompt.PromptId!, value);
+        _busy = false;
+        if (!result.Ok)
+        {
+            _rejected = result.Reason ?? "The answer was rejected.";
+        }
+    }
+}

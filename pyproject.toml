@@ -107,7 +107,7 @@ mccabe = { max-complexity = 14 }
 pydocstyle = { convention = "google" }
 
 [tool.codespell]
-skip = '.git,*.pdf,*.svg,./bonsai,*.bonsai,./docs/_build,uv.lock'
+skip = '.git,*.pdf,*.svg,./bonsai,*.bonsai,./docs/_build,uv.lock,./src/clabe/server/static,./ui-web/bin,./ui-web/obj'
 ignore-words-list = "nd, assertIn"
 
 [tool.pytest.ini_options]

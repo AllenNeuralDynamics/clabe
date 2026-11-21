@@ -166,3 +166,15 @@ clabe run my_experiment.py --host 0.0.0.0 --token "$CLABE_TOKEN" --open-browser
   `POST /api/fs/list` (directory listings for remote path pickers).
 - [`clabe.server.RunClient`][clabe.server.RunClient] is a small Python client of that API.
 
+### The web UI
+
+The page at the server's root is the web UI (Blazor WebAssembly, shipped in the wheel): the steps on the left —
+click a finished one to go back to it — and the open prompt on the right, with recent messages, running
+activities and the full event log. Every prompt kind is supported, including forms (rendered from the model's
+JSON Schema), groups and sliders; path prompts browse the file system of the machine running the run. Answers are
+validated by the run, so a rejected answer shows the same message as in the TUI.
+
+The UI's source is in `ui-web/`. To work on it, build it into the package with the .NET SDK
+(`uv run python scripts/build_web.py`) — CI does this before building the wheel — and run
+`tests/server/test_web_ui.py` (needs Playwright: `uv run --with playwright playwright install chromium`).
+
