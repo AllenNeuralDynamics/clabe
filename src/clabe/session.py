@@ -1,5 +1,5 @@
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 
 from aind_behavior_services import Session
 
@@ -33,6 +33,7 @@ class SessionBuilder:
         *,
         experimenter_validator: Callable[[str], str | None] | None = validate_username,
         use_cache: bool = True,
+        subject_suggestions: Callable[[], Sequence[str]] | None = None,
     ) -> None:
         """
         Args:
@@ -40,10 +41,13 @@ class SessionBuilder:
             experimenter_validator: Validates each experimenter name, returning the canonical name to store
                 or None to reject it. If ``None``, names are accepted as typed.
             use_cache: Whether to seed the prompts with previously entered values.
+            subject_suggestions: Returns the subjects to pick from, e.g. the mice scheduled on this rig today
+                (``LimsStore.scheduled_subjects``). When it returns none or fails, the user types the subject.
         """
         self._launcher = launcher
         self._experimenter_validator = experimenter_validator
         self._use_cache = use_cache
+        self._subject_suggestions = subject_suggestions
         self._cache_manager = CacheManager.get_instance()
 
     def build(self) -> Session:
@@ -68,11 +72,38 @@ class SessionBuilder:
 
     def choose_subject(self) -> str:
         """
-        Prompts for a subject, offering previously used ones for autocompletion.
+        Prompts for a subject.
+
+        When ``subject_suggestions`` yields subjects, the user picks one of them and nothing else.
+        Otherwise (no source, no subjects, or the source failed) the user types one, with previously
+        used subjects offered for autocompletion.
 
         Returns:
             The selected or entered subject name.
         """
+        suggested = self._suggested_subjects()
+        subject = self._pick_suggested_subject(suggested) if suggested else self._enter_subject()
+        self._cache_manager.add_to_cache("subjects", subject)
+        return subject
+
+    @staticmethod
+    def _pick_suggested_subject(suggested: list[str]) -> str:
+        """Asks the user to pick one of the suggested subjects."""
+        subject: str | None = None
+        while not subject:
+            subject = ui.prompt_pick(
+                ui.PickRequest(
+                    label=f"Subject ({len(suggested)} scheduled here today)",
+                    options=suggested,
+                    default=suggested[0],
+                    allow_none=False,
+                    field="subject",
+                )
+            )
+        return subject
+
+    def _enter_subject(self) -> str:
+        """Asks the user to type a subject, offering previously used ones for autocompletion."""
         subject = ""
         while not subject:
             subject = ui.ask(
@@ -82,7 +113,6 @@ class SessionBuilder:
                     field="subject",
                 )
             )
-        self._cache_manager.add_to_cache("subjects", subject)
         return subject
 
     def prompt_experimenter(self, strict: bool = True) -> list[str]:
@@ -129,6 +159,17 @@ class SessionBuilder:
             else:
                 validated.append(canonical)
         return validated, invalid
+
+    def _suggested_subjects(self) -> list[str]:
+        """Returns the suggested subjects, or none if there is no source or it fails."""
+        if self._subject_suggestions is None:
+            return []
+        try:
+            return list(dict.fromkeys(self._subject_suggestions()))
+        except Exception as e:  # noqa: BLE001 -- suggestions are a convenience and must never block a session
+            logger.warning("Could not fetch subject suggestions: %s", e)
+            ui.notify(f"Could not fetch today's schedule ({e}). Enter the subject manually.", ui.MessageLevel.WARNING)
+            return []
 
     def _cached_options(self, cache_name: str) -> list[str]:
         """Returns the previously entered values to offer for autocompletion."""

@@ -86,3 +86,39 @@ class TestSessionBuilder:
         answer(mock_frontend, autocomplete=["j.doe", "789012"])
         monkeypatch.setattr(os, "makedirs", lambda *a, **k: pytest.fail("makedirs must not be called"))
         builder.build()
+
+    def test_suggested_subjects_are_picked_from_without_the_cache(self, launcher, mock_frontend):
+        CacheManager.get_instance().add_to_cache("subjects", "111111")
+        builder = SessionBuilder(
+            launcher, experimenter_validator=None, subject_suggestions=lambda: ["789012", "222222", "789012"]
+        )
+        mock_frontend._ask_pick_mock.return_value = "222222"
+
+        assert builder.choose_subject() == "222222"
+        request = mock_frontend._ask_pick_mock.call_args.args[0]
+        assert request.options == ["789012", "222222"]
+        assert request.default == "789012"
+        assert not request.allow_none
+        assert "2 scheduled here today" in request.label
+        mock_frontend._ask_autocomplete_mock.assert_not_called()
+        assert "222222" in CacheManager.get_instance().get_cache("subjects")
+
+    def test_no_suggested_subjects_falls_back_to_typing_one(self, launcher, mock_frontend):
+        CacheManager.get_instance().add_to_cache("subjects", "111111")
+        builder = SessionBuilder(launcher, experimenter_validator=None, subject_suggestions=list)
+        answer(mock_frontend, autocomplete=["333333"])
+
+        assert builder.choose_subject() == "333333"
+        assert mock_frontend._ask_autocomplete_mock.call_args.args[0].options == ["111111"]
+        mock_frontend._ask_pick_mock.assert_not_called()
+
+    def test_failing_suggestions_fall_back_to_cached_subjects(self, launcher, mock_frontend):
+        CacheManager.get_instance().add_to_cache("subjects", "111111")
+
+        def broken() -> list[str]:
+            raise RuntimeError("LIMS is down")
+
+        builder = SessionBuilder(launcher, experimenter_validator=None, subject_suggestions=broken)
+        answer(mock_frontend, autocomplete=["111111"])
+        assert builder.choose_subject() == "111111"
+        assert mock_frontend._ask_autocomplete_mock.call_args.args[0].options == ["111111"]
