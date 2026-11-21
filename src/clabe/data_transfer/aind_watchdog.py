@@ -1,12 +1,14 @@
+import dataclasses
 import datetime
 import json
 import logging
 import os
 import subprocess
+import warnings
 from collections.abc import Callable
 from os import PathLike
 from pathlib import Path, PurePosixPath
-from typing import ClassVar
+from typing import ClassVar, Literal, Self
 
 import aind_data_transfer_service.models.core
 import pydantic
@@ -26,7 +28,19 @@ from ._base import DataTransfer
 
 logger = logging.getLogger(__name__)
 
+__all__ = [
+    "DEFAULT_TRANSFER_ENDPOINT",
+    "ManifestConfig",
+    "PlannedManifest",
+    "UploadGroup",
+    "WatchConfig",
+    "WatchdogDataTransferService",
+    "WatchdogSettings",
+]
+
 DEFAULT_TRANSFER_ENDPOINT: str = "http://aind-data-transfer-service-dev/api/v2/submit_jobs"
+
+DEFAULT_UPLOAD_GROUP_NAME = "primary"
 
 
 def _default_email_from_experimenter(user_name: str) -> str:
@@ -56,6 +70,59 @@ TransferServiceTask = dict[
 ]
 
 
+class UploadGroup(BaseModel):
+    """One upload job of a session, written as its own watchdog manifest.
+
+    A session's modalities can be split into groups that are uploaded independently, e.g. to make the behavior data
+    available hours before its videos are compressed. All groups write to the same folder and asset: the group with
+    ``creates_record`` creates the asset's metadata record and the others append to it, so the job types must be set
+    up for that in the data transfer service.
+
+    The ``job_type``, ``schedule_time``, ``delete_modalities_source_after_success`` and ``upload_tasks`` fields of the
+    ``watchdog`` section are the shorthand for a single group with every modality.
+    """
+
+    model_config = pydantic.ConfigDict(extra="forbid")
+
+    name: str = pydantic.Field(
+        pattern=r"^[A-Za-z0-9_-]+$", description="Names the group, and the manifest file of groups that append."
+    )
+    job_type: str = pydantic.Field(description="Transfer service job type.")
+    modalities: list[str] | Literal["*"] = pydantic.Field(
+        default="*", description="Modality abbreviations of this group, or '*' for every modality no group claims."
+    )
+    creates_record: bool = pydantic.Field(
+        default=False,
+        description="Whether this group creates the metadata record. It alone gets the session's *.json "
+        "metadata files, the gather_preliminary_metadata task and the data description tags.",
+    )
+    schedule_time: datetime.time | None = pydantic.Field(
+        default=datetime.time(hour=20), description="When the watchdog submits the group; null means now."
+    )
+    delete_modalities_source_after_success: bool = pydantic.Field(
+        default=False, description="Deletes this group's modality folders once submitted."
+    )
+    upload_tasks: SerializeAsAny[TransferServiceTask] | None = pydantic.Field(
+        default=None, description="Extra transfer service tasks."
+    )
+
+    @pydantic.field_validator("modalities")
+    @classmethod
+    def _validate_modalities(cls, value: list[str] | Literal["*"]) -> list[str] | Literal["*"]:
+        """Refuses empty, unknown or duplicate modalities."""
+        if value == "*":
+            return value
+        if not value:
+            raise ValueError("modalities must not be empty; use '*' for every unclaimed modality.")
+        known = aind_data_transfer_service.models.core.Modality.abbreviation_map.keys()
+        unknown = [m for m in value if m not in known]
+        if unknown:
+            raise ValueError(f"Unknown modalities {unknown}.")
+        if len(set(value)) != len(value):
+            raise ValueError(f"Duplicate modalities in {value}.")
+        return value
+
+
 class WatchdogSettings(ServiceSettings):
     """
     Settings for the WatchdogDataTransferService.
@@ -80,6 +147,102 @@ class WatchdogSettings(ServiceSettings):
     extra_modality_data: dict[str, list[Path]] | None = pydantic.Field(
         default=None, description="Additional modality data to include in the transfer"
     )
+    upload_groups: list[UploadGroup] | None = pydantic.Field(
+        default=None,
+        description="Splits the session into independent upload jobs, one manifest each. Without it, the session is "
+        "a single job with every modality, configured by the deprecated job_type, schedule_time, "
+        "delete_modalities_source_after_success and upload_tasks, which are ignored when this is set.",
+    )
+
+    @pydantic.model_validator(mode="after")
+    def _warn_deprecated_single_job_fields(self) -> Self:
+        """Warns that the single-job fields are deprecated in favor of upload_groups."""
+        shorthand = sorted(_SINGLE_JOB_FIELDS & self.model_fields_set)
+        if shorthand and self.upload_groups is None:
+            warnings.warn(
+                f"WatchdogSettings {shorthand} are deprecated: configure a single upload group in upload_groups "
+                "instead (name, job_type, creates_record: true and the same fields).",
+                FutureWarning,
+                stacklevel=2,
+            )
+        return self
+
+    @pydantic.field_validator("upload_groups")
+    @classmethod
+    def _validate_upload_groups(cls, value: list[UploadGroup] | None) -> list[UploadGroup] | None:
+        """Requires unique names, exactly one group that creates the record, at most one '*' and disjoint groups."""
+        if value is None:
+            return value
+        if not value:
+            raise ValueError("upload_groups must not be empty; leave it out for a single job.")
+        names = [g.name for g in value]
+        if len(set(names)) != len(names):
+            raise ValueError(f"Upload group names must be unique, got {names}.")
+        record_groups = [g.name for g in value if g.creates_record]
+        if len(record_groups) != 1:
+            raise ValueError(f"Exactly one upload group must set creates_record, got {record_groups or 'none'}.")
+        wildcard_groups = [g.name for g in value if g.modalities == "*"]
+        if len(wildcard_groups) > 1:
+            raise ValueError(f"At most one upload group can claim '*', got {wildcard_groups}.")
+        claimed: dict[str, str] = {}
+        for group in value:
+            if group.modalities == "*":
+                continue
+            for modality in group.modalities:
+                if modality in claimed:
+                    raise ValueError(
+                        f"Modality '{modality}' is claimed by both '{claimed[modality]}' and '{group.name}'."
+                    )
+                claimed[modality] = group.name
+        return value
+
+    def resolved_upload_groups(self) -> list[UploadGroup]:
+        """The session's upload groups, the group that creates the record first.
+
+        Without ``upload_groups``, a single group with every modality, from the deprecated single-job fields. It is
+        built on each call, so changes made to those fields after the settings are created apply. With
+        ``upload_groups``, those fields are ignored, with a warning if any of them was set.
+        """
+        if self.upload_groups is not None:
+            ignored = sorted(_SINGLE_JOB_FIELDS & self.model_fields_set)
+            if ignored:
+                logger.warning(
+                    "WatchdogSettings %s are ignored because upload_groups is set: set them on the groups instead.",
+                    ignored,
+                )
+        groups = self.upload_groups or [
+            UploadGroup(
+                name=DEFAULT_UPLOAD_GROUP_NAME,
+                job_type=self.job_type,
+                modalities="*",
+                creates_record=True,
+                schedule_time=self.schedule_time,
+                delete_modalities_source_after_success=self.delete_modalities_source_after_success,
+                upload_tasks=self.upload_tasks,
+            )
+        ]
+        return sorted(groups, key=lambda g: not g.creates_record)
+
+
+# The WatchdogSettings fields that configure the single job a session is without upload_groups
+_SINGLE_JOB_FIELDS = frozenset({"job_type", "schedule_time", "delete_modalities_source_after_success", "upload_tasks"})
+
+
+@dataclasses.dataclass
+class PlannedManifest:
+    """A manifest to write to the watchdog's flag directory.
+
+    Attributes:
+        group: Name of the upload group.
+        creates_record: Whether the group creates the metadata record.
+        filename: The manifest's file name in the watchdog's flag directory.
+        manifest: The manifest.
+    """
+
+    group: str
+    creates_record: bool
+    filename: str
+    manifest: ManifestConfig
 
 
 class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
@@ -90,14 +253,16 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
     directories for new data and transfer it to specified destinations with proper
     metadata handling and validation.
 
+    A session is written as one manifest per upload group (see ``WatchdogSettings.upload_groups``).
+
     Methods:
-        transfer: Executes the data transfer by generating a manifest configuration
+        transfer: Writes the session's manifests and starts the watchdog service
+        plan: Builds the session's manifests without writing them
         validate: Validates the Watchdog service and its configuration
         is_valid_project_name: Checks if the project name is valid
         is_running: Checks if the Watchdog service is currently running
         force_restart: Attempts to restart the Watchdog application
         dump_manifest_config: Dumps the manifest configuration to a YAML file
-        prompt_input: Prompts the user to confirm manifest generation
     """
 
     def __init__(
@@ -113,7 +278,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         Initializes the WatchdogDataTransferService.
 
         Args:
-            source: The source directory or file to monitor
+            source: The session folder(s) to transfer. Folders on other machines are given through their share.
             settings: Configuration for the watchdog service
             session: The session data from aind-behavior-services
             validate: Whether to validate the project name
@@ -151,26 +316,29 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
     @runnable(name="Transfer (watchdog)", notify="Transferring data (watchdog)…")
     def transfer(self) -> None:
         """
-        Executes the data transfer by generating a Watchdog manifest configuration.
+        Writes the session's watchdog manifests, one per upload group, then starts the watchdog if needed.
 
-        Creates and deploys a manifest configuration file that the watchdog service
-        will use to monitor and transfer data. The manifest is written even if the service
-        is not running, since the service processes existing manifests when it starts; the
-        service is then started if needed. Failing to start it is logged, never raised, since
-        the manifest is already queued.
+        The manifest of the group that creates the metadata record is written first, and nothing else is written if
+        it fails. The manifests are written even if the service is not running, since it processes existing
+        manifests when it starts; the service is then started if needed. Failing to start it is logged, never
+        raised, since the manifests are already queued.
         """
         try:
-            logger.debug("Creating watchdog manifest config.")
+            logger.debug("Creating watchdog manifest config(s).")
 
             if self._watch_config is None:
                 raise ValueError("Watchdog config is not set.")
 
-            self._manifest_config = self._create_manifest_from_session(session=self._session)
-            assert self._manifest_config.name is not None, "Manifest config name must be set."
-            _manifest_path = self.dump_manifest_config(
-                path=Path(self._watch_config.flag_dir) / self._manifest_config.name
-            )
-            logger.info("Watchdog manifest config created successfully at %s.", _manifest_path)
+            planned = self.plan()
+            self._manifest_config = planned[0].manifest
+            written: list[Path] = []
+            for item in planned:
+                written.append(
+                    self.dump_manifest_config(
+                        path=Path(self._watch_config.flag_dir) / item.filename, manifest=item.manifest
+                    )
+                )
+                logger.info("Watchdog manifest for '%s' created successfully at %s.", item.group, written[-1])
 
         except (OSError, pydantic.ValidationError, ValueError) as e:
             logger.error("Failed to create watchdog manifest config. %s", e)
@@ -189,10 +357,170 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
             logger.info("Watchdog service restarted successfully.")
         else:
             logger.error(
-                "Watchdog service is not running. The manifest %s is written and will be transferred "
+                "Watchdog service is not running. The manifest(s) %s are written and will be transferred "
                 "once the watchdog service runs.",
-                _manifest_path,
+                ", ".join(str(p) for p in written),
             )
+
+    def plan(self, session: Session | None = None) -> list[PlannedManifest]:
+        """
+        Builds the session's manifests, one per upload group, without writing them.
+
+        Each source is searched for folders named after a modality and for ``*.json`` metadata files. Each modality
+        goes to the group that claims it, or to the ``'*'`` group. Groups that find none of their modalities are
+        skipped.
+
+        Args:
+            session: The session. Defaults to the service's.
+
+        Returns:
+            The manifests, the one of the group that creates the record first.
+
+        Raises:
+            FileNotFoundError: If a source cannot be reached.
+            ValueError: If a modality is claimed by no group, the group that creates the record finds none of its
+                modalities, or a group that appends is submitted before it.
+        """
+        session = session or self._session
+
+        if (len(session.experimenter) > 0) and self._email_from_experimenter_builder is not None:
+            user_email = self._email_from_experimenter_builder(session.experimenter[-1])
+        else:
+            user_email = None
+
+        destination = Path(self._settings.destination).resolve()
+
+        sources = {Path(s).resolve() for s in self._sources}
+        # Sources may be network shares on other machines, so report every unreachable one up front
+        missing = sorted(str(s) for s in sources if not s.is_dir())
+        if missing:
+            raise FileNotFoundError(f"Watchdog source directories not found or not reachable: {', '.join(missing)}")
+
+        if self._validate_project_name:
+            project_names = self._get_project_names()
+            if self._settings.project_name not in project_names:
+                raise ValueError(f"Project name {self._settings.project_name} not found in {project_names}")
+
+        found, schemas = self._discover(sources)
+
+        groups = self._settings.resolved_upload_groups()
+        claimed = {m for g in groups if g.modalities != "*" for m in g.modalities}
+        unclaimed = [m for m in found if m not in claimed]  # in the order found, as in the manifest
+        if unclaimed and not any(g.modalities == "*" for g in groups):
+            raise ValueError(f"Modalities {unclaimed} are claimed by no upload group. Add them to one, or add '*'.")
+        self._check_schedule_order(groups)
+
+        planned: list[PlannedManifest] = []
+        for group in groups:
+            names = unclaimed if group.modalities == "*" else group.modalities
+            modalities = {m: found[m] for m in names if m in found}
+            if not modalities:
+                if group.creates_record:
+                    raise ValueError(
+                        f"Upload group '{group.name}' creates the record but found none of its modalities."
+                    )
+                logger.warning("Upload group '%s' found none of its modalities %s. Skipping it.", group.name, names)
+                continue
+            not_found = [m for m in names if m not in found]
+            if not_found:
+                logger.info("Upload group '%s' did not find modalities %s.", group.name, not_found)
+            planned.append(
+                self._plan_group(
+                    session,
+                    group,
+                    modalities,
+                    schemas if group.creates_record else [],
+                    destination=destination,
+                    user_email=user_email,
+                )
+            )
+        return planned
+
+    def _discover(self, sources: set[Path]) -> tuple[dict[str, list[Path]], list[Path]]:
+        """Finds the modality folders (including ``extra_modality_data``) and the metadata files of the sources."""
+        # Invert so that unique modality names map to lists of paths
+        found: dict[str, list[Path]] = {}
+        for p in sources:
+            for modality, paths in self._find_modality_candidates(p).items():
+                found.setdefault(modality, []).extend(paths)
+        for modality, paths in (self._settings.extra_modality_data or {}).items():
+            found.setdefault(modality, []).extend(paths)
+
+        # Collect unique schema candidates from all sources
+        schemas: list[Path] = []
+        for p in sources:
+            schemas.extend(self._find_schema_candidates(p))
+        return found, list({s.resolve() for s in schemas})
+
+    @staticmethod
+    def _check_schedule_order(groups: list[UploadGroup]) -> None:
+        """Refuses groups that append submitted now while the record is created later, and warns about earlier times.
+
+        A time of day earlier than the record's may still run after it, past midnight, so it is only a warning.
+        """
+        record_group = groups[0]
+        if record_group.schedule_time is None:
+            return
+        for group in groups[1:]:
+            if group.schedule_time is None:
+                raise ValueError(
+                    f"Upload group '{group.name}' is submitted now, before '{record_group.name}', which creates the "
+                    f"record it appends to, at {record_group.schedule_time}."
+                )
+            if group.schedule_time < record_group.schedule_time:
+                logger.warning(
+                    "Upload group '%s' is scheduled at %s, before '%s' (%s), unless it runs after midnight.",
+                    group.name,
+                    group.schedule_time,
+                    record_group.name,
+                    record_group.schedule_time,
+                )
+
+    def _plan_group(
+        self,
+        session: Session,
+        group: UploadGroup,
+        modalities: dict[str, list[Path]],
+        schemas: list[Path],
+        *,
+        destination: Path,
+        user_email: str | None,
+    ) -> PlannedManifest:
+        """Builds the manifest of one upload group."""
+        manifest = ManifestConfig(
+            name=session.session_name,
+            modalities={m: [str(Path(p)) for p in paths] for m, paths in modalities.items()},
+            subject_id=session.subject,
+            acquisition_datetime=session.date,
+            schemas=[str(Path(value)) for value in schemas],
+            destination=str(Path(destination)),
+            project_name=self._settings.project_name,
+            schedule_time=group.schedule_time,
+            transfer_endpoint=self._settings.transfer_endpoint,
+            delete_modalities_source_after_success=group.delete_modalities_source_after_success,
+            extra_identifying_info=self._settings.extra_identifying_info,
+            transfer_service_job_type=group.job_type,
+            checksum_mode_override=None,
+        )
+        manifest = self._make_transfer_args(
+            manifest,
+            add_default_tasks=True,
+            gather_metadata=group.creates_record,
+            extra_tasks=group.upload_tasks or {},
+            job_type=group.job_type,
+            user_email=user_email,
+        )
+        if group.creates_record and self._settings.data_description_tags:
+            manifest = self._apply_data_description_tags(manifest)
+
+        assert manifest.name is not None, "Manifest config name must be set."
+        suffix = "" if group.creates_record else f"__{group.name}"
+        return PlannedManifest(
+            group=group.name,
+            creates_record=group.creates_record,
+            filename=f"manifest_{manifest.name}{suffix}.yaml",
+            manifest=manifest,
+        )
 
     def validate(self) -> bool:
         """
@@ -248,14 +576,10 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
 
     def _create_manifest_from_session(self, session: Session) -> ManifestConfig:
         """
-        Creates a ManifestConfig from an aind-behavior-services session.
-
-         Converts session metadata into
-        a manifest configuration for the watchdog service.
+        Creates the manifest of the upload group that creates the metadata record.
 
         Args:
             session: The aind-behavior-services session data
-            session_name: Name of the session
 
         Returns:
             A ManifestConfig object
@@ -263,81 +587,14 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         Raises:
             ValueError: If the project name is invalid
         """
-
-        if (len(session.experimenter) > 0) and self._email_from_experimenter_builder is not None:
-            user_email = self._email_from_experimenter_builder(session.experimenter[-1])
-        else:
-            user_email = None
-
-        destination = Path(self._settings.destination).resolve()
-
-        sources = {Path(s).resolve() for s in self._sources}
-        # Sources may be network shares on other machines, so report every unreachable one up front
-        missing = sorted(str(s) for s in sources if not s.is_dir())
-        if missing:
-            raise FileNotFoundError(f"Watchdog source directories not found or not reachable: {', '.join(missing)}")
-
-        if self._validate_project_name:
-            project_names = self._get_project_names()
-            if self._settings.project_name not in project_names:
-                raise ValueError(f"Project name {self._settings.project_name} not found in {project_names}")
-
-        # Invert so that unique modality names map to lists of paths
-        _modality_candidates: dict[str, list[Path]] = {}
-        for p in sources:
-            for modality, paths in self._find_modality_candidates(p).items():
-                if modality in _modality_candidates:
-                    _modality_candidates[modality].extend(paths)
-                else:
-                    _modality_candidates[modality] = list(paths)
-
-        # Append any extra modality data from settings
-        if self._settings.extra_modality_data is not None:
-            for modality, paths in self._settings.extra_modality_data.items():
-                if modality in _modality_candidates:
-                    _modality_candidates[modality].extend(paths)
-                else:
-                    _modality_candidates[modality] = paths
-
-        # Collect unique schema candidates from all sources
-        schema_candidates: list[Path] = []
-        for p in sources:
-            schema_candidates.extend(self._find_schema_candidates(p))
-        schema_candidates = list({s.resolve() for s in schema_candidates})
-
-        _manifest_config = ManifestConfig(
-            name=self._session.session_name,
-            modalities={m: [str(Path(p)) for p in paths] for m, paths in _modality_candidates.items()},
-            subject_id=session.subject,
-            acquisition_datetime=session.date,
-            schemas=[str(Path(value)) for value in schema_candidates],
-            destination=str(Path(destination)),
-            project_name=self._settings.project_name,
-            schedule_time=self._settings.schedule_time,
-            transfer_endpoint=self._settings.transfer_endpoint,
-            delete_modalities_source_after_success=self._settings.delete_modalities_source_after_success,
-            extra_identifying_info=self._settings.extra_identifying_info,
-            transfer_service_job_type=self._settings.job_type,
-            checksum_mode_override=None,
-        )
-
-        _manifest_config = self._make_transfer_args(
-            _manifest_config,
-            add_default_tasks=True,
-            extra_tasks=self._settings.upload_tasks or {},
-            job_type=self._settings.job_type,
-            user_email=user_email,
-        )
-        if self._settings.data_description_tags:
-            _manifest_config = self._apply_data_description_tags(_manifest_config)
-        return _manifest_config
+        return self.plan(session)[0].manifest
 
     def add_data_description_tags(self, *tags: str) -> None:
         """
         Registers tags to be added to the data description.
 
-        The tags are stored in the settings and written to the manifest when it is
-        built (i.e. on `transfer`). Duplicates are dropped when written.
+        The tags are stored in the settings and written to the manifest of the group that creates the record when
+        it is built (i.e. on `transfer`). Duplicates are dropped when written.
 
         Args:
             *tags: The tags to add
@@ -400,6 +657,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         *,
         job_type: str = "default",
         add_default_tasks: bool = True,
+        gather_metadata: bool = True,
         extra_tasks: TransferServiceTask,
         user_email: str | None = None,
     ) -> ManifestConfig:
@@ -413,6 +671,8 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
             manifest: The manifest configuration to update
             job_type: The job type identifier
             add_default_tasks: Whether to add default metadata and transformation tasks
+            gather_metadata: Whether the default tasks include gather_preliminary_metadata, which creates the
+                metadata record. Jobs that append to an existing record leave it out.
             extra_tasks: Additional tasks to include
             user_email: Optional user email for the job submission
 
@@ -429,9 +689,10 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
                 for modality in manifest.modalities
             }
 
-            tasks["gather_preliminary_metadata"] = aind_data_transfer_service.models.core.Task(
-                job_settings={"metadata_dir": str(PurePosixPath(cls._remote_destination_root(manifest)))}
-            )
+            if gather_metadata:
+                tasks["gather_preliminary_metadata"] = aind_data_transfer_service.models.core.Task(
+                    job_settings={"metadata_dir": str(PurePosixPath(cls._remote_destination_root(manifest)))}
+                )
 
         extra_tasks = cls._interpolate_from_manifest(
             extra_tasks,
@@ -567,13 +828,16 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
 
         return subprocess.Popen(cmd_factory, start_new_session=True, shell=True)
 
-    def dump_manifest_config(self, path: os.PathLike | None = None, make_dir: bool = True) -> Path:
+    def dump_manifest_config(
+        self, path: os.PathLike | None = None, make_dir: bool = True, manifest: ManifestConfig | None = None
+    ) -> Path:
         """
-        Dumps the manifest configuration to a YAML file.
+        Dumps a manifest configuration to a YAML file.
 
         Args:
             path: The file path to save the manifest
             make_dir: Whether to create the directory if it doesn't exist
+            manifest: The manifest to dump. Defaults to the last one built by `transfer`.
 
         Returns:
             The path to the saved manifest file
@@ -581,7 +845,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         Raises:
             ValueError: If the manifest or watch configuration is not set
         """
-        manifest_config = self._manifest_config
+        manifest_config = manifest or self._manifest_config
         watch_config = self._watch_config
 
         if manifest_config is None or watch_config is None:
