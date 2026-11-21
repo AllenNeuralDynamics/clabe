@@ -52,7 +52,8 @@ class LimsError(RuntimeError):
 
 
 class _ApiModel(BaseModel):
-    # The API is young and grows fields often; unknown ones are ignored rather than rejected.
+    """Base for API models. The API is young and grows fields often, so unknown ones are ignored, not rejected."""
+
     model_config = ConfigDict(extra="ignore")
 
 
@@ -149,6 +150,8 @@ class SessionPlan(_ApiModel):
 
 
 class _PlannedEventsPage(_ApiModel):
+    """One page of ``GET /planned_events``; ``next_offset`` is None on the last page."""
+
     limit: int
     offset: int
     next_offset: int | None = None
@@ -392,6 +395,7 @@ class LimsStore(StoreBase):
 
     @staticmethod
     def _instrument(scope: Scope) -> str | None:
+        """The instrument in scope, else the computer name, else None."""
         return scope.get("instrument") or scope.get("computer_name") or None
 
     @staticmethod
@@ -411,11 +415,13 @@ class LimsStore(StoreBase):
 
     @staticmethod
     def _require_supported(kind: Kind[Any]) -> None:
+        """Raises unless the kind is trainer state, the only kind this store serves."""
         if kind.name != _TRAINER_STATE:
             raise LookupError(f"LimsStore only serves {_TRAINER_STATE!r}, not {kind.name!r}.")
 
     @staticmethod
     def _require(scope: Scope, key: str) -> str:
+        """Returns the scope's value for the key, raising LookupError if it is missing or empty."""
         value = scope.get(key)
         if not value:
             raise LookupError(f"LimsStore requires {key!r} in scope.")
@@ -423,6 +429,7 @@ class LimsStore(StoreBase):
 
     @staticmethod
     def _label(source: str, row: BehaviorSettingsRow) -> str:
+        """Labels a settings row by its stage, where it came from (pinned or latest) and when it was made."""
         created = row.created_on.isoformat(timespec="minutes") if row.created_on else "unknown date"
         return f"{row.stage_name or 'unknown stage'} ({source}, {created})"
 
