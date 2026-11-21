@@ -58,7 +58,7 @@ aind-services = [
     "aind-data-schema>=2",
     "aind-data-transfer-service >= 2.2.0",
     "aind-watchdog-service >= 0.1.10.dev0",
-    "confierge",
+    "confierge>=0.1.4",
 ]
 
 [dependency-groups]
@@ -94,7 +94,7 @@ default-groups = ['dev']
 module-name = "clabe"
 
 [tool.uv.sources]
-confierge = { git = "https://github.com/AllenNeuralDynamics/ficus.git", subdirectory = "packages/confierge", tag = "confierge-v0.1.2" }
+confierge = { git = "https://github.com/AllenNeuralDynamics/ficus.git", subdirectory = "packages/confierge", tag = "v0.3.0" }
 
 
 [tool.ruff]
