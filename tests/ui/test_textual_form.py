@@ -1,8 +1,23 @@
 from pathlib import Path
 
+from pydantic import BaseModel
 from textual_fspicker import FileOpen, SelectDirectory
 
-from clabe.ui._textual_form import build_picker_screen
+from clabe.ui import FormRequest
+from clabe.ui._textual_form import _FormScreen, build_picker_screen
+
+
+class _Optional(BaseModel):
+    count: int | None = None
+
+
+def test_form_treats_a_pep_604_optional_field_as_optional():
+    screen = _FormScreen(FormRequest(model=_Optional))
+    errors = []
+    screen._clear_field_error = lambda field_name: None  # not mounted: no error labels to update
+    screen._show_field_error = lambda field_name, message: errors.append(message)
+    assert screen._validate_field("count", "")  # empty means None, not an invalid int
+    assert errors == []
 
 
 class TestBuildPickerScreen:

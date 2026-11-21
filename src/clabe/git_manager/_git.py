@@ -3,6 +3,7 @@ import os
 import shutil
 from pathlib import Path
 from typing import Self
+from urllib.parse import urlsplit, urlunsplit
 
 from git import Repo
 from pydantic import BaseModel, Field
@@ -12,6 +13,28 @@ from .. import ui
 logger = logging.getLogger(__name__)
 
 _HAS_GIT = shutil.which("git") is not None
+
+
+def _strip_credentials(url: str) -> str:
+    """``url`` without embedded credentials.
+
+    http(s) URLs lose their whole userinfo (a token is often passed as the user name); other URLs with a scheme
+    (e.g. ``ssh://``) lose only a password. scp-like addresses (``git@host:org/repo``) and paths are unchanged.
+    """
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return url
+    if not parts.scheme or "@" not in parts.netloc:
+        return url
+    userinfo, _, host = parts.netloc.rpartition("@")
+    if parts.scheme.lower() in ("http", "https"):
+        netloc = host
+    elif ":" in userinfo:
+        netloc = f"{userinfo.partition(':')[0]}@{host}"
+    else:
+        return url
+    return urlunsplit(parts._replace(netloc=netloc))
 
 
 class GitRepositoryMetadata(BaseModel):
@@ -162,7 +185,7 @@ class GitRepository(Repo):
 
         tags = repo.git.tag("--points-at", "HEAD").splitlines()
         return GitRepositoryMetadata(
-            url=remote.url if remote else None,
+            url=_strip_credentials(remote.url) if remote else None,
             commit_sha=repo.head.commit.hexsha,
             tag=tags[0] if tags else None,
             describe=repo.git.describe("--tags", "--always"),
@@ -178,7 +201,7 @@ class GitRepository(Repo):
         """Build metadata for a submodule without requiring it to be initialized."""
         if not (Path(submodule.abspath) / ".git").exists():
             return GitRepositoryMetadata(
-                url=submodule.url,
+                url=_strip_credentials(submodule.url),
                 commit_sha=submodule.hexsha,
                 tag=None,
                 describe=None,

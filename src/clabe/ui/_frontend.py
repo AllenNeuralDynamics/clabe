@@ -2,7 +2,6 @@ import abc
 import contextlib
 import dataclasses
 import logging
-import typing
 from enum import Enum
 from pathlib import Path
 from typing import Any, Literal, Protocol, get_args, get_origin, runtime_checkable
@@ -20,8 +19,8 @@ from ._requests import (
     PickRequest,
     ReadOnlyTable,
     TextRequest,
-    Validator,
 )
+from ._validation import first_error, resolve_field_default, resolve_field_type, validate_path
 
 
 class PromptCancelledError(Exception):
@@ -31,31 +30,6 @@ class PromptCancelledError(Exception):
 def _humanize_field(name: str) -> str:
     """Converts snake_case / kebab-case field names to Title Case."""
     return name.replace("_", " ").replace("-", " ").title()
-
-
-def _resolve_field_type(annotation: Any) -> tuple[Any, bool]:
-    """Strip Annotated and Optional wrappers; return (inner_type, is_optional)."""
-    if get_origin(annotation) is typing.Annotated:
-        annotation = get_args(annotation)[0]
-    if get_origin(annotation) is typing.Union:
-        args = get_args(annotation)
-        non_none = [a for a in args if a is not type(None)]
-        if len(non_none) == 1:
-            return non_none[0], True
-    return annotation, False
-
-
-def _resolve_field_default(field_info: Any, initial: Any) -> Any:
-    """Return initial if provided, else the field's declared default or None."""
-    from pydantic_core import PydanticUndefined
-
-    if initial is not None:
-        return initial
-    raw = getattr(field_info, "default", PydanticUndefined)
-    if raw is not PydanticUndefined:
-        return raw
-    factory = getattr(field_info, "default_factory", None)
-    return factory() if factory is not None else None
 
 
 @runtime_checkable
@@ -283,19 +257,7 @@ class FrontendBase(abc.ABC):
             self.notify(error, MessageLevel.ERROR)
             current = dataclasses.replace(current, start=str(candidate))
 
-    @staticmethod
-    def _validate_path(request: PathRequest, path: Path) -> str | None:
-        """Returns an error message when ``path`` violates the request's constraints, else ``None``."""
-        if request.must_exist and not path.exists():
-            return f"Path does not exist: {path}"
-        if request.kind == "file" and path.exists() and not path.is_file():
-            return f"Expected a file, got a directory: {path}"
-        if request.kind == "dir" and path.exists() and not path.is_dir():
-            return f"Expected a directory, got a file: {path}"
-        exts = request.normalized_extensions()
-        if request.kind != "dir" and exts is not None and path.suffix.lower() not in exts:
-            return f"Expected a file with extension {', '.join(sorted(exts))}"
-        return None
+    _validate_path = staticmethod(validate_path)
 
     def prompt_confirm(self, request: ConfirmRequest) -> bool:
         """
@@ -398,9 +360,9 @@ class FrontendBase(abc.ABC):
 
         field_info = request.model.model_fields[request.field_name]
         annotation = field_info.annotation
-        inner, is_optional = _resolve_field_type(annotation)
+        inner, is_optional = resolve_field_type(annotation)
         label = getattr(field_info, "title", None) or _humanize_field(request.field_name)
-        default = _resolve_field_default(field_info, request.initial)
+        default = resolve_field_default(field_info, request.initial)
 
         # bool → confirm
         if inner is bool:
@@ -504,14 +466,7 @@ class FrontendBase(abc.ABC):
         the visible flow (e.g. a one-line summary in a scrolling transcript).
         """
 
-    @staticmethod
-    def _first_error(validators: list[Validator], value: str) -> str | None:
-        """Returns the first validation error for ``value``, or ``None``."""
-        for validator in validators:
-            error = validator(value)
-            if error is not None:
-                return error
-        return None
+    _first_error = staticmethod(first_error)
 
     def _render_header(self, text: str) -> None:
         """Renders a header. Defaults to rendering it as an info message."""

@@ -88,9 +88,8 @@ def run_span(launcher: "Launcher", experiment_name: str | None = None) -> Genera
 
     Args:
         launcher: The launcher being instrumented.
-        experiment_name: Name derived from the experiment callable, used when
+        experiment_name: Name of the workflow being run, used when
             :attr:`~clabe.logging.otel.OtelSettings.run_name` is not set in config.
-            Pass the result of :func:`~clabe.launcher.get_experiment_name`.
 
     Yields:
         The root span for the run.

@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from clabe.git_manager._git import GitRepository
+from clabe.git_manager._git import GitRepository, _strip_credentials
 
 
 @pytest.fixture
@@ -221,3 +221,35 @@ def test_relative_path_falls_back_to_absolute_across_drives(tmp_path: Path, monk
 
     monkeypatch.setattr("clabe.git_manager._git.os.path.relpath", relpath_across_drives)
     assert GitRepository._relative_path(str(tmp_path)) == tmp_path.as_posix()
+
+
+@pytest.mark.parametrize(
+    ("url", "expected"),
+    [
+        ("https://user:token@github.com/org/repo.git", "https://github.com/org/repo.git"),
+        ("https://ghp_token@github.com/org/repo.git", "https://github.com/org/repo.git"),
+        ("http://user:pw@host:8080/repo", "http://host:8080/repo"),
+        ("ssh://git:secret@host/org/repo.git", "ssh://git@host/org/repo.git"),
+        ("ssh://git@host/org/repo.git", "ssh://git@host/org/repo.git"),
+        ("git@github.com:org/repo.git", "git@github.com:org/repo.git"),
+        ("https://github.com/org/repo.git", "https://github.com/org/repo.git"),
+        ("/local/path/repo", "/local/path/repo"),
+    ],
+)
+def test_strip_credentials(url: str, expected: str):
+    """Credentials embedded in remote URLs are never recorded."""
+    assert _strip_credentials(url) == expected
+
+
+def test_get_metadata_strips_credentials_from_the_remote_url(temp_git_repo: Path, monkeypatch):
+    """The recorded remote URL carries no credentials."""
+    monkeypatch.chdir(temp_git_repo)
+    subprocess.run(
+        ["git", "remote", "add", "origin", "https://user:s3cret@github.com/example/test-repo.git"],
+        cwd=temp_git_repo,
+        check=True,
+    )
+
+    metadata = GitRepository(path=temp_git_repo).get_metadata()
+
+    assert metadata.url == "https://github.com/example/test-repo.git"

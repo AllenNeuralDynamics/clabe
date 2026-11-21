@@ -6,11 +6,10 @@ from pathlib import Path
 from pydantic import Field
 from pydantic_settings import BaseSettings, CliApp, CliImplicitFlag, CliPositionalArg, CliSubCommand
 
-from clabe.launcher._experiments import _select_experiment
-
 from .cache_manager import _CacheManagerCli
 from .git_manager import GitRepository
 from .launcher import Launcher, LauncherCliArgs
+from .workflow import select_workflow
 from .xml_rpc._server import _XmlRpcServerCli
 
 logger = logging.getLogger(__name__)
@@ -40,12 +39,10 @@ class _RunCli(LauncherCliArgs):
     )
 
     def _run(self):
-        """Builds the launcher, selects the experiment and runs it."""
+        """Builds the launcher, selects the workflow and runs it."""
         launcher = Launcher(settings=self)
-        experiment_metadata = _select_experiment(
-            self.experiment_path, frontend=launcher.frontend, experiment_name=self.experiment_name
-        )
-        launcher.run_experiment(experiment_metadata.func)
+        workflow = select_workflow(self.experiment_path, frontend=launcher.frontend, name=self.experiment_name)
+        launcher.run_experiment(workflow)
 
     def cli_cmd(self):
         """Run the specified experiment, optionally under a single-session lock."""
@@ -124,6 +121,26 @@ class _RepositoryStateCli(BaseSettings):
         print(metadata.model_dump_json(indent=2))
 
 
+class _CheckCli(BaseSettings):
+    """Statically check the workflows of an experiment file or directory without running them."""
+
+    path: CliPositionalArg[Path] = Field(description="Experiment file, or a directory of experiment files")
+    strict: CliImplicitFlag[bool] = Field(
+        default=False, description="Also fail on unannotated or undecidable wiring (reported as warnings)"
+    )
+
+    def cli_cmd(self):
+        """Print the issues found and exit with status 1 if any fail the check."""
+        from .workflow import check_path
+
+        issues = check_path(self.path, strict=self.strict)
+        for issue in issues:
+            print(issue)
+        print(f"{len(issues)} issue(s) in {self.path}")
+        if any(issue.severity == "error" or self.strict for issue in issues):
+            raise SystemExit(1)
+
+
 class CliAppSettings(BaseSettings, cli_prog_name="clabe", cli_kebab_case=True):
     """CLI application settings."""
 
@@ -132,6 +149,7 @@ class CliAppSettings(BaseSettings, cli_prog_name="clabe", cli_kebab_case=True):
     run: CliSubCommand[_RunCli]
     serve: CliSubCommand[_ServeCli]
     repository_state: CliSubCommand[_RepositoryStateCli]
+    check: CliSubCommand[_CheckCli]
 
     def cli_cmd(self):
         """Run the selected subcommand."""

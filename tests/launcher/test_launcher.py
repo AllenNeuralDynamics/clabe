@@ -1,4 +1,6 @@
+import asyncio
 import contextlib
+import json
 import logging
 import threading
 import time
@@ -9,7 +11,9 @@ import pytest
 
 from clabe.launcher import Launcher, experiment
 from clabe.launcher._cli import LauncherCliArgs
-from clabe.ui import PromptCancelledError
+from clabe.ui import ConfirmRequest, PromptCancelledError
+from clabe.workflow import Abort, RunFrontend, Workflow
+from tests.conftest import MockFrontend
 
 
 def test_base_launcher_with_attached_logger(mock_base_launcher, mock_frontend):
@@ -319,3 +323,85 @@ def test_exit_timeout_without_cancel_prompt_waits_for_the_user(mock_base_launche
         mock_base_launcher._exit(0, timeout=0.05)
     assert frontend.labels == ["Press Enter to exit..."]
     assert "cannot cancel prompts" in caplog.text
+
+
+def test_run_experiment_runs_a_workflow_through_the_run_frontend(mock_base_launcher):
+    seen = []
+    wf = Workflow("wf", exit_prompt_timeout=0)
+
+    @wf.step
+    def a(launcher):
+        seen.append(type(launcher.frontend))
+        return launcher.frontend.prompt_confirm(ConfirmRequest(label="?"))
+
+    call = _record_exit_call(mock_base_launcher, wf)
+
+    assert call == {"code": 0, "_force": False, "timeout": 0}
+    assert seen == [RunFrontend]
+    assert isinstance(mock_base_launcher.frontend, MockFrontend)
+    assert (mock_base_launcher.temp_dir / "events.jsonl").exists()
+
+
+def test_an_aborted_run_exits_with_an_error_code(mock_base_launcher):
+    wf = Workflow("wf")
+
+    @wf.step
+    def a():
+        raise Abort("no rig")
+
+    assert _record_exit_call(mock_base_launcher, wf)["code"] == -1
+
+
+def test_a_failing_legacy_experiment_can_be_aborted(mock_base_launcher, mock_frontend):
+    mock_frontend._ask_pick_mock.return_value = "abort"
+
+    def boom(launcher):
+        raise RuntimeError("x")
+
+    assert _record_exit_call(mock_base_launcher, boom)["code"] == -1
+    mock_frontend._ask_pick_mock.assert_called_once()
+
+
+def test_a_legacy_sync_experiment_can_call_asyncio_run(mock_base_launcher, mock_frontend):
+    mock_frontend._ask_pick_mock.return_value = "abort"  # fail fast instead of re-asking on a failure
+    ran = []
+
+    async def work():
+        ran.append(True)
+
+    @experiment()
+    def legacy(launcher):
+        asyncio.run(work())
+
+    assert _record_exit_call(mock_base_launcher, legacy)["code"] == 0
+    assert ran == [True]
+
+
+def test_run_experiment_writes_a_finished_manifest(mock_base_launcher):
+    _record_exit_call(mock_base_launcher, lambda launcher: None)
+
+    manifest = json.loads((mock_base_launcher.temp_dir / "run.json").read_text(encoding="utf-8"))
+    assert manifest["outcome"]["status"] == "completed"
+    assert manifest["outcome"]["exit_code"] == 0
+
+
+def test_a_failed_log_copy_is_recorded_as_the_manifest_exit_code(mock_base_launcher):
+    def boom(self, *a, **k):
+        raise ValueError("no session directory")
+
+    with (
+        patch.object(Launcher, "validate", return_value=True),
+        patch.object(Launcher, "copy_logs", boom),
+        patch.object(Launcher, "_exit", lambda self, code=0, _force=False, timeout=None: None),
+    ):
+        mock_base_launcher.run_experiment(lambda launcher: None)
+
+    manifest = json.loads((mock_base_launcher.temp_dir / "run.json").read_text(encoding="utf-8"))
+    assert manifest["outcome"]["status"] == "completed"
+    assert manifest["outcome"]["exit_code"] == -1
+
+
+def test_a_launcher_runs_a_single_experiment(mock_base_launcher):
+    _record_exit_call(mock_base_launcher, lambda launcher: None)
+    with pytest.raises(RuntimeError, match="single experiment"):
+        mock_base_launcher.run_experiment(lambda launcher: None)

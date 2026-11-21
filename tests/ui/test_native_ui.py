@@ -4,6 +4,7 @@ import threading
 from pathlib import Path
 
 import pytest
+from pydantic import BaseModel
 from rich.console import Console
 
 from clabe.ui import (
@@ -11,6 +12,7 @@ from clabe.ui import (
     AutoCompleteRequest,
     ConfirmRequest,
     ConsoleFrontend,
+    FieldRequest,
     PathRequest,
     PickRequest,
     PromptCancelledError,
@@ -55,6 +57,13 @@ class TestConsoleFrontend:
         monkeypatch.setattr("builtins.input", lambda *a, **k: "0")
         result = frontend.prompt_pick(PickRequest(label="Choose", options=["item1", "item2"], allow_none=True))
         assert result is None
+
+    def test_prompt_field_empty_answer_to_pep604_optional_is_none(self, frontend, monkeypatch):
+        class Model(BaseModel):
+            note: str | None = None
+
+        monkeypatch.setattr("builtins.input", lambda *a, **k: "")
+        assert frontend.prompt_field(FieldRequest(model=Model, field_name="note")) is None
 
 
 class TestConsoleFrontendPath:

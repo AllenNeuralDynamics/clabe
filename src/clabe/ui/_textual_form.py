@@ -1,7 +1,6 @@
 import logging
 import os
 import re
-import typing
 from collections.abc import Callable, Sequence
 from enum import Enum
 from pathlib import Path
@@ -18,6 +17,7 @@ from textual.widgets import Button, DataTable, Footer, Input, Label, OptionList,
 from textual_fspicker import FileOpen, Filters, SelectDirectory
 
 from ._requests import AcknowledgeRequest, FormRequest, ReadOnlyTable, normalize_extensions
+from ._validation import resolve_field_type
 
 logger = logging.getLogger(__name__)
 
@@ -26,18 +26,6 @@ def _humanize(name: str) -> str:
     """Convert snake_case or CamelCase to Title Case words."""
     name = re.sub(r"(?<=[a-z0-9])([A-Z])", r" \1", name)
     return name.replace("_", " ").replace("-", " ").title()
-
-
-def _resolve_form_type(annotation: Any) -> tuple[Any, bool]:
-    """Return (inner_type, is_optional) after stripping Annotated and Optional wrappers."""
-    if get_origin(annotation) is typing.Annotated:
-        annotation = get_args(annotation)[0]
-    if get_origin(annotation) is typing.Union:
-        args = get_args(annotation)
-        non_none = [a for a in args if a is not type(None)]
-        if len(non_none) == 1:
-            return non_none[0], True
-    return annotation, False
 
 
 def _field_label(field_name: str, field_info: Any, is_optional: bool) -> str:
@@ -496,7 +484,7 @@ class _FormScreen(ModalScreen):
                 yield Button("✕", id="form-close", variant="default")
             with ScrollableContainer(id="form-scroll"):
                 for field_name, field_info in self._model.model_fields.items():
-                    inner_type, is_optional = _resolve_form_type(field_info.annotation)
+                    inner_type, is_optional = resolve_field_type(field_info.annotation)
                     default = _field_default(field_name, field_info, self._initial)
                     widget = _build_field_widget(field_name, inner_type, default)
                     is_path = isinstance(inner_type, type) and issubclass(inner_type, Path)
@@ -517,7 +505,7 @@ class _FormScreen(ModalScreen):
         self._field_order = list(self._model.model_fields.keys())
         self._path_fields: set[str] = set()
         for name, info in self._model.model_fields.items():
-            inner, _ = _resolve_form_type(info.annotation)
+            inner, _ = resolve_field_type(info.annotation)
             if isinstance(inner, type) and issubclass(inner, Path):
                 self._path_fields.add(name)
             try:
@@ -666,7 +654,7 @@ class _FormScreen(ModalScreen):
         if field_info is None:
             return True
         base_annotation = field_info.annotation
-        _, is_optional = _resolve_form_type(base_annotation)
+        _, is_optional = resolve_field_type(base_annotation)
         annotation = (
             Annotated[tuple([base_annotation] + list(field_info.metadata))] if field_info.metadata else base_annotation
         )
@@ -691,7 +679,7 @@ class _FormScreen(ModalScreen):
             self._clear_field_error(field_name)
         data: dict[str, Any] = {}
         for field_name, field_info in self._model.model_fields.items():
-            _, is_optional = _resolve_form_type(field_info.annotation)
+            _, is_optional = resolve_field_type(field_info.annotation)
             widget = self._field_widgets.get(field_name)
             data[field_name] = _read_field_widget(widget, is_optional) if widget is not None else None
         try:

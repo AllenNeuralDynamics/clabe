@@ -1,3 +1,4 @@
+import contextlib
 import io
 import threading
 import time
@@ -90,3 +91,23 @@ class TestActivityIndicator:
 class TestGetActivityIndicator:
     def test_returns_singleton(self):
         assert get_activity_indicator() is get_activity_indicator()
+
+
+def test_observers_see_every_activity_even_when_display_is_disabled():
+    seen = []
+
+    @contextlib.contextmanager
+    def observer(description):
+        seen.append(("start", description))
+        yield
+        seen.append(("end", description))
+
+    indicator = ActivityIndicator(enabled=False)
+    remove = indicator.observe(observer)
+    with indicator.activity("work"):
+        seen.append(("body", "work"))
+    remove()
+    with indicator.activity("ignored"):
+        pass
+
+    assert seen == [("start", "work"), ("body", "work"), ("end", "work")]

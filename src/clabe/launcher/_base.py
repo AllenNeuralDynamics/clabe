@@ -1,4 +1,3 @@
-import asyncio
 import contextlib
 import hashlib
 import logging
@@ -6,7 +5,7 @@ import os
 import random
 import shutil
 import threading
-from collections.abc import Awaitable, Callable, Generator
+from collections.abc import Generator
 from pathlib import Path
 from typing import Self, TypeVar
 
@@ -22,8 +21,9 @@ from ..logging.otel import bind_session, record_exception, run_span
 from ..runnable import set_include_timing
 from ..ui import Frontend, MessageLevel, PromptCancelledError, TextRequest, make_frontend, set_current_frontend
 from ..utils import abspath, format_datetime, utcnow
+from ..workflow import ExperimentCallable, LocalClient, Run, RunFrontend, RunStatus, Workflow, as_workflow
 from ._cli import LauncherCliArgs
-from ._experiments import get_experiment_metadata, get_experiment_name
+from ._manifest import RunManifest, collect_manifest, finish_manifest, write_manifest
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +72,7 @@ class Launcher:
                 backend selected by ``settings.frontend``
         """
         self._settings = settings
-        self.frontend = frontend or make_frontend(settings.frontend)
+        self.frontend: Frontend = frontend or make_frontend(settings.frontend)
         # Register the frontend so UI-agnostic library modules can surface key
         # events to the user (see ``clabe.ui.notify``).
         set_current_frontend(self.frontend)
@@ -111,6 +111,8 @@ class Launcher:
 
         self._session: Session | None = None
         self._has_copied_logs = False
+        self._manifest: RunManifest | None = None
+        self._has_run = False
 
     @property
     def data_directory(self) -> Path:
@@ -187,61 +189,67 @@ class Launcher:
         else:
             return self._session
 
-    def run_experiment(self, experiment: Callable[["Launcher"], None | Awaitable[None]]) -> None:
+    def run_experiment(self, experiment: "Workflow | ExperimentCallable") -> None:
         """
         Main entry point for the launcher execution.
 
-        Orchestrates the complete launcher workflow including validation,
-        experiment execution, and cleanup.
+        Accepts a :class:`~clabe.workflow.Workflow`, an ``@experiment`` function or a plain ``(launcher)``
+        callable (sync or async), and executes it as a run driven by this launcher's frontend. While the run
+        executes, ``launcher.frontend`` points at the run. The run's ``events.jsonl`` is written to ``temp_dir``.
+        Orchestrates the complete launcher workflow including validation, execution and cleanup.
+
+        Steps (including legacy experiments) run on a dedicated run thread, not the main thread; code that must
+        run on the main thread (e.g. ``signal.signal``, some GUI toolkits) cannot be called from a step.
+
+        A launcher runs a single experiment: create a new launcher for another run.
 
         Args:
-            experiment: A callable or async callable that takes the launcher as an argument and runs the experiment
+            experiment: The workflow, or the callable taking the launcher as its argument, to run
+
+        Raises:
+            RuntimeError: If this launcher has already run an experiment.
 
         Example:
             ```python
-            def my_experiment(launcher: Launcher):
-                # Experiment logic here
-                pass
-
-            async def my_async_experiment(launcher: Launcher):
-                # Async experiment logic here
+            async def my_experiment(launcher: Launcher):
+                # Experiment logic here (sync or async)
                 pass
 
             launcher = Launcher(...)
             launcher.run_experiment(my_experiment)
-            launcher.run_experiment(my_async_experiment)
             ```
         """
+        if self._has_run:
+            raise RuntimeError("A Launcher runs a single experiment; create a new Launcher for another run.")
+        self._has_run = True
+        workflow = as_workflow(experiment)
         _code = 0
         # Handle inside run_span so teardown logs stay under the root span (and its attributes).
-        # The exception no longer escapes the span, so status is set explicitly below.
-        _experiment_name = get_experiment_name(experiment)
-        with run_span(self, experiment_name=_experiment_name):
+        with run_span(self, experiment_name=workflow.name):
             try:
                 self.frontend.header(self.make_header())
                 set_experiment = getattr(self.frontend, "set_experiment", None)
                 if callable(set_experiment):
-                    set_experiment(_experiment_name)
+                    set_experiment(workflow.name)
                 logger.info(self._generate_diagnostic_info())
 
                 if not self.settings.debug_mode:
                     self.validate()
 
-                result = experiment(self)
-                if asyncio.iscoroutine(result):
-                    asyncio.run(result)
+                _code = self._finish(self._run_workflow(workflow))
 
             except KeyboardInterrupt as e:
-                # An interrupt aborts the run: record it so the trace is red (OTel skips
-                # BaseException, so this must be explicit) while keeping it filterable by type.
+                # A second Ctrl+C (the first one aborts the run), or one outside the run.
                 logger.error("User interrupted the process.")
                 self.frontend.notify("Interrupted by user.", MessageLevel.WARNING)
                 record_exception(e)
+                self._record_outcome("aborted", "Interrupted by user.", -1)
                 _code = -1
             except Exception as e:  # pylint: disable=broad-except
                 logger.exception("Launcher failed")
                 self.frontend.notify(f"Launcher failed: {e}", MessageLevel.ERROR)
                 record_exception(e)
+                self._record_outcome("failed", str(e), -1)
                 _code = -1
             finally:
                 try:
@@ -249,8 +257,67 @@ class Launcher:
                 except ValueError as ve:  # In the case session_directory fails
                     self.frontend.notify(f"Failed to copy logs from {self.temp_dir}: {ve}", MessageLevel.ERROR)
                     _code = -1
-        metadata = get_experiment_metadata(experiment)
-        self._exit(_code, timeout=metadata.exit_prompt_timeout if metadata is not None else None)
+                    self._record_exit_code(_code)
+        self._exit(_code, timeout=workflow.exit_prompt_timeout)
+
+    def _run_workflow(self, workflow: Workflow) -> Run:
+        """Executes ``workflow`` with this launcher, driven by the local frontend."""
+        run = Run(workflow, launcher=self, record_dir=self.temp_dir)
+        self._manifest = collect_manifest(self, run.workflow, run_id=run.id, directory=self.temp_dir)
+        self._write_manifest()
+        local = self.frontend
+        self.frontend = RunFrontend(run)
+        set_current_frontend(self.frontend)
+        try:
+            LocalClient(run, local).drive()
+        finally:
+            self.frontend = local
+            set_current_frontend(local)
+        return run
+
+    def _finish(self, run: Run) -> int:
+        """Reports how ``run`` ended, records it in the run manifest and returns the launcher exit code."""
+        code = self._report(run)
+        self._record_outcome(run.status.value, run.reason, code)
+        return code
+
+    def _report(self, run: Run) -> int:
+        """Tells the user how ``run`` ended and returns the launcher exit code."""
+        if run.status is RunStatus.COMPLETED:
+            return 0
+        if run.status is RunStatus.ABORTED:
+            logger.error("Run aborted: %s", run.reason)
+            self.frontend.notify(f"Run aborted: {run.reason}", MessageLevel.WARNING)
+            # Keep the trace red and filterable by type, as a Ctrl+C was before runs existed.
+            record_exception(run.error or KeyboardInterrupt(run.reason))
+        else:
+            logger.error("Run failed: %s", run.reason, exc_info=run.error)
+            self.frontend.notify(f"Launcher failed: {run.reason}", MessageLevel.ERROR)
+            record_exception(run.error or RuntimeError(run.reason))
+        return -1
+
+    def _record_outcome(self, status: str, reason: str | None, exit_code: int) -> None:
+        """Adds the outcome to the run manifest, if one was started, and rewrites it."""
+        if self._manifest is None:
+            return
+        finish_manifest(self._manifest, status=status, reason=reason, exit_code=exit_code)
+        self._write_manifest()
+
+    def _record_exit_code(self, exit_code: int) -> None:
+        """Changes the exit code of the outcome already in the run manifest, if any, and rewrites it."""
+        if self._manifest is None or self._manifest.outcome is None:
+            return
+        self._manifest.outcome.exit_code = exit_code
+        self._write_manifest()
+
+    def _write_manifest(self) -> None:
+        """Writes the run manifest; a failure is logged, never raised."""
+        if self._manifest is None:
+            return
+        try:
+            write_manifest(self._manifest, self.temp_dir)
+        except Exception:
+            logger.exception("Could not write the run manifest")
 
     def copy_logs(self, dst: os.PathLike | None = None, suffix: str = "Behavior/Logs") -> None:
         """
