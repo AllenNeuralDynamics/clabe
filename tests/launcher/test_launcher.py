@@ -5,7 +5,9 @@ import time
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from clabe.launcher import Launcher
+import pytest
+
+from clabe.launcher import Launcher, experiment
 from clabe.launcher._cli import LauncherCliArgs
 from clabe.ui import PromptCancelledError
 
@@ -225,9 +227,22 @@ def test_exit_prompt_shown_by_default(mock_base_launcher):
     assert call == {"code": 0, "_force": False, "timeout": None}
 
 
-def test_exit_prompt_timeout_is_forwarded(mock_base_launcher):
-    mock_base_launcher._settings = mock_base_launcher.settings.model_copy(update={"exit_prompt_timeout": 60.0})
-    assert _record_exit_call(mock_base_launcher, lambda launcher: None)["timeout"] == 60.0
+@pytest.mark.parametrize("timeout", [0, 60.0, None])
+def test_experiment_exit_prompt_timeout_is_forwarded(mock_base_launcher, timeout):
+    @experiment(exit_prompt_timeout=timeout)
+    def my_experiment(launcher):
+        pass
+
+    assert _record_exit_call(mock_base_launcher, my_experiment)["timeout"] == timeout
+
+
+def test_experiment_rejects_negative_exit_prompt_timeout():
+    with pytest.raises(ValueError, match="exit_prompt_timeout"):
+        experiment(exit_prompt_timeout=-1)
+
+
+def test_exit_prompt_timeout_is_not_a_launcher_setting():
+    assert "exit_prompt_timeout" not in LauncherCliArgs.model_fields
 
 
 class _CancellableFrontend:

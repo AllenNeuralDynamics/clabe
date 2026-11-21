@@ -112,20 +112,22 @@ effect.
 ## The exit prompt
 
 When an experiment finishes, the launcher waits at **Press Enter to exit...**
-so the last messages (and any error) stay on screen. `exit_prompt_timeout`
-controls that wait:
+so the last messages (and any error) stay on screen. Each experiment sets that
+wait with `exit_prompt_timeout`:
 
 | Value | Result |
 | --- | --- |
-| *unset* (default) | Wait until Enter is pressed |
+| `None` (default) | Wait until Enter is pressed |
 | `0` | Exit immediately, without prompting |
 | `N` | Wait up to `N` seconds, then exit on its own |
 
-Set it per run with `--exit-prompt-timeout 60`, or per machine as a top-level
-key in `clabe.yml`, e.g. on rigs that must not stay blocked between sessions:
+```python
+@experiment(name="photobleaching", exit_prompt_timeout=0)
+async def photobleaching(launcher: Launcher) -> None: ...
 
-```yaml
-exit_prompt_timeout: 60
+
+@experiment(name="vr-foraging", exit_prompt_timeout=60)  # rigs must not stay blocked between sessions
+async def vr_foraging(launcher: Launcher) -> None: ...
 ```
 
 The timeout relies on `cancel_prompt`, so it has no effect on a frontend that

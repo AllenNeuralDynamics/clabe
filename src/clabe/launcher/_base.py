@@ -23,7 +23,7 @@ from ..runnable import set_include_timing
 from ..ui import Frontend, MessageLevel, PromptCancelledError, TextRequest, make_frontend, set_current_frontend
 from ..utils import abspath, format_datetime, utcnow
 from ._cli import LauncherCliArgs
-from ._experiments import get_experiment_name
+from ._experiments import get_experiment_metadata, get_experiment_name
 
 logger = logging.getLogger(__name__)
 
@@ -249,7 +249,8 @@ class Launcher:
                 except ValueError as ve:  # In the case session_directory fails
                     self.frontend.notify(f"Failed to copy logs from {self.temp_dir}: {ve}", MessageLevel.ERROR)
                     _code = -1
-        self._exit(_code, timeout=self.settings.exit_prompt_timeout)
+        metadata = get_experiment_metadata(experiment)
+        self._exit(_code, timeout=metadata.exit_prompt_timeout if metadata is not None else None)
 
     def copy_logs(self, dst: os.PathLike | None = None, suffix: str = "Behavior/Logs") -> None:
         """

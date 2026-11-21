@@ -25,11 +25,15 @@ class ExperimentMetadata:
         func: The underlying callable.
         order: Sort key controlling position when multiple experiments are
             listed (lower sorts first). Ties keep declaration order.
+        exit_prompt_timeout: Seconds the launcher waits at the "Press Enter to
+            exit..." prompt once the experiment finishes. ``None`` waits until
+            Enter is pressed; ``0`` exits without prompting.
     """
 
     name: str
     func: ExperimentCallable
     order: int = 0
+    exit_prompt_timeout: float | None = None
 
 
 class _IExperiment(Protocol):
@@ -44,6 +48,7 @@ def experiment(
     *,
     name: str | None = None,
     order: int = 0,
+    exit_prompt_timeout: float | None = None,
 ) -> Callable[[_IExperiment], _IExperiment]:
     """Decorator to mark a function as a CLABE experiment.
 
@@ -56,6 +61,14 @@ def experiment(
         order: Sort key controlling where this experiment appears when a
             module defines more than one (lower sorts first). Experiments with
             the same ``order`` keep their declaration order.
+        exit_prompt_timeout: Seconds to wait at the "Press Enter to exit..."
+            prompt once the experiment finishes, before exiting on its own.
+            ``None`` (default) waits until Enter is pressed; ``0`` exits without
+            prompting. It has no effect on a frontend that cannot cancel its
+            prompts.
+
+    Raises:
+        ValueError: If ``exit_prompt_timeout`` is negative.
 
     Example:
         ```python
@@ -65,11 +78,13 @@ def experiment(
         from clabe.launcher import experiment
 
 
-        @experiment(name="super_duper_experiment", order=-1)
+        @experiment(name="super_duper_experiment", order=-1, exit_prompt_timeout=60)
         async def vr_foraging_with_photometry(launcher: Launcher) -> None:
             ...
         ```
     """
+    if exit_prompt_timeout is not None and exit_prompt_timeout < 0:
+        raise ValueError(f"exit_prompt_timeout must be None or >= 0, got {exit_prompt_timeout}.")
 
     def decorator(func: _IExperiment) -> _IExperiment:
         exp_name = name or func.__name__
@@ -77,11 +92,25 @@ def experiment(
             name=exp_name,
             func=func,  # type: ignore[arg-type]
             order=order,
+            exit_prompt_timeout=exit_prompt_timeout,
         )
         func.__clabe_experiment_metadata__ = metadata
         return func
 
     return decorator
+
+
+def get_experiment_metadata(experiment: Callable[..., Any]) -> ExperimentMetadata | None:
+    """Return the :class:`ExperimentMetadata` attached by :func:`experiment`, or ``None``.
+
+    Args:
+        experiment: The experiment callable.
+
+    Returns:
+        The metadata, or ``None`` if the callable is not decorated with :func:`experiment`.
+    """
+    metadata = getattr(experiment, "__clabe_experiment_metadata__", None)
+    return metadata if isinstance(metadata, ExperimentMetadata) else None
 
 
 def get_experiment_name(experiment: _IExperiment) -> str | None:

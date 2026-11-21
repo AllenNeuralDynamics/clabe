@@ -37,12 +37,6 @@ class LauncherCliArgs(ServiceSettings, cli_prog_name="clabe", cli_kebab_case=Tru
     skip_hardware_validation: CliImplicitFlag[bool] = Field(
         default=False, description="Whether to skip hardware validation"
     )
-    exit_prompt_timeout: float | None = Field(
-        default=None,
-        ge=0,
-        description="Seconds to wait at the 'Press Enter to exit...' prompt before exiting on its own. "
-        "None waits forever; 0 exits immediately without prompting.",
-    )
     clabe_yml: FilePath | None = Field(
         default=None,
         description="Path to a clabe.yml file to load in addition to the known config files. "
