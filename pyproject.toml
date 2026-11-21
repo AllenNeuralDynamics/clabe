@@ -32,6 +32,8 @@ dependencies = [
     "textual>=8.2.7",
     "textual-fspicker>=1.0.1",
     "opentelemetry-api>=1.24",
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
 ]
 
 [project.urls]
@@ -41,9 +43,6 @@ Issues = "https://github.com/AllenNeuralDynamics/clabe/issues"
 Changelog = "https://github.com/AllenNeuralDynamics/clabe/releases"
 
 [project.optional-dependencies]
-web = [
-    "textual-serve",
-]
 otel = [
     "opentelemetry-sdk",
     "opentelemetry-exporter-otlp-proto-http",
@@ -72,7 +71,6 @@ dev = [
     'pytest-asyncio',
     'interrogate',
     "aind-clabe[aind-services]",
-    "aind-clabe[web]",
     "aind-clabe[otel]",
 ]
 

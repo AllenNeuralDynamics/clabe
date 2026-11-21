@@ -86,7 +86,7 @@ class SessionConfig(BaseModel):
 async def demo_experiment(launcher: Launcher) -> None:
     """Demo experiment showcasing CLABE functionality."""
     # Seed the mock rig/subjects/cache here so the demo also works when launched
-    # via ``clabe run``/``clabe serve`` (which call this function but not main()).
+    # via ``clabe run`` (which call this function but not main()).
     create_fake_subjects()
     create_fake_rig()
     _seed_cache()

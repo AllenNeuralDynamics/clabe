@@ -92,10 +92,11 @@ Run an experiment interactively:
 uv run clabe run path/to/my_experiment.py
 ```
 
-Serve an experiment's text UI locally:
+`clabe run` also serves the run over HTTP while it executes (`--no-serve` to disable): open the printed URL to
+follow and answer it from a browser, or drive it from code through the API described at `/docs`.
 
 ```bash
-uv run clabe serve path/to/my_experiment.py --port 8089
+uv run clabe run path/to/my_experiment.py --host 0.0.0.0 --token "$CLABE_TOKEN"
 ```
 
 Capture Git state for a repository and all declared submodules:
@@ -112,7 +113,6 @@ Some integrations are optional so a basic installation remains lightweight:
 
 ```bash
 uv add "aind-clabe[aind-services]"  # AIND services, data schema, and transfer tooling
-uv add "aind-clabe[web]"            # Web-served Textual UI
 uv add "aind-clabe[otel]"           # OpenTelemetry exporters and YAML support
 ```
 

@@ -799,6 +799,22 @@ class Run:
             self._interrupt_locked(allow_sync=False)
         return Ack()
 
+    def retry(self, step: str, *, client: str = "local") -> Ack | Rejected:
+        """Retries ``step`` after it failed: answers its open Retry / Go back / Abort prompt with "retry"."""
+        return self._answer_step_prompt(step, f"{step}.failed", "retry", "has no failure waiting", client)
+
+    def skip(self, step: str, *, client: str = "local") -> Ack | Rejected:
+        """Skips the optional ``step``: answers its open "run this step?" prompt with no."""
+        return self._answer_step_prompt(step, f"{step}.optional", False, "is not asking whether to run", client)
+
+    def _answer_step_prompt(self, step: str, field: str, value: Any, missing: str, client: str) -> Ack | Rejected:
+        """Answers the open prompt of ``step`` whose request field is ``field``, if it is the one open."""
+        with self._lock:
+            prompt = self._prompt
+        if prompt is None or prompt.opened.step != step or getattr(prompt.request, "field", None) != field:
+            return Rejected(f"Step {step!r} {missing}.")
+        return self.answer(prompt.id, value, client=client)
+
     def abort(self, reason: str = "Aborted by user.") -> Ack:
         """Stops the run: cancels the open prompt or interrupts the busy step, then ends the run as aborted.
 

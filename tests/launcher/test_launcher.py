@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+import requests
 
 from clabe import ui
 from clabe.launcher import Launcher, experiment
@@ -289,7 +290,7 @@ def test_exit_timeout_cancels_prompt(mock_base_launcher):
     mock_base_launcher.client = frontend
     started = time.monotonic()
     mock_base_launcher._exit(0, timeout=0.2)
-    assert 0.2 <= time.monotonic() - started < 2
+    assert 0.15 <= time.monotonic() - started < 2  # Windows waits can return a timer tick early
     assert frontend.labels == ["Press Enter to exit (closing automatically in 0.2 s)..."]
 
 
@@ -400,3 +401,31 @@ def test_a_launcher_runs_a_single_experiment(mock_base_launcher):
     _record_exit_call(mock_base_launcher, lambda launcher: None)
     with pytest.raises(RuntimeError, match="single experiment"):
         mock_base_launcher.run_experiment(lambda launcher: None)
+
+
+def test_a_served_run_is_reachable_while_it_executes(mock_base_launcher, mock_frontend):
+    from clabe.server import RunClient
+
+    mock_base_launcher._settings = mock_base_launcher.settings.model_copy(
+        update={"serve": True, "port": 18190, "token": "s3cret"}
+    )
+    seen = {}
+
+    def announced_url() -> str:
+        messages = [call.args[0] for call in mock_frontend._render_mock.call_args_list]
+        return next(m.removeprefix("Run served at ") for m in messages if m.startswith("Run served at "))
+
+    wf = Workflow("served", exit_prompt_timeout=0)
+
+    @wf.step
+    def probe():
+        url = announced_url()
+        assert url.endswith("/?token=s3cret")
+        client = RunClient(url.split("/?")[0], token="s3cret")
+        seen["step"] = client.state().current_step
+        seen["url"] = url
+
+    assert _record_exit_call(mock_base_launcher, wf)["code"] == 0
+    assert seen["step"] == "probe"
+    with pytest.raises(requests.ConnectionError):  # the server stops with the run
+        RunClient(seen["url"].split("/?")[0], token="s3cret", timeout=1).info()

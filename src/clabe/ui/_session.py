@@ -181,9 +181,21 @@ def text(
     return ask(TextRequest(label=label, default=default, multiline=multiline, validators=list(validators), field=field))
 
 
-def number(label: str, *, default: float | None = None, field: str | None = None) -> float:
-    """Asks for a number (see :class:`~clabe.ui.NumberRequest`)."""
-    return ask(NumberRequest(label=label, default=default, field=field))
+def number(
+    label: str,
+    *,
+    default: float | None = None,
+    field: str | None = None,
+    minimum: float | None = None,
+    maximum: float | None = None,
+    step: float | None = None,
+    widget: Literal["input", "slider"] = "input",
+) -> float:
+    """Asks for a number, optionally bounded (see :class:`~clabe.ui.NumberRequest`)."""
+    request = NumberRequest(
+        label=label, default=default, field=field, minimum=minimum, maximum=maximum, step=step, widget=widget
+    )
+    return ask(request)
 
 
 def pick(

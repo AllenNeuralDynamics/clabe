@@ -144,24 +144,25 @@ footer listing the active shortcuts:
 pane. Existing paths in the Session and Logs panes are rendered as `file://` hyperlinks — `Ctrl`/`⌘`-click opens them
 in terminals that support OSC 8 (e.g. Windows Terminal, iTerm2).
 
-## Serving the TUI over the web
+## Serving a run over HTTP
 
-`clabe serve` runs the TUI in a browser via `textual-serve`, so a launcher can be driven remotely without a separate
-web UI:
+With `--serve` (the default for `clabe run`), the launcher serves its run over HTTP while it executes. The local
+frontend keeps working; any number of browsers or programs can follow the run and answer its prompts too — the
+first valid answer wins and everyone sees it.
 
 ```bash
-clabe serve my_experiment.py --port 8080
+clabe run my_experiment.py                   # serves on http://localhost:8090 (or the next free port)
+clabe run my_experiment.py --no-serve        # local frontend only
+clabe run my_experiment.py --host 0.0.0.0 --token "$CLABE_TOKEN" --open-browser
 ```
 
-- It binds **localhost only**. For remote access, forward the port over SSH rather than exposing it to the network:
+- It binds **localhost only** by default. For remote access forward the port over SSH
+  (`ssh -L 8090:localhost:8090 <rig-host>`), or bind `0.0.0.0` with a token.
+- `--token` (or `$CLABE_TOKEN`) requires `Authorization: Bearer <token>` (or `?token=`) on every API call; the
+  printed URL carries it.
+- The API is described by OpenAPI at `/openapi.json` (browsable at `/docs`):
+  `GET /api/state` (a snapshot), `GET /api/events` (a resumable Server-Sent Events stream of the run's events),
+  `POST /api/prompts/{id}/answer`, `POST /api/steps/{name}/back|retry|skip`, `POST /api/abort`, and
+  `POST /api/fs/list` (directory listings for remote path pickers).
+- [`clabe.server.RunClient`][clabe.server.RunClient] is a small Python client of that API.
 
-  ```bash
-  ssh -L 8080:localhost:8080 <rig-host>     # then open http://localhost:8080
-  ```
-
-- **Single session is enforced.** Each browser connection spawns its own launcher subprocess, so `clabe serve` passes
-  `--single-session`: a stray second connection refuses to start rather than fighting the live session over the rig.
-- The "Session ended" screen has a **Finish** button (next to Restart) that shuts the server down and frees the port.
-- `--open-browser` opens the page automatically once the server is ready (leave it off on headless/remote hosts).
-
-Serving requires the optional `web` extra: `pip install "aind-clabe[web]"`.

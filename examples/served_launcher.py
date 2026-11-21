@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import sys
 from pathlib import Path
 
 from _mocks import (
@@ -12,15 +11,15 @@ from _mocks import (
     create_fake_rig,
     create_fake_subjects,
 )
+from pydantic_settings import CliApp
 
 from clabe import resource_monitor
 from clabe.apps import CurriculumApp, CurriculumSettings, PythonScriptApp
 from clabe.cache_manager import CacheManager
-from clabe.launcher import Launcher, experiment
+from clabe.launcher import Launcher, LauncherCliArgs, experiment
 from clabe.runnable import runnable
 from clabe.session import SessionBuilder
 from clabe.stores import LocalFileStore
-from clabe.web import serve
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +28,7 @@ logger = logging.getLogger(__name__)
 async def demo_experiment(launcher: Launcher) -> None:
     """Demo experiment showcasing CLABE functionality."""
     # Seed the mock rig/subjects/cache here so the demo also works when launched
-    # via ``clabe run``/``clabe serve`` (which call this function but not main()).
+    # via ``clabe run`` (which call this function but not main()).
     create_fake_subjects()
     create_fake_rig()
     _seed_cache()
@@ -91,14 +90,13 @@ def _seed_cache() -> None:
 
 
 def main():
-    # Serve this experiment's TUI over a local web port and pop open the browser.
-    # Each browser connection runs `clabe run <this file> --frontend tui` as its
-    # own subprocess, so the seeding/experiment above runs there.
-    this_file = f'"{Path(__file__).resolve()}"'
-    serve(
-        f"{sys.executable} -m clabe.cli run {this_file} --allow-dirty --skip-hardware-validation --frontend tui",
-        open_browser=True,
+    # Run the demo while serving it over HTTP: answer its prompts from the console *or* from the browser
+    # (any machine that can reach the port). `clabe run examples/served_launcher.py` does the same.
+    settings = CliApp.run(
+        LauncherCliArgs,
+        cli_args=["--allow-dirty", "--skip-hardware-validation", "--serve", "--open-browser"],
     )
+    Launcher(settings=settings).run_experiment(demo_experiment)
 
 
 if __name__ == "__main__":

@@ -273,8 +273,36 @@ class Launcher:
         run = Run(self._with_preflight(workflow), launcher=self, record_dir=self.temp_dir)
         self._manifest = collect_manifest(self, run.workflow, run_id=run.id, directory=self.temp_dir)
         self._write_manifest()
-        LocalClient(run, self.client).drive()
+        with self._served(run):
+            LocalClient(run, self.client).drive()
         return run
+
+    @contextlib.contextmanager
+    def _served(self, run: Run) -> Generator[None, None, None]:
+        """Serves ``run`` over HTTP while the block executes, when the settings ask for it."""
+        if not self.settings.serve:
+            yield
+            return
+        from ..server import RunServer
+
+        token = self.settings.token or os.environ.get("CLABE_TOKEN") or None
+        server = RunServer(run, host=self.settings.host, port=self.settings.port, token=token)
+        try:
+            url = server.start()
+        except (OSError, RuntimeError) as exc:
+            logger.exception("Could not serve the run")
+            ui.notify(f"Could not serve the run over HTTP: {exc}", MessageLevel.WARNING)
+            yield
+            return
+        ui.notify(f"Run served at {url}", MessageLevel.INFO)
+        if self.settings.open_browser:
+            import webbrowser
+
+            webbrowser.open(url)
+        try:
+            yield
+        finally:
+            server.stop()
 
     def _with_preflight(self, workflow: Workflow) -> Workflow:
         """``workflow`` with :meth:`validate` as its first step, ``clabe_preflight`` (none in debug mode)."""

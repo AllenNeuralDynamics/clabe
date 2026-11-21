@@ -51,8 +51,7 @@ document:
 clabe run my_experiment.py --clabe-yml D:/rig-configs/clabe.yml
 ```
 
-The same works for scripts that parse [`LauncherCliArgs`][clabe.launcher.LauncherCliArgs] themselves, and
-`clabe serve` forwards the flag to the experiment it starts. Like any other launcher setting, it can also be set
+The same works for scripts that parse [`LauncherCliArgs`][clabe.launcher.LauncherCliArgs] themselves. Like any other launcher setting, it can also be set
 through the `CLABE_YML` environment variable.
 
 The file is applied to every settings object created after the arguments are parsed. The launcher's own
