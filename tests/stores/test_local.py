@@ -2,8 +2,8 @@ import pydantic
 import pytest
 from aind_behavior_services import Rig, Task
 
-from clabe import ui
 from clabe.stores import DefaultLayout, Kind, LocalFileStore
+from tests.conftest import use_client
 
 
 class Widget(pydantic.BaseModel):
@@ -17,7 +17,7 @@ def library(tmp_path):
 
 @pytest.fixture
 def store(library, mock_frontend):
-    ui.set_current_frontend(mock_frontend)
+    use_client(mock_frontend)
     return LocalFileStore(library, scope={"computer_name": "RIG-01"})
 
 
@@ -100,6 +100,6 @@ class TestLocalFileStore:
         mock_frontend._ask_confirm_mock.assert_not_called()
 
     def test_a_store_pointed_at_a_session_directory_reads_a_lone_record(self, tmp_path, mock_frontend):
-        ui.set_current_frontend(mock_frontend)
+        use_client(mock_frontend)
         write_json(tmp_path / "widget.json", Widget(value=42))
         assert LocalFileStore(tmp_path).resolve(Widget) == Widget(value=42)

@@ -41,7 +41,7 @@ class _RunCli(LauncherCliArgs):
     def _run(self):
         """Builds the launcher, selects the workflow and runs it."""
         launcher = Launcher(settings=self)
-        workflow = select_workflow(self.experiment_path, frontend=launcher.frontend, name=self.experiment_name)
+        workflow = select_workflow(self.experiment_path, name=self.experiment_name)
         launcher.run_experiment(workflow)
 
     def cli_cmd(self):

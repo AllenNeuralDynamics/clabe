@@ -17,19 +17,21 @@ from textual.containers import Vertical
 from textual.widgets import Footer, Header, Input, Label, OptionList, RichLog, Static
 
 from .. import __version__
-from ..logging import _TRANSCRIPT_LOGGER_NAME
-from ._frontend import FrontendBase, PromptCancelledError
 from ._messages import MessageLevel
 from ._requests import (
     AcknowledgeRequest,
     AutoCompleteRequest,
     ConfirmRequest,
     FormRequest,
+    GroupRequest,
+    NumberRequest,
     PathRequest,
     PickRequest,
     ReadOnlyTable,
+    Request,
     TextRequest,
 )
+from ._session import PromptCancelledError
 from ._textual_form import _AcknowledgeScreen, _FormScreen, _ReadOnlyTableScreen, push_path_picker
 
 logger = logging.getLogger(__name__)
@@ -488,20 +490,18 @@ class _TuiActivitySink:
 class _TuiLogHandler(logging.Handler):
     """Routes log records (info and above) into the TUI Logs pane."""
 
-    def __init__(self, frontend: "TextualFrontend") -> None:
-        """Initialize with the owning frontend."""
+    def __init__(self, client: "TextualClient") -> None:
+        """Initialize with the owning client."""
         super().__init__(logging.INFO)
-        self._frontend = frontend
+        self._client = client
 
     def emit(self, record: logging.LogRecord) -> None:
         """Format and write a color-coded log record to the Logs pane."""
-        if record.name.startswith(_TRANSCRIPT_LOGGER_NAME):
-            return
         try:
             message = self.format(record)
         except Exception:  # noqa: BLE001 -- formatting an arbitrary log record must never crash the log pane
             return
-        self._frontend._write_log(_linkify(message, _log_style(record.levelno)))
+        self._client._write_log(_linkify(message, _log_style(record.levelno)))
 
 
 def _unwrap(value: object) -> object:
@@ -513,19 +513,33 @@ def _unwrap(value: object) -> object:
     return value
 
 
-class TextualFrontend(FrontendBase):
+class TextualClient:
     """
-    Interactive TUI frontend backed by a single persistent Textual app.
+    A :class:`~clabe.ui.Client` backed by a single persistent Textual app.
 
-    The app is started lazily on first use and runs on a background thread for
-    the remainder of the session. Messages, answered prompts, and live activity
-    all render inside the one app; console logging is muted for the app's
-    lifetime so nothing corrupts the display.
+    The app is started lazily on first use and runs on a background thread for the remainder of the session.
+    Messages, answered prompts, and live activity all render inside the one app; console logging is muted for the
+    app's lifetime so nothing corrupts the display.
+
+    Like every client it never validates: :meth:`ask` returns the raw answer and whoever drives the client (a run,
+    or a :class:`~clabe.ui.ClientSession`) validates it and asks again if needed.
     """
+
+    #: The method that asks each primitive prompt kind.
+    _HANDLERS: ClassVar[dict[str, str]] = {
+        "text": "_ask_text",
+        "number": "_ask_number",
+        "confirm": "_ask_confirm",
+        "pick": "_ask_pick",
+        "autocomplete": "_ask_autocomplete",
+        "path": "_ask_path",
+        "form": "_ask_form",
+        "group": "_ask_group",
+        "table": "_ask_read_only_table",
+        "acknowledge": "_ask_acknowledge",
+    }
 
     def __init__(self) -> None:
-        """Initialize the frontend."""
-        super().__init__()
         self._app: _LauncherApp | None = None
         self._thread: threading.Thread | None = None
         self._log_handler: _TuiLogHandler | None = None
@@ -583,7 +597,34 @@ class TextualFrontend(FrontendBase):
         self._app = None
         self._thread = None
 
-    def cancel_prompt(self) -> None:
+    # --- Client -------------------------------------------------------------
+    def ask(self, request: Request) -> Any:
+        """Shows ``request`` in the TUI and returns the raw answer, echoing it in the Session pane.
+
+        Raises:
+            PromptCancelledError: :meth:`cancel` was called while the prompt was shown.
+            ValueError: ``request`` is not a primitive prompt (e.g. an unresolved field request).
+        """
+        handler = self._HANDLERS.get(request.prompt_kind)
+        if handler is None:
+            raise ValueError(f"Clients cannot ask {request.prompt_kind!r} prompts; resolve the request first.")
+        answer = getattr(self, handler)(request)
+        self._echo_answer(request, answer)
+        return answer
+
+    def notify(self, message: str, level: MessageLevel = MessageLevel.INFO) -> None:
+        """Writes a timestamped, level-styled message to the Session pane."""
+        self._ensure()
+        line = Text(f"[{_local_time()}] ", style="dim")
+        line.append_text(_linkify(message, _RICH_STYLES[level]))
+        self._write_user(line)
+
+    def header(self, text: str) -> None:
+        """Shows the banner as the empty-state logo in the Session pane."""
+        app = self._ensure()
+        app.call_from_thread(app.set_logo, text)
+
+    def cancel(self) -> None:
         """Abort the waiting prompt from any thread; it raises :class:`PromptCancelledError`."""
         app = self._app
         if app is None:
@@ -603,27 +644,16 @@ class TextualFrontend(FrontendBase):
         if self._app is not None:
             self._app.call_from_thread(self._app.write_log, renderable)
 
-    def _render_header(self, text: str) -> None:
-        """Show the banner as the empty-state logo in the Session pane."""
-        app = self._ensure()
-        app.call_from_thread(app.set_logo, text)
-
     def set_experiment(self, name: str) -> None:
         """Show the running experiment name in the TUI header."""
         app = self._ensure()
         app.call_from_thread(app.set_experiment, name)
 
-    def _render(self, message: str, level: MessageLevel) -> None:
-        """Write a timestamped, level-styled message to the Session pane."""
-        self._ensure()
-        line = Text(f"[{_local_time()}] ", style="dim")
-        line.append_text(_linkify(message, _RICH_STYLES[level]))
-        self._write_user(line)
-
-    def _on_answer(self, key: str, value: object) -> None:
+    def _echo_answer(self, request: Request, value: object) -> None:
         """Append an answered prompt as a timestamped line in the Session pane."""
-        if value is None or value == "":
+        if value is None or value == "" or request.prompt_kind == "acknowledge":
             return
+        key = getattr(request, "field", None) or getattr(request, "label", None) or request.prompt_kind
         self._ensure()
         line = Text(f"[{_local_time()}] ", style="dim")
         line.append("› ", style="dim")
@@ -637,6 +667,11 @@ class TextualFrontend(FrontendBase):
         reply: queue.Queue = queue.Queue()
         app.call_from_thread(app.ask_text, request, reply)
         return _unwrap(reply.get()) or ""
+
+    def _ask_number(self, request: NumberRequest) -> str:
+        """Request a number as typed text (validation coerces it)."""
+        default = f"{request.default:g}" if request.default is not None else None
+        return self._ask_text(TextRequest(label=request.label, default=default, field=request.field))
 
     def _ask_autocomplete(self, request: AutoCompleteRequest) -> str:
         """Request an autocomplete prompt and block until answered."""
@@ -673,12 +708,9 @@ class TextualFrontend(FrontendBase):
         app.call_from_thread(app.ask_form, request, reply)
         return _unwrap(reply.get())
 
-    def prompt_form(self, request: FormRequest) -> Any | None:
-        """Present a Pydantic model form; return the filled instance or None if cancelled."""
-        result = self._ask_form(request)
-        if result is not None:
-            self._record(request.field or request.model.__name__, str(result))
-        return result
+    def _ask_group(self, request: GroupRequest) -> object | None:
+        """Asks a group as a form of its compiled model."""
+        return self._ask_form(FormRequest(model=request.model(), title=request.title or "Group"))
 
     def _ask_read_only_table(self, request: ReadOnlyTable) -> bool:
         """Push the read-only table modal and block until the user answers."""
@@ -686,12 +718,6 @@ class TextualFrontend(FrontendBase):
         reply: queue.Queue = queue.Queue()
         app.call_from_thread(app.ask_read_only_table, request, reply)
         return bool(_unwrap(reply.get()))
-
-    def prompt_read_only_table(self, request: ReadOnlyTable) -> bool:
-        """Display read-only tabular data; return True on confirm, False on cancel."""
-        answer = self._ask_read_only_table(request)
-        self._record(request.field or request.title or "read_only_table", answer)
-        return answer
 
     def _ask_acknowledge(self, request: AcknowledgeRequest) -> None:
         """Push the acknowledge modal and block until the user dismisses it."""

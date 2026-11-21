@@ -218,6 +218,13 @@ class Workflow:
         copy._steps = self._steps
         return copy
 
+    def insert_before(self, anchor: str, func: Callable[..., Any], /, **options: Any) -> Self:
+        """Inserts a new step right before ``anchor``. See :class:`Step` for the options."""
+        steps = list(self._steps)
+        steps.insert(self.index(anchor), make_step(func, **options))
+        self._set_steps(steps)
+        return self
+
     def insert_after(self, anchor: str, func: Callable[..., Any], /, **options: Any) -> Self:
         """Inserts a new step right after ``anchor``. See :class:`Step` for the options."""
         steps = list(self._steps)

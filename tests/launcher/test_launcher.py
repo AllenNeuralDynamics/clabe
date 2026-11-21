@@ -9,10 +9,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from clabe import ui
 from clabe.launcher import Launcher, experiment
 from clabe.launcher._cli import LauncherCliArgs
 from clabe.ui import ConfirmRequest, PromptCancelledError
-from clabe.workflow import Abort, RunFrontend, Workflow
+from clabe.workflow import Abort, Workflow
 from tests.conftest import MockFrontend
 
 
@@ -21,7 +22,7 @@ def test_base_launcher_with_attached_logger(mock_base_launcher, mock_frontend):
     with patch("clabe.logging.add_file_handler") as mock_add_file_handler:
         mock_attached_logger = MagicMock()
         launcher = Launcher(
-            frontend=mock_frontend,
+            client=mock_frontend,
             settings=mock_base_launcher.settings,
             attached_logger=mock_attached_logger,
         )
@@ -40,7 +41,7 @@ def test_base_launcher_debug_mode(mock_frontend, tmp_path: Path):
             mock_logger = MagicMock()
             mock_add_file_handler.return_value = mock_logger
             Launcher(
-                frontend=mock_frontend,
+                client=mock_frontend,
                 settings=launcher_args_debug,
             )
             mock_logger.setLevel.assert_called_with(logging.DEBUG)
@@ -63,7 +64,7 @@ def test_base_launcher_create_directories(mock_session, mock_frontend, tmp_path:
             patch("clabe.launcher.Launcher._save_repository_state"),
         ):
             Launcher(
-                frontend=mock_frontend,
+                client=mock_frontend,
                 settings=launcher_args_create_dirs,
                 attached_logger=log_mod.return_value,
             ).register_session(mock_session, data_directory=tmp_path / "data")
@@ -96,7 +97,7 @@ def test_ensure_directory_structure(mock_session, mock_frontend, tmp_path: Path)
             patch("clabe.launcher.Launcher._save_repository_state"),
         ):
             launcher = Launcher(
-                frontend=mock_frontend,
+                client=mock_frontend,
                 settings=launcher_args,
                 attached_logger=log_mod.return_value,
             ).register_session(mock_session, data_directory=tmp_path / "data")
@@ -250,7 +251,7 @@ def test_exit_prompt_timeout_is_not_a_launcher_setting():
 
 
 class _CancellableFrontend:
-    """A frontend whose text prompt blocks until ``cancel_prompt`` is called.
+    """A client whose prompt blocks until ``cancel`` is called.
 
     ``ignore_cancels`` drops the first few cancellations, standing in for ones that
     land before the prompt is on screen.
@@ -262,13 +263,22 @@ class _CancellableFrontend:
         self.cancel_calls = 0
         self.labels: list[str] = []
 
-    def prompt_text(self, request):
+    def ask(self, request):
         self.labels.append(request.label)
         if not self._cancelled.wait(5):
             raise AssertionError("prompt was never cancelled")
         raise PromptCancelledError()
 
-    def cancel_prompt(self):
+    def notify(self, message, level=None):
+        pass
+
+    def header(self, text):
+        pass
+
+    def close(self):
+        pass
+
+    def cancel(self):
         self.cancel_calls += 1
         if self.cancel_calls > self._ignore:
             self._cancelled.set()
@@ -276,7 +286,7 @@ class _CancellableFrontend:
 
 def test_exit_timeout_cancels_prompt(mock_base_launcher):
     frontend = _CancellableFrontend()
-    mock_base_launcher.frontend = frontend
+    mock_base_launcher.client = frontend
     started = time.monotonic()
     mock_base_launcher._exit(0, timeout=0.2)
     assert 0.2 <= time.monotonic() - started < 2
@@ -285,7 +295,7 @@ def test_exit_timeout_cancels_prompt(mock_base_launcher):
 
 def test_exit_timeout_retries_until_prompt_is_cancelled(mock_base_launcher):
     frontend = _CancellableFrontend(ignore_cancels=2)
-    mock_base_launcher.frontend = frontend
+    mock_base_launcher.client = frontend
     mock_base_launcher._exit(0, timeout=0.05)
     assert frontend.cancel_calls == 3
 
@@ -308,37 +318,22 @@ def test_exit_zero_timeout_skips_prompt(mock_base_launcher, mock_frontend):
     mock_frontend._ask_text_mock.assert_not_called()
 
 
-def test_exit_timeout_without_cancel_prompt_waits_for_the_user(mock_base_launcher, caplog):
-    class _NoCancelFrontend:
-        def __init__(self):
-            self.labels = []
-
-        def prompt_text(self, request):
-            self.labels.append(request.label)
-            return ""
-
-    frontend = _NoCancelFrontend()
-    mock_base_launcher.frontend = frontend
-    with caplog.at_level(logging.WARNING, logger="clabe.launcher._base"):
-        mock_base_launcher._exit(0, timeout=0.05)
-    assert frontend.labels == ["Press Enter to exit..."]
-    assert "cannot cancel prompts" in caplog.text
-
-
-def test_run_experiment_runs_a_workflow_through_the_run_frontend(mock_base_launcher):
+def test_run_experiment_runs_a_workflow_whose_prompts_reach_the_run(mock_base_launcher):
     seen = []
     wf = Workflow("wf", exit_prompt_timeout=0)
 
     @wf.step
-    def a(launcher):
-        seen.append(type(launcher.frontend))
-        return launcher.frontend.prompt_confirm(ConfirmRequest(label="?"))
+    def a(launcher, run):
+        seen.append(ui.current_session() is run)
+        return ui.ask(ConfirmRequest(label="?"))
 
     call = _record_exit_call(mock_base_launcher, wf)
 
     assert call == {"code": 0, "_force": False, "timeout": 0}
-    assert seen == [RunFrontend]
-    assert isinstance(mock_base_launcher.frontend, MockFrontend)
+    assert seen == [True]
+    assert isinstance(mock_base_launcher.client, MockFrontend)  # the client given at construction is kept
+    events = (mock_base_launcher.temp_dir / "events.jsonl").read_text(encoding="utf-8")
+    assert '"step":"clabe_preflight"' in events.replace(" ", "")  # validate() runs inside the run
     assert (mock_base_launcher.temp_dir / "events.jsonl").exists()
 
 

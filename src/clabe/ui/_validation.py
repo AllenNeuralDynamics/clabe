@@ -4,14 +4,15 @@ import types
 import typing
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, get_args, get_origin
+from typing import TYPE_CHECKING, Any, get_args, get_origin
 
 from pydantic_core import PydanticUndefined
 
-from ._requests import PathRequest, Validator
+if TYPE_CHECKING:  # the requests validate themselves with these helpers: no import at runtime (cycle)
+    from ._requests import PathRequest, Validator
 
 
-def first_error(validators: Sequence[Validator], value: str) -> str | None:
+def first_error(validators: "Sequence[Validator]", value: str) -> str | None:
     """Returns the first validation error for ``value``, or ``None`` when every validator passes."""
     for validator in validators:
         error = validator(value)
@@ -20,7 +21,7 @@ def first_error(validators: Sequence[Validator], value: str) -> str | None:
     return None
 
 
-def validate_path(request: PathRequest, path: Path) -> str | None:
+def validate_path(request: "PathRequest", path: Path) -> str | None:
     """Returns an error message when ``path`` violates the request's constraints, else ``None``."""
     if request.must_exist and not path.exists():
         return f"Path does not exist: {path}"

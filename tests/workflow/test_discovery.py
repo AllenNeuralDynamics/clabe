@@ -3,6 +3,7 @@ from unittest.mock import Mock
 
 import pytest
 
+from clabe import ui
 from clabe.workflow import Run, Workflow, as_workflow, collect_workflows, experiment, load_module, select_workflow
 from tests import TESTS_ASSETS
 
@@ -58,24 +59,35 @@ def test_collect_workflows_finds_imported_experiments():
     assert {"first_experiment", "second_experiment"} <= {w.name for w in collect_workflows(module)}
 
 
+def _session_answering(answer):
+    """A session whose every question gets ``answer``."""
+    session = Mock()
+    session.ask.return_value = answer
+    return session
+
+
 def test_select_workflow_returns_the_only_one_without_prompting():
-    frontend = Mock()
-    assert select_workflow(TESTS_ASSETS / "experiment_mock.py", frontend=frontend).name == "simple_experiment"
-    frontend.prompt_pick.assert_not_called()
+    session = _session_answering(None)
+    with ui.bind(session):
+        assert select_workflow(TESTS_ASSETS / "experiment_mock.py").name == "simple_experiment"
+    session.ask.assert_not_called()
 
 
 def test_select_workflow_prompts_when_there_are_several():
-    frontend = Mock()
-    frontend.prompt_pick.return_value = "first_experiment"
-    selected = select_workflow(TESTS_ASSETS / "experiment_import_mocks.py", frontend=frontend)
+    session = _session_answering("first_experiment")
+    with ui.bind(session):
+        selected = select_workflow(TESTS_ASSETS / "experiment_import_mocks.py")
     assert selected.name == "first_experiment"
+    asked = session.ask.call_args.args[0]
+    assert asked.prompt_kind == "pick" and asked.field == "experiment"
     selected.get("experiment").func(Mock())
 
 
 def test_select_workflow_by_name():
-    frontend = Mock()
+    session = _session_answering(None)
     path = TESTS_ASSETS / "experiment_import_mocks.py"
-    assert select_workflow(path, frontend=frontend, name="second_experiment").name == "second_experiment"
-    frontend.prompt_pick.assert_not_called()
-    with pytest.raises(SystemExit):
-        select_workflow(path, frontend=frontend, name="does_not_exist")
+    with ui.bind(session):
+        assert select_workflow(path, name="second_experiment").name == "second_experiment"
+        with pytest.raises(SystemExit):
+            select_workflow(path, name="does_not_exist")
+    session.ask.assert_not_called()

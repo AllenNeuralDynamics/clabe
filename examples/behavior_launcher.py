@@ -16,7 +16,7 @@ from _mocks import (
 from pydantic import BaseModel, Field
 from pydantic_settings import CliApp
 
-from clabe import resource_monitor
+from clabe import resource_monitor, ui
 from clabe.apps import CurriculumApp, CurriculumSettings, PythonScriptApp
 from clabe.cache_manager import CacheManager
 from clabe.launcher import Launcher, LauncherCliArgs, experiment
@@ -30,11 +30,11 @@ from clabe.ui import (
     FieldRequest,
     FormRequest,
     MessageLevel,
+    NumberRequest,
     PathRequest,
     ReadOnlyTable,
+    TextRequest,
     notify,
-    prompt_acknowledge,
-    prompt_confirm,
 )
 
 logger = logging.getLogger(__name__)
@@ -101,7 +101,7 @@ async def demo_experiment(launcher: Launcher) -> None:
         otel.event("preflight-checks-started")
 
     # --- AcknowledgeRequest demo: modal acknowledgement gate --------------
-    launcher.frontend.prompt_acknowledge(
+    ui.ask(
         AcknowledgeRequest(
             title="Safety Check",
             message="Ensure the animal is properly head-fixed and all cables are connected before proceeding.",
@@ -110,7 +110,7 @@ async def demo_experiment(launcher: Launcher) -> None:
     )
     # ----------------------------------------------------------------------
 
-    config = launcher.frontend.prompt_form(FormRequest(model=SessionConfig, title="Session Configuration"))
+    config = ui.ask(FormRequest(model=SessionConfig, title="Session Configuration"))
     if config is not None:
         notify(
             f"Config: type={config.session_type!r}  mode={config.recording_mode.name}"
@@ -123,7 +123,7 @@ async def demo_experiment(launcher: Launcher) -> None:
 
     # --- ReadOnlyTable demo (from_object): review the filled config ---------
     # Renders the model as a read-only "Parameter | Value" table with OK/Cancel.
-    confirmed = launcher.frontend.prompt_read_only_table(
+    confirmed = ui.ask(
         ReadOnlyTable.from_object(
             config,
             title="Confirm Session Configuration",
@@ -137,7 +137,7 @@ async def demo_experiment(launcher: Launcher) -> None:
         config = SessionConfig()
     # ----------------------------------------------------------------------
 
-    updated_type = launcher.frontend.prompt_field(
+    updated_type = ui.ask(
         FieldRequest(
             model=SessionConfig,
             field_name="session_type",
@@ -148,16 +148,14 @@ async def demo_experiment(launcher: Launcher) -> None:
 
     # --- FieldRequest (Path) demo: a single Path-typed field routes through
     # prompt_path — same browser as below, just for one form field at a time.
-    updated_output_dir = launcher.frontend.prompt_field(
-        FieldRequest(model=SessionConfig, field_name="output_dir", initial=config.output_dir)
-    )
+    updated_output_dir = ui.ask(FieldRequest(model=SessionConfig, field_name="output_dir", initial=config.output_dir))
     notify(f"Final output directory: {updated_output_dir}", MessageLevel.INFO)
     # ----------------------------------------------------------------------
 
     # --- PathRequest demo: browse the filesystem for a rig config file ------
     # create_fake_rig() (called above) populated `{LIB_CONFIG}/Rig/<computer_name>/rig1.json`,
     # so descending one level and picking the .json file demonstrates real browsing.
-    rig_path = launcher.frontend.prompt_path(
+    rig_path = ui.ask(
         PathRequest(
             label="Browse for a rig configuration file",
             start=str(Path(LIB_CONFIG) / "Rig"),
@@ -171,17 +169,26 @@ async def demo_experiment(launcher: Launcher) -> None:
         notify("No rig config picked.", MessageLevel.WARNING)
     # ----------------------------------------------------------------------
 
-    if not prompt_confirm(
+    # --- GroupRequest demo: several prompts answered together, incl. a slider ---------------
+    tuning = ui.group(
+        "Tuning",
+        operator_note=TextRequest(label="Operator note"),
+        gain=NumberRequest(label="Reward gain", default=0.5, minimum=0, maximum=1, step=0.05, widget="slider"),
+    )
+    notify(f"Tuning: note={tuning['operator_note']!r} gain={tuning['gain']:g}", MessageLevel.SUCCESS)
+    # ----------------------------------------------------------------------
+
+    if not ui.ask(
         ConfirmRequest(label="Is this True", default=True),
     ):
         notify("hahaha", MessageLevel.INFO)
 
-    if not prompt_confirm(
+    if not ui.ask(
         ConfirmRequest(label="Proceed with the experiment?"),
     ):
         notify("Experiment cancelled by user.", MessageLevel.WARNING)
 
-    prompt_acknowledge(
+    ui.ask(
         AcknowledgeRequest(
             title="Experiment Starting",
             message="All checks passed. The experiment is about to begin. Press OK to continue.",
@@ -211,7 +218,7 @@ async def demo_experiment(launcher: Launcher) -> None:
 
     # --- ReadOnlyTable demo (from_records): review the app run plan ---------
     # A general grid built from a list of dicts; columns are inferred from keys.
-    if not launcher.frontend.prompt_read_only_table(
+    if not ui.ask(
         ReadOnlyTable.from_records(
             [
                 {"App": "Behavior", "Timeout (s)": 2, "Blocking": False},

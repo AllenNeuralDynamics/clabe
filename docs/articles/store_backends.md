@@ -299,11 +299,12 @@ def test_inject_uses_the_stored_record():
     assert rig.manipulator.position == ManipulatorPosition(x=1, y=2, z=3)
 ```
 
-Exercising `resolve` in a test does need a frontend — register a fake with [`ui.use_frontend`][clabe.ui.use_frontend] for the duration:
+Exercising `resolve` in a test may need to ask which candidate to use — bind a session for the duration (any object
+with `ask`, `notify` and `header`, or a `ClientSession` over a fake client):
 
 ```python
 from clabe import ui
 
-with ui.use_frontend(fake_frontend):
+with ui.bind(ui.ClientSession(fake_client)):
     rig = store.resolve(RIG)
 ```

@@ -1,23 +1,30 @@
 import contextlib
 import threading
+from enum import Enum
 
 import pytest
-from pydantic import BaseModel, SecretStr
+from pydantic import BaseModel, Field, SecretStr
 
+from clabe import ui
 from clabe.ui import (
     ConfirmRequest,
+    FieldRequest,
     FormRequest,
-    Frontend,
     MessageLevel,
     NumberRequest,
     PathRequest,
     PromptCancelledError,
     TextRequest,
 )
-from clabe.workflow import Ack, Rejected, Run, RunFrontend, Workflow
+from clabe.workflow import Ack, Rejected, Run, Workflow
 from clabe.workflow.events import EventLog, Header, Notify, PromptClosed, PromptOpened
 
 from ._helpers import events_of, execute
+
+
+class Mode(Enum):
+    A = "a"
+    B = "b"
 
 
 def test_prompt_round_trip():
@@ -192,19 +199,87 @@ def test_an_answer_that_breaks_the_validator_is_rejected_and_the_prompt_stays_op
     assert run.output("p") is None
 
 
-def test_run_frontend_routes_messages_and_prompts_through_the_run():
+class _Fields(BaseModel):
+    enabled: bool = False
+    mode: Mode = Mode.A
+    trials: int = Field(default=10, gt=0)
+
+
+@pytest.mark.parametrize(
+    ("field_name", "answer", "kind", "expected"),
+    [
+        ("enabled", True, "confirm", True),
+        ("mode", "B", "autocomplete", Mode.B),
+        ("trials", "7", "text", 7),
+    ],
+)
+def test_asking_a_field_opens_the_resolved_prompt_and_returns_the_typed_value(field_name, answer, kind, expected):
+    wf = Workflow("demo")
+    wf.step(lambda run: run.ask(FieldRequest(model=_Fields, field_name=field_name)), name="value")
+
+    run, _ = execute(wf, [answer])
+
+    assert run.output("value") == expected
+    opened = events_of(run, PromptOpened)[0]
+    assert (opened.kind, opened.spec["field"]) == (kind, field_name)
+
+
+def test_a_field_answer_failing_its_constraints_is_rejected_by_the_resolved_prompt():
+    wf = Workflow("demo")
+    wf.step(lambda run: run.ask(FieldRequest(model=_Fields, field_name="trials")), name="value")
+
+    def answer_twice(run, event):
+        return run.answer(event.prompt_id, "0"), run.answer(event.prompt_id, "3")
+
+    run, client = execute(wf, [answer_twice])
+
+    first, second = client.results[0]
+    assert isinstance(first, Rejected) and "greater than 0" in first.reason
+    assert second == Ack()
+    assert run.output("value") == 3
+
+
+class _Secrets(BaseModel):
+    token: SecretStr
+
+
+def test_a_secret_field_answer_is_recorded_masked(tmp_path):
+    wf = Workflow("demo")
+    wf.step(lambda run: run.ask(FieldRequest(model=_Secrets, field_name="token")), name="token")
+    wf.step(lambda run: run.ask(FieldRequest(model=_Fields, field_name="trials")), name="trials")
+
+    run, _ = execute(wf, ["s3cret", "7"], record_dir=tmp_path)
+
+    token = run.output("token")
+    assert isinstance(token, SecretStr) and token.get_secret_value() == "s3cret"
+    assert run.output("trials") == 7
+    expected = ["**********", "7"]  # a non-secret field keeps its primitive answer
+    assert [e.answer for e in events_of(run, PromptClosed)] == expected
+    persisted = [e for e in EventLog.read(tmp_path / "events.jsonl") if isinstance(e, PromptClosed)]
+    assert [e.answer for e in persisted] == expected
+    assert "s3cret" not in (tmp_path / "events.jsonl").read_text(encoding="utf-8")
+
+
+def test_asking_something_that_is_not_a_request_raises_type_error():
+    wf = Workflow("demo")
+    wf.step(lambda: 1, name="a")
+
+    with pytest.raises(TypeError, match="Unsupported prompt request: object"):
+        Run(wf).ask(object())
+
+
+def test_ui_calls_in_a_step_reach_the_run():
     wf = Workflow("demo")
 
     @wf.step
     def a(run):
-        ui = RunFrontend(run)
-        ui.notify("hello", MessageLevel.WARNING)
+        ui.notify("hello", MessageLevel.WARNING)  # the run is the bound session while it executes
         ui.header("Title")
-        return isinstance(ui, Frontend), ui.prompt_confirm(ConfirmRequest(label="ok?"))
+        return ui.confirm("ok?")
 
     run, _ = execute(wf, [True])
 
-    assert run.output("a") == (True, True)
+    assert run.output("a") is True
     note = events_of(run, Notify)[0]
     assert (note.message, note.level) == ("hello", "warning")
     assert events_of(run, Header)[0].text == "Title"

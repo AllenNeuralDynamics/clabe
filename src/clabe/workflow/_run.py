@@ -17,12 +17,22 @@ from collections.abc import Awaitable, Callable, Generator
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Secret, SecretBytes, SecretStr
 from pydantic_core import to_jsonable_python
 
+from .. import ui
 from ..logging.otel import span
 from ..runnable import get_activity_indicator
-from ..ui import Choice, ConfirmRequest, MessageLevel, PickRequest, PromptCancelledError
+from ..ui import (
+    AnswerRejected,
+    Choice,
+    ConfirmRequest,
+    FieldRequest,
+    MessageLevel,
+    PickRequest,
+    PromptCancelledError,
+    Request,
+)
 from ._control import Abort, GoBack, GoBackRejected
 from ._events import (
     ActivityEnded,
@@ -41,7 +51,6 @@ from ._events import (
     StepSkipped,
     StepStarted,
 )
-from ._prompts import AnswerRejected, answer_schema, prompt_kind, prompt_spec, validate_answer
 from ._records import ACTIVE_STEP, _StepContext, encode_output, output_line, write_artifact
 from ._workflow import Step, Workflow
 
@@ -121,8 +130,9 @@ class _Stop(Exception):
 class _OpenPrompt:
     """A prompt waiting for an answer, and how the waiting step is woken."""
 
-    request: Any
+    request: Request
     opened: PromptOpened
+    convert: Callable[[Any], Any] | None = None  # maps the validated answer to what the asker gets (resolved fields)
     done: threading.Event = dataclasses.field(default_factory=threading.Event)
     answer: Any = None
     cancelled: bool = False
@@ -164,6 +174,10 @@ def _jsonable(value: Any) -> Any:
             return f"<{type(value).__name__}>"
 
 
+#: Pydantic's secret types: an answer converted to one is recorded masked, never as the text that was typed.
+_SECRET_TYPES = (SecretStr, SecretBytes, Secret)
+
+
 def _raise_in_thread(thread_id: int, exc_type: type[BaseException]) -> None:
     """Raises ``exc_type`` asynchronously in thread ``thread_id`` (CPython only)."""
     ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_ulong(thread_id), ctypes.py_object(exc_type))
@@ -202,6 +216,10 @@ class Run:
     (e.g. an app's background task) and loop-bound objects carry across steps; tasks still running when the run
     ends are cancelled. Every state change is recorded in :attr:`events`. Commands (answers, go back,
     abort) are thread-safe and may come from any client.
+
+    While it executes, the run is the process' :class:`~clabe.ui.Session`: ``ui.ask``, the typed helpers (e.g.
+    ``ui.confirm``), ``ui.notify`` and ``ui.header`` called from steps, from library code and from any thread reach
+    it. One run per process is supported.
 
     Args:
         workflow: The workflow to execute. The run keeps a copy (:attr:`workflow`) of its steps as they are when the
@@ -249,6 +267,7 @@ class Run:
         self._loop_stopping = False  # set once the run asks its loop to stop: the loop thread must not restart it
         self._task: asyncio.Future[Any] | None = None
         self._in_sync_call = False
+        self._session_scope = contextlib.ExitStack()  # the run's binding as the process' session (see start())
 
     # --- lifecycle --------------------------------------------------------
     def start(self) -> None:
@@ -261,7 +280,15 @@ class Run:
             self._thread = threading.Thread(
                 target=context.run, args=(self._main,), name=f"clabe-run-{self.id}", daemon=True
             )
-        self._thread.start()
+            # The run is the process' session (see ``clabe.ui.bind``) from here until just after RunFinished, so
+            # ``ui.ask``/``ui.notify`` from steps, the code they call and their threads reach it. Bound before the
+            # thread starts, so it already is when start() returns; _main unbinds it.
+            self._session_scope.enter_context(ui.bind(self))
+        try:
+            self._thread.start()
+        except BaseException:
+            self._session_scope.close()
+            raise
 
     def wait(self, timeout: float | None = None) -> bool:
         """Blocks until the run finishes; returns ``False`` if ``timeout`` elapsed first."""
@@ -307,7 +334,12 @@ class Run:
             except Exception:  # waiters must be released even if the end cannot be recorded
                 logger.exception("Run %s could not record its end", self.id)
             finally:
-                self._finished.set()
+                try:
+                    self._session_scope.close()  # bound by start(); unbound before waiters are released
+                except Exception:
+                    logger.exception("Run %s could not unbind itself as the session", self.id)
+                finally:
+                    self._finished.set()
 
     def _drive(self) -> None:
         """Runs pending steps in declaration order until none is left, applying commands between steps."""
@@ -615,10 +647,12 @@ class Run:
             return self._outputs[name]
 
     # --- prompts ----------------------------------------------------------
-    def ask(self, request: Any) -> Any:
+    def ask(self, request: Request) -> Any:
         """Opens a prompt for ``request`` and blocks until a client answers it.
 
-        Called from step code (directly or through :class:`RunFrontend`).
+        Called from step code (directly, or through :func:`clabe.ui.ask` and its helpers). A :class:`~clabe.ui.FieldRequest` is
+        resolved first: the run opens the primitive prompt it resolves to (e.g. a ``confirm`` for a ``bool`` field)
+        and returns the answer converted to the field's type.
 
         Args:
             request: A prompt request from :mod:`clabe.ui` (e.g. a :class:`~clabe.ui.TextRequest`).
@@ -630,12 +664,21 @@ class Run:
             PromptCancelledError: The prompt was cancelled (e.g. by going back or aborting). After it, return or
                 raise; do not ask again — the run is changing course.
         """
+        if not isinstance(request, Request):
+            raise TypeError(f"Unsupported prompt request: {type(request).__name__}")
+        if isinstance(request, FieldRequest):
+            primitive, convert = request.resolve()
+            return self._ask(primitive, None, convert)
         return self._ask(request, None)
 
-    def _ask(self, request: Any, step: Step | None) -> Any:
-        """Opens a prompt owned by ``step`` (default: the running step) and waits for it to close."""
+    def _ask(self, request: Request, step: Step | None, convert: Callable[[Any], Any] | None = None) -> Any:
+        """Opens a prompt owned by ``step`` (default: the running step) and waits for it to close.
+
+        ``convert`` (for a resolved field) maps the validated answer to the value returned; it runs when the answer
+        arrives, so a failing conversion rejects the answer and a secret result is what gets recorded (masked).
+        """
         prompt_id = uuid.uuid4().hex[:12]
-        kind, spec, schema = prompt_kind(request), prompt_spec(request), answer_schema(request)  # may be slow
+        kind, spec, schema = request.prompt_kind, request.spec(), request.answer_schema()  # may be slow
         with self._prompt_gate:
             with self._lock:
                 if self.status is not RunStatus.RUNNING:
@@ -650,7 +693,7 @@ class Run:
                     spec=spec,
                     answer_schema=schema,
                 )
-                prompt = _OpenPrompt(request=request, opened=opened)
+                prompt = _OpenPrompt(request=request, opened=opened, convert=convert)
                 # Visible before it is published, so a subscriber that answers on this thread (which the event log
                 # forbids, but which is tolerated) finds it open.
                 self._prompt = prompt
@@ -681,17 +724,19 @@ class Run:
         if prompt is None or prompt.id != prompt_id:
             return Rejected("This prompt is no longer open.")
         try:
-            coerced = validate_answer(prompt.request, value)  # outside the lock: validators may be slow
+            coerced = prompt.request.validate_answer(value)  # outside the lock: validators may be slow
+            result = prompt.convert(coerced) if prompt.convert is not None else coerced
         except AnswerRejected as exc:
             return Rejected(str(exc))
         except Exception as exc:  # a malformed answer must never reach the client as an exception
             logger.debug("Answer %r to prompt %s broke its validator", value, prompt_id, exc_info=True)
             return Rejected(f"Invalid answer: {exc}")
-        recorded = _jsonable(coerced)  # outside the lock: may be slow
+        # The primitive answer is recorded (it replays the prompt), except a secret: then only its mask is.
+        recorded = _jsonable(result if isinstance(result, _SECRET_TYPES) else coerced)  # outside the lock: may be slow
         with self._lock:
             if self._prompt is not prompt:
                 return Rejected("This prompt is no longer open.")
-            prompt.answer = coerced
+            prompt.answer = result
             self._prompt = None
             self.events.append(
                 PromptClosed(prompt_id=prompt_id, outcome="answered", answered_by=client, answer=recorded)
@@ -705,7 +750,7 @@ class Run:
             if self._prompt is not None:
                 self._cancel_prompt_locked()
 
-    def prompt_request(self, prompt_id: str) -> Any | None:
+    def prompt_request(self, prompt_id: str) -> Request | None:
         """The request object behind an open prompt (for in-process clients), or ``None`` if it closed."""
         with self._lock:
             prompt = self._prompt

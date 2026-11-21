@@ -113,15 +113,14 @@ logger.info("Starting robocopy transfer service.")  # the record (file / Logs pa
 notify("Transferring data…", MessageLevel.INFO)  # the user-facing summary (Session pane)
 ```
 
-`notify()` is a **no-op when no launcher/frontend is active**, so it is safe to
-call from library code used standalone. Anything sent through `notify()` is also
-recorded to the log file (via the `clabe.transcript` logger), so the file stays
-a complete transcript of what the user saw.
+With nothing to show it (no run, no launcher), `notify()` **logs the message** at its level instead, so it is safe
+to call from library code used standalone. Inside a run every notification, prompt and answer is recorded in the
+run's `events.jsonl`; outside a run the launcher's client also writes them to the log file at debug level.
 
 `MessageLevel` mirrors the logging levels for presentation intent:
 `INFO`, `SUCCESS`, `WARNING`, `ERROR`. Like the console, the Session pane only
 renders messages at/above the current verbosity threshold (warnings and above by
-default), but the transcript records them all.
+default), while `events.jsonl` records them all.
 
 ## The transcript
 

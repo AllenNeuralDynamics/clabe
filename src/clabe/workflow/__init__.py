@@ -4,7 +4,6 @@ from . import codecs
 from ._check import Issue, check_path, check_workflow
 from ._control import Abort, GoBack
 from ._discovery import ExperimentCallable, as_workflow, collect_workflows, experiment, load_module, select_workflow
-from ._frontend import RunFrontend
 from ._local import LocalClient
 from ._records import export_artifact
 from ._run import Ack, Rejected, Run, RunState, RunStatus, StepState, StepStatus
@@ -19,7 +18,6 @@ __all__ = [
     "LocalClient",
     "Rejected",
     "Run",
-    "RunFrontend",
     "RunState",
     "RunStatus",
     "Step",

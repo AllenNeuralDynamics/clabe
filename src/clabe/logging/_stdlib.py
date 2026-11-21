@@ -69,30 +69,12 @@ class _SeverityHighlightingHandler(rich.logging.RichHandler):
             return message
 
 
-# Name of the logger used by the frontend to record the user-facing transcript
-_TRANSCRIPT_LOGGER_NAME = "clabe.transcript"
-
 #: Default level for the interactive console handler.
 _DEFAULT_CONSOLE_LEVEL = logging.WARNING
 
 
-class _ExcludeTranscriptFilter(logging.Filter):
-    """Drops frontend-transcript records so they are not echoed to the console.
-
-    The frontend is responsible for rendering anything the user should see; the
-    transcript logger exists purely so those messages (and user input) are
-    persisted to the log file. Without this filter every ``notify`` would be
-    rendered twice: once by the frontend and once by the console log handler.
-    """
-
-    def filter(self, record: logging.LogRecord) -> bool:
-        """Returns False for transcript records so they skip the console handler."""
-        return not record.name.startswith(_TRANSCRIPT_LOGGER_NAME)
-
-
 rich_handler = _SeverityHighlightingHandler(console=clabe_console, rich_tracebacks=True, show_time=False)
 rich_handler.setLevel(_DEFAULT_CONSOLE_LEVEL)
-rich_handler.addFilter(_ExcludeTranscriptFilter())
 
 
 def configure_console_logging() -> None:

@@ -1,20 +1,37 @@
+"""Console client: rich-styled, line-based prompts that work on a terminal and degrade gracefully when piped."""
+
 import functools
 import os
 import sys
 import threading
 from collections.abc import Callable
 from pathlib import Path
-from typing import TypeVar
+from typing import Any, ClassVar, TypeVar
 
 from rich.console import Console, Group
 from rich.live import Live
 from rich.prompt import Confirm, Prompt
+from rich.table import Table
 from rich.text import Text
 
 from . import _keys
-from ._frontend import FrontendBase, PromptCancelledError
 from ._messages import MessageLevel
-from ._requests import AcknowledgeRequest, AutoCompleteRequest, ConfirmRequest, PathRequest, PickRequest, TextRequest
+from ._requests import (
+    AcknowledgeRequest,
+    AnswerRejected,
+    AutoCompleteRequest,
+    ConfirmRequest,
+    FieldRequest,
+    FormRequest,
+    GroupRequest,
+    NumberRequest,
+    PathRequest,
+    PickRequest,
+    ReadOnlyTable,
+    Request,
+    TextRequest,
+)
+from ._session import PromptCancelledError
 
 _T = TypeVar("_T")
 
@@ -31,7 +48,7 @@ def _new_prompt(method: Callable[..., _T]) -> Callable[..., _T]:
     """Marks an ``_ask_*`` method as the start of a prompt, discarding any stale cancellation."""
 
     @functools.wraps(method)
-    def wrapper(self: "ConsoleFrontend", *args, **kwargs) -> _T:
+    def wrapper(self: "ConsoleClient", *args, **kwargs) -> _T:
         self._cancel.clear()
         return method(self, *args, **kwargs)
 
@@ -43,7 +60,7 @@ class _KeyLineReader:
 
     ``input()`` cannot be interrupted from another thread, so on an interactive
     terminal line prompts read key by key instead, echoing as they go, which
-    lets :meth:`ConsoleFrontend.cancel_prompt` abort them.
+    lets :meth:`ConsoleClient.cancel` abort them.
     """
 
     def __init__(self, console: Console, cancel: threading.Event) -> None:
@@ -97,33 +114,40 @@ _LEVEL_PREFIXES = {
 }
 
 
-class ConsoleFrontend(FrontendBase):
+class ConsoleClient:
     """
-    Console frontend using `rich` for styled, line-based prompts.
+    A :class:`~clabe.ui.Client` using `rich` for styled, line-based prompts.
 
-    Renders messages and prompts with colour and structure on an interactive
-    terminal while degrading gracefully: rich strips styling automatically and
-    falls back to plain ``input`` when output is not a terminal (e.g. piped to a
-    file or running in CI), so this also serves as the non-interactive fallback.
+    Renders messages and prompts with colour and structure on an interactive terminal while degrading gracefully:
+    rich strips styling automatically and falls back to plain ``input`` when output is not a terminal (e.g. piped to
+    a file or running in CI), so this also serves as the non-interactive fallback.
 
-    Prompts are line-based — the user types an answer and presses Enter — with
-    rich handling validation and re-prompting for the primitive types.
+    Like every client it never validates: :meth:`ask` returns the raw answer and whoever drives the client (a run,
+    or a :class:`~clabe.ui.ClientSession`) validates it and asks again if needed.
 
-    On an interactive terminal every prompt reads the keyboard key by key, so
-    :meth:`cancel_prompt` can abort it from another thread. When stdin or
-    stdout is not a terminal, prompts fall back to ``input()`` and cannot be
-    cancelled.
+    On an interactive terminal every prompt reads the keyboard key by key, so :meth:`cancel` can abort it from
+    another thread. When stdin or stdout is not a terminal, prompts fall back to ``input()`` and cannot be cancelled.
+
+    Args:
+        console: The rich console to render on. Defaults to the shared ``clabe`` console so output coordinates with
+            the logging handler.
     """
+
+    #: The method that asks each primitive prompt kind.
+    _HANDLERS: ClassVar[dict[str, str]] = {
+        "text": "_ask_text",
+        "number": "_ask_number",
+        "confirm": "_ask_confirm",
+        "pick": "_ask_pick",
+        "autocomplete": "_ask_autocomplete",
+        "path": "_ask_path",
+        "form": "_ask_form",
+        "group": "_ask_group",
+        "table": "_ask_table",
+        "acknowledge": "_ask_acknowledge",
+    }
 
     def __init__(self, console: Console | None = None) -> None:
-        """
-        Initializes the console frontend.
-
-        Args:
-            console: The rich console to render on. Defaults to the shared
-                ``clabe`` console so output coordinates with the logging handler.
-        """
-        super().__init__()
         if console is None:
             from ..logging import clabe_console
 
@@ -131,9 +155,33 @@ class ConsoleFrontend(FrontendBase):
         self._console = console
         self._cancel = threading.Event()
 
-    def cancel_prompt(self) -> None:
+    # --- Client -------------------------------------------------------------
+    def ask(self, request: Request) -> Any:
+        """Shows ``request`` and returns the raw answer.
+
+        Raises:
+            PromptCancelledError: :meth:`cancel` was called while the prompt was shown.
+            ValueError: ``request`` is not a primitive prompt (e.g. an unresolved field request).
+        """
+        handler = self._HANDLERS.get(request.prompt_kind)
+        if handler is None:
+            raise ValueError(f"Clients cannot ask {request.prompt_kind!r} prompts; resolve the request first.")
+        return getattr(self, handler)(request)
+
+    def cancel(self) -> None:
         """Aborts the waiting prompt; it raises :class:`PromptCancelledError`."""
         self._cancel.set()
+
+    def notify(self, message: str, level: MessageLevel = MessageLevel.INFO) -> None:
+        """Prints a message with level-appropriate styling."""
+        self._console.print(Text(f"{_LEVEL_PREFIXES[level]}{message}", style=_LEVEL_STYLES[level]))
+
+    def header(self, text: str) -> None:
+        """Prints a prominent header as a horizontal rule."""
+        self._console.rule(Text(text, style="bold"))
+
+    def close(self) -> None:
+        """Nothing to release for a console."""
 
     def _read_key(self) -> str:
         """Reads one key, raising if the prompt is cancelled or interrupted."""
@@ -150,14 +198,6 @@ class ConsoleFrontend(FrontendBase):
             return _KeyLineReader(self._console, self._cancel)
         return None
 
-    def _render(self, message: str, level: MessageLevel) -> None:
-        """Prints a message with level-appropriate styling."""
-        self._console.print(Text(f"{_LEVEL_PREFIXES[level]}{message}", style=_LEVEL_STYLES[level]))
-
-    def _render_header(self, text: str) -> None:
-        """Prints a prominent header as a horizontal rule."""
-        self._console.rule(Text(text, style="bold"))
-
     @_new_prompt
     def _ask_text(self, request: TextRequest) -> str:
         """Collects a single line of text."""
@@ -168,6 +208,52 @@ class ConsoleFrontend(FrontendBase):
             default=request.default if request.default is not None else "",
             show_default=request.default is not None,
         )
+
+    @_new_prompt
+    def _ask_number(self, request: NumberRequest) -> str:
+        """Collects a number as typed text (validation coerces it)."""
+        default = f"{request.default:g}" if request.default is not None else ""
+        return Prompt.ask(
+            Text(request.label, style="bold"),
+            console=self._console,
+            stream=self._line_stream(),
+            default=default,
+            show_default=request.default is not None,
+        )
+
+    def _ask_form(self, request: FormRequest) -> dict[str, Any]:
+        """Asks each field of the form's model in turn, with the same rules as a single field prompt.
+
+        Each field is checked as it is entered so mistakes are caught early; the whole model is validated again
+        by whoever drives the client.
+        """
+        model = request.model
+        self.header(request.title or model.__name__)
+        values: dict[str, Any] = {}
+        for name in model.model_fields:
+            initial = getattr(request.initial, name, None) if request.initial is not None else None
+            prompt, convert = FieldRequest(model=model, field_name=name, initial=initial).resolve()
+            while True:
+                raw = self.ask(prompt)
+                try:
+                    values[name] = convert(prompt.validate_answer(raw))
+                    break
+                except AnswerRejected as exc:
+                    self.notify(str(exc), MessageLevel.ERROR)
+        return values
+
+    def _ask_group(self, request: GroupRequest) -> dict[str, Any]:
+        """Asks a group as a form of its compiled model."""
+        return self._ask_form(FormRequest(model=request.model(), title=request.title or "Group"))
+
+    def _ask_table(self, request: ReadOnlyTable) -> bool:
+        """Prints the table, then asks a yes/no question."""
+        table = Table(*(str(column) for column in request.columns), title=request.title)
+        for row in request.rows:
+            table.add_row(*(str(value) for value in row))
+        self._console.print(table)
+        label = request.prompt or f"{request.confirm_label}?"
+        return self._ask_confirm(ConfirmRequest(label=label, default=True))
 
     @_new_prompt
     def _ask_pick(self, request: PickRequest) -> str | None:
@@ -262,9 +348,8 @@ class ConsoleFrontend(FrontendBase):
         (the filesystem itself is the source of truth), arrow keys cycle which
         entry Tab would complete to, and Tab/→ completes the query into that
         entry (appending a separator on a directory, to invite drilling further
-        in). Enter submits the query text as-is; :meth:`FrontendBase.prompt_path`
-        validates it and re-opens this same browser, with progress preserved, if
-        it doesn't satisfy the request.
+        in). Enter submits the query text as-is; whoever drives the client
+        validates it and asks again if it doesn't satisfy the request.
         """
         query = str(request.start or request.default or "") or (str(Path.cwd()) + os.sep)
         index = 0
@@ -347,8 +432,8 @@ class ConsoleFrontend(FrontendBase):
 
         A non-interactive console cannot offer a live browser, so the directory
         is shown up front (mirroring :meth:`_autocomplete_listed`) and any typed
-        value is accepted; :meth:`FrontendBase.prompt_path` enforces the
-        request's constraints.
+        value is returned; whoever drives the client enforces the request's
+        constraints.
         """
         start = Path(request.start or request.default or Path.cwd()).expanduser()
         if start.is_dir():
@@ -360,8 +445,6 @@ class ConsoleFrontend(FrontendBase):
                 self._console.print(
                     Text(f"Contents of {start}: ", style="dim").append(", ".join(entries), style="cyan")
                 )
-        # `start` doubles as "where the user left off" on a re-prompt (FrontendBase.prompt_path
-        # replaces it with the rejected candidate), so prefer it over the original default.
         default_text = str(request.start) if request.start else (request.default or "")
         raw = Prompt.ask(
             Text(request.label, style="bold"),
@@ -430,9 +513,8 @@ class ConsoleFrontend(FrontendBase):
         """Lists the available suggestions, then collects a line of text.
 
         A non-interactive console cannot offer live, type-to-filter completion,
-        so the suggestions are shown up front and any typed value is accepted
-        (subject to the caller's strictness/validators, enforced by the base
-        class).
+        so the suggestions are shown up front and any typed value is returned
+        (strictness and validators are enforced by whoever drives the client).
         """
         suggestions = request.suggestions()
         if suggestions:

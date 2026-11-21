@@ -60,12 +60,13 @@ uv sync
 Define an experiment in a Python module:
 
 ```python
+from clabe import ui
 from clabe.launcher import Launcher, experiment
 
 
 @experiment()
 async def my_experiment(launcher: Launcher) -> None:
-    launcher.frontend.notify("Experiment started")
+    ui.notify("Experiment started")
     # Configure the session, check resources, and run applications here.
 ```
 

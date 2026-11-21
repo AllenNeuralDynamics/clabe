@@ -337,15 +337,14 @@ class GitRepository(Repo):
         _ = [GitRepository(str(sub.abspath)).full_reset() for sub in self.submodules]
         return self
 
-    def try_prompt_full_reset(self, frontend: "ui.Frontend", force_reset: bool = False) -> Self:
+    def try_prompt_full_reset(self, force_reset: bool = False) -> Self:
         """
         Prompts the user to perform a full reset if the repository is dirty.
 
-        Checks if the repository has uncommitted changes and either prompts the user
-        or automatically performs a full reset based on the force_reset parameter.
+        Checks if the repository has uncommitted changes and either asks the user (through the active
+        :mod:`clabe.ui` session) or automatically performs a full reset based on ``force_reset``.
 
         Args:
-            frontend: The frontend mediating user interaction
             force_reset: Whether to skip the prompt and force a reset
 
         Returns:
@@ -354,9 +353,8 @@ class GitRepository(Repo):
         Example:
             ```python
             repo = GitRepository("/path/to/repo")
-            frontend = ui.default_frontend()
-            repo.try_prompt_full_reset(frontend)  # Prompts user if dirty
-            repo.try_prompt_full_reset(frontend, force_reset=True)  # Forces reset
+            repo.try_prompt_full_reset()  # Asks the user if dirty
+            repo.try_prompt_full_reset(force_reset=True)  # Forces reset
             ```
         """
         if force_reset:
@@ -366,7 +364,7 @@ class GitRepository(Repo):
             logger.info("Repository is dirty! %s", self.working_dir)
             logger.info("Uncommitted files: %s", self.uncommitted_changes())
             if not force_reset:
-                is_reset = frontend.prompt_confirm(ui.ConfirmRequest(label="Do you want to reset the repository?"))
+                is_reset = ui.confirm("Do you want to reset the repository?")
             else:
                 is_reset = True
             if is_reset:

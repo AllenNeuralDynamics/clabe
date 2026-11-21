@@ -2,8 +2,9 @@ import contextlib
 
 import pytest
 
+from clabe import ui
 from clabe.runnable import _core, runnable
-from clabe.ui import MessageLevel, set_current_frontend
+from clabe.ui import MessageLevel
 
 
 class RecordingFrontend:
@@ -41,9 +42,8 @@ class RecordingIndicator:
 @pytest.fixture
 def frontend() -> RecordingFrontend:
     fe = RecordingFrontend()
-    set_current_frontend(fe)
-    yield fe
-    set_current_frontend(None)
+    with ui.bind(fe):
+        yield fe
 
 
 @pytest.fixture

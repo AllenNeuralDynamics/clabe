@@ -8,7 +8,7 @@ from pathlib import Path
 from types import ModuleType
 from typing import TYPE_CHECKING, Any
 
-from ..ui import Frontend, PickRequest, default_frontend
+from .. import ui
 from ._workflow import Workflow
 
 if TYPE_CHECKING:
@@ -107,11 +107,11 @@ def collect_workflows(module: ModuleType) -> list[Workflow]:
     return sorted(found, key=lambda workflow: workflow.order)
 
 
-def select_workflow(path: Path, *, frontend: Frontend | None = None, name: str | None = None) -> Workflow:
+def select_workflow(path: Path, *, name: str | None = None) -> Workflow:
     """Loads ``path`` and returns one of its workflows.
 
-    ``name`` selects directly; a single workflow is returned as is; otherwise ``frontend`` (default: the default
-    frontend) asks the user.
+    ``name`` selects directly; a single workflow is returned as is; otherwise the user is asked through the active
+    :mod:`clabe.ui` session.
 
     Raises:
         ValueError: If workflow names are not unique within the file.
@@ -130,9 +130,7 @@ def select_workflow(path: Path, *, frontend: Frontend | None = None, name: str |
     elif len(workflows) == 1:
         selected = workflows[0]
     else:
-        choice = (frontend or default_frontend()).prompt_pick(
-            PickRequest(label="Select experiment to run", options=list(by_name), allow_none=False, field="experiment")
-        )
+        choice = ui.pick("Select experiment to run", list(by_name), allow_none=False, field="experiment")
         if choice is None:
             raise SystemExit("No experiment selected; exiting.")
         selected = by_name[choice]

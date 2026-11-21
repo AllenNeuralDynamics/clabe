@@ -4,6 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from clabe import ui
 from clabe.git_manager._git import GitRepository, _strip_credentials
 
 
@@ -183,13 +184,19 @@ def test_full_reset(temp_git_repo: Path):
     assert not repo.untracked_files
 
 
+def _session_answering(answer):
+    """A session whose every question gets ``answer``, recording what was asked."""
+    session = MagicMock()
+    session.ask.return_value = answer
+    return session
+
+
 def test_try_prompt_full_reset_no_reset(temp_git_repo: Path):
     """Test try_prompt_full_reset when user says no."""
     (temp_git_repo / "test_file.txt").write_text("world")
     repo = GitRepository(path=temp_git_repo)
-    mock_ui = MagicMock()
-    mock_ui.prompt_confirm.return_value = False
-    repo.try_prompt_full_reset(mock_ui)
+    with ui.bind(_session_answering(False)):
+        repo.try_prompt_full_reset()
     assert repo.is_dirty()
 
 
@@ -197,9 +204,8 @@ def test_try_prompt_full_reset_yes_reset(temp_git_repo: Path):
     """Test try_prompt_full_reset when user says yes."""
     (temp_git_repo / "test_file.txt").write_text("world")
     repo = GitRepository(path=temp_git_repo)
-    mock_ui = MagicMock()
-    mock_ui.prompt_confirm.return_value = True
-    repo.try_prompt_full_reset(mock_ui)
+    with ui.bind(_session_answering(True)):
+        repo.try_prompt_full_reset()
     assert not repo.is_dirty()
 
 
@@ -207,10 +213,11 @@ def test_try_prompt_full_reset_force_reset(temp_git_repo: Path):
     """Test try_prompt_full_reset with force_reset=True."""
     (temp_git_repo / "test_file.txt").write_text("world")
     repo = GitRepository(path=temp_git_repo)
-    mock_ui = MagicMock()
-    repo.try_prompt_full_reset(mock_ui, force_reset=True)
+    session = _session_answering(False)
+    with ui.bind(session):
+        repo.try_prompt_full_reset(force_reset=True)
     assert not repo.is_dirty()
-    mock_ui.prompt_confirm.assert_not_called()
+    session.ask.assert_not_called()
 
 
 def test_relative_path_falls_back_to_absolute_across_drives(tmp_path: Path, monkeypatch):

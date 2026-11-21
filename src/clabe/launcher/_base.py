@@ -13,15 +13,15 @@ import git.exc
 import pydantic
 from aind_behavior_services import Session
 
-from .. import __version__
+from .. import __version__, ui
 from .. import logging as clabe_logging
 from ..constants import TMP_DIR
 from ..git_manager import GitRepository
 from ..logging.otel import bind_session, record_exception, run_span
 from ..runnable import set_include_timing
-from ..ui import Frontend, MessageLevel, PromptCancelledError, TextRequest, make_frontend, set_current_frontend
+from ..ui import Client, ClientSession, MessageLevel, PromptCancelledError, make_client
 from ..utils import abspath, format_datetime, utcnow
-from ..workflow import ExperimentCallable, LocalClient, Run, RunFrontend, RunStatus, Workflow, as_workflow
+from ..workflow import ExperimentCallable, LocalClient, Run, RunStatus, Workflow, as_workflow
 from ._cli import LauncherCliArgs
 from ._manifest import RunManifest, collect_manifest, finish_manifest, write_manifest
 
@@ -60,7 +60,7 @@ class Launcher:
         *,
         settings: LauncherCliArgs,
         attached_logger: logging.Logger | None = None,
-        frontend: None | Frontend = None,
+        client: Client | None = None,
     ) -> None:
         """
         Initializes the Launcher instance.
@@ -68,14 +68,15 @@ class Launcher:
         Args:
             settings: The settings for the launcher
             attached_logger: An attached logger instance. Defaults to None
-            frontend: The frontend mediating all user interaction. Defaults to the
-                backend selected by ``settings.frontend``
+            client: The user interface (console, TUI, ...). Defaults to the backend selected by
+                ``settings.frontend``
         """
         self._settings = settings
-        self.frontend: Frontend = frontend or make_frontend(settings.frontend)
-        # Register the frontend so UI-agnostic library modules can surface key
-        # events to the user (see ``clabe.ui.notify``).
-        set_current_frontend(self.frontend)
+        # Outside a run, library code asks and informs the user through the launcher's client (see ``clabe.ui``);
+        # a run binds itself while it executes.
+        self._ui_session = ClientSession(client or make_client(settings.frontend))
+        self._ui_binding = ui.bind(self._ui_session)
+        self._ui_binding.__enter__()
         self.temp_dir = Path(TMP_DIR) / format_datetime(utcnow())
         self.computer_name = os.environ["COMPUTERNAME"]
         self._data_directory: Path | None = None
@@ -113,6 +114,16 @@ class Launcher:
         self._has_copied_logs = False
         self._manifest: RunManifest | None = None
         self._has_run = False
+
+    @property
+    def client(self) -> Client:
+        """The user interface this launcher asks and informs through outside a run (and drives the run with)."""
+        return self._ui_session.client
+
+    @client.setter
+    def client(self, client: Client) -> None:
+        """Switches the user interface (used before a run starts)."""
+        self._ui_session.client = client
 
     @property
     def data_directory(self) -> Path:
@@ -194,9 +205,9 @@ class Launcher:
         Main entry point for the launcher execution.
 
         Accepts a :class:`~clabe.workflow.Workflow`, an ``@experiment`` function or a plain ``(launcher)``
-        callable (sync or async), and executes it as a run driven by this launcher's frontend. While the run
-        executes, ``launcher.frontend`` points at the run. The run's ``events.jsonl`` is written to ``temp_dir``.
-        Orchestrates the complete launcher workflow including validation, execution and cleanup.
+        callable (sync or async), and executes it as a run driven by this launcher's client. Unless in debug mode,
+        :meth:`validate` runs as the run's first step (``clabe_preflight``). The run's records are written to
+        ``temp_dir``. Orchestrates the complete launcher workflow including validation, execution and cleanup.
 
         Steps (including legacy experiments) run on a dedicated run thread, not the main thread; code that must
         run on the main thread (e.g. ``signal.signal``, some GUI toolkits) cannot be called from a step.
@@ -227,27 +238,24 @@ class Launcher:
         # Handle inside run_span so teardown logs stay under the root span (and its attributes).
         with run_span(self, experiment_name=workflow.name):
             try:
-                self.frontend.header(self.make_header())
-                set_experiment = getattr(self.frontend, "set_experiment", None)
+                ui.header(self.make_header())
+                set_experiment = getattr(self.client, "set_experiment", None)
                 if callable(set_experiment):
                     set_experiment(workflow.name)
                 logger.info(self._generate_diagnostic_info())
-
-                if not self.settings.debug_mode:
-                    self.validate()
 
                 _code = self._finish(self._run_workflow(workflow))
 
             except KeyboardInterrupt as e:
                 # A second Ctrl+C (the first one aborts the run), or one outside the run.
                 logger.error("User interrupted the process.")
-                self.frontend.notify("Interrupted by user.", MessageLevel.WARNING)
+                ui.notify("Interrupted by user.", MessageLevel.WARNING)
                 record_exception(e)
                 self._record_outcome("aborted", "Interrupted by user.", -1)
                 _code = -1
             except Exception as e:  # pylint: disable=broad-except
                 logger.exception("Launcher failed")
-                self.frontend.notify(f"Launcher failed: {e}", MessageLevel.ERROR)
+                ui.notify(f"Launcher failed: {e}", MessageLevel.ERROR)
                 record_exception(e)
                 self._record_outcome("failed", str(e), -1)
                 _code = -1
@@ -255,25 +263,32 @@ class Launcher:
                 try:
                     self.copy_logs()
                 except ValueError as ve:  # In the case session_directory fails
-                    self.frontend.notify(f"Failed to copy logs from {self.temp_dir}: {ve}", MessageLevel.ERROR)
+                    ui.notify(f"Failed to copy logs from {self.temp_dir}: {ve}", MessageLevel.ERROR)
                     _code = -1
                     self._record_exit_code(_code)
         self._exit(_code, timeout=workflow.exit_prompt_timeout)
 
     def _run_workflow(self, workflow: Workflow) -> Run:
-        """Executes ``workflow`` with this launcher, driven by the local frontend."""
-        run = Run(workflow, launcher=self, record_dir=self.temp_dir)
+        """Executes ``workflow`` (with the preflight step) with this launcher, driven by its client."""
+        run = Run(self._with_preflight(workflow), launcher=self, record_dir=self.temp_dir)
         self._manifest = collect_manifest(self, run.workflow, run_id=run.id, directory=self.temp_dir)
         self._write_manifest()
-        local = self.frontend
-        self.frontend = RunFrontend(run)
-        set_current_frontend(self.frontend)
-        try:
-            LocalClient(run, local).drive()
-        finally:
-            self.frontend = local
-            set_current_frontend(local)
+        LocalClient(run, self.client).drive()
         return run
+
+    def _with_preflight(self, workflow: Workflow) -> Workflow:
+        """``workflow`` with :meth:`validate` as its first step, ``clabe_preflight`` (none in debug mode)."""
+        if self.settings.debug_mode:
+            return workflow
+
+        def clabe_preflight(launcher: "Launcher") -> None:
+            launcher.validate()
+
+        variant = workflow.variant(workflow.name)
+        if variant.steps:
+            return variant.insert_before(variant.steps[0].name, clabe_preflight, title="Preflight checks")
+        variant.step(clabe_preflight, title="Preflight checks")
+        return variant
 
     def _finish(self, run: Run) -> int:
         """Reports how ``run`` ended, records it in the run manifest and returns the launcher exit code."""
@@ -287,12 +302,12 @@ class Launcher:
             return 0
         if run.status is RunStatus.ABORTED:
             logger.error("Run aborted: %s", run.reason)
-            self.frontend.notify(f"Run aborted: {run.reason}", MessageLevel.WARNING)
+            ui.notify(f"Run aborted: {run.reason}", MessageLevel.WARNING)
             # Keep the trace red and filterable by type, as a Ctrl+C was before runs existed.
             record_exception(run.error or KeyboardInterrupt(run.reason))
         else:
             logger.error("Run failed: %s", run.reason, exc_info=run.error)
-            self.frontend.notify(f"Launcher failed: {run.reason}", MessageLevel.ERROR)
+            ui.notify(f"Launcher failed: {run.reason}", MessageLevel.ERROR)
             record_exception(run.error or RuntimeError(run.reason))
         return -1
 
@@ -337,7 +352,7 @@ class Launcher:
             out = self._copy_tmp_directory(dst)
         else:
             out = self._copy_tmp_directory(self.session_directory / suffix)
-        self.frontend.notify(f"Copied logs to {out}", MessageLevel.SUCCESS)
+        ui.notify(f"Copied logs to {out}", MessageLevel.SUCCESS)
         self._has_copied_logs = True
 
     @property
@@ -404,13 +419,6 @@ class Launcher:
                 prompt. Defaults to None
         """
         logger.debug("Exiting with code %s", code)
-        if timeout and not callable(getattr(self.frontend, "cancel_prompt", None)):
-            logger.warning(
-                "%s cannot cancel prompts; ignoring the %s s exit prompt timeout.",
-                type(self.frontend).__name__,
-                timeout,
-            )
-            timeout = None
         if logger is not None:
             clabe_logging.shutdown_logger(logger)
         if not _force and timeout != 0:
@@ -419,20 +427,18 @@ class Launcher:
                 label = f"Press Enter to exit (closing automatically in {timeout:g} s)..."
             with self._cancel_prompt_after(timeout):
                 try:
-                    self.frontend.prompt_text(TextRequest(label=label, field="exit"))
+                    ui.text(label, field="exit")
                 except KeyboardInterrupt:
                     pass  # a second Ctrl+C at the exit prompt should just exit
                 except PromptCancelledError:
                     logger.debug("Exit prompt timed out after %s s", timeout)
-        # Tear down the frontend (e.g. leave the persistent TUI) if it supports it.
-        close = getattr(self.frontend, "close", None)
-        if callable(close):
-            close()
-        set_current_frontend(None)
+        # Tear down the client (e.g. leave the persistent TUI) and stop asking through it.
+        self.client.close()
+        self._ui_binding.__exit__(None, None, None)
 
     @contextlib.contextmanager
     def _cancel_prompt_after(self, timeout: float | None) -> Generator[None]:
-        """Cancels the frontend prompt running inside this block once ``timeout`` seconds pass.
+        """Cancels the client prompt running inside this block once ``timeout`` seconds pass.
 
         Keeps cancelling until the block exits, so a cancellation that lands before
         the prompt is on screen is not lost. ``None`` never cancels.
@@ -446,7 +452,7 @@ class Launcher:
             if done.wait(timeout):
                 return
             while not done.is_set():
-                self.frontend.cancel_prompt()
+                self.client.cancel()
                 done.wait(0.1)
 
         timer = threading.Thread(target=_cancel_when_due, name="clabe-exit-timeout", daemon=True)
@@ -505,14 +511,14 @@ class Launcher:
         """
         if self.repository.is_dirty():
             logger.warning("Uncommitted files: %s", self.repository.uncommitted_changes())
-            self.frontend.notify(
+            ui.notify(
                 "Git repository is dirty. Discard changes before continuing unless you know what you are doing!",
                 MessageLevel.WARNING,
             )
             if not self.settings.allow_dirty:
-                self.repository.try_prompt_full_reset(self.frontend, force_reset=False)
+                self.repository.try_prompt_full_reset(force_reset=False)
                 if self.repository.is_dirty_with_submodules():
-                    self.frontend.notify(
+                    ui.notify(
                         "Dirty repository not allowed. Exiting. Consider running with --allow-dirty flag.",
                         MessageLevel.ERROR,
                     )

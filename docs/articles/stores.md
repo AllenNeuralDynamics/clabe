@@ -66,9 +66,9 @@ class Store(Protocol):
 rig = store.resolve(RIG)
 ```
 
-`resolve` raises `LookupError` when nothing matches, silently returns the one candidate when there's exactly one (with a `notify()` so the choice is still visible), and otherwise prompts — through whichever [frontend](frontends.md) is currently registered. Because presentation is backend-specific (a flat pick list for local files, a queried table for Dataverse, …), `resolve` lives on the store itself rather than a separate "resolver" object layered on top.
+`resolve` raises `LookupError` when nothing matches, silently returns the one candidate when there's exactly one (with a `notify()` so the choice is still visible), and otherwise asks the user — through the active [session](frontends.md) (the run, or the launcher's client). Because presentation is backend-specific (a flat pick list for local files, a queried table for Dataverse, …), `resolve` lives on the store itself rather than a separate "resolver" object layered on top.
 
-Prompting needs an answer, so if no frontend is registered `resolve` raises [`NoFrontendError`][clabe.ui.NoFrontendError] instead of hanging — the same rule every `prompt_*` in `clabe.ui` follows. See [Frontends → Talking to the active frontend](frontends.md#talking-to-the-active-frontend).
+Asking needs an answer, so if nothing can ask `resolve` raises [`NoSessionError`][clabe.ui.NoSessionError] instead of hanging — the same rule as every `clabe.ui.ask`. See [Talking to the user](frontends.md#when-nothing-can-ask).
 
 Pass `pick_kwargs` to override the prompt shown when there's a choice to make (the label, whether "none" is offered, …); `options` itself always comes from the store's own candidates and can't be overridden:
 
@@ -129,4 +129,4 @@ Override `resolve` itself only when the backend affords a materially better pres
 ## See also
 
 - [Store Backends](store_backends.md) — worked examples for every backend CLABE ships, and for combining them with `CompositeStore`.
-- [Frontends](frontends.md) — what actually renders a `resolve` prompt, and how a store degrades without one.
+- [Talking to the user](frontends.md) — what actually renders a `resolve` prompt, and how a store degrades without one.

@@ -261,7 +261,7 @@ class StoreBase(abc.ABC):
 
         Raises:
             LookupError: If no record of this kind exists in scope, or the user declined to pick one.
-            ui.NoFrontendError: If a choice must be made and no frontend is registered.
+            ui.NoSessionError: If a choice must be made and nothing can ask the user.
         """
         _kind = as_kind(kind)
         candidates = self._candidates(_kind, self._merge_scope(scope))
@@ -277,7 +277,7 @@ class StoreBase(abc.ABC):
             "field": _kind.name,
         }
         _request_kwargs.update(pick_kwargs or {})
-        picked = ui.prompt_pick(
+        picked = ui.ask(
             ui.PickRequest(
                 options=_recent_first(_kind.name, sorted(by_label)),
                 **_request_kwargs,

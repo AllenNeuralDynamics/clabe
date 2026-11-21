@@ -1,3 +1,5 @@
+from unittest.mock import Mock
+
 import pydantic
 import pytest
 from aind_behavior_curriculum import TrainerState
@@ -6,6 +8,7 @@ from aind_behavior_services import Rig, Task
 from clabe import ui
 from clabe.cache_manager import CacheManager
 from clabe.stores import CompositeStore, Kind, MemoryStore, as_kind
+from tests.conftest import use_client
 
 
 class Widget(pydantic.BaseModel):
@@ -46,7 +49,7 @@ class TestKind:
         assert as_kind(kind) is kind
 
     def test_trainer_state_validator_rejects_a_stageless_state(self, mock_frontend):
-        ui.set_current_frontend(mock_frontend)
+        use_client(mock_frontend)
         store = MemoryStore()
         store.write(Kind.from_trainer_state(), TrainerState(curriculum=None, stage=None, is_on_curriculum=False))
         with pytest.raises(ValueError, match="no stage"):
@@ -63,13 +66,13 @@ class TestResolve:
             store.resolve(Widget)
 
     def test_a_lone_candidate_is_selected_without_prompting(self, store, mock_frontend):
-        ui.set_current_frontend(mock_frontend)
+        use_client(mock_frontend)
         store.write(Widget, Widget(value=1))
         assert store.resolve(Widget) == Widget(value=1)
         mock_frontend._ask_pick_mock.assert_not_called()
 
     def test_many_candidates_prompt(self, store, mock_frontend):
-        ui.set_current_frontend(mock_frontend)
+        use_client(mock_frontend)
         store.write(Widget, Widget(value=1))
         store.write(Widget, Widget(value=2))
         mock_frontend._ask_pick_mock.return_value = "widget[1]"
@@ -79,25 +82,26 @@ class TestResolve:
     def test_prompting_without_a_frontend_raises(self, store):
         store.write(Widget, Widget(value=1))
         store.write(Widget, Widget(value=2))
-        with pytest.raises(ui.NoFrontendError):
+        with pytest.raises(ui.NoSessionError):
             store.resolve(Widget)
 
-    def test_declining_the_prompt_raises(self, store, mock_frontend):
-        ui.set_current_frontend(mock_frontend)
+    def test_declining_the_prompt_raises(self, store):
+        # A session that returns no choice (e.g. a client that lets the user cancel) makes resolve raise.
+        declining = Mock()
+        declining.ask.return_value = None
         store.write(Widget, Widget(value=1))
         store.write(Widget, Widget(value=2))
-        mock_frontend._ask_pick_mock.return_value = None
-        with pytest.raises(LookupError, match="selected"):
+        with ui.bind(declining), pytest.raises(LookupError, match="selected"):
             store.resolve(Widget)
 
     def test_the_kind_validator_is_applied(self, store, mock_frontend):
-        ui.set_current_frontend(mock_frontend)
+        use_client(mock_frontend)
         store.write(Widget, Widget(value=1))
         doubled = Kind(Widget, validators=lambda w: Widget(value=w.value * 2))
         assert store.resolve(doubled) == Widget(value=2)
 
     def test_recently_chosen_options_are_offered_first(self, store, mock_frontend):
-        ui.set_current_frontend(mock_frontend)
+        use_client(mock_frontend)
         for value in range(3):
             store.write(Widget, Widget(value=value))
         mock_frontend._ask_pick_mock.return_value = "widget[2]"
@@ -142,7 +146,7 @@ class TestCompositeStore:
         return MemoryStore(), MemoryStore()
 
     def test_routes_by_kind_name(self, stores, mock_frontend):
-        ui.set_current_frontend(mock_frontend)
+        use_client(mock_frontend)
         default, routed = stores
         composite = CompositeStore(default=default, routes={"gadget": routed})
 
