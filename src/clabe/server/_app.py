@@ -10,14 +10,14 @@ from collections.abc import AsyncIterable
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.sse import EventSourceResponse, ServerSentEvent
 from fastapi.staticfiles import StaticFiles
 
 from .. import __version__
 from ..ui._requests import normalize_extensions
 from ..workflow import Ack, Rejected, Run, RunState
-from ..workflow.events import Event, RunFinished
+from ..workflow.events import Event, PromptOpened, RunFinished
 from ._models import (
     AbortBody,
     AnswerBody,
@@ -118,6 +118,11 @@ def create_app(run: Run, *, token: str | None = None, static_dir: Path | None = 
         """Answers an open prompt; an invalid answer is rejected and the prompt stays open."""
         return _result(run.answer(prompt_id, body.value, client=body.client))
 
+    @api.get("/prompts/{prompt_id}/media", response_class=FileResponse)
+    def media(prompt_id: str) -> FileResponse:
+        """The local file shown by a media prompt (an image or an HTML page); nothing else is served."""
+        return FileResponse(_media_file(run, prompt_id))
+
     @api.post("/steps/{name}/back", response_model=CommandResult)
     def back(name: str, body: ClientBody | None = None) -> CommandResult:
         """Goes back to step ``name``: it and the steps depending on it run again."""
@@ -187,6 +192,19 @@ async def _event_stream(run: Run, request: Request, start: int) -> AsyncIterable
                 return
     finally:
         unsubscribe()
+
+
+def _media_file(run: Run, prompt_id: str) -> Path:
+    """The file of media prompt ``prompt_id``, as its request described it."""
+    for event in run.events.since(0):
+        if isinstance(event, PromptOpened) and event.prompt_id == prompt_id:
+            if event.kind != "media" or event.spec.get("location") != "file":
+                break
+            path = Path(event.spec["source"]).expanduser()
+            if not path.is_file():
+                raise HTTPException(status_code=404, detail=f"The file is gone: {path}")
+            return path
+    raise HTTPException(status_code=404, detail=f"Prompt {prompt_id!r} shows no local file.")
 
 
 def _list_dir(body: ListDirBody) -> DirListing:

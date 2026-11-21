@@ -68,7 +68,7 @@ main { padding: 1.25rem 1.5rem; min-width: 0; }
 
 .prompt {
     background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
-    padding: 1.25rem 1.5rem; max-width: 46rem;
+    padding: 1.25rem 1.5rem; max-width: 60rem;
 }
 .prompt h2 { margin: 0 0 .9rem; font-size: 1.15rem; }
 .prompt .title { display: block; font-weight: 600; font-size: 1.1rem; margin-bottom: .6rem; }
@@ -164,3 +164,14 @@ time { color: var(--muted); font-variant-numeric: tabular-nums; font-size: .8rem
     .body { grid-template-columns: 1fr; }
     .stepper { border-right: none; border-bottom: 1px solid var(--border); }
 }
+
+.markdown { line-height: 1.5; overflow-wrap: anywhere; }
+.markdown :first-child { margin-top: 0; }
+.markdown pre { background: var(--bg); padding: .6rem; border-radius: 6px; overflow: auto; }
+.markdown code { font-size: .9em; }
+.markdown table { width: auto; margin: .5rem 0; }
+.markdown blockquote { margin: .5rem 0; padding-left: .8rem; border-left: 3px solid var(--border); color: var(--muted); }
+.media { margin: 0; display: flex; flex-direction: column; gap: .5rem; }
+.media img { max-width: 100%; max-height: 65vh; object-fit: contain; align-self: flex-start; border-radius: 6px; }
+.media iframe { width: 100%; height: 60vh; border: 1px solid var(--border); border-radius: 6px; background: #fff; }
+.media figcaption { color: var(--muted); font-size: .9rem; }

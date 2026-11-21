@@ -24,6 +24,13 @@ public sealed class RunApi(HttpClient http)
     public string EventsUrl =>
         new Uri(http.BaseAddress!, Token is null ? "api/events" : $"api/events?token={Uri.EscapeDataString(Token)}").ToString();
 
+    /// <summary>Where the browser loads a media prompt's local file (an img or iframe cannot send headers either).</summary>
+    public string MediaUrl(string promptId)
+    {
+        var path = $"api/prompts/{Uri.EscapeDataString(promptId)}/media";
+        return new Uri(http.BaseAddress!, Token is null ? path : $"{path}?token={Uri.EscapeDataString(Token)}").ToString();
+    }
+
     public async Task<ServerInfo> InfoAsync() =>
         (await http.GetFromJsonAsync<ServerInfo>("api/info", Json.Options))!;
 

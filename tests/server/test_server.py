@@ -268,3 +268,42 @@ def test_the_local_frontend_and_the_web_share_one_run(serve):
     thread.join(5)
     assert run.status is RunStatus.COMPLETED and run.output("a") == "from the web"
     assert [r.label for r in local.asked][:1] == ["Subject"]  # the TUI showed it; the web answer closed it
+
+
+def test_a_media_prompt_serves_its_own_file_and_nothing_else(serve, tmp_path):
+    image = tmp_path / "frame.png"
+    image.write_bytes(b"\x89PNG fake")
+    opened = threading.Event()
+    wf = Workflow("demo")
+
+    @wf.step
+    def a():
+        opened.set()
+        ui.image(image, caption="Camera 1")
+
+    @wf.step
+    def b(a):
+        return ui.text("Name")
+
+    run = Run(wf)
+    client = serve(run, token="k")
+    run.start()
+    assert opened.wait(5)
+    for _ in range(100):
+        state = client.state()
+        if state.prompt is not None:
+            break
+    media = state.prompt
+    assert media.kind == "media" and media.spec["location"] == "file"
+    response = requests.get(f"{client.base_url}/api/prompts/{media.prompt_id}/media?token=k", timeout=5)
+    assert response.ok and response.content == image.read_bytes()
+    assert response.headers["content-type"] == "image/png"
+    assert client.answer(media.prompt_id, None).ok
+    for _ in range(100):
+        state = client.state()
+        if state.prompt is not None and state.prompt.prompt_id != media.prompt_id:
+            break
+    other = requests.get(f"{client.base_url}/api/prompts/{state.prompt.prompt_id}/media?token=k", timeout=5)
+    assert other.status_code == 404  # a text prompt shows no file
+    assert requests.get(f"{client.base_url}/api/prompts/{media.prompt_id}/media", timeout=5).status_code == 401
+    run.abort("done")

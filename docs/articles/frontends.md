@@ -48,6 +48,29 @@ tuning["gain"]  # a float in [0, 1]
 Items may be text, number, confirm, pick, autocomplete, path or field requests. A rejected answer names the item
 (`gain: must be ≤ 1`). Clients without a slider show a number input with the range.
 
+### Showing documents, images and pages
+
+Four prompts show something and wait until the user continues (they return `None`):
+
+```python
+ui.markdown("## Before you start\n\n1. Check the **water** line", title="Checklist")
+ui.image("qc/frame_0001.png", title="Camera 1", caption="Last frame")   # a local file or a URL
+ui.html("qc/report.html", title="QC report")                            # a file, a URL, or the HTML itself
+ui.url("https://grafana.example.org/d/rig-3", title="Rig dashboard")
+```
+
+| Prompt | Web UI | TUI | Console |
+|---|---|---|---|
+| `markdown` | rendered | rendered | rendered (Rich) |
+| `image` | shown | warning naming the file | warning naming the file |
+| `html` | sandboxed frame | warning naming the file | warning naming the file |
+| `url` | frame + "open in a new tab" link | warning naming the URL | warning naming the URL |
+
+A client that cannot show the media logs a warning naming the file or URL and still waits for the user to continue,
+so a run served to the web is not answered behind the back of whoever is looking at the page. The web UI loads local
+files through the run server, which serves only the file of that prompt; an HTML file is shown on its own (files it
+links to next to it are not served). Raw HTML inside Markdown is not rendered; use `ui.html` for HTML.
+
 ### When nothing can ask
 
 - `ui.ask` and the helpers raise `NoSessionError` — a prompt has to be answered, and failing loudly beats hanging on

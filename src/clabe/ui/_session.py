@@ -22,6 +22,8 @@ from ._requests import (
     FieldRequest,
     FormRequest,
     GroupRequest,
+    MarkdownRequest,
+    MediaRequest,
     NumberRequest,
     PathRequest,
     PickRequest,
@@ -313,6 +315,57 @@ def table(
 def acknowledge(message: str, *, title: str = "Notice", button_label: str = "OK", field: str | None = None) -> None:
     """Shows ``message`` and blocks until the user dismisses it (see :class:`~clabe.ui.AcknowledgeRequest`)."""
     ask(AcknowledgeRequest(message=message, title=title, button_label=button_label, field=field))
+
+
+def markdown(text: str, *, title: str | None = None, button_label: str = "Continue", field: str | None = None) -> None:
+    """Shows a Markdown document and blocks until the user continues (see :class:`~clabe.ui.MarkdownRequest`)."""
+    ask(MarkdownRequest(markdown=text, title=title, button_label=button_label, field=field))
+
+
+def image(
+    source: str | Path,
+    *,
+    title: str | None = None,
+    caption: str | None = None,
+    button_label: str = "Continue",
+    field: str | None = None,
+) -> None:
+    """Shows an image (a local file or a URL) and blocks until the user continues.
+
+    Clients that cannot show images log a warning with the file instead (see :class:`~clabe.ui.MediaRequest`).
+    """
+    ask(MediaRequest(source, "image", title=title, caption=caption, button_label=button_label, field=field))
+
+
+def html(
+    source: str | Path,
+    *,
+    title: str | None = None,
+    caption: str | None = None,
+    button_label: str = "Continue",
+    field: str | None = None,
+) -> None:
+    """Shows an HTML page (a local file, a URL, or the HTML itself) and blocks until the user continues.
+
+    The page is sandboxed. Clients that cannot show HTML log a warning instead (see :class:`~clabe.ui.MediaRequest`).
+    """
+    ask(MediaRequest(source, "html", title=title, caption=caption, button_label=button_label, field=field))
+
+
+def url(
+    address: str,
+    *,
+    title: str | None = None,
+    caption: str | None = None,
+    button_label: str = "Continue",
+    field: str | None = None,
+) -> None:
+    """Shows a web page and blocks until the user continues.
+
+    Sites that refuse to be framed still get a link to open them. Clients that cannot show web pages log a warning
+    with the URL instead (see :class:`~clabe.ui.MediaRequest`).
+    """
+    ask(MediaRequest(address, "url", title=title, caption=caption, button_label=button_label, field=field))
 
 
 def group(title: str | None = None, /, **items: Request) -> dict[str, Any]:

@@ -134,3 +134,63 @@ def test_the_web_ui_drives_a_run(page, tmp_path):
     assert run.output("settings") == Settings(trials=120, arena=Arena.LINEAR)
     closed = [e for e in run.events.since(0) if isinstance(e, PromptClosed) and e.outcome == "answered"]
     assert all(e.answered_by.startswith("web-") for e in closed)
+
+
+_PNG = bytes.fromhex(  # 1x1 pixel
+    "89504e470d0a1a0a0000000d4948445200000001000000010806000000"
+    "1f15c4890000000d49444154789c6360f80f00000101000518d84e0000000049454e44ae426082"
+)
+
+
+def test_the_web_ui_shows_markdown_and_media(page, tmp_path):
+    image = tmp_path / "frame.png"
+    image.write_bytes(_PNG)
+    wf = Workflow("media-demo")
+
+    @wf.step
+    def notes():
+        ui.markdown("# Checklist\n\n- **Water** is on\n\n<script>window.pwned = 1</script>", title="Before you start")
+
+    @wf.step
+    def snapshot(notes):
+        ui.image(image, title="Camera 1", caption="Last frame")
+
+    @wf.step
+    def report(snapshot):
+        ui.html("<h3>QC passed</h3>", title="QC")
+
+    @wf.step
+    def docs(report):
+        ui.url(f"{base}/docs", title="API")
+
+    run = Run(wf)
+    server = RunServer(run, port=18295)
+    url = server.start()
+    base = url.rstrip("/")
+    try:
+        run.start()
+        page.goto(url)
+        page.get_by_role("heading", name="Before you start").wait_for()
+        assert page.locator(".markdown strong").inner_text() == "Water"
+        assert page.evaluate("window.pwned") is None  # raw HTML is not rendered
+        page.get_by_role("button", name="Continue").click()
+
+        page.get_by_role("heading", name="Camera 1").wait_for()
+        page.wait_for_function("document.querySelector('.media img')?.naturalWidth === 1")
+        assert page.locator("figcaption").inner_text() == "Last frame"
+        page.get_by_role("button", name="Continue").click()
+
+        page.get_by_role("heading", name="QC", exact=True).wait_for()
+        page.frame_locator(".media iframe").get_by_role("heading", name="QC passed").wait_for()
+        page.get_by_role("button", name="Continue").click()
+
+        page.get_by_role("heading", name="API").wait_for()
+        assert page.locator(".media iframe").get_attribute("src") == f"{base}/docs"
+        assert page.get_by_role("link", name="Open in a new tab").get_attribute("href") == f"{base}/docs"
+        page.get_by_role("button", name="Continue").click()
+        assert run.wait(15)
+    finally:
+        if not run.wait(0):
+            run.abort("test teardown")
+        server.stop()
+    assert run.status is RunStatus.COMPLETED

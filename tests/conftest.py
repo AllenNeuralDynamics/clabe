@@ -46,7 +46,7 @@ class MockFrontend:
             return self._ask_confirm_mock(request)
         if kind in ("form", "group"):
             return self._ask_form_mock(request)
-        if kind == "acknowledge":
+        if kind in ("acknowledge", "markdown", "media"):
             return None
         return getattr(self, f"_ask_{kind}_mock")(request)
 

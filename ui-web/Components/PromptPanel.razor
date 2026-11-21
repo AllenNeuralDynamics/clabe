@@ -36,6 +36,49 @@
                 <button type="button" disabled="@_busy" @onclick="() => Send(null)">@(Spec["button_label"]?.ToString() ?? "OK")</button>
             </div>
             break;
+        case "markdown":
+            @if (Spec["title"]?.ToString() is { } markdownTitle)
+            {
+                <h2>@markdownTitle</h2>
+            }
+            @* rendered by the run with raw HTML escaped *@
+            <div class="markdown">@((MarkupString)(Spec["html"]?.ToString() ?? ""))</div>
+            <div class="actions">
+                <button type="button" disabled="@_busy" @onclick="() => Send(null)">@(Spec["button_label"]?.ToString() ?? "Continue")</button>
+            </div>
+            break;
+        case "media":
+            @if (Spec["title"]?.ToString() is { } mediaTitle)
+            {
+                <h2>@mediaTitle</h2>
+            }
+            <figure class="media">
+                @switch ((Spec["media"]?.ToString(), Spec["location"]?.ToString()))
+                {
+                    case ("image", _):
+                        <img src="@MediaSource" alt="@(Spec["caption"]?.ToString() ?? "")" />
+                        break;
+                    case ("html", "inline"):
+                        <iframe sandbox="allow-scripts allow-popups" srcdoc="@Spec["source"]?.ToString()"></iframe>
+                        break;
+                    case ("html", _):
+                    case ("url", _):
+                        <iframe sandbox="allow-scripts allow-popups allow-forms" src="@MediaSource"></iframe>
+                        <a href="@MediaSource" target="_blank" rel="noopener">Open in a new tab</a>
+                        break;
+                    default:
+                        <p class="error">This page cannot show a "@Spec["media"]" media: @Spec["source"]</p>
+                        break;
+                }
+                @if (Spec["caption"]?.ToString() is { } caption)
+                {
+                    <figcaption>@caption</figcaption>
+                }
+            </figure>
+            <div class="actions">
+                <button type="button" disabled="@_busy" @onclick="() => Send(null)">@(Spec["button_label"]?.ToString() ?? "Continue")</button>
+            </div>
+            break;
         case "table":
             <h2>@(Spec["title"]?.ToString() ?? "Review")</h2>
             <div class="table-wrap">
@@ -135,6 +178,11 @@
 
     private JsonObject Spec => Prompt.Spec ?? [];
     private string Label => Spec["label"]?.ToString() ?? "";
+
+    /// <summary>A media prompt's URL, or its local file served by the run.</summary>
+    private string MediaSource => Spec["location"]?.ToString() == "url"
+        ? Spec["source"]?.ToString() ?? ""
+        : Connection.Api.MediaUrl(Prompt.PromptId!);
     private JsonObject? Defs => FormSchema?["$defs"] as JsonObject ?? Prompt.AnswerSchema?["$defs"] as JsonObject;
     private JsonObject? FormSchema => Prompt.AnswerSchema is { } schema ? SchemaField.Unwrap(schema, schema["$defs"] as JsonObject) : null;
 

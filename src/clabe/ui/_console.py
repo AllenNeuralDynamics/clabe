@@ -1,6 +1,7 @@
 """Console client: rich-styled, line-based prompts that work on a terminal and degrade gracefully when piped."""
 
 import functools
+import logging
 import os
 import sys
 import threading
@@ -10,6 +11,7 @@ from typing import Any, ClassVar, TypeVar
 
 from rich.console import Console, Group
 from rich.live import Live
+from rich.markdown import Markdown
 from rich.prompt import Confirm, Prompt
 from rich.table import Table
 from rich.text import Text
@@ -24,6 +26,8 @@ from ._requests import (
     FieldRequest,
     FormRequest,
     GroupRequest,
+    MarkdownRequest,
+    MediaRequest,
     NumberRequest,
     PathRequest,
     PickRequest,
@@ -32,6 +36,8 @@ from ._requests import (
     TextRequest,
 )
 from ._session import PromptCancelledError
+
+logger = logging.getLogger(__name__)
 
 _T = TypeVar("_T")
 
@@ -145,6 +151,8 @@ class ConsoleClient:
         "group": "_ask_group",
         "table": "_ask_table",
         "acknowledge": "_ask_acknowledge",
+        "markdown": "_ask_markdown",
+        "media": "_ask_media",
     }
 
     def __init__(self, console: Console | None = None) -> None:
@@ -544,4 +552,24 @@ class ConsoleClient:
         """Prints the title and message, then waits for Enter."""
         self._console.print(Text(f"\n{request.title}", style="bold yellow"))
         self._console.print(request.message)
+        self._console.input(f"  Press Enter to {request.button_label.lower()}\u2026", stream=self._line_stream())
+
+    @_new_prompt
+    def _ask_markdown(self, request: MarkdownRequest) -> None:
+        """Prints the document with Rich, then waits for Enter."""
+        if request.title:
+            self._console.print(Text(f"\n{request.title}", style="bold"))
+        self._console.print(Markdown(request.markdown))
+        self._console.input(f"  Press Enter to {request.button_label.lower()}\u2026", stream=self._line_stream())
+
+    @_new_prompt
+    def _ask_media(self, request: MediaRequest) -> None:
+        """Cannot show media: warns, names the file or URL, then waits for Enter."""
+        logger.warning("The console cannot show the %s; open it yourself: %s", request.media, request.describe())
+        if request.title:
+            self._console.print(Text(f"\n{request.title}", style="bold"))
+        if request.location != "inline":
+            self._console.print(Text(f"  {request.media}: {request.source}", style="yellow"))
+        if request.caption:
+            self._console.print(request.caption)
         self._console.input(f"  Press Enter to {request.button_label.lower()}\u2026", stream=self._line_stream())

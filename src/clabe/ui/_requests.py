@@ -252,6 +252,115 @@ class AcknowledgeRequest(Request):
 
 
 @dataclasses.dataclass
+class MarkdownRequest(Request):
+    """
+    Shows a Markdown document and blocks until the user continues (no answer is collected).
+
+    The web UI and the TUI render the Markdown; the console prints it with Rich. Raw HTML in the document is not
+    rendered (use :class:`MediaRequest` with ``media="html"`` for HTML).
+
+    Attributes:
+        markdown: The document (CommonMark, plus tables and strikethrough).
+        title: Optional heading shown above it.
+        button_label: Label of the button that continues.
+        field: Logical field name used in the persisted transcript.
+    """
+
+    markdown: str
+    title: str | None = None
+    button_label: str = "Continue"
+    field: str | None = None
+
+    prompt_kind: ClassVar[str] = "markdown"
+
+    def _spec_fields(self) -> dict[str, Any]:
+        """The fields plus ``html``: the document rendered (without raw HTML) for clients that show HTML."""
+        return {**super()._spec_fields(), "html": render_markdown(self.markdown)}
+
+    def validate_answer(self, value: Any) -> None:
+        """Accepts anything: continuing is the answer (``None``)."""
+
+
+def render_markdown(markdown: str) -> str:
+    """Renders Markdown to HTML (CommonMark with tables and strikethrough; raw HTML is escaped)."""
+    from markdown_it import MarkdownIt
+
+    return MarkdownIt("commonmark", {"html": False}).enable(["table", "strikethrough"]).render(markdown)
+
+
+MediaKind = Literal["image", "html", "url"]
+
+
+@dataclasses.dataclass
+class MediaRequest(Request):
+    """
+    Shows an image, an HTML page or a web page, and blocks until the user continues (no answer is collected).
+
+    The web UI shows all three: local files are served by the run server (only the file of this prompt), URLs are
+    loaded by the browser and inline HTML is shown in a sandboxed frame. Clients that cannot show the media (the
+    console, the TUI) log a warning naming the file or URL instead, and still wait for the user to continue.
+
+    Attributes:
+        source: A local file (image or HTML page), an ``http(s)`` URL, or — for ``media="html"`` — the HTML itself.
+        media: ``"image"``, ``"html"`` (a page or a fragment) or ``"url"`` (a web page, shown in a frame when the
+            site allows it).
+        title: Optional heading shown above it.
+        caption: Optional text shown below it.
+        button_label: Label of the button that continues.
+        field: Logical field name used in the persisted transcript.
+    """
+
+    source: str | Path
+    media: MediaKind = "image"
+    title: str | None = None
+    caption: str | None = None
+    button_label: str = "Continue"
+    field: str | None = None
+
+    prompt_kind: ClassVar[str] = "media"
+
+    def __post_init__(self) -> None:
+        if self.media not in get_args(MediaKind):
+            raise ValueError(f"media must be one of {get_args(MediaKind)}, not {self.media!r}.")
+        if self.media == "url" and self.location != "url":
+            raise ValueError(f"A url media needs an http(s) URL, not {self.source!r}.")
+
+    @property
+    def location(self) -> Literal["url", "file", "inline"]:
+        """Where the media is: a URL, a local file, or (HTML only) the source itself."""
+        text = str(self.source)
+        if isinstance(self.source, str) and text.lower().startswith(("http://", "https://")):
+            return "url"
+        if self.media == "html" and isinstance(self.source, str) and "<" in text:
+            return "inline"
+        return "file"
+
+    def local_file(self) -> Path | None:
+        """The local file to show, when the media is one and it exists."""
+        if self.location != "file":
+            return None
+        path = Path(self.source).expanduser().resolve()
+        return path if path.is_file() else None
+
+    def describe(self) -> str:
+        """A one-line description for clients that cannot show the media."""
+        where = "inline HTML" if self.location == "inline" else str(self.source)
+        return f"{self.media} {where}"
+
+    def _spec_fields(self) -> dict[str, Any]:
+        """The fields, with ``source`` as text and the ``location`` of the media."""
+        fields = super()._spec_fields()
+        fields["source"] = (
+            str(self.source) if self.location != "file" else str(Path(self.source).expanduser().resolve())
+        )
+        fields["location"] = self.location
+        return fields
+
+    def validate_answer(self, value: Any) -> None:
+        """Accepts anything: continuing is the answer (``None``)."""
+
+
+@dataclasses.dataclass
 class TextRequest(Request):
     """
     A declarative request for free-form text.
@@ -742,7 +851,7 @@ class ReadOnlyTable(Request):
 
 
 #: Prompt kinds that cannot be items of a group (they are whole interactions of their own).
-_NOT_GROUPABLE = frozenset({"group", "form", "table", "acknowledge"})
+_NOT_GROUPABLE = frozenset({"group", "form", "table", "acknowledge", "markdown", "media"})
 
 
 def _validators_check(validators: Sequence[Validator]) -> AfterValidator:

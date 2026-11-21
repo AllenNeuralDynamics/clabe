@@ -13,10 +13,17 @@ from textual.binding import Binding
 from textual.containers import Horizontal, ScrollableContainer, Vertical
 from textual.css.query import QueryError
 from textual.screen import ModalScreen
-from textual.widgets import Button, DataTable, Footer, Input, Label, OptionList, Select, Switch
+from textual.widgets import Button, DataTable, Footer, Input, Label, Markdown, OptionList, Select, Switch
 from textual_fspicker import FileOpen, Filters, SelectDirectory
 
-from ._requests import AcknowledgeRequest, FormRequest, ReadOnlyTable, normalize_extensions
+from ._requests import (
+    AcknowledgeRequest,
+    FormRequest,
+    MarkdownRequest,
+    MediaRequest,
+    ReadOnlyTable,
+    normalize_extensions,
+)
 from ._validation import resolve_field_type
 
 logger = logging.getLogger(__name__)
@@ -168,6 +175,8 @@ _AcknowledgeScreen { align: center middle; }
 }
 #ack-title  { color: $warning; text-style: bold; margin-bottom: 1; }
 #ack-body   { margin-bottom: 1; }
+#ack-markdown { height: auto; max-height: 30; margin-bottom: 1; }
+_AcknowledgeScreen.wide #ack-box { width: 100; }
 #ack-ok     { width: 100%; }
 """
 
@@ -215,16 +224,25 @@ class _AcknowledgeScreen(ModalScreen):
         Binding("escape", "ok", "", show=False),
     ]
 
-    def __init__(self, request: AcknowledgeRequest) -> None:
-        """Initialize with the declarative acknowledge request."""
-        super().__init__()
+    def __init__(self, request: AcknowledgeRequest | MarkdownRequest | MediaRequest) -> None:
+        """Initialize with the request to show: a message, a Markdown document, or media the TUI cannot show."""
+        super().__init__(classes="wide" if isinstance(request, MarkdownRequest) else "")
         self._request = request
 
     def compose(self) -> ComposeResult:
         """Build the acknowledge dialog layout."""
+        request = self._request
         with Vertical(id="ack-box"):
-            yield Label(self._request.title, id="ack-title")
-            yield Label(self._request.message, id="ack-body")
+            if request.title:
+                yield Label(request.title, id="ack-title")
+            if isinstance(request, MarkdownRequest):
+                yield Markdown(request.markdown, id="ack-markdown")
+            elif isinstance(request, MediaRequest):
+                shown = "" if request.location == "inline" else f": {request.source}"
+                text = f"The terminal cannot show this {request.media}{shown}"
+                yield Label(f"{text}\n\n{request.caption}" if request.caption else text, id="ack-body")
+            else:
+                yield Label(request.message, id="ack-body")
             yield Button(
                 f"{self._request.button_label}  [Enter]",
                 id="ack-ok",

@@ -24,6 +24,8 @@ from ._requests import (
     ConfirmRequest,
     FormRequest,
     GroupRequest,
+    MarkdownRequest,
+    MediaRequest,
     NumberRequest,
     PathRequest,
     PickRequest,
@@ -351,7 +353,9 @@ class _LauncherApp(App):
 
         await self.push_screen(_FormScreen(request), _on_dismiss)
 
-    async def ask_acknowledge(self, request: AcknowledgeRequest, reply: "queue.Queue") -> None:
+    async def ask_acknowledge(
+        self, request: AcknowledgeRequest | MarkdownRequest | MediaRequest, reply: "queue.Queue"
+    ) -> None:
         """Push an acknowledge modal; deliver True via reply once dismissed."""
         self._pending, self._kind = reply, "acknowledge"
 
@@ -537,6 +541,8 @@ class TextualClient:
         "group": "_ask_group",
         "table": "_ask_read_only_table",
         "acknowledge": "_ask_acknowledge",
+        "markdown": "_ask_acknowledge",
+        "media": "_ask_media",
     }
 
     def __init__(self) -> None:
@@ -651,7 +657,7 @@ class TextualClient:
 
     def _echo_answer(self, request: Request, value: object) -> None:
         """Append an answered prompt as a timestamped line in the Session pane."""
-        if value is None or value == "" or request.prompt_kind == "acknowledge":
+        if value is None or value == "" or request.prompt_kind in ("acknowledge", "markdown", "media"):
             return
         key = getattr(request, "field", None) or getattr(request, "label", None) or request.prompt_kind
         self._ensure()
@@ -719,7 +725,12 @@ class TextualClient:
         app.call_from_thread(app.ask_read_only_table, request, reply)
         return bool(_unwrap(reply.get()))
 
-    def _ask_acknowledge(self, request: AcknowledgeRequest) -> None:
+    def _ask_media(self, request: MediaRequest) -> None:
+        """Cannot show media: warns, names the file or URL, and waits like an acknowledgement."""
+        logger.warning("The TUI cannot show the %s; open it yourself: %s", request.media, request.describe())
+        self._ask_acknowledge(request)
+
+    def _ask_acknowledge(self, request: AcknowledgeRequest | MarkdownRequest | MediaRequest) -> None:
         """Push the acknowledge modal and block until the user dismisses it."""
         app = self._ensure()
         reply: queue.Queue = queue.Queue()
