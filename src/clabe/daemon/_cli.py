@@ -22,11 +22,10 @@ class _RunDaemonCli(DaemonSettings, cli_kebab_case=True):
         """Serve until interrupted."""
         import uvicorn
 
-        from ._app import create_daemon_app
-        from ._host import Host
+        from ._app import create_daemon
 
         token = self.token.get_secret_value() if self.token else os.environ.get("CLABE_TOKEN") or None
-        app = create_daemon_app(Host(self), token=token)
+        app = create_daemon(self, token=token)
         shown = "localhost" if self.host in ("127.0.0.1", "0.0.0.0", "::") else self.host
         url = f"http://{shown}:{self.port}/" + (f"?token={token}" if token else "")
         print(f"clabe daemon at {url}", flush=True)

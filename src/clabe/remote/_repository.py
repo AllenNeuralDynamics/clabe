@@ -1,3 +1,6 @@
+"""A checkout of this repository on another machine, reached through its clabe daemon."""
+
+import atexit
 import logging
 import os
 import socket
@@ -13,11 +16,12 @@ from aind_behavior_services import Session
 
 from .. import __version__
 from ..apps import Command, CommandResult, identity_parser
+from ..daemon._install import TASK_NAME
+from ..daemon._install import start as start_task
 from ..git_manager import GitRepository, GitRepositoryMetadata
-from ._client import XmlRpcClient, XmlRpcClientSettings
-from ._executor import XmlRpcExecutor
-from ._scheduled_task import TASK_NAME, start_task
-from .models import DEFAULT_PORT, ServerInfoResponse
+from ._client import WorkerClient, WorkerClientSettings
+from ._executor import RemoteExecutor
+from ._models import DEFAULT_PORT, WorkerInfo
 
 logger = logging.getLogger(__name__)
 
@@ -85,17 +89,15 @@ def _check_resolvable(host: str) -> None:
 
 
 class RemoteRepository:
-    """A checkout of this repository on another machine, reached through its XML-RPC server.
+    """A checkout of this repository on another machine, reached through that machine's clabe daemon (its worker).
 
-    The server is expected to run from the remote checkout (see ``clabe xml-rpc-server register-task``),
-    so commands run in the remote repository and in its Python environment by default.
+    The repository must be one of the remote daemon's repositories (``daemon: repositories:`` there); commands run in
+    it and in its environment by default. The first command (or :meth:`lease`) takes the worker's lease, so no other
+    run uses the machine meanwhile; it is renewed in the background and given back by :meth:`release` (or at exit).
 
     Example:
         ```python
-        remote = RemoteRepository(
-            XmlRpcClient(XmlRpcClientSettings(server_url="http://rig-b:8000", token=token)),
-            data_roots={r"D:\\data": r"\\\\rig-b\\data"},
-        )
+        remote = RemoteRepository.from_computer_name("rig-b", data_roots={r"D:\\data": r"\\\\rig-b\\data"})
         remote.ensure_running()
         remote.verify()
         remote.register_session(session, fip_rig.data_directory)
@@ -107,7 +109,7 @@ class RemoteRepository:
 
     def __init__(
         self,
-        client: XmlRpcClient,
+        client: WorkerClient,
         path: str | None = None,
         *,
         local_path: os.PathLike | str = ".",
@@ -117,9 +119,9 @@ class RemoteRepository:
         Initializes the remote repository.
 
         Args:
-            client: Client connected to the remote machine's XML-RPC server.
-            path: Path of the repository on the remote machine. Defaults to the server's working directory.
-                When given, :meth:`verify` checks that the server runs from it.
+            client: Client of the remote machine's worker (its ``repository`` setting names the checkout).
+            path: Path of the repository on the remote machine. Defaults to the worker's repository.
+                When given, :meth:`verify` checks that it is the worker's repository.
             local_path: Path of the local repository the remote one is compared against.
             data_roots: Maps data directories on the remote machine to the network shares exposing them,
                 e.g. ``{r"D:\\data": r"\\\\rig-b\\data"}``. Used by :meth:`to_unc`; paths under none of them are
@@ -129,7 +131,7 @@ class RemoteRepository:
         self._path = path
         self.local_path = local_path
         self.data_roots = {PureWindowsPath(local): PureWindowsPath(unc) for local, unc in (data_roots or {}).items()}
-        self._info: ServerInfoResponse | None = None
+        self._info: WorkerInfo | None = None
         self._session: Session | None = None
         self._data_directory: PureWindowsPath | None = None
 
@@ -140,36 +142,40 @@ class RemoteRepository:
         port: int = DEFAULT_PORT,
         path: str | None = None,
         *,
+        repository: str | None = None,
         local_path: os.PathLike | str = ".",
         data_roots: Mapping[str, str] | None = None,
     ) -> Self:
-        """Connects to the server on a machine by its computer name, e.g. a rig's ``computer_name``.
+        """Connects to the daemon of a machine by its computer name, e.g. a rig's ``computer_name``.
 
-        The remaining client settings, such as the token, are read from the ``xml_rpc_client`` section.
+        The other client settings, such as the token, are read from the ``worker_client`` section.
 
         Args:
             computer_name: Network name of the remote machine.
-            port: Port the remote server listens on.
+            port: Port of its daemon.
             path: Path of the repository on the remote machine. See :meth:`__init__`.
+            repository: The remote daemon's name for the repository; by default this repository's folder name.
             local_path: Path of the local repository the remote one is compared against.
             data_roots: Maps data directories on the remote machine to the network shares exposing them.
                 Defaults to the drives' administrative shares.
         """
-        client = XmlRpcClient(XmlRpcClientSettings(server_url=f"http://{computer_name}:{port}"))
-        return cls(client, path, local_path=local_path, data_roots=data_roots)
+        settings = WorkerClientSettings(
+            url=f"http://{computer_name}:{port}", repository=repository or Path(local_path).resolve().name
+        )
+        return cls(WorkerClient(settings), path, local_path=local_path, data_roots=data_roots)
 
     @property
     def host(self) -> str:
-        """Hostname of the remote machine, as given in the server URL."""
-        host = urlparse(str(self.client.settings.server_url)).hostname
+        """Hostname of the remote machine, as given in the worker's URL."""
+        host = urlparse(self.client.base_url).hostname
         if host is None:
-            raise ValueError(f"No hostname in server URL {self.client.settings.server_url}")
+            raise ValueError(f"No hostname in worker URL {self.client.base_url}")
         return host
 
-    def info(self, refresh: bool = False) -> ServerInfoResponse:
-        """Returns the remote server's information, fetching it on first use or when ``refresh`` is True."""
+    def info(self, refresh: bool = False) -> WorkerInfo:
+        """Returns the remote worker's information, fetching it on first use or when ``refresh`` is True."""
         if self._info is None or refresh:
-            self._info = self.client.server_info()
+            self._info = self.client.info()
         return self._info
 
     @property
@@ -177,37 +183,56 @@ class RemoteRepository:
         """Path of the repository on the remote machine."""
         return self._path or self.info().working_dir
 
+    def lease(self) -> None:
+        """Takes the remote machine for this run (the first command does it anyway); renewed until released.
+
+        Raises:
+            WorkerError: 423 if another run holds the machine, 409 if it runs an experiment of its own.
+        """
+        if self.client.leased:
+            return
+        from ..workflow._records import ACTIVE_STEP
+
+        context = ACTIVE_STEP.get()
+        run_id = context.run.id if context is not None else None
+        self.client.lease(owner=f"{socket.gethostname()} ({Path(self.local_path).resolve().name})", run_id=run_id)
+        atexit.register(self.client.release)
+        logger.info("Took %s for this run", self.host)
+
+    def release(self, *, stop_jobs: bool = False) -> None:
+        """Gives the remote machine back; ``stop_jobs`` also stops what still runs there."""
+        self.client.release(stop_jobs=stop_jobs)
+
     def ensure_running(self, timeout: float = 60.0, poll_interval: float = 1.0) -> None:
-        """Starts the remote server through its scheduled task if it does not respond.
+        """Starts the remote daemon through its scheduled task (``clabe daemon install``) if it does not respond.
 
         Args:
-            timeout: Seconds to wait for the server to respond after starting the task.
+            timeout: Seconds to wait for the daemon to respond after starting the task.
             poll_interval: Seconds between connection attempts.
 
         Raises:
             ConnectionError: If the remote machine's name cannot be resolved to an address.
-            TimeoutError: If the server does not respond within ``timeout``.
+            TimeoutError: If the daemon does not respond within ``timeout``.
         """
         if self.client.ping():
             return
         _check_resolvable(self.host)
-        logger.info("Server on %s is not responding; starting scheduled task '%s'", self.host, TASK_NAME)
+        logger.info("The daemon on %s is not responding; starting its scheduled task '%s'", self.host, TASK_NAME)
         start_task(host=self.host)
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             time.sleep(poll_interval)
             if self.client.ping():
-                logger.info("Server on %s is running", self.host)
+                logger.info("The daemon on %s is running", self.host)
                 return
-        raise TimeoutError(f"Server on {self.host} did not respond within {timeout} seconds of starting it")
+        raise TimeoutError(f"The daemon on {self.host} did not respond within {timeout} seconds of starting it")
 
     def verify(self, allow_dirty: bool = False) -> None:
         """Checks that the remote repository runs the same code as the local one.
 
-        Compares the server's working directory, and the repository URL and commit of the repository
-        and each submodule. Because the lockfile is tracked, a matching clean commit also implies the
-        same locked dependencies. A different clabe version (e.g. an environment that was not synced)
-        is only warned about: the remote is then used on a best-effort basis.
+        Compares the worker's repository path, and the repository URL and commit of the repository and each
+        submodule. Because the lockfile is tracked, a matching clean commit also implies the same locked
+        dependencies. A different clabe version of the daemon is only warned about.
 
         Args:
             allow_dirty: Whether to accept uncommitted changes in the remote repository.
@@ -218,14 +243,14 @@ class RemoteRepository:
         info = self.info(refresh=True)
         if info.clabe_version != __version__:
             logger.warning(
-                "Remote server on %s runs clabe %s, not %s; continuing on a best-effort basis",
+                "The daemon on %s runs clabe %s, not %s; continuing on a best-effort basis",
                 self.host,
                 info.clabe_version,
                 __version__,
             )
         problems: list[str] = []
         if self._path is not None and PureWindowsPath(self._path) != PureWindowsPath(info.working_dir):
-            problems.append(f"server runs from {info.working_dir}, not {self._path}")
+            problems.append(f"the worker's repository is {info.working_dir}, not {self._path}")
         if problems:
             raise RepositoryMismatchError(f"Remote repository on {self.host} does not match: " + "; ".join(problems))
 
@@ -257,12 +282,6 @@ class RemoteRepository:
         Paths under none of the ``data_roots`` are reached through the drive's administrative share; see
         :func:`to_unc`.
 
-        Args:
-            path: An absolute path on the remote machine.
-
-        Returns:
-            The same location under its network share.
-
         Raises:
             ValueError: If the path is under none of the ``data_roots`` and has no drive letter.
         """
@@ -276,13 +295,6 @@ class RemoteRepository:
 
         The remote counterpart of :meth:`~clabe.launcher.Launcher.register_session`. Optional: only
         :attr:`data_directory`, :attr:`session_directory` and :attr:`session_directory_unc` need it.
-
-        Args:
-            session: The session, shared with the launcher.
-            data_directory: Root data directory on the remote machine, e.g. the remote rig's ``data_directory``.
-
-        Returns:
-            Self: The updated instance.
 
         Raises:
             ValueError: If a session is already registered, or the session has no name.
@@ -298,31 +310,25 @@ class RemoteRepository:
         return self
 
     def mkdir(self, path: os.PathLike | str) -> None:
-        """Creates a directory, and its missing parents, on the remote machine.
-
-        Args:
-            path: The directory, as the remote machine sees it.
-        """
-        # Created by a command on the remote machine, since its local paths are not reachable from here
+        """Creates a directory, and its missing parents, on the remote machine."""
         self._run_python("import pathlib, sys; pathlib.Path(sys.argv[1]).mkdir(parents=True, exist_ok=True)", path)
 
     def write_file(self, path: os.PathLike | str, content: str | bytes) -> None:
         """Writes a file on the remote machine, creating its directory if needed.
 
-        The client can only upload to the server's transfer directory, so the content is uploaded there and then
-        moved into place on the remote machine. It is limited to the client's ``max_file_size``.
+        The content is uploaded to the worker's transfer directory and then moved into place. It is limited to the
+        client's ``max_file_size``.
 
         Args:
             path: The file, as the remote machine sees it. Replaced if it exists.
             content: The content. Text is written as UTF-8.
         """
         name = PureWindowsPath(path).name
+        self.lease()
         with tempfile.TemporaryDirectory() as staging:
             upload_path = Path(staging) / f"clabe_{uuid.uuid4().hex}_{name}"
             upload_path.write_bytes(content.encode("utf-8") if isinstance(content, str) else content)
             upload = self.client.upload_file(upload_path)
-        if upload.path is None:
-            raise RuntimeError(f"Uploading {name} returned no path")
         move = (
             "import pathlib, shutil, sys; target = pathlib.Path(sys.argv[2]); "
             "target.parent.mkdir(parents=True, exist_ok=True); shutil.move(sys.argv[1], target)"
@@ -331,7 +337,7 @@ class RemoteRepository:
         logger.debug("Wrote %s on %s", path, self.host)
 
     def _run_python(self, code: str, *args: os.PathLike | str) -> None:
-        """Runs Python ``code`` with ``args`` on the remote machine, in the server's environment."""
+        """Runs Python ``code`` with ``args`` on the remote machine, in the repository's environment."""
         self.run(
             Command(
                 cmd=[self.info().python_executable, "-c", code, *(str(arg) for arg in args)],
@@ -355,37 +361,21 @@ class RemoteRepository:
 
     @property
     def session_directory_unc(self) -> PureWindowsPath:
-        """Session directory as other machines reach it through its network share, e.g. for watchdog or mappers.
-
-        Raises:
-            ValueError: If no session is registered, or the data directory cannot be translated (see :meth:`to_unc`).
-        """
+        """Session directory as other machines reach it through its network share, e.g. for watchdog or mappers."""
         return self.to_unc(self.session_directory)
 
-    def _executor(self) -> XmlRpcExecutor:
+    def _executor(self) -> RemoteExecutor:
         """Returns an executor that runs commands in the remote repository, mapping local repository paths to it."""
-        settings = self.client.settings
-        return XmlRpcExecutor(
-            self.client,
-            timeout=settings.timeout,
-            poll_interval=settings.poll_interval,
-            monitor=settings.monitor,
-            cwd=self.path,
-            path_mapping={str(Path(self.local_path).resolve()): self.path},
+        self.lease()
+        return RemoteExecutor(
+            self.client, cwd=self.path, path_mapping={str(Path(self.local_path).resolve()): self.path}
         )
 
     def run(self, command: Command[Any]) -> CommandResult:
-        """Runs a command in the remote repository and waits for it.
+        """Runs a command in the remote repository and waits for it (an :class:`~clabe.apps.Executor`).
 
-        Makes the remote repository an :class:`~clabe.apps.Executor`, so any app runs on it unchanged,
-        e.g. ``app.run(executor=remote)``. Paths under the local repository are rewritten to the remote
-        one, and the command's ``inputs`` are copied to the remote machine.
-
-        Args:
-            command: The command to run.
-
-        Returns:
-            The command's result.
+        Paths under the local repository are rewritten to the remote one, and the command's ``inputs`` are copied
+        to the remote machine.
 
         Raises:
             CommandError: If the command exits with a non-zero code.
@@ -393,5 +383,6 @@ class RemoteRepository:
         return self._executor().run(command)
 
     async def run_async(self, command: Command[Any]) -> CommandResult:
-        """Asynchronous version of :meth:`run`, e.g. ``await app.run_async(executor=remote)``."""
+        """Asynchronous version of :meth:`run`, e.g. ``await app.run_async(executor=remote)``; cancelling it stops
+        the command on the remote machine."""
         return await self._executor().run_async(command)

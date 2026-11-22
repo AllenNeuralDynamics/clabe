@@ -5,7 +5,7 @@ e.g. the rig, session and task a Bonsai workflow reads). On the server, this mod
 input to a temporary file, replaces its ``{name}`` placeholder in the command with that file's
 path, and runs the command. The inputs therefore never need to be uploaded and referenced one by one.
 
-Invoked on the server as ``python -m clabe.xml_rpc._staged_command <spec.json>``.
+Invoked on the worker as ``python -m clabe.remote._staged_command <spec.json>``.
 """
 
 import subprocess

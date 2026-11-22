@@ -12,13 +12,17 @@
             <span>@info.Hostname</span>
             <span class="muted">v@(info.ClabeVersion)</span>
             <span class="spacer"></span>
-            <span class="status @(info.Status == "busy" ? "running" : "completed")">@info.Status</span>
+            <span class="status @(info.Status == "idle" ? "completed" : "running")">@info.Status</span>
         }
     </header>
     <main class="daemon">
         @if (_error is not null)
         {
             <p class="notice error">@_error <button type="button" class="link" @onclick="() => _error = null">✕</button></p>
+        }
+        @if (_info?.LeasedBy is { } owner)
+        {
+            <p class="notice">In use by @owner: this machine runs part of their session and starts nothing else until it ends.</p>
         }
         @if (_run is { } run)
         {
@@ -109,7 +113,7 @@
     private Timer? _timer;
     private bool _openWhenRunning;
 
-    private bool Busy => _run is { Status: "starting" or "running" };
+    private bool Busy => _run is { Status: "starting" or "running" } || _info?.LeasedBy is not null;
 
     protected override async Task OnInitializedAsync()
     {

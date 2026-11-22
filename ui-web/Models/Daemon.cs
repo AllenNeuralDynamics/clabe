@@ -23,4 +23,4 @@ public sealed record DaemonRunInfo(
     int? ExitCode,
     List<string> LogTail);
 
-public sealed record HostInfo(string Hostname, string ClabeVersion, string Status, DaemonRunInfo? Run);
+public sealed record HostInfo(string Hostname, string ClabeVersion, string Status, DaemonRunInfo? Run, string? LeasedBy);

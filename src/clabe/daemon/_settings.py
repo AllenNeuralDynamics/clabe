@@ -52,6 +52,11 @@ class DaemonSettings(ServiceSettings):
     run_arguments: list[str] = Field(
         default_factory=list, description="Extra arguments for every `clabe run`, e.g. --skip-hardware-validation"
     )
+    max_jobs: int = Field(default=4, description="Worker role: jobs run at the same time for a remote run")
+    max_file_size: int = Field(default=50 * 1024 * 1024, description="Worker role: largest file transferred (bytes)")
+    file_transfer_dir: Path | None = Field(
+        default=None, description="Worker role: where transferred files go; defaults to a temporary directory"
+    )
     runs_directory: Path | None = Field(
         default=None, description="Where launched runs' output is logged; defaults to a temporary directory"
     )

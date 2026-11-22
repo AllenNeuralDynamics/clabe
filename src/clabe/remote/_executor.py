@@ -1,0 +1,134 @@
+"""Running commands on another machine's worker as if they were local (an :class:`~clabe.apps.Executor`)."""
+
+import asyncio
+import logging
+import os
+import re
+import time
+import uuid
+from collections.abc import Mapping
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+from ..apps._base import Command, CommandResult
+from ._models import JobResult, JobStatus
+from ._staged_command import StagedCommand, StagedFile
+
+if TYPE_CHECKING:
+    from ._client import WorkerClient
+
+logger = logging.getLogger(__name__)
+
+
+class RemoteExecutor:
+    """Runs commands on a worker; any app runs on it unchanged (``app.run(executor=...)``).
+
+    Inputs a command declares (``Command.inputs``) are sent along with it, and ``path_mapping`` rewrites local path
+    prefixes to their location on the worker. A cancelled ``run_async`` (e.g. the run was aborted) stops the job on
+    the worker. To run apps in a checkout of this repository on another machine, use
+    :class:`~clabe.remote.RemoteRepository`, which builds on this executor.
+
+    Args:
+        client: The worker's client.
+        timeout: Seconds to wait for a job (see the client's ``monitor``); the client's by default.
+        poll_interval: Seconds between checks of a job; the client's by default.
+        cwd: Working directory on the worker; the repository's by default.
+        path_mapping: Local path prefixes to rewrite in commands, mapped to their location on the worker.
+    """
+
+    def __init__(
+        self,
+        client: "WorkerClient",
+        timeout: float | None = None,
+        poll_interval: float | None = None,
+        cwd: str | None = None,
+        path_mapping: Mapping[str, str] | None = None,
+    ) -> None:
+        self.client = client
+        self.timeout = timeout
+        self.poll_interval = poll_interval
+        self.cwd = cwd
+        self.path_mapping = dict(path_mapping or {})
+        self._python_executable: str | None = None
+
+    @property
+    def host(self) -> str | None:
+        """The worker's host name (apps use it to reach services the command starts there)."""
+        from urllib.parse import urlparse
+
+        return urlparse(self.client.base_url).hostname
+
+    def _map_paths(self, arg: str) -> str:
+        """Rewrites local path prefixes in a command argument to their location on the worker."""
+        flags = re.IGNORECASE if os.name == "nt" else 0
+        for local, remote in self.path_mapping.items():
+            pattern = re.escape(local.rstrip("\\/")) + r"(?=[\\/]|$)"  # whole components: C:\repo is not C:\repo2
+            replacement = remote.rstrip("\\/")
+            arg = re.sub(pattern, lambda _, r=replacement: r, arg, flags=flags)  # a function keeps backslashes
+        return arg
+
+    def _prepare(self, command: Command[Any]) -> list[str]:
+        """The command line to submit: paths mapped, and staged through a spec file when it has inputs."""
+        if not command.inputs:
+            return [self._map_paths(arg) for arg in command.cmd] if self.path_mapping else list(command.cmd)
+        placeholders = {str(path): name for name, path in command.inputs.items()}
+
+        def substitute(arg: str) -> str:
+            for local, name in placeholders.items():  # inputs first: they may live under a mapped prefix
+                arg = arg.replace(local, f"{{{name}}}")
+            return self._map_paths(arg)
+
+        spec = StagedCommand(
+            cmd=[substitute(arg) for arg in command.cmd],
+            files={
+                name: StagedFile(filename=Path(path).name, content=Path(path).read_text(encoding="utf-8"))
+                for name, path in command.inputs.items()
+            },
+        )
+        upload = self.client.upload_model(spec, f"clabe_staged_{uuid.uuid4().hex}.json")
+        if self._python_executable is None:
+            self._python_executable = self.client.info().python_executable
+        return [self._python_executable, "-m", "clabe.remote._staged_command", upload.path]
+
+    @staticmethod
+    def _result(job: JobResult) -> CommandResult:
+        """The command's result; raises when the job failed or was stopped."""
+        if job.status is JobStatus.ERROR:
+            raise RuntimeError(f"The worker could not run the job: {job.error}")
+        result = CommandResult(stdout=job.stdout, stderr=job.stderr, exit_code=job.returncode or 0)
+        if job.status is JobStatus.STOPPED and result.exit_code == 0:
+            result = CommandResult(stdout=job.stdout, stderr=job.stderr, exit_code=-1)
+        result.check_returncode()
+        return result
+
+    def run(self, command: Command[Any]) -> CommandResult:
+        """Runs the command on the worker and waits for it."""
+        logger.info("Running on %s: %s", self.client.base_url, command.cmd)
+        return self._result(self.client.run_command(self._prepare(command), timeout=self.timeout, cwd=self.cwd))
+
+    async def run_async(self, command: Command[Any]) -> CommandResult:
+        """Runs the command on the worker without blocking the event loop; cancelling it stops the job."""
+        cmd = await asyncio.to_thread(self._prepare, command)
+        job_id = (await asyncio.to_thread(self.client.submit_command, cmd, self.cwd)).job_id
+        try:
+            return self._result(await self._wait(job_id))
+        except asyncio.CancelledError:
+            logger.info("Stopping job %s on %s", job_id, self.client.base_url)
+            await asyncio.to_thread(self.client.stop_job, job_id)
+            raise
+
+    async def _wait(self, job_id: str) -> JobResult:
+        """Waits for a job to end (see the client's ``monitor``)."""
+        settings = self.client.settings
+        timeout = self.timeout or settings.timeout
+        interval = self.poll_interval or settings.poll_interval
+        started = time.monotonic()
+        while True:
+            await asyncio.sleep(interval)
+            result = await asyncio.to_thread(self.client.get_result, job_id)
+            if result.status is not JobStatus.RUNNING:
+                return result
+            if settings.monitor:
+                started = time.monotonic()
+            elif time.monotonic() - started >= timeout:
+                raise TimeoutError(f"Job {job_id} did not complete within {timeout} seconds")

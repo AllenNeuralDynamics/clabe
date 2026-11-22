@@ -116,7 +116,7 @@ class OpenEphysApp(ExecutableApp, _DefaultExecutorMixin):
         fails, the GUI is closed before the error is raised.
 
         When ``executor`` runs commands on another machine (it has a ``host``, like
-        ``clabe.xml_rpc.RemoteRepository``) and ``settings.address`` is a loopback address, the client
+        ``clabe.remote.RemoteRepository``) and ``settings.address`` is a loopback address, the client
         is pointed at that machine instead. The GUI's port must then be reachable from this machine.
 
         Args:
@@ -174,7 +174,7 @@ class OpenEphysApp(ExecutableApp, _DefaultExecutorMixin):
         """Makes every Record Node record to exactly ``directory``, e.g. ``<data directory>/<session>/ecephys``.
 
         The path is as the machine running the GUI sees it. Call it after :meth:`launch` and before :meth:`start`.
-        Its parent must already exist, e.g. created by :meth:`clabe.xml_rpc.RemoteRepository.register_session`.
+        Its parent must already exist, e.g. created by :meth:`clabe.remote.RemoteRepository.register_session`.
         The directory itself must not: the GUI creates it when recording starts, and if it already exists, records
         to a new sibling instead (e.g. ``ecephys (1)``). So do not create it, or anything inside it, beforehand.
 

@@ -96,3 +96,14 @@ def upgrade() -> str:
     if done.returncode != 0:
         raise OSError(done.stderr.strip() or done.stdout.strip())
     return (done.stdout + done.stderr).strip()
+
+
+def start(host: str | None = None) -> None:
+    """Starts the daemon's scheduled task, here or on ``host`` (needs rights there, typically administrator).
+
+    Raises:
+        OSError: If Task Scheduler refuses.
+    """
+    started = _schtasks("/Run", *(("/S", host) if host else ()), "/TN", TASK_NAME)
+    if started.returncode != 0:
+        raise OSError(f"Could not start {TASK_NAME} on {host or 'this machine'}: {started.stderr.strip()}")

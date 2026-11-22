@@ -13,12 +13,22 @@ from .. import __version__
 from ..server._app import STATIC_DIR
 from ..workflow import ExperimentListing
 from ._host import Host, HostError, HostInfo, LaunchBody, RepositoryInfo, RunInfo
+from ._settings import DaemonSettings
+from ._worker import Worker, worker_router
 
 #: Hop-by-hop headers, which a proxy must not forward.
 _HOP_HEADERS = frozenset(
     {"connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailers",
      "transfer-encoding", "upgrade", "host", "content-length", "authorization"}
 )  # fmt: skip
+
+
+def _guarded(call):
+    """Calls ``call``, answering a :class:`HostError` with its HTTP status."""
+    try:
+        return call()
+    except HostError as exc:
+        raise HTTPException(status_code=exc.status, detail=str(exc)) from exc
 
 
 def _given_token(authorization: str | None, token_param: str | None) -> str | None:
@@ -45,12 +55,15 @@ def _token_check(token: str | None):
     return check
 
 
-def create_daemon_app(host: Host, *, token: str | None = None, static_dir: Path | None = STATIC_DIR) -> FastAPI:
+def create_daemon_app(
+    host: Host, *, token: str | None = None, static_dir: Path | None = STATIC_DIR, worker: Worker | None = None
+) -> FastAPI:
     """Builds the daemon's app.
 
     Args:
         host: The host role (repositories and runs).
         token: When set, every API call (the daemon's and the proxied run's) must carry it.
+        worker: The worker role (jobs and files for runs hosted elsewhere), served under ``/api/worker``.
         static_dir: The web UI, served at ``/`` (the daemon's page) and ``/run/`` (the run's page).
     """
     app = FastAPI(
@@ -61,12 +74,6 @@ def create_daemon_app(host: Host, *, token: str | None = None, static_dir: Path 
     )
     check = _token_check(token)
     api = APIRouter(prefix="/api/daemon", dependencies=[Depends(check)])
-
-    def guarded(call):
-        try:
-            return call()
-        except HostError as exc:
-            raise HTTPException(status_code=exc.status, detail=str(exc)) from exc
 
     @api.get("/info", response_model=HostInfo)
     def info() -> HostInfo:
@@ -81,12 +88,12 @@ def create_daemon_app(host: Host, *, token: str | None = None, static_dir: Path 
     @api.get("/repositories/{name}/experiments", response_model=ExperimentListing)
     def experiments(name: str) -> ExperimentListing:
         """The experiments of a repository (listed in its own environment; may take a while the first time)."""
-        return guarded(lambda: host.experiments(name))
+        return _guarded(lambda: host.experiments(name))
 
     @api.post("/runs", response_model=RunInfo)
     def launch(body: LaunchBody) -> RunInfo:
         """Starts an experiment; 409 while another one runs. Follow it under /run/."""
-        return guarded(lambda: host.launch(body))
+        return _guarded(lambda: host.launch(body))
 
     @api.get("/runs/current", response_model=RunInfo | None)
     def current() -> RunInfo | None:
@@ -97,9 +104,11 @@ def create_daemon_app(host: Host, *, token: str | None = None, static_dir: Path 
     @api.post("/runs/current/stop", response_model=RunInfo)
     def stop() -> RunInfo:
         """Stops the current run's process. Prefer aborting it (POST /run/api/abort): that lets it clean up."""
-        return guarded(host.stop)
+        return _guarded(host.stop)
 
     app.include_router(api)
+    if worker is not None:
+        app.include_router(worker_router(worker, check))
     client = httpx.AsyncClient(timeout=httpx.Timeout(30.0, read=None))
 
     @app.get("/run", include_in_schema=False)
@@ -125,6 +134,14 @@ def create_daemon_app(host: Host, *, token: str | None = None, static_dir: Path 
             return _PLACEHOLDER
 
     return app
+
+
+def create_daemon(settings: DaemonSettings, *, token: str | None = None) -> FastAPI:
+    """The daemon's app with both roles: the host (runs started here) and the worker (jobs for runs elsewhere)."""
+    holder: list[Worker] = []
+    host = Host(settings, leased_by=lambda: lease.owner if (lease := holder[0].lease()) else None)
+    holder.append(Worker(settings, busy=host.busy))
+    return create_daemon_app(host, token=token, worker=holder[0])
 
 
 async def _proxy(host: Host, client: httpx.AsyncClient, path: str, request: Request) -> Response:

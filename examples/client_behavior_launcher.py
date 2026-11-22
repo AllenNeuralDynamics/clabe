@@ -15,9 +15,9 @@ from clabe import resource_monitor
 from clabe.apps import AindBehaviorServicesBonsaiApp
 from clabe.data_transfer.aind_watchdog import WatchdogDataTransferService, WatchdogSettings
 from clabe.launcher import Launcher, LauncherCliArgs, experiment
+from clabe.remote import RemoteRepository, WorkerClient, WorkerClientSettings
 from clabe.session import SessionBuilder
 from clabe.stores import LocalFileStore
-from clabe.xml_rpc import RemoteRepository, XmlRpcClient, XmlRpcClientSettings
 
 logger = logging.getLogger(__name__)
 
@@ -44,8 +44,10 @@ async def client_experiment(launcher: Launcher) -> None:
         ]
     ).run()
 
+    # The other machine runs `clabe daemon` with this repository under `daemon: repositories:`.
+    # The first command takes its lease: no other run can use it until this one gives it back.
     remote = RemoteRepository(
-        XmlRpcClient(settings=XmlRpcClientSettings(server_url="http://localhost:8000", token="42")),
+        WorkerClient(WorkerClientSettings(url="http://localhost:8070", token="42")),
         local_path=".",
         data_roots={REMOTE_DATA_DIRECTORY: REMOTE_DATA_SHARE},
     )

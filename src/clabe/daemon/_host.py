@@ -10,6 +10,7 @@ import sys
 import tempfile
 import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Literal
 
@@ -69,8 +70,9 @@ class HostInfo(BaseModel):
 
     hostname: str
     clabe_version: str
-    status: Literal["idle", "busy"]
+    status: Literal["idle", "busy", "leased"]
     run: RunInfo | None
+    leased_by: str | None = None
 
 
 class _Launched:
@@ -123,8 +125,9 @@ class Host:
     (``settings.command``), bound to localhost with a token only the host knows; the daemon proxies it.
     """
 
-    def __init__(self, settings: DaemonSettings) -> None:
+    def __init__(self, settings: DaemonSettings, *, leased_by: Callable[[], str | None] = lambda: None) -> None:
         self.settings = settings
+        self._leased_by = leased_by
         self._lock = threading.Lock()
         self._current: _Launched | None = None
         self._runs_dir = settings.runs_directory or Path(tempfile.gettempdir()) / "clabe-daemon"
@@ -170,6 +173,8 @@ class Host:
         with self._lock:
             if self._current is not None and self._current.process.poll() is None:
                 raise HostError("A run is already going on this machine.", status=409)
+            if (owner := self._leased_by()) is not None:
+                raise HostError(f"This machine is in use by {owner}.", status=423)
             self._runs_dir.mkdir(parents=True, exist_ok=True)
             stamp = datetime.datetime.now().strftime("%Y%m%dT%H%M%S")
             log = self._runs_dir / f"{stamp}-{repository.display_name}.log"
@@ -225,6 +230,12 @@ class Host:
         current = self._current
         run = current.info(tail=0) if current is not None else None
         busy = run is not None and run.status != "exited"
+        owner = self._leased_by()
+        status = "busy" if busy else "leased" if owner is not None else "idle"
         return HostInfo(
-            hostname=socket.gethostname(), clabe_version=__version__, status="busy" if busy else "idle", run=run
+            hostname=socket.gethostname(), clabe_version=__version__, status=status, run=run, leased_by=owner
         )
+
+    def busy(self) -> bool:
+        """Whether a run launched here is going."""
+        return self._current is not None and self._current.process.poll() is None

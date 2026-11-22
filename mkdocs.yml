@@ -130,6 +130,8 @@ nav:
     - logging: api/logging/logging.md
   - Logging.Otel:
     - logging.otel: api/logging_otel/logging_otel.md
+  - Remote:
+    - remote: api/remote/remote.md
   - Resource Monitor:
     - resource_monitor: api/resource_monitor/resource_monitor.md
   - Runnable:
@@ -152,9 +154,6 @@ nav:
     - workflow: api/workflow/workflow.md
     - codecs: api/workflow/codecs.md
     - events: api/workflow/events.md
-  - Xml Rpc:
-    - xml_rpc: api/xml_rpc/xml_rpc.md
-    - models: api/xml_rpc/models.md
 - Articles:
   - Configuration: articles/configuration.md
   - Daemon: articles/daemon.md

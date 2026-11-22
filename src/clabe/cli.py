@@ -10,7 +10,6 @@ from .daemon._cli import DaemonCli
 from .git_manager import GitRepository
 from .launcher import Launcher, LauncherCliArgs
 from .workflow import select_workflow
-from .xml_rpc._server import _XmlRpcServerCli
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +113,6 @@ class _ListCli(BaseSettings):
 class CliAppSettings(BaseSettings, cli_prog_name="clabe", cli_kebab_case=True):
     """CLI application settings."""
 
-    xml_rpc_server: CliSubCommand[_XmlRpcServerCli]
     cache: CliSubCommand[_CacheManagerCli]
     run: CliSubCommand[_RunCli]
     repository_state: CliSubCommand[_RepositoryStateCli]
