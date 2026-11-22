@@ -23,16 +23,19 @@ daemon:
 ## Run and install
 
 ```bash
-uv tool install aind-clabe        # once per machine
-clabe daemon run --open-browser   # in the foreground
-clabe daemon install              # start it at logon, restart it on failure (Windows Task Scheduler)
-clabe daemon status
-clabe daemon upgrade              # uv tool upgrade aind-clabe; restart the daemon afterwards
+clabe daemon run --open-browser   # in the foreground, e.g. to try it
+clabe daemon install              # start it at logon, restart it on failure (Windows Task Scheduler), and now
+clabe daemon install --uvx aind-clabe==0.18.0   # the task runs `uvx --from <spec> clabe daemon run`
+clabe daemon restart              # after an update; refused during a session unless --force
+clabe daemon status               # the task, and whether the daemon answers
 clabe daemon uninstall
 ```
 
 The daemon runs as the logged-in user, not as a service: the experiments it starts open windows (Bonsai, Open
-Ephys) on the rig's desktop.
+Ephys) on the rig's desktop. It logs to `%LOCALAPPDATA%\clabe\daemon.log`. Installing again replaces the task, but a
+daemon already running keeps its old command until it is restarted.
+
+To install and update rigs from a deployment machine over SSH, see [Deploying](deployment.md).
 
 ## How a run is started
 

@@ -201,3 +201,72 @@ def test_a_token_starting_with_a_dash_reaches_the_run(daemon, monkeypatch):
         time.sleep(0.2)
     assert run["status"] == "running", run["log_tail"]
     host.current().process.kill()
+
+
+class TestDeployment:
+    """install --uvx, restart and status, with Task Scheduler stubbed out."""
+
+    @pytest.fixture
+    def scheduler(self, monkeypatch, tmp_path):
+        calls, xml = [], {}
+
+        def schtasks(*args):
+            calls.append(args[0])
+            if args[0] == "/Create":
+                xml["text"] = Path(args[args.index("/XML") + 1]).read_text(encoding="utf-16")
+            return subprocess.CompletedProcess(args, 0, stdout="SUCCESS", stderr="")
+
+        monkeypatch.setattr(_install, "_schtasks", schtasks)
+        monkeypatch.setattr(_install, "default_working_directory", lambda: tmp_path / "clabe")
+        monkeypatch.setattr(_install.time, "sleep", lambda s: None)
+        return calls, xml
+
+    def test_install_with_uvx_pins_the_package_in_the_task(self, scheduler, monkeypatch, tmp_path):
+        calls, xml = scheduler
+        monkeypatch.setattr(_install.shutil, "which", lambda name: f"C:/uv/{name}.exe")
+        monkeypatch.setattr(_install, "task_state", lambda: "Ready")
+        message = _install.install(uvx="aind-clabe==0.18.0")
+        assert "<Command>C:/uv/uvx.exe</Command>" in xml["text"]
+        assert "<Arguments>--from aind-clabe==0.18.0 clabe daemon run</Arguments>" in xml["text"]
+        assert f"<WorkingDirectory>{tmp_path / 'clabe'}</WorkingDirectory>" in xml["text"]
+        assert calls == ["/Create", "/Run"] and (tmp_path / "clabe").is_dir() and "Registered" in message
+
+    def test_installing_from_uvx_without_a_spec_is_refused(self, monkeypatch):
+        monkeypatch.setattr(_install, "_in_uv_cache", lambda: True)
+        with pytest.raises(OSError, match="--uvx"):
+            _install.daemon_command()
+
+    def test_reinstalling_says_the_running_daemon_needs_a_restart(self, scheduler, monkeypatch):
+        monkeypatch.setattr(_install, "task_state", lambda: "Running")
+        assert "clabe daemon restart" in _install.install()
+
+    def test_restart_refuses_to_interrupt_a_session_unless_forced(self, scheduler, monkeypatch):
+        calls, _ = scheduler
+        monkeypatch.setattr(_install, "task_state", lambda: "Running")
+        monkeypatch.setattr(_install, "probe", lambda port, token, timeout=2.0: {"status": "busy"})
+        with pytest.raises(OSError, match="runs an experiment"):
+            _install.restart(8070, None)
+        assert calls == []
+
+    def test_restart_ends_runs_and_waits_for_the_daemon(self, scheduler, monkeypatch):
+        calls, _ = scheduler
+        answers = iter(
+            [{"status": "leased", "leased_by": "rig-1"}, None, None, {"status": "idle", "clabe_version": "9"}]
+        )
+        monkeypatch.setattr(_install, "task_state", lambda: "Running" if calls[-1:] == ["/Run"] else "Ready")
+        monkeypatch.setattr(_install, "probe", lambda port, token, timeout=2.0: next(answers))
+        assert _install.restart(8070, None, force=True) == "The clabe daemon answers on port 8070 (clabe 9)."
+        assert calls == ["/End", "/Run"]
+
+    def test_restart_explains_a_user_who_is_not_logged_on(self, scheduler, monkeypatch):
+        monkeypatch.setattr(_install, "task_state", lambda: "Ready")
+        monkeypatch.setattr(_install, "probe", lambda port, token, timeout=2.0: None)
+        assert "logs on" in _install.restart(8070, None, timeout=0)
+
+
+def test_probe_reads_the_daemon(daemon):
+    base, _ = daemon
+    port = int(base.rsplit(":", 1)[1])
+    assert _install.probe(port, "d4emon")["status"] == "idle"
+    assert _install.probe(port, "wrong") == {"status": "unauthorized"}
+    assert _install.probe(free_port("127.0.0.1", 18170), None) is None

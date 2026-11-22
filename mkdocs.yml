@@ -171,6 +171,7 @@ nav:
   - Agents: articles/agents.md
   - Configuration: articles/configuration.md
   - Daemon: articles/daemon.md
+  - Deploying: articles/deployment.md
   - Data transfer: articles/data_transfer.md
   - Frontends: articles/frontends.md
   - Hub: articles/hub.md

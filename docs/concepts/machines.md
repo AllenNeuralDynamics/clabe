@@ -56,7 +56,7 @@ its own. Connections always go from the observer to the rig: rig → nothing, hu
 | Process | Machine | Started by |
 |---|---|---|
 | Launcher, run, run server | the rig PC running the session | `clabe run`, or the daemon |
-| Daemon (host + worker) | every rig PC | Task Scheduler at logon (`clabe daemon install`) |
+| Daemon (host + worker) | every rig PC | Task Scheduler at logon; deployed over SSH ([Deploying](../articles/deployment.md)) |
 | Apps (Bonsai, Open Ephys) | the rig PC, or a worker | a step |
 | Hub | a server | Docker |
 | Web UI | the browser | the page served by any of the above |
