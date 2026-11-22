@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 def _token(settings: DaemonSettings) -> str | None:
     """The daemon's token (``DAEMON_CLABE_TOKEN``)."""
-    return settings.token.get_secret_value() if settings.token else None
+    return (settings.token.get_secret_value() if settings.token else None) or None
 
 
 def _send_logs_to_otel(endpoint: str | None) -> None:
@@ -62,7 +62,7 @@ class _RunDaemonCli(DaemonSettings, cli_kebab_case=True):
         token = _token(self)
         _send_logs_to_otel(self.otel_endpoint)
         app = create_daemon(self, token=token)
-        host = self.bind_host(token)
+        host = self.host
         shown = "localhost" if host in ("127.0.0.1", "0.0.0.0", "::") else host
         url = f"http://{shown}:{self.port}/" + (f"?token={token}" if token else "")
         logger.info("clabe daemon starting at http://%s:%s/ (pid %s)", shown, self.port, os.getpid())

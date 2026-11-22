@@ -12,20 +12,19 @@ The hub is an optional fleet page: every rig's status, and every run waiting for
 `docker/hub/.env` (copy `docker/hub/.env.example`); the names have no prefix, as only the hub's container sees them:
 
 ```bash
-TOKEN=change-me                                          # the hub's own
-RIG_TOKEN=the-rigs-daemon-token                          # the rigs' DAEMON_CLABE_TOKEN
 RIGS=rig-3=http://rig-3:8070;rig-4=http://rig-4:8070     # id=url; or JSON, for per-rig tokens
+# TOKEN=...                                              # optional: the hub's own
+# RIG_TOKEN=...                                          # optional: the rigs' DAEMON_CLABE_TOKEN
 ```
 
 | Variable | Default | What it does |
 |---|---|---|
-| `TOKEN` | none | Required by the hub's API |
-| `RIG_TOKEN` | none | The rigs' daemon token, unless a rig has its own |
+| `TOKEN` | none | Optional: when set, the hub's API requires it |
+| `RIG_TOKEN` | none | The rigs' daemon token, when they have one |
 | `RIGS` | none | `id=url;...`, or `[{"id": ..., "url": ..., "token": ...}]` |
 | `PORT` | `8080` | The hub's port |
 | `POLL_INTERVAL` | `2` | Seconds between polls of each rig |
 
-Rig daemons need a token: with one, they listen on the network.
 
 ## Run it
 

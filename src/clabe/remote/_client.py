@@ -69,7 +69,7 @@ class WorkerClient:
     def __init__(self, settings: WorkerClientSettings) -> None:
         self.settings = settings
         self._session = requests.Session()
-        if settings.token is not None:
+        if settings.token is not None and settings.token.get_secret_value():  # an empty token is no token
             self._session.headers["Authorization"] = f"Bearer {settings.token.get_secret_value()}"
         self._lease: Lease | None = None
         self._heartbeat: threading.Thread | None = None

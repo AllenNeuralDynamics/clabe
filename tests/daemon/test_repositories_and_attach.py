@@ -53,10 +53,8 @@ class TestRepositories:
         settings = DaemonSettings(repository_roots=[tmp_path / "one", tmp_path / "two"])
         assert [r.path.parent.name for r in settings.find_repositories()] == ["one"]
 
-    def test_listening_on_the_network_follows_the_token(self):
-        assert DaemonSettings().bind_host(None) == "127.0.0.1"
-        assert DaemonSettings().bind_host("secret") == "0.0.0.0"
-        assert DaemonSettings(host="10.0.0.5").bind_host(None) == "10.0.0.5"
+    def test_it_listens_on_the_network_with_or_without_a_token(self):
+        assert DaemonSettings().host == "0.0.0.0" and DaemonSettings().token is None
 
 
 def _ended_pid() -> int:

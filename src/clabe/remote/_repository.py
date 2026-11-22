@@ -154,9 +154,9 @@ class RemoteRepository:
         local_path: os.PathLike | str = ".",
         data_roots: Mapping[str, str] | None = None,
     ) -> Self:
-        """Connects to the daemon of a machine by its computer name, e.g. a rig's ``computer_name``.
-
-        The other client settings, such as the token, are read from the ``worker_client`` section.
+        """Connects to the daemon of a machine by its computer name, e.g. a rig's ``computer_name``: nothing to
+        configure. The other client settings (a token, timeouts), when needed, come from the experiment's
+        ``worker_client`` section.
 
         Args:
             computer_name: Network name of the remote machine.

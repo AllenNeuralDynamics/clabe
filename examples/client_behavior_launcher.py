@@ -15,7 +15,7 @@ from clabe import checks
 from clabe.apps import AindBehaviorServicesBonsaiApp
 from clabe.data_transfer.aind_watchdog import WatchdogDataTransferService, WatchdogSettings
 from clabe.launcher import Launcher, LauncherCliArgs, experiment
-from clabe.remote import RemoteRepository, WorkerClient, WorkerClientSettings
+from clabe.remote import RemoteRepository
 from clabe.session import SessionBuilder
 from clabe.stores import LocalFileStore
 
@@ -40,12 +40,10 @@ async def client_experiment(launcher: Launcher) -> None:
 
     checks.run(checks.free_space(1e9), rig=rig)  # in a workflow: wf.step(steps.preflight(checks.free_space(1e9)))
 
-    # The other machine runs `clabe daemon` with this repository under `daemon: repositories:`.
+    # The other machine runs `clabe daemon`, with this repository cloned under C:/git (where it finds it).
     # The first command takes its lease: no other run can use it until this one gives it back.
-    remote = RemoteRepository(
-        WorkerClient(WorkerClientSettings(url="http://localhost:8070", token="42")),
-        local_path=".",
-        data_roots={REMOTE_DATA_DIRECTORY: REMOTE_DATA_SHARE},
+    remote = RemoteRepository.from_computer_name(
+        "localhost", local_path=".", data_roots={REMOTE_DATA_DIRECTORY: REMOTE_DATA_SHARE}
     )
     remote.ensure_running()
     remote.verify(allow_dirty=True)

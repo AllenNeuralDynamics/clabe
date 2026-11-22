@@ -15,7 +15,7 @@ class _RunHubCli(HubSettings, cli_kebab_case=True):
         from ._app import create_hub_app
         from ._fleet import Fleet
 
-        token = self.token.get_secret_value() if self.token else None
+        token = (self.token.get_secret_value() if self.token else None) or None
         print(f"clabe hub on port {self.port}, following {len(self.rigs)} rig(s)", flush=True)
         uvicorn.run(create_hub_app(Fleet(self), token=token), host=self.host, port=self.port, log_level="warning")
 

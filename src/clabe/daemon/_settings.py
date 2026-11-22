@@ -70,10 +70,7 @@ class DaemonSettings(EnvSettings):
     __yml_section__: ClassVar[str | None] = "daemon"
     __env_prefix__: ClassVar[str | None] = "DAEMON_CLABE_"
 
-    host: str | None = Field(
-        default=None,
-        description="Interface to bind; by default the network (0.0.0.0) when a token is set, else only this PC",
-    )
+    host: str = Field(default="0.0.0.0", description="Interface to bind (the network; 127.0.0.1 for this PC only)")
     port: int = Field(default=8070, description="Port of the daemon (runs are proxied under /run/)")
     token: SecretStr | None = Field(default=None, description="Shared token required by every API call")
     otel_endpoint: str | None = Field(
@@ -120,12 +117,6 @@ class DaemonSettings(EnvSettings):
         if isinstance(value, list):
             return [{"path": item} if isinstance(item, str | os.PathLike) else item for item in value]
         return value
-
-    def bind_host(self, token: str | None) -> str:
-        """The interface to bind: ``host`` when set, else the network with a token and only this PC without."""
-        if self.host is not None:
-            return self.host
-        return "0.0.0.0" if token else "127.0.0.1"
 
     def find_repositories(self) -> list[RepositoryConfig]:
         """The listed repositories, then those found under the roots (sorted); a name is used once."""

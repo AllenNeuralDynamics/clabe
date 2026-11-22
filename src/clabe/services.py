@@ -181,7 +181,8 @@ class ServiceSettings(ps.BaseSettings, abc.ABC):
         prefix = getattr(cls, "__env_prefix__", None)
         if prefix is None:
             prefix = f"CLABE_{section.upper()}_" if section else "CLABE_"
-        cls.model_config.update(ps.SettingsConfigDict(extra="ignore", env_prefix=prefix))
+        # An empty variable (TOKEN=) is as if it were not set
+        cls.model_config.update(ps.SettingsConfigDict(extra="ignore", env_prefix=prefix, env_ignore_empty=True))
 
     @classmethod
     def settings_customise_sources(

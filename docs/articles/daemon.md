@@ -26,20 +26,20 @@ Only environment variables of the rig's user (never `clabe.yml`); nothing is req
 Restart the daemon after changing them.
 
 ```bat
-setx DAEMON_CLABE_TOKEN "..."                                  :: the installer's -Token does this
+setx DAEMON_CLABE_TOKEN "..."                                  :: optional; the installer's -Token does this
 setx DAEMON_CLABE_REPOSITORY_ROOTS "C:/git;D:/experiments"     :: where to look (default: C:/git)
 setx DAEMON_CLABE_OTEL_ENDPOINT "collector:4317"               :: send its logs there (service clabe-daemon)
 ```
 
 | Variable | Default | What it does |
 |---|---|---|
-| `DAEMON_CLABE_TOKEN` | none | Required by every API call; with one, the daemon listens on the network |
+| `DAEMON_CLABE_TOKEN` | none | Optional: when set, every API call must carry it |
 | `DAEMON_CLABE_REPOSITORY_ROOTS` | `C:/git` | Folders whose repositories are found |
 | `DAEMON_CLABE_REPOSITORIES` | none | More repositories, anywhere |
 | `DAEMON_CLABE_RUN_ARGUMENTS` | none | Added to every run it starts, e.g. `--skip-hardware-validation` |
 | `DAEMON_CLABE_OTEL_ENDPOINT` | none | OTLP endpoint for its logs |
 | `DAEMON_CLABE_PORT` | `8070` | The daemon's port |
-| `DAEMON_CLABE_HOST` | from the token | Interface to bind |
+| `DAEMON_CLABE_HOST` | `0.0.0.0` | Interface to bind (`127.0.0.1`: this PC only) |
 | `DAEMON_CLABE_COMMAND` | `uv;run;--directory;{repository};clabe` | How clabe is called in a repository |
 | `DAEMON_CLABE_RUNS_DIRECTORY` | `%TEMP%\clabe-daemon` | Logs of the runs it starts |
 | `DAEMON_CLABE_MAX_JOBS` | `4` | Worker: commands run at once for a remote run |

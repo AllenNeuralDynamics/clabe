@@ -4,7 +4,7 @@ Drive an app on a second rig PC (e.g. ephys) from the launcher on the first, and
 
 ```mermaid
 flowchart LR
-    L["Launcher PC<br/>clabe run"] -- "commands (port 8070, token)" --> D["Other PC<br/>clabe daemon"]
+    L["Launcher PC<br/>clabe run"] -- "commands (port 8070)" --> D["Other PC<br/>clabe daemon"]
     L -. "reads data over a share" .-> S[("rig-b's data share")]
     D --> S
 ```
@@ -16,22 +16,13 @@ The full script is in the [remote execution example](../docs_examples/remote_exe
 - Install it once per rig PC: see [Deploy a rig](deployment.md).
 - Clone **this repository** on rig-b too, under `C:/git`: the daemon finds it (see
   [Repositories](daemon.md#repositories)); commands run there, in its `.venv`.
-- Give rig-b's daemon a token (`DAEMON_CLABE_TOKEN`) and this experiment the same one (`worker_client: token:`).
+!!! warning "The daemon runs any command it is given"
+    Keep it on the rig network. A token (`DAEMON_CLABE_TOKEN` there, `worker_client: token:` in the experiment) is
+    optional; when set, both must match.
 
-!!! warning "The token is the only protection"
-    The daemon runs **any command** it is given, as its user. Keep the token (`DAEMON_CLABE_TOKEN`) out of the repository
-    and bind `0.0.0.0` only on the rig network.
+## 2. Connect from the experiment
 
-## 2. Connect from the launcher
-
-Put the same token in the launcher's `clabe.yml`:
-
-```yaml
-worker_client:
-  token: "<the same secret>"
-  # url: http://rig-b:8070       # only if you build WorkerClientSettings() yourself
-  # repository: Aind.Experiment.VrForaging   # default: this repository's folder name
-```
+Nothing to configure: connect by computer name.
 
 ```python
 from clabe.remote import RemoteRepository
@@ -53,6 +44,7 @@ remote.verify()  # same origin, commit, submodules, and no uncommitted changes t
 - `ensure_running()` needs admin rights on that PC to start its task (`schtasks /run /s <host>`).
 - `verify(allow_dirty=True)` accepts uncommitted changes there.
 - `is_this_computer(rig.computer_name)` tells you whether to run a rig's app locally instead.
+- Optional `worker_client:` in the experiment's `clabe.yml`: `token`, `timeout`, `lease_ttl`, ….
 
 ## 3. Run an app there
 

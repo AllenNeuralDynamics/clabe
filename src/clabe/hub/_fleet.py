@@ -104,7 +104,7 @@ class RigStatus(BaseModel):
 
 def rig_token(rig: RigConfig) -> str | None:
     """The token of a rig's daemon (its own, else the hub's ``rig_token``)."""
-    return rig.token.get_secret_value() if rig.token else None
+    return (rig.token.get_secret_value() if rig.token else None) or None
 
 
 class Fleet:
