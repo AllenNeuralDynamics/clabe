@@ -26,6 +26,36 @@ export function focusSelect(el) {
   if (typeof el.select === "function") el.select();
 }
 
+/**
+ * Copies `text` to the clipboard; true when it worked. The Clipboard API needs HTTPS (or localhost), so on a plain
+ * http:// hub it falls back to a hidden text area and the copy command.
+ */
+export async function copyText(text) {
+  if (navigator.clipboard && window.isSecureContext) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // fall back below
+    }
+  }
+  const area = document.createElement("textarea");
+  area.value = text;
+  area.setAttribute("readonly", "");
+  area.style.position = "fixed";
+  area.style.opacity = "0";
+  document.body.appendChild(area);
+  area.select();
+  let ok = false;
+  try {
+    ok = document.execCommand("copy");
+  } catch {
+    ok = false;
+  }
+  area.remove();
+  return ok;
+}
+
 /** Opens the file dialog of a hidden file input. */
 export function pick(el) {
   if (el) el.click();

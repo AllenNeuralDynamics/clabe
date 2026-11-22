@@ -62,6 +62,8 @@ it again. A failed collection is retried at the next poll.
 - In Docker, `DATA_DIR` is `/data`, the named volume `hub-data`. It survives `docker compose down` and rebuilds.
 - `docker compose down -v` deletes the volume and every report in it.
 - Delete reports from the page or the API. `REPORT_RETENTION_DAYS` deletes old reports at start and then every hour.
+- Each report has its own address (`/?tab=reports&report=<id>`): **Copy link** on the report copies it to share.
+  Whoever opens it signs in if the hub has a token, then sees the report.
 
 ## API
 

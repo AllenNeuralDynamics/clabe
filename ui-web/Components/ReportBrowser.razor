@@ -2,6 +2,7 @@
    delete one or many), a report's view, and "Open an export…" to look at a zip without storing it. *@
 @inject HubApi Hub
 @inject IJSRuntime JS
+@inject NavigationManager Navigation
 @implements IAsyncDisposable
 
 @if (_open is not null || _inspected is not null)
@@ -248,6 +249,25 @@ else if (_confirm == Confirmation.Bulk)
 
     protected override async Task OnInitializedAsync()
     {
+        // a shared link: ?tab=reports&report=<id> opens that report
+        var linked = System.Web.HttpUtility.ParseQueryString(new Uri(Navigation.Uri).Query)["report"];
+        if (!string.IsNullOrEmpty(linked))
+        {
+            try
+            {
+                _open = await Hub.ReportAsync(linked);
+            }
+            catch (HttpRequestException exc) when (exc.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                _error = $"Report {linked} is not in the hub (it may have been deleted).";
+                SetAddress(null);
+            }
+            catch (HttpRequestException exc)
+            {
+                // e.g. not signed in yet: keep the address, so signing in opens the report
+                _error = exc.Message;
+            }
+        }
         await Load();
         // new reports arrive as the hub collects them: refresh quietly while the table is on screen
         _timer = new Timer(_ => InvokeAsync(async () =>
@@ -391,6 +411,24 @@ else if (_confirm == Confirmation.Bulk)
     {
         _inspected = null;
         _open = report;
+        SetAddress(report.ReportId);
+    }
+
+    /// <summary>Keeps the open report in the address (?tab=reports&amp;report=id), so the address can be shared.</summary>
+    private void SetAddress(string? reportId)
+    {
+        var uri = new Uri(Navigation.Uri);
+        var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+        query["tab"] = "reports";
+        if (reportId is null)
+        {
+            query.Remove("report");
+        }
+        else
+        {
+            query["report"] = reportId;
+        }
+        Navigation.NavigateTo(uri.GetLeftPart(UriPartial.Path) + "?" + query, replace: true);
     }
 
     private void OnRowKey(KeyboardEventArgs e, StoredReport report)
@@ -404,6 +442,7 @@ else if (_confirm == Confirmation.Bulk)
     private async Task CloseView()
     {
         _open = null;
+        SetAddress(null);
         _inspected = null;
         await Reload(quiet: true);
     }
@@ -425,6 +464,7 @@ else if (_confirm == Confirmation.Bulk)
     private async Task Deleted(string id)
     {
         _open = null;
+        SetAddress(null);
         _selected.Remove(id);
         await Load();
         await OnChanged.InvokeAsync();

@@ -4,6 +4,7 @@ import asyncio
 import datetime
 import io
 import json
+import os
 import shutil
 import threading
 import time
@@ -244,3 +245,47 @@ def test_report_routes_answer_503_without_a_store():
     app = create_hub_app(Fleet(HubSettings(rigs=[])), static_dir=None, poll=False)
     with TestClient(app) as client:
         assert client.get("/api/hub/reports").status_code == 503
+
+
+def test_a_report_has_an_address_that_opens_it(store: ReportStore, tmp_path: Path):
+    playwright_api = pytest.importorskip("playwright.sync_api")
+    from clabe.server._app import STATIC_DIR
+
+    if not (STATIC_DIR / "index.html").is_file():
+        pytest.skip("the web UI is not built")
+    report, data = _report(tmp_path / "made", comment="Camera froze", experiment="vr-foraging")
+    store.add("rig-3", data)
+    port = free_port("127.0.0.1", 18660)
+    app = create_hub_app(Fleet(HubSettings(rigs=[]), reports=store), token="hub-secret", poll=False)
+    server, thread = _serve(app, port)
+    base = f"http://127.0.0.1:{port}"
+    try:
+        with playwright_api.sync_playwright() as p:
+            try:
+                browser = p.chromium.launch(channel=os.environ.get("CLABE_TEST_BROWSER_CHANNEL") or None)
+            except playwright_api.Error as exc:
+                pytest.skip(f"no browser for Playwright: {exc}")
+            page = browser.new_page()
+            page.set_default_timeout(30_000)
+            page.goto(f"{base}/?token=hub-secret&tab=reports")
+            page.get_by_text("Camera froze").first.click()
+            page.get_by_role("button", name="Copy link").wait_for()
+            address = page.url
+            assert f"report={report.report_id}" in address and "token" not in address
+            page.get_by_role("button", name="Copy link").click()
+            page.get_by_role("button", name="Link copied").wait_for()
+            # another person, signed in on their own, opens the shared address
+            other = browser.new_context().new_page()
+            other.goto(address)
+            other.get_by_label("Token").fill("hub-secret")
+            other.keyboard.press("Enter")
+            other.get_by_role("button", name="Copy link").wait_for()
+            other.get_by_text("Camera froze").first.wait_for()
+            # back to the table: the address no longer names the report
+            other.get_by_role("button", name="Reports").first.click()
+            other.get_by_text("Camera froze").first.wait_for()
+            assert "report=" not in other.url
+            browser.close()
+    finally:
+        server.should_exit = True
+        thread.join(5)

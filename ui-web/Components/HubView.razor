@@ -259,6 +259,7 @@
         // keep the tab in the address, so a reload or a shared link opens it
         var uri = new Uri(Navigation.Uri);
         var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+        query.Remove("report");  // a report's address belongs to the Reports tab
         if (tab != "rigs")
         {
             query["tab"] = tab;

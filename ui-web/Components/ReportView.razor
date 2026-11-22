@@ -1,6 +1,8 @@
 @* One report: who, where, when and what the user wrote, then its files. Also shows an export opened for a look
    (not stored: no status, no delete). *@
 @inject HubApi Hub
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
 
 <div class="rv">
     <div class="crumbs">
@@ -32,6 +34,9 @@
                 @if (Report is not null)
                 {
                     <ReportStatusSelect Report="Report" Large="true" OnChanged="Changed" OnError="e => _error = e" />
+                    <button type="button" class="sm" @onclick="CopyLink" title="Copy this report's address, to share it">
+                        <HubIcon Name="@(_copied ? "check" : "link")" Size="14" /> @(_copied ? "Link copied" : "Copy link")
+                    </button>
                     <a class="btn sm" href="@Hub.ZipUrl(Report.ReportId)" download><HubIcon Name="download" Size="14" /> Download zip</a>
                     <button type="button" class="danger sm" @onclick="() => _confirm = true"><HubIcon Name="trash" Size="14" /> Delete</button>
                 }
@@ -95,6 +100,25 @@
     [Parameter] public StoredReport? Report { get; set; }
     [Parameter] public InspectResult? Inspected { get; set; }
     [Parameter] public EventCallback OnBack { get; set; }
+
+    private bool _copied;
+
+    /// <summary>Copies the report's address (the hub page opens it straight away), then says so for a moment.</summary>
+    private async Task CopyLink()
+    {
+        var module = await JS.InvokeAsync<IJSObjectReference>("import", "./js/report.js");
+        var ok = await module.InvokeAsync<bool>("copyText", Navigation.Uri);
+        await module.DisposeAsync();
+        if (!ok)
+        {
+            _error = $"Could not copy the link: {Navigation.Uri}";
+            return;
+        }
+        _copied = true;
+        StateHasChanged();
+        await Task.Delay(2000);
+        _copied = false;
+    }
     [Parameter] public EventCallback<StoredReport> OnChanged { get; set; }
     [Parameter] public EventCallback<string> OnDeleted { get; set; }
 
