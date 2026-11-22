@@ -10,7 +10,7 @@ from pydantic_settings import BaseSettings
 class McpCli(BaseSettings, cli_kebab_case=True):
     """Serve clabe to an MCP client (e.g. Claude) over stdio: read runs and answer their prompts."""
 
-    url: str = Field(description="A run server, a rig's daemon, or a hub, e.g. http://rig-3:8070")
+    url: str = Field(description="A run server, a rig's daemon, or a hub, e.g. http://rig-3:24070")
     token: str | None = Field(
         default=None, description="Its token (defaults to $DAEMON_CLABE_TOKEN, then $CLABE_TOKEN)"
     )

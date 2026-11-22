@@ -18,7 +18,7 @@ class RigConfig(BaseModel):
     """A rig the hub follows."""
 
     id: str = Field(description="Short name used in the hub's URLs, e.g. rig-3", pattern=r"^[A-Za-z0-9_.-]+$")
-    url: str = Field(description="The rig's daemon, e.g. http://rig-3:8070")
+    url: str = Field(description="The rig's daemon, e.g. http://rig-3:24070")
     token: SecretStr | None = Field(default=None, description="The rig daemon's token; defaults to the hub's rig_token")
 
 
@@ -30,7 +30,7 @@ class HubSettings(EnvSettings):
     ```bash
     TOKEN=...                             # the hub's own
     RIG_TOKEN=...                         # the rigs' daemon token (their DAEMON_CLABE_TOKEN)
-    RIGS=rig-3=http://rig-3:8070;rig-4=http://rig-4:8070
+    RIGS=rig-3=http://rig-3:24070;rig-4=http://rig-4:24070
     ```
     """
 
@@ -56,7 +56,7 @@ class HubSettings(EnvSettings):
     @field_validator("rigs", mode="before")
     @classmethod
     def _rigs(cls, value: object) -> object:
-        """``rig-3=http://rig-3:8070;rig-4=...``, or a JSON list of ``{id, url, token}``."""
+        """``rig-3=http://rig-3:24070;rig-4=...``, or a JSON list of ``{id, url, token}``."""
         value = split_list(value)
         if isinstance(value, list):
             return [_rig(item) if isinstance(item, str) else item for item in value]

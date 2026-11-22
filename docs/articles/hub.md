@@ -12,7 +12,7 @@ The hub is an optional fleet page: every rig's status, and every run waiting for
 `docker/hub/.env` (copy `docker/hub/.env.example`); the names have no prefix, as only the hub's container sees them:
 
 ```bash
-RIGS=rig-3=http://rig-3:8070;rig-4=http://rig-4:8070     # id=url; or JSON, for per-rig tokens
+RIGS=rig-3=http://rig-3:24070;rig-4=http://rig-4:24070     # id=url; or JSON, for per-rig tokens
 # TOKEN=...                                              # optional: the hub's own
 # RIG_TOKEN=...                                          # optional: the rigs' DAEMON_CLABE_TOKEN
 ```

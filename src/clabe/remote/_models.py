@@ -6,7 +6,7 @@ from enum import Enum
 from pydantic import BaseModel, Field
 
 #: The daemon's default port, where the worker role is served too.
-DEFAULT_PORT = 8070
+DEFAULT_PORT = 24070
 
 #: Header carrying the lease of the run a request belongs to.
 LEASE_HEADER = "X-Clabe-Lease"

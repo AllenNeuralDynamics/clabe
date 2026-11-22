@@ -80,7 +80,7 @@ def test_the_daemon_and_the_hub_read_only_their_environment(_isolated_config, mo
     local, _ = _isolated_config
     local.write_text("daemon:\n  port: 1\nhub:\n  port: 2\n")
     set_clabe_yml({"daemon": {"port": 3}, "hub": {"port": 4}})
-    assert DaemonSettings().port == 8070 and HubSettings().port == 8080
+    assert DaemonSettings().port == 24070 and HubSettings().port == 8080
     monkeypatch.setenv("DAEMON_CLABE_PORT", "5")
     monkeypatch.setenv("DAEMON_CLABE_REPOSITORY_ROOTS", "C:/a;D:/b")
     monkeypatch.setenv("DAEMON_CLABE_REPOSITORIES", '["C:/x", {"path": "C:/y", "name": "why"}]')

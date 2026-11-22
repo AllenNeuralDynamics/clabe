@@ -8,7 +8,7 @@ Install clabe and its daemon on a rig PC with one line, then update and operate 
 - **OpenSSH Server** enabled, with SSH access as that user.
 - **uv** installed for that user ([uv's installer](https://docs.astral.sh/uv/getting-started/installation/)).
 - The experiment repositories cloned under `C:/git` (each with a `main.py`).
-- Port 8070 reachable from the hub and browsers.
+- Port 24070 reachable from the hub and browsers.
 - Internet access while installing.
 
 ## 2. Configure (optional)

@@ -43,7 +43,7 @@ class WorkerClientSettings(ServiceSettings):
 
     __yml_section__ = "worker_client"
 
-    url: HttpUrl = Field(description="The worker's daemon, e.g. http://rig-b:8070")
+    url: HttpUrl = Field(description="The worker's daemon, e.g. http://rig-b:24070")
     token: SecretStr | None = Field(default=None, description="The daemon's token")
     repository: str | None = Field(
         default=None, description="The repository jobs run in on the worker; defaults to its first configured one"

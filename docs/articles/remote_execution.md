@@ -4,7 +4,7 @@ Drive an app on a second rig PC (e.g. ephys) from the launcher on the first, and
 
 ```mermaid
 flowchart LR
-    L["Launcher PC<br/>clabe run"] -- "commands (port 8070)" --> D["Other PC<br/>clabe daemon"]
+    L["Launcher PC<br/>clabe run"] -- "commands (port 24070)" --> D["Other PC<br/>clabe daemon"]
     L -. "reads data over a share" .-> S[("rig-b's data share")]
     D --> S
 ```

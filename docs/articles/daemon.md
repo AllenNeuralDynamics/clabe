@@ -4,9 +4,9 @@ The daemon runs on every rig PC: it lists the machine's experiments, starts them
 
 | URL | Shows |
 |---|---|
-| `http://<rig>:8070/` | The machine and its experiments |
-| `http://<rig>:8070/run/` | The run in progress (web UI and API) |
-| `http://<rig>:8070/docs` | The API |
+| `http://<rig>:24070/` | The machine and its experiments |
+| `http://<rig>:24070/run/` | The run in progress (web UI and API) |
+| `http://<rig>:24070/docs` | The API |
 
 To install it on a rig, use the one-line installer: [Deploy a rig](deployment.md).
 
@@ -38,7 +38,7 @@ setx DAEMON_CLABE_OTEL_ENDPOINT "collector:4317"               :: send its logs 
 | `DAEMON_CLABE_REPOSITORIES` | none | More repositories, anywhere |
 | `DAEMON_CLABE_RUN_ARGUMENTS` | none | Added to every run it starts, e.g. `--skip-hardware-validation` |
 | `DAEMON_CLABE_OTEL_ENDPOINT` | none | OTLP endpoint for its logs |
-| `DAEMON_CLABE_PORT` | `8070` | The daemon's port |
+| `DAEMON_CLABE_PORT` | `24070` | The daemon's port |
 | `DAEMON_CLABE_HOST` | `0.0.0.0` | Interface to bind (`127.0.0.1`: this PC only) |
 | `DAEMON_CLABE_COMMAND` | `uv;run;--directory;{repository};clabe` | How clabe is called in a repository |
 | `DAEMON_CLABE_RUNS_DIRECTORY` | `%TEMP%\clabe-daemon` | Logs of the runs it starts |

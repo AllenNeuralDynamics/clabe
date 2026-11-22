@@ -71,7 +71,7 @@ class DaemonSettings(EnvSettings):
     __env_prefix__: ClassVar[str | None] = "DAEMON_CLABE_"
 
     host: str = Field(default="0.0.0.0", description="Interface to bind (the network; 127.0.0.1 for this PC only)")
-    port: int = Field(default=8070, description="Port of the daemon (runs are proxied under /run/)")
+    port: int = Field(default=24070, description="Port of the daemon (runs are proxied under /run/)")
     token: SecretStr | None = Field(default=None, description="Shared token required by every API call")
     otel_endpoint: str | None = Field(
         default=None, description="An OTLP endpoint: when set, the daemon's logs go there (service clabe-daemon)"
