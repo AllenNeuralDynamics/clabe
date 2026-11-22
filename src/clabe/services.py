@@ -142,9 +142,10 @@ class ServiceSettings(ps.BaseSettings, abc.ABC):
     """
     Base class for service settings with YAML configuration support.
 
-    This class provides automatic YAML configuration loading using pydantic-settings. The configuration is loaded from
-    files defined in KNOWN_CONFIG_FILES and, optionally, from an in-memory document installed via `set_clabe_yml`
-    or `override_clabe_yml`. The in-memory document ranks right after ``./local/clabe.yml``.
+    This class provides automatic YAML configuration loading using pydantic-settings. Highest priority first: keyword
+    arguments, the in-memory document (``--clabe-yml``, `set_clabe_yml` or `override_clabe_yml`),
+    ``./local/clabe.yml``, ``%PROGRAMDATA%/clabe.yml``, then environment variables named
+    ``CLABE_<SECTION>_<FIELD>`` (e.g. ``CLABE_WATCHDOG_JOB_TYPE``; ``CLABE_<FIELD>`` without a section).
 
     Attributes:
         __yml_section__: Optional class variable to override the config section name
@@ -176,7 +177,11 @@ class ServiceSettings(ps.BaseSettings, abc.ABC):
             **kwargs: Keyword arguments
         """
         super().__init_subclass__(*args, **kwargs)
-        cls.model_config.update(ps.SettingsConfigDict(extra="ignore"))
+        section = cls.__dict__.get("__yml_section__", cls.__yml_section__)
+        prefix = getattr(cls, "__env_prefix__", None)
+        if prefix is None:
+            prefix = f"CLABE_{section.upper()}_" if section else "CLABE_"
+        cls.model_config.update(ps.SettingsConfigDict(extra="ignore", env_prefix=prefix))
 
     @classmethod
     def settings_customise_sources(
@@ -204,16 +209,46 @@ class ServiceSettings(ps.BaseSettings, abc.ABC):
             _SafeYamlSettingsSource(settings_cls, yaml_file=p, yaml_config_section=cls.__yml_section__)
             for p in KNOWN_CONFIG_FILES
         ]
-        # The in-memory document ranks right after the first (local override) config file
+        # The in-memory document (--clabe-yml) ranks above every file
         return (
             init_settings,
-            *yaml_sources[:1],
             _InMemorySettingsSource(settings_cls, config_section=cls.__yml_section__),
-            *yaml_sources[1:],
+            *yaml_sources,
             env_settings,
             dotenv_settings,
             file_secret_settings,
         )
+
+
+class EnvSettings(ServiceSettings):
+    """Settings read only from keyword arguments and environment variables (``<__env_prefix__><FIELD>``), never
+    from clabe.yml: the daemon's (``DAEMON_CLABE_``) and the hub's (no prefix: they live in its container's ``.env``)."""
+
+    __env_prefix__: t.ClassVar[str | None] = None
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[ps.BaseSettings],
+        init_settings: ps.PydanticBaseSettingsSource,
+        env_settings: ps.PydanticBaseSettingsSource,
+        dotenv_settings: ps.PydanticBaseSettingsSource,
+        file_secret_settings: ps.PydanticBaseSettingsSource,
+    ) -> tuple[ps.PydanticBaseSettingsSource, ...]:
+        """Keyword arguments, then the environment, then a ``.env`` file when the class names one."""
+        return (init_settings, env_settings, dotenv_settings)
+
+
+def split_list(value: t.Any) -> t.Any:
+    """A list from an environment variable: a JSON list, or items separated by ``;``; anything else unchanged."""
+    if not isinstance(value, str):
+        return value
+    text = value.strip()
+    if text.startswith("["):
+        import json
+
+        return json.loads(text)
+    return [item.strip() for item in text.split(";") if item.strip()]
 
 
 class _SafeYamlSettingsSource(ps.YamlConfigSettingsSource):

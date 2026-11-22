@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from typing import Literal
 
@@ -71,6 +72,8 @@ class LauncherCliArgs(ServiceSettings, cli_prog_name="clabe", cli_kebab_case=Tru
     @model_validator(mode="after")
     def _install_clabe_yml(self) -> "LauncherCliArgs":
         """Installs the file passed via ``--clabe-yml`` as the process-wide clabe.yml document."""
+        if self.clabe_yml is None and os.environ.get("CLABE_YML"):
+            self.clabe_yml = Path(os.environ["CLABE_YML"])
         if self.clabe_yml is not None:
             self.clabe_yml = self.clabe_yml.resolve()
             set_clabe_yml(_read_clabe_yml(self.clabe_yml))

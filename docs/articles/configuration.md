@@ -23,19 +23,31 @@ my_service:
 
 - Every section clabe ships: [ServiceSettings and yaml tags](service_settings.md).
 
-## Where settings come from
+## Who reads what
+
+Only experiments (the launcher and everything a run uses) read `clabe.yml`. The daemon and the hub read only
+environment variables.
+
+| Process | Configured by | Names |
+|---|---|---|
+| Experiment (`clabe run`) | `clabe.yml`, then environment variables | `CLABE_<SECTION>_<FIELD>`, e.g. `CLABE_WATCHDOG_JOB_TYPE`; launcher options `CLABE_<FIELD>`, e.g. `CLABE_TOKEN` |
+| Daemon | Environment variables of the rig's user | `DAEMON_CLABE_<FIELD>`, e.g. `DAEMON_CLABE_TOKEN` ([list](daemon.md#configure)) |
+| Hub | `docker/hub/.env` (inside its container) | `TOKEN`, `RIG_TOKEN`, `RIGS`, … ([list](hub.md#configure)) |
+
+## Where an experiment's settings come from
 
 Highest priority first; fields merge across sources and missing files or sections are skipped.
 
 | # | Source |
 | --- | --- |
 | 1 | Keyword arguments, e.g. `MyServiceSettings(port=1)` |
-| 2 | `./local/clabe.yml` |
-| 3 | The in-memory document (`--clabe-yml` or `set_clabe_yml`) |
-| 4 | `./clabe.yml` |
-| 5 | `%PROGRAMDATA%/clabe.yml` |
-| 6 | Environment variables and `.env` |
+| 2 | `--clabe-yml <file>` (or `$CLABE_YML`, or `set_clabe_yml`) |
+| 3 | `./local/clabe.yml` (uncommitted, next to where the run starts) |
+| 4 | `%PROGRAMDATA%/clabe.yml` (the rig's) |
+| 5 | Environment variables, `CLABE_<SECTION>_<FIELD>` |
 
+- A repository has no committed `clabe.yml`: put rig settings in `%PROGRAMDATA%/clabe.yml`, per-checkout ones in
+  `local/clabe.yml`.
 - Settings are read when the object is built; objects built earlier keep their values.
 
 ## Loading a clabe.yml from elsewhere
@@ -68,7 +80,7 @@ settings = MyServiceSettings()  # sees the fetched document
 
 - Any mapping works, e.g. `set_clabe_yml(row["clabe_config"])` from a database.
 - `set_clabe_yml(None)` removes it.
-- `./local/clabe.yml` still wins, so one rig can override it while debugging.
+- It wins over every file.
 
 ## Temporary overrides
 

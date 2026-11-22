@@ -9,13 +9,13 @@
 
     Options come from parameters, or — for `irm ... | iex`, which cannot pass any — from environment variables:
 
-        -Version / CLABE_VERSION      clabe version to install (default: the latest release)
-        -Package / CLABE_PACKAGE      any uv package spec instead (aind-clabe[otel,agents]==0.18.0, git+https://...)
-        -Token   / CLABE_TOKEN        the daemon's token, saved as this user's CLABE_TOKEN
-        -Config  / CLABE_CONFIG       a clabe.yml to install as %PROGRAMDATA%\clabe.yml: a path on this PC, or - to
+        -Version / DAEMON_CLABE_VERSION      clabe version to install (default: the latest release)
+        -Package / DAEMON_CLABE_PACKAGE      any uv package spec instead (aind-clabe[otel,agents]==0.18.0, git+https://...)
+        -Token   / DAEMON_CLABE_TOKEN        the daemon's token, saved as this user's DAEMON_CLABE_TOKEN
+        -Config  / DAEMON_CLABE_CONFIG       a clabe.yml to install as %PROGRAMDATA%\clabe.yml: a path on this PC, or - to
                                       read it from standard input (over SSH: ssh rig "..." < clabe.yml)
-        -Force   / CLABE_FORCE=1      restart even if the daemon runs a session (it is interrupted)
-        -DryRun  / CLABE_DRY_RUN=1    print the commands instead of running them
+        -Force   / DAEMON_CLABE_FORCE=1      restart even if the daemon runs a session (it is interrupted)
+        -DryRun  / DAEMON_CLABE_DRY_RUN=1    print the commands instead of running them
 
     uv must be installed for this user (https://docs.astral.sh/uv/); the script stops if it is not.
 
@@ -29,12 +29,12 @@
     session is never interrupted unless -Force. Any failure throws (a non-zero exit code for `powershell -c`).
 #>
 param(
-    [string]$Version = $env:CLABE_VERSION,
-    [string]$Package = $env:CLABE_PACKAGE,
-    [string]$Token = $env:CLABE_TOKEN,
-    [string]$Config = $env:CLABE_CONFIG,
-    [switch]$Force = ($env:CLABE_FORCE -eq '1'),
-    [switch]$DryRun = ($env:CLABE_DRY_RUN -eq '1'),
+    [string]$Version = $env:DAEMON_CLABE_VERSION,
+    [string]$Package = $env:DAEMON_CLABE_PACKAGE,
+    [string]$Token = $env:DAEMON_CLABE_TOKEN,
+    [string]$Config = $env:DAEMON_CLABE_CONFIG,
+    [switch]$Force = ($env:DAEMON_CLABE_FORCE -eq '1'),
+    [switch]$DryRun = ($env:DAEMON_CLABE_DRY_RUN -eq '1'),
     [int]$Timeout = 120
 )
 
@@ -64,10 +64,10 @@ function Install-Clabe {
     }
 
     if ($Token) {
-        Write-Host "==> Setting CLABE_TOKEN for $env:USERNAME"
+        Write-Host "==> Setting DAEMON_CLABE_TOKEN for $env:USERNAME"
         if (-not $DryRun) {
-            [Environment]::SetEnvironmentVariable('CLABE_TOKEN', $Token, 'User')
-            $env:CLABE_TOKEN = $Token
+            [Environment]::SetEnvironmentVariable('DAEMON_CLABE_TOKEN', $Token, 'User')
+            $env:DAEMON_CLABE_TOKEN = $Token
         }
     }
     if ($Config) {

@@ -16,10 +16,10 @@ The full script is in the [remote execution example](../docs_examples/remote_exe
 - Install it once per rig PC: see [Deploy a rig](deployment.md).
 - Clone **this repository** on rig-b too, under `C:/git`: the daemon finds it (see
   [Repositories](daemon.md#repositories)); commands run there, in its `.venv`.
-- Give both PCs the same `CLABE_TOKEN`. Nothing else to configure.
+- Give rig-b's daemon a token (`DAEMON_CLABE_TOKEN`) and this experiment the same one (`worker_client: token:`).
 
 !!! warning "The token is the only protection"
-    The daemon runs **any command** it is given, as its user. Keep the token (`CLABE_TOKEN`) out of the repository
+    The daemon runs **any command** it is given, as its user. Keep the token (`DAEMON_CLABE_TOKEN`) out of the repository
     and bind `0.0.0.0` only on the rig network.
 
 ## 2. Connect from the launcher
@@ -136,9 +136,9 @@ for job in remote.reattach(crashed_run_id):
 
 | Symptom | Fix |
 | --- | --- |
-| `401` | `worker_client.token` differs from the daemon's `CLABE_TOKEN`. |
+| `401` | `worker_client.token` differs from the daemon's `DAEMON_CLABE_TOKEN`. |
 | `423 In use by ...` | Another run holds the lease; it frees when that run ends (or a minute after a crash). |
-| `404 No repository named ...` | Clone it under a root there (default `C:/git`), or list it under `daemon: repositories:`; or set `worker_client.repository`. |
+| `404 No repository named ...` | Clone it under a root there (default `C:/git`), or list it in `DAEMON_CLABE_REPOSITORIES`; or set `worker_client.repository`. |
 | `ConnectionError` from `ensure_running()` | The computer name does not resolve (typo, other network). |
 | `ensure_running()` times out | Daemon not installed, user not logged on, or remote task scheduling blocked. |
 | `verify()` lists commits | Update the other checkout and `uv sync`. |

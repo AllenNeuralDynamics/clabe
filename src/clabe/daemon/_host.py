@@ -257,7 +257,8 @@ class Host:
             if body.experiment:
                 args += ["--experiment-name", body.experiment]
             command = self._command(repository, *args, *self.settings.run_arguments)
-            env = {k: v for k, v in os.environ.items() if k != "CLABE_TOKEN"} | {
+            hidden = ("CLABE_TOKEN", "DAEMON_CLABE_TOKEN")  # the run gets its own token, not the daemon's
+            env = {k: v for k, v in os.environ.items() if k not in hidden} | {
                 ANNOUNCE_ENV: str(announce),
                 "PYTHONUNBUFFERED": "1",
             }

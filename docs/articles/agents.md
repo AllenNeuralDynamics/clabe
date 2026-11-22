@@ -8,7 +8,7 @@ Let an AI agent follow a run and answer its prompts, through MCP or AG-UI. The f
 
 ```bash
 uv add "aind-clabe[agents]"
-clabe mcp --url http://rig-3:8070          # token: --token, else $CLABE_HUB_TOKEN, else $CLABE_TOKEN
+clabe mcp --url http://rig-3:8070          # token: --token, else $DAEMON_CLABE_TOKEN, else $CLABE_TOKEN
 ```
 
 In an MCP client's configuration:

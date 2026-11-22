@@ -1,5 +1,0 @@
-# Copy to hub.yml next to compose.yml. Each rig runs `clabe daemon` (bound to 0.0.0.0, with a token).
-hub:
-  rigs:
-    - {id: rig-3, url: "http://rig-3:8070"}
-    - {id: rig-4, url: "http://rig-4:8070"}

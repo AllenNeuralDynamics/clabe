@@ -107,7 +107,7 @@ class TestAttach:
 
 class TestAnnounce:
     def test_no_daemon_does_not_stop_the_run(self, monkeypatch):
-        monkeypatch.setenv("CLABE_DAEMON__PORT", str(free_port("127.0.0.1", 19370)))
+        monkeypatch.setenv("DAEMON_CLABE_PORT", str(free_port("127.0.0.1", 19370)))
         monkeypatch.delenv(ANNOUNCE_ENV, raising=False)
         assert announce(port=1, token=None, repository="Repo", experiment="demo") is None
 
@@ -122,7 +122,7 @@ class TestAnnounce:
         import httpx
 
         monkeypatch.delenv(ANNOUNCE_ENV, raising=False)
-        monkeypatch.setenv("CLABE_TOKEN", "d4emon")
+        monkeypatch.setenv("DAEMON_CLABE_TOKEN", "d4emon")
         sent = []
 
         def post(url, json, headers, timeout):

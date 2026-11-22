@@ -47,18 +47,61 @@ def test_missing_section_is_ignored():
     assert _MySettings().port == 8080
 
 
-def test_in_memory_beats_shared_file_but_not_local_file(_isolated_config):
+def test_in_memory_beats_every_file(_isolated_config):
+    """--clabe-yml (the in-memory document) first, then ./local/clabe.yml, then %PROGRAMDATA%/clabe.yml."""
     local, shared = _isolated_config
     shared.write_text("my_service:\n  port: 1111\n  host: shared-host\n")
-    set_clabe_yml({"my_service": {"port": 2222, "host": "memory-host"}})
-    settings = _MySettings()
-    assert settings.port == 2222
-    assert settings.host == "memory-host"
-
     local.write_text("my_service:\n  port: 3333\n")
-    settings = _MySettings()
-    assert settings.port == 3333
-    assert settings.host == "memory-host"
+    assert (_MySettings().port, _MySettings().host) == (3333, "shared-host")
+    set_clabe_yml({"my_service": {"port": 2222}})
+    assert (_MySettings().port, _MySettings().host) == (2222, "shared-host")
+
+
+def test_environment_variables_are_prefixed_and_rank_below_the_files(_isolated_config, monkeypatch):
+    local, _ = _isolated_config
+    monkeypatch.setenv("PORT", "1")  # an unrelated variable never reaches clabe
+    assert _MySettings().port == 8080
+    monkeypatch.setenv("CLABE_MY_SERVICE_PORT", "4444")
+    assert _MySettings().port == 4444
+    local.write_text("my_service:\n  port: 3333\n")
+    assert _MySettings().port == 3333
+
+
+def test_the_repository_clabe_yml_is_not_read():
+    from clabe.constants import KNOWN_CONFIG_FILES
+
+    assert "./clabe.yml" not in KNOWN_CONFIG_FILES and KNOWN_CONFIG_FILES[0] == "./local/clabe.yml"
+
+
+def test_the_daemon_and_the_hub_read_only_their_environment(_isolated_config, monkeypatch):
+    from clabe.daemon import DaemonSettings
+    from clabe.hub._fleet import HubSettings
+
+    local, _ = _isolated_config
+    local.write_text("daemon:\n  port: 1\nhub:\n  port: 2\n")
+    set_clabe_yml({"daemon": {"port": 3}, "hub": {"port": 4}})
+    assert DaemonSettings().port == 8070 and HubSettings().port == 8080
+    monkeypatch.setenv("DAEMON_CLABE_PORT", "5")
+    monkeypatch.setenv("DAEMON_CLABE_REPOSITORY_ROOTS", "C:/a;D:/b")
+    monkeypatch.setenv("DAEMON_CLABE_REPOSITORIES", '["C:/x", {"path": "C:/y", "name": "why"}]')
+    monkeypatch.setenv("RIGS", "rig-3=http://rig-3:8070;rig-4=http://rig-4:8070")
+    monkeypatch.setenv("RIG_TOKEN", "rigs")
+    daemon, hub = DaemonSettings(), HubSettings()
+    assert daemon.port == 5 and [str(p) for p in daemon.repository_roots] == [str(Path("C:/a")), str(Path("D:/b"))]
+    assert [r.display_name for r in daemon.repositories] == ["x", "why"]
+    assert [(r.id, r.url, r.token.get_secret_value()) for r in hub.rigs] == [
+        ("rig-3", "http://rig-3:8070", "rigs"),
+        ("rig-4", "http://rig-4:8070", "rigs"),
+    ]
+
+
+def test_the_hub_reads_a_dot_env_file(tmp_path, monkeypatch):
+    from clabe.hub._fleet import HubSettings
+
+    (tmp_path / ".env").write_text("TOKEN=from-file\nRIGS=rig-9=http://rig-9:8070\n")
+    monkeypatch.chdir(tmp_path)
+    hub = HubSettings()
+    assert hub.token.get_secret_value() == "from-file" and hub.rigs[0].id == "rig-9"
 
 
 def test_init_kwargs_beat_in_memory():

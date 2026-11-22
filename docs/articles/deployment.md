@@ -11,19 +11,12 @@ Install clabe and its daemon on a rig PC with one line, then update and operate 
 - Port 8070 reachable from the hub and browsers.
 - Internet access while installing.
 
-## 2. Write the rig's config (optional)
+## 2. Configure (optional)
 
-`%PROGRAMDATA%\clabe.yml` (machine-wide; no token in it). With repositories under `C:/git` the daemon needs none;
-for example:
-
-```yaml
-daemon:
-  repository_roots: [C:/git, D:/experiments]
-  run_arguments: [--skip-hardware-validation]
-otel:
-  enabled: true              # the daemon's logs go there too
-  endpoint: collector:4317
-```
+- **The daemon**: environment variables of the rig's user, e.g. `DAEMON_CLABE_OTEL_ENDPOINT`; with repositories under
+  `C:/git` it needs none but its token. See [the daemon's variables](daemon.md#configure).
+- **Experiments**: the rig's `%PROGRAMDATA%\clabe.yml` (no token in it), e.g. `watchdog:`, `otel:` for runs. The
+  installer can write it (`-Config`).
 
 ## 3. Install
 
@@ -33,7 +26,7 @@ As the rig's user, in PowerShell or `cmd`:
 powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/AllenNeuralDynamics/clabe/main/scripts/install.ps1 | iex"
 ```
 
-It sets `CLABE_TOKEN` and `%PROGRAMDATA%\clabe.yml` (when given), installs clabe as a uv tool (`clabe.exe`, the
+It sets `DAEMON_CLABE_TOKEN` and `%PROGRAMDATA%\clabe.yml` (when given), installs clabe as a uv tool (`clabe.exe`, the
 daemon's own install; experiments still run in their repository's environment), registers the `clabe-daemon` logon
 task, restarts the daemon and prints its status. It stops at once if uv is missing.
 
@@ -43,17 +36,17 @@ task, restarts the daemon and prints its status. It stops at once if uv is missi
 
 | Parameter | Variable | Meaning |
 |---|---|---|
-| `-Version` | `CLABE_VERSION` | clabe version (default: latest). **Pin it on rigs.** |
-| `-Package` | `CLABE_PACKAGE` | Any uv spec instead of `aind-clabe[otel]`, e.g. `aind-clabe[otel,agents]==0.18.0` |
-| `-Token` | `CLABE_TOKEN` | Daemon token, saved as the user's `CLABE_TOKEN` |
-| `-Config` | `CLABE_CONFIG` | A `clabe.yml` to install as `%PROGRAMDATA%\clabe.yml`; `-` reads it from standard input |
-| `-Force` | `CLABE_FORCE=1` | Restart even during a session |
-| `-DryRun` | `CLABE_DRY_RUN=1` | Print the commands only |
+| `-Version` | `DAEMON_CLABE_VERSION` | clabe version (default: latest). **Pin it on rigs.** |
+| `-Package` | `DAEMON_CLABE_PACKAGE` | Any uv spec instead of `aind-clabe[otel]`, e.g. `aind-clabe[otel,agents]==0.18.0` |
+| `-Token` | `DAEMON_CLABE_TOKEN` | Daemon token, saved as the user's `DAEMON_CLABE_TOKEN` |
+| `-Config` | `DAEMON_CLABE_CONFIG` | The experiments' `clabe.yml` to install as `%PROGRAMDATA%\clabe.yml`; `-` reads it from standard input |
+| `-Force` | `DAEMON_CLABE_FORCE=1` | Restart even during a session |
+| `-DryRun` | `DAEMON_CLABE_DRY_RUN=1` | Print the commands only |
 | `-Timeout` | | Seconds to wait for the daemon (default 120) |
 
 ```powershell
 # with an environment variable
-$env:CLABE_VERSION = "0.18.0"; irm https://raw.githubusercontent.com/AllenNeuralDynamics/clabe/main/scripts/install.ps1 | iex
+$env:DAEMON_CLABE_VERSION = "0.18.0"; irm https://raw.githubusercontent.com/AllenNeuralDynamics/clabe/main/scripts/install.ps1 | iex
 # with parameters
 & ([scriptblock]::Create((irm https://raw.githubusercontent.com/AllenNeuralDynamics/clabe/main/scripts/install.ps1))) -Version 0.18.0
 ```
@@ -89,8 +82,8 @@ ssh rig-3 type %LOCALAPPDATA%\clabe\daemon.log
 From a checkout of this repository on a Docker host:
 
 ```bash
-cp docker/hub/hub.example.yml docker/hub/hub.yml     # list the rigs: {id, url}
-CLABE_HUB_TOKEN=... CLABE_TOKEN=... docker compose -f docker/hub/compose.yml up -d --build
+cp docker/hub/.env.example docker/hub/.env     # the hub's token, the rigs' token, the rigs
+docker compose -f docker/hub/compose.yml up -d --build
 ```
 
 Update by pulling and running the same command. See [The hub](hub.md).
@@ -100,10 +93,10 @@ Update by pulling and running the same command. See [The hub](hub.md).
 | Symptom | Fix |
 |---|---|
 | `restart`: task `Ready`, daemon starts at logon | Log the rig's user on. |
-| `restart` times out, task `Running` | Read `daemon.log`: port taken, or `%PROGRAMDATA%\clabe.yml` invalid. |
+| `restart` times out, task `Running` | Read `daemon.log`: port taken, or a `DAEMON_CLABE_*` variable invalid. |
 | `uv is not installed` | Install uv for the rig's user, then run the installer again. |
 | Cannot download clabe | Give the rig internet (or a uv index mirror) while installing. |
 | Daemon answers with no repositories | Each needs a `main.py` and a `pyproject.toml` depending on `aind-clabe` in a folder right under a root (default `C:/git`); or list it under `repositories`. |
-| 401 from the hub or a browser | Token differs from the rig's `CLABE_TOKEN`; restart the daemon after changing it. |
+| 401 from the hub or a browser | Token differs from the rig's `DAEMON_CLABE_TOKEN`; restart the daemon after changing it. |
 | `... restarting would interrupt it` (busy or leased) | Deploy later, or `-Force`. |
 | `The clabe-daemon task is not installed` | Run the installer (or `clabe daemon install`). |

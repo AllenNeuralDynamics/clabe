@@ -16,24 +16,24 @@ logger = logging.getLogger(__name__)
 
 
 def _token(settings: DaemonSettings) -> str | None:
-    """The daemon's token: its setting, else ``$CLABE_TOKEN``."""
-    return settings.token.get_secret_value() if settings.token else os.environ.get("CLABE_TOKEN") or None
+    """The daemon's token (``DAEMON_CLABE_TOKEN``)."""
+    return settings.token.get_secret_value() if settings.token else None
 
 
-def _send_logs_to_otel() -> None:
-    """Sends the daemon's logs (and spans) through OpenTelemetry when clabe.yml's ``otel:`` enables it."""
-    try:
-        from ..logging.otel import OtelSettings
-    except ImportError:  # the otel extra is not installed
+def _send_logs_to_otel(endpoint: str | None) -> None:
+    """Sends the daemon's logs through OpenTelemetry, as service ``clabe-daemon``, when an endpoint is set
+    (``DAEMON_CLABE_OTEL_ENDPOINT``)."""
+    if not endpoint:
         return
     try:
-        settings = OtelSettings()
-        if not settings.enabled:
-            return
+        from ..logging.otel import OtelSettings
         from ..logging.otel._setup import configure
-
-        configure(settings.model_copy(update={"service_name": "clabe-daemon"}))
-        logger.info("Sending the daemon's logs to %s", settings.endpoint)
+    except ImportError:
+        logger.warning("DAEMON_CLABE_OTEL_ENDPOINT is set but the otel extra is not installed (aind-clabe[otel]).")
+        return
+    try:
+        configure(OtelSettings(enabled=True, endpoint=endpoint, service_name="clabe-daemon"))
+        logger.info("Sending the daemon's logs to %s", endpoint)
     except Exception:  # telemetry must never keep the daemon from starting
         logger.exception("Could not set up OpenTelemetry for the daemon")
 
@@ -60,7 +60,7 @@ class _RunDaemonCli(DaemonSettings, cli_kebab_case=True):
             logging.getLogger().addHandler(handler)
             logging.getLogger().setLevel(logging.INFO)
         token = _token(self)
-        _send_logs_to_otel()
+        _send_logs_to_otel(self.otel_endpoint)
         app = create_daemon(self, token=token)
         host = self.bind_host(token)
         shown = "localhost" if host in ("127.0.0.1", "0.0.0.0", "::") else host

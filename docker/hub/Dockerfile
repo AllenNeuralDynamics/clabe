@@ -1,6 +1,6 @@
 # The clabe hub: follows a fleet of rigs (through their daemons) and serves the fleet page.
 # Build from the repository root:  docker build -f docker/hub/Dockerfile -t clabe-hub .
-# Run:  docker run -p 8080:8080 -v ./hub.yml:/app/clabe.yml:ro -e CLABE_HUB_TOKEN=... clabe-hub
+# Run:  docker run -p 8080:8080 --env-file docker/hub/.env clabe-hub
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS ui
 WORKDIR /src

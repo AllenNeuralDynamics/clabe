@@ -22,30 +22,30 @@ by itself:
 
 ## Configure
 
-Nothing is required. When the defaults don't fit:
+Only environment variables of the rig's user (never `clabe.yml`); nothing is required. Lists are `a;b` or JSON.
+Restart the daemon after changing them.
 
-```yaml
-daemon:
-  repository_roots: [C:/git, D:/experiments]           # where to look (default: C:/git)
-  repositories: [C:/somewhere/Aind.Experiment.Special] # more, anywhere
-  run_arguments: [--skip-hardware-validation]          # added to every run it starts
+```bat
+setx DAEMON_CLABE_TOKEN "..."                                  :: the installer's -Token does this
+setx DAEMON_CLABE_REPOSITORY_ROOTS "C:/git;D:/experiments"     :: where to look (default: C:/git)
+setx DAEMON_CLABE_OTEL_ENDPOINT "collector:4317"               :: send its logs there (service clabe-daemon)
 ```
 
-- **Token**: `$CLABE_TOKEN` of the logged-on user (or `token:` here).
-- **Listening**: on the network when a token is set, else only this PC; `host:` overrides it.
-
-Rarely needed:
-
-| Setting | Default | What it does |
+| Variable | Default | What it does |
 |---|---|---|
-| `port` | `8070` | The daemon's port |
-| `host` | from the token | Interface to bind |
-| `command` | `uv run --directory {repository} clabe` | How clabe is called in a repository |
-| `runs_directory` | `%TEMP%\clabe-daemon` | Logs of the runs it starts |
-| `max_jobs` | `4` | Worker: commands run at once for a remote run |
-| `max_file_size` | 50 MB | Worker: largest file a remote run uploads |
-| `file_transfer_dir` | `%TEMP%\clabe-worker` | Worker: where uploaded files go |
-| `lease_grace` | `300` | Worker: seconds a crashed run can take the machine back |
+| `DAEMON_CLABE_TOKEN` | none | Required by every API call; with one, the daemon listens on the network |
+| `DAEMON_CLABE_REPOSITORY_ROOTS` | `C:/git` | Folders whose repositories are found |
+| `DAEMON_CLABE_REPOSITORIES` | none | More repositories, anywhere |
+| `DAEMON_CLABE_RUN_ARGUMENTS` | none | Added to every run it starts, e.g. `--skip-hardware-validation` |
+| `DAEMON_CLABE_OTEL_ENDPOINT` | none | OTLP endpoint for its logs |
+| `DAEMON_CLABE_PORT` | `8070` | The daemon's port |
+| `DAEMON_CLABE_HOST` | from the token | Interface to bind |
+| `DAEMON_CLABE_COMMAND` | `uv;run;--directory;{repository};clabe` | How clabe is called in a repository |
+| `DAEMON_CLABE_RUNS_DIRECTORY` | `%TEMP%\clabe-daemon` | Logs of the runs it starts |
+| `DAEMON_CLABE_MAX_JOBS` | `4` | Worker: commands run at once for a remote run |
+| `DAEMON_CLABE_MAX_FILE_SIZE` | 50 MB | Worker: largest file a remote run uploads |
+| `DAEMON_CLABE_FILE_TRANSFER_DIR` | `%TEMP%\clabe-worker` | Worker: where uploaded files go |
+| `DAEMON_CLABE_LEASE_GRACE` | `300` | Worker: seconds a crashed run can take the machine back |
 
 ## Commands
 
@@ -59,8 +59,7 @@ Rarely needed:
 | `clabe daemon uninstall` | Stop it and remove the task |
 
 - It runs as the logged-on user (not a service), so experiments can open windows.
-- Logs: `%LOCALAPPDATA%\clabe\daemon.log`; also sent through OpenTelemetry (service `clabe-daemon`) when
-  `otel: enabled: true` in clabe.yml.
+- Logs: `%LOCALAPPDATA%\clabe\daemon.log`; also sent through OpenTelemetry when `DAEMON_CLABE_OTEL_ENDPOINT` is set.
 - After reinstalling or upgrading, `clabe daemon restart` to pick up the new version.
 
 ## Starting a run

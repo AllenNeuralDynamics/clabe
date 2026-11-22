@@ -5,11 +5,12 @@ import os
 import re
 import tomllib
 from pathlib import Path
-from typing import ClassVar
+from typing import Annotated, ClassVar
 
 from pydantic import BaseModel, Field, SecretStr, field_validator
+from pydantic_settings import NoDecode
 
-from ..services import ServiceSettings
+from ..services import EnvSettings, split_list
 
 logger = logging.getLogger(__name__)
 
@@ -52,42 +53,43 @@ def is_experiment_repository(path: Path) -> bool:
     return any(re.match(r"\s*aind-clabe(?![\w.-])", r, re.IGNORECASE) for r in requirements)
 
 
-class DaemonSettings(ServiceSettings):
-    """Settings of ``clabe daemon run``. Every setting has a default; a rig usually needs none.
+class DaemonSettings(EnvSettings):
+    """Settings of ``clabe daemon run``, from environment variables only (``DAEMON_CLABE_<FIELD>``, e.g.
+    ``DAEMON_CLABE_TOKEN``). Every setting has a default; a rig usually needs none.
 
     Repositories are found under ``repository_roots``: every folder right under a root with a ``main.py`` and a
-    ``pyproject.toml`` depending on ``aind-clabe``. List others (any layout) in ``repositories``.
+    ``pyproject.toml`` depending on ``aind-clabe``. List others (any layout) in ``repositories``. Lists are written
+    ``a;b`` or as JSON:
 
-    Example ``clabe.yml``:
-
-    ```yaml
-    daemon:
-      repository_roots: [C:/git, D:/experiments]
-      repositories: [C:/somewhere/else/Aind.Experiment.Special]
+    ```bat
+    setx DAEMON_CLABE_REPOSITORY_ROOTS "C:/git;D:/experiments"
+    setx DAEMON_CLABE_REPOSITORIES "C:/somewhere/else/Aind.Experiment.Special"
     ```
     """
 
     __yml_section__: ClassVar[str | None] = "daemon"
+    __env_prefix__: ClassVar[str | None] = "DAEMON_CLABE_"
 
     host: str | None = Field(
         default=None,
         description="Interface to bind; by default the network (0.0.0.0) when a token is set, else only this PC",
     )
     port: int = Field(default=8070, description="Port of the daemon (runs are proxied under /run/)")
-    token: SecretStr | None = Field(
-        default=None, description="Shared token required by every API call (defaults to $CLABE_TOKEN)"
+    token: SecretStr | None = Field(default=None, description="Shared token required by every API call")
+    otel_endpoint: str | None = Field(
+        default=None, description="An OTLP endpoint: when set, the daemon's logs go there (service clabe-daemon)"
     )
-    repository_roots: list[Path] = Field(
+    repository_roots: Annotated[list[Path], NoDecode] = Field(
         default_factory=_default_roots, description="Folders whose experiment repositories are found automatically"
     )
-    repositories: list[RepositoryConfig] = Field(
+    repositories: Annotated[list[RepositoryConfig], NoDecode] = Field(
         default_factory=list, description="More repositories, by path (or path and name), found or not under a root"
     )
-    command: list[str] = Field(
+    command: Annotated[list[str], NoDecode] = Field(
         default=["uv", "run", "--directory", "{repository}", "clabe"],
         description="How to call clabe in a repository's own environment; {repository} is its path",
     )
-    run_arguments: list[str] = Field(
+    run_arguments: Annotated[list[str], NoDecode] = Field(
         default_factory=list, description="Extra arguments for every `clabe run`, e.g. --skip-hardware-validation"
     )
     lease_grace: float = Field(
@@ -104,10 +106,17 @@ class DaemonSettings(ServiceSettings):
         default=None, description="Where launched runs' output is logged; defaults to a temporary directory"
     )
 
+    @field_validator("repository_roots", "command", "run_arguments", mode="before")
+    @classmethod
+    def _lists(cls, value: object) -> object:
+        """Lists from the environment: ``a;b`` or JSON."""
+        return split_list(value)
+
     @field_validator("repositories", mode="before")
     @classmethod
     def _paths_are_repositories(cls, value: object) -> object:
-        """Accepts plain paths in the list: ``repositories: [C:/git/Aind.Experiment.Special]``."""
+        """Accepts plain paths: ``C:/git/Aind.Experiment.Special;D:/other``, or a JSON list (of paths or objects)."""
+        value = split_list(value)
         if isinstance(value, list):
             return [{"path": item} if isinstance(item, str | os.PathLike) else item for item in value]
         return value

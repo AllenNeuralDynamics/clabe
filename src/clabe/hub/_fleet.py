@@ -3,13 +3,13 @@
 import asyncio
 import datetime
 import logging
-import os
-from typing import ClassVar, Literal
+from typing import Annotated, ClassVar, Literal
 
 import httpx
-from pydantic import BaseModel, Field, SecretStr
+from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
+from pydantic_settings import NoDecode, SettingsConfigDict
 
-from ..services import ServiceSettings
+from ..services import EnvSettings, split_list
 
 logger = logging.getLogger(__name__)
 
@@ -19,28 +19,56 @@ class RigConfig(BaseModel):
 
     id: str = Field(description="Short name used in the hub's URLs, e.g. rig-3", pattern=r"^[A-Za-z0-9_.-]+$")
     url: str = Field(description="The rig's daemon, e.g. http://rig-3:8070")
-    token: SecretStr | None = Field(default=None, description="The rig daemon's token; defaults to $CLABE_TOKEN")
+    token: SecretStr | None = Field(default=None, description="The rig daemon's token; defaults to the hub's rig_token")
 
 
-class HubSettings(ServiceSettings):
-    """Settings of ``clabe hub run`` (``hub:`` in clabe.yml).
+class HubSettings(EnvSettings):
+    """Settings of ``clabe hub run``, from environment variables without a prefix (the hub runs in its own container)
+    or a ``.env`` file in the working directory (see ``docker/hub/.env.example``). Rigs are ``id=url`` items separated
+    by ``;`` (or a JSON list, for per-rig tokens):
 
-    Example:
-        ```yaml
-        hub:
-          rigs:
-            - {id: rig-3, url: "http://rig-3:8070"}
-            - {id: rig-4, url: "http://rig-4:8070"}
-        ```
+    ```bash
+    TOKEN=...                             # the hub's own
+    RIG_TOKEN=...                         # the rigs' daemon token (their DAEMON_CLABE_TOKEN)
+    RIGS=rig-3=http://rig-3:8070;rig-4=http://rig-4:8070
+    ```
     """
 
     __yml_section__: ClassVar[str | None] = "hub"
+    __env_prefix__: ClassVar[str | None] = ""
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
     host: str = Field(default="0.0.0.0", description="Interface to bind")
     port: int = Field(default=8080, description="Port of the hub")
-    token: SecretStr | None = Field(default=None, description="Token required by the hub's API ($CLABE_HUB_TOKEN)")
-    rigs: list[RigConfig] = Field(default_factory=list, description="The rigs to follow")
+    token: SecretStr | None = Field(default=None, description="Token required by the hub's API")
+    rig_token: SecretStr | None = Field(default=None, description="The rigs' daemon token, unless a rig has its own")
+    rigs: Annotated[list[RigConfig], NoDecode] = Field(default_factory=list, description="The rigs to follow")
     poll_interval: float = Field(default=2.0, description="Seconds between polls of each rig")
+
+    @model_validator(mode="after")
+    def _shared_rig_token(self) -> "HubSettings":
+        """Rigs without their own token use ``rig_token``."""
+        for rig in self.rigs:
+            if rig.token is None:
+                rig.token = self.rig_token
+        return self
+
+    @field_validator("rigs", mode="before")
+    @classmethod
+    def _rigs(cls, value: object) -> object:
+        """``rig-3=http://rig-3:8070;rig-4=...``, or a JSON list of ``{id, url, token}``."""
+        value = split_list(value)
+        if isinstance(value, list):
+            return [_rig(item) if isinstance(item, str) else item for item in value]
+        return value
+
+
+def _rig(item: str) -> dict[str, str]:
+    """``id=url`` as a rig."""
+    rig_id, sep, url = item.partition("=")
+    if not sep:
+        raise ValueError(f"A rig is written id=url, got {item!r}.")
+    return {"id": rig_id.strip(), "url": url.strip()}
 
 
 class Waiting(BaseModel):
@@ -75,8 +103,8 @@ class RigStatus(BaseModel):
 
 
 def rig_token(rig: RigConfig) -> str | None:
-    """The token of a rig's daemon: its own, else ``$CLABE_TOKEN``."""
-    return rig.token.get_secret_value() if rig.token else os.environ.get("CLABE_TOKEN") or None
+    """The token of a rig's daemon (its own, else the hub's ``rig_token``)."""
+    return rig.token.get_secret_value() if rig.token else None
 
 
 class Fleet:

@@ -35,7 +35,7 @@ def announce(*, port: int, token: str | None, repository: str, experiment: str |
         from ._settings import DaemonSettings
 
         settings = DaemonSettings()
-        daemon_token = (settings.token.get_secret_value() if settings.token else None) or os.environ.get("CLABE_TOKEN")
+        daemon_token = settings.token.get_secret_value() if settings.token else None
         base = f"http://127.0.0.1:{settings.port}/api/daemon/runs/attached"
         headers = {"Authorization": f"Bearer {daemon_token}"} if daemon_token else {}
         body = {"port": port, "token": token, "pid": os.getpid(), "repository": repository, "experiment": experiment}

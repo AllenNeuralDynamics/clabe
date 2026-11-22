@@ -95,8 +95,8 @@ def _check_resolvable(host: str) -> None:
 class RemoteRepository:
     """A checkout of this repository on another machine, reached through that machine's clabe daemon (its worker).
 
-    The repository must be one of the remote daemon's repositories (``daemon: repositories:`` there); commands run in
-    it and in its environment by default. The first command (or `lease`) takes the worker's lease, so no other
+    The repository must be one the remote daemon offers (found under its roots, or in
+    ``DAEMON_CLABE_REPOSITORIES``); commands run in it and in its environment by default. The first command (or `lease`) takes the worker's lease, so no other
     run uses the machine meanwhile; it is renewed in the background and given back by `release` (or at exit).
 
     Example:

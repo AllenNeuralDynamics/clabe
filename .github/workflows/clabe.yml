@@ -116,7 +116,7 @@ jobs:
 
       - name: Smoke test it
         run: |
-          docker run -d --name hub -p 8080:8080 -e CLABE_HUB_TOKEN=ci clabe-hub
+          docker run -d --name hub -p 8080:8080 -e TOKEN=ci clabe-hub
           for i in $(seq 1 30); do curl -sf localhost:8080/openapi.json > /dev/null && break; sleep 1; done
           test "$(curl -s -o /dev/null -w '%{http_code}' localhost:8080/api/hub/rigs)" = 401
           curl -sf -H 'Authorization: Bearer ci' localhost:8080/api/hub/rigs

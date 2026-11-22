@@ -9,27 +9,32 @@ The hub is an optional fleet page: every rig's status, and every run waiting for
 
 ## Configure
 
-```yaml
-hub:
-  port: 8080
-  poll_interval: 2
-  rigs:
-    - {id: rig-3, url: "http://rig-3:8070"}
-    - {id: rig-4, url: "http://rig-4:8070", token: "<rig-4's own token>"}
+`docker/hub/.env` (copy `docker/hub/.env.example`); the names have no prefix, as only the hub's container sees them:
+
+```bash
+TOKEN=change-me                                          # the hub's own
+RIG_TOKEN=the-rigs-daemon-token                          # the rigs' DAEMON_CLABE_TOKEN
+RIGS=rig-3=http://rig-3:8070;rig-4=http://rig-4:8070     # id=url; or JSON, for per-rig tokens
 ```
 
-- Hub token: `$CLABE_HUB_TOKEN` (or `token:`).
-- Rig token: the rig's `token:`, else `$CLABE_TOKEN`.
-- Rig daemons need a token: with one, they listen on the network.
+| Variable | Default | What it does |
+|---|---|---|
+| `TOKEN` | none | Required by the hub's API |
+| `RIG_TOKEN` | none | The rigs' daemon token, unless a rig has its own |
+| `RIGS` | none | `id=url;...`, or `[{"id": ..., "url": ..., "token": ...}]` |
+| `PORT` | `8080` | The hub's port |
+| `POLL_INTERVAL` | `2` | Seconds between polls of each rig |
+
+Rig daemons need a token: with one, they listen on the network.
 
 ## Run it
 
 ```bash
-cp docker/hub/hub.example.yml docker/hub/hub.yml   # list your rigs
-CLABE_HUB_TOKEN=... CLABE_TOKEN=... docker compose -f docker/hub/compose.yml up -d --build
+cp docker/hub/.env.example docker/hub/.env   # fill it in
+docker compose -f docker/hub/compose.yml up -d --build
 ```
 
-Without Docker: `clabe hub run` (reads the `hub:` section of `clabe.yml`).
+Without Docker: `clabe hub run` in a folder with that `.env` (or those variables set).
 
 ## API
 

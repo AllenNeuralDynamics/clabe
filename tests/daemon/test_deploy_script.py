@@ -45,7 +45,7 @@ def test_as_a_file_with_arguments():
 
 def test_piped_into_iex_with_environment_variables():
     """What `irm <url> | iex` does: no arguments, options from CLABE_* variables."""
-    env = {"CLABE_VERSION": "0.18.0", "CLABE_FORCE": "1", "CLABE_DRY_RUN": "1"}
+    env = {"DAEMON_CLABE_VERSION": "0.18.0", "DAEMON_CLABE_FORCE": "1", "DAEMON_CLABE_DRY_RUN": "1"}
     commands = _commands(_powershell("-Command", f"Get-Content -Raw '{SCRIPT}' | Invoke-Expression", env=env))
     assert commands[0].endswith("tool install --force aind-clabe[otel]==0.18.0")
     assert commands[2].endswith("daemon restart --timeout 120 --force")
@@ -63,7 +63,7 @@ def test_a_failure_is_a_non_zero_exit_and_installs_nothing():
         text=True,
         timeout=60,
         check=False,
-        env={**os.environ, "CLABE_CONFIG": "C:/does/not/exist/clabe.yml"},
+        env={**os.environ, "DAEMON_CLABE_CONFIG": "C:/does/not/exist/clabe.yml"},
     )
     assert done.returncode != 0 and "Installing aind-clabe" not in done.stdout
 

@@ -13,7 +13,6 @@ PROGRAMDATA_DIR = os.environ.get("PROGRAMDATA", "C:/ProgramData")
 
 KNOWN_CONFIG_FILES: list[str] = [
     "./local/clabe.yml",
-    "./clabe.yml",
     str(Path(PROGRAMDATA_DIR) / "clabe.yml"),
 ]
 
