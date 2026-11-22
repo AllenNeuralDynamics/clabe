@@ -131,6 +131,7 @@ class TokenCookies:
 
     @staticmethod
     def _set(response: Response, request: Request, token: str) -> None:
+        """Keeps ``token`` in the browser's cookie for this server (HttpOnly, 30 days)."""
         response.set_cookie(
             cookie_name(request.headers.get("host")), token, max_age=COOKIE_MAX_AGE, path="/", httponly=True,
             samesite="lax",
