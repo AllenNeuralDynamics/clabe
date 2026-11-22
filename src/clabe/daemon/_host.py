@@ -183,7 +183,7 @@ class Host:
             token = secrets.token_urlsafe(24)
             port = free_port("127.0.0.1", self.settings.port + 21)
             args = ["run", body.file, "--frontend", "headless", "--serve", "--host", "127.0.0.1"]
-            args += ["--port", str(port), "--token", token, "--single-session"]
+            args += ["--port", str(port), f"--token={token}", "--single-session"]  # "=": a token may start with "-"
             if body.experiment:
                 args += ["--experiment-name", body.experiment]
             command = self._command(repository, *args, *self.settings.run_arguments)

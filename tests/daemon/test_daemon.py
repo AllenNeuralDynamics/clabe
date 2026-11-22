@@ -181,3 +181,23 @@ def test_the_daemon_page_starts_an_experiment_and_opens_its_run(daemon):
         page.get_by_role("button", name="Submit").click()
         assert host.current().process.wait(60) == 0
         browser.close()
+
+
+def test_a_token_starting_with_a_dash_reaches_the_run(daemon, monkeypatch):
+    import clabe.daemon._host as host_module
+
+    monkeypatch.setattr(host_module.secrets, "token_urlsafe", lambda n: "-starts-with-a-dash")
+    base, host = daemon
+    launched = requests.post(
+        f"{base}/api/daemon/runs",
+        json={"repository": "Aind.Experiment.Demo", "file": "experiments/demo.py"},
+        headers={"Authorization": "Bearer d4emon"},
+        timeout=30,
+    )
+    assert launched.ok
+    deadline = time.monotonic() + 90
+    while (run := _get(base, "/api/daemon/runs/current").json())["status"] == "starting":
+        assert time.monotonic() < deadline, run["log_tail"]
+        time.sleep(0.2)
+    assert run["status"] == "running", run["log_tail"]
+    host.current().process.kill()
