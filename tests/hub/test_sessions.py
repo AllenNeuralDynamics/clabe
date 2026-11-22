@@ -1,7 +1,6 @@
-"""Sessions in the hub: a run's /api/session, the store filled in poll after poll, the API, and MCP at /mcp."""
+"""Live sessions in the hub (a run's /api/session, carried by its rig's status), and MCP at /mcp."""
 
 import asyncio
-import datetime
 import json
 import threading
 import time
@@ -14,7 +13,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from clabe import ui
-from clabe.hub import Fleet, HubSettings, SessionStore, create_hub_app
+from clabe.hub import Fleet, HubSettings, create_hub_app
 from clabe.server import create_app, free_port
 from clabe.workflow import Run, Workflow
 
@@ -75,35 +74,7 @@ def _session(run_id: str, **info) -> dict:
     } | info
 
 
-def test_the_store_fills_a_session_in_and_never_forgets_what_it_learned(tmp_path: Path):
-    store = SessionStore(tmp_path)
-    store.record("rig-3", _session("r1", started_at="2026-11-22T10:00:00+00:00"))
-    store.record("rig-3", _session("r1", session_id="mouse-7_x", subject="mouse-7", experimenter=["ana", "bo"]))
-    store.record("rig-3", _session("r1", status="completed", finished_at="2026-11-22T10:30:00Z", subject=None))
-    store.record("rig-4", _session("r2", experiment="other"))
-    page = store.query()
-    assert page.total == 2 and [s.key for s in page.items] == ["rig-4/r2", "rig-3/r1"]  # newest first
-    done = page.items[1]
-    assert (done.status, done.session_id, done.subject, done.experimenter) == (
-        "completed",
-        "mouse-7_x",
-        "mouse-7",
-        ["ana", "bo"],
-    )
-    assert done.started_at == datetime.datetime(2026, 11, 22, 10, tzinfo=datetime.UTC)
-    assert store.query(q="MOUSE-7").total == 1 and store.query(status="live").items[0].rig_id == "rig-4"
-    assert store.query(experiment="other").total == 1 and store.experiments() == ["demo", "other"]
-    # the rig moved on (or its run vanished): a session still running is ended, a finished one is left alone
-    assert store.end_others("rig-4", None) == 1 and store.end_others("rig-3", None) == 0
-    assert store.query(rig="rig-4").items[0].status == "ended"
-    assert store.delete(["rig-4/r2", "rig-9/nope"]) == 1 and store.query().total == 1
-    store.close()
-    reopened = SessionStore(tmp_path)  # kept across restarts (the hub's volume)
-    assert reopened.query().items[0].session_id == "mouse-7_x"
-    reopened.close()
-
-
-def test_the_fleet_records_the_sessions_it_sees(tmp_path: Path):
+def test_the_hub_shows_each_rigs_live_session(tmp_path: Path):
     answers = {"session": _session("r1"), "busy": True}
 
     def rig(request: httpx.Request) -> httpx.Response:
@@ -122,23 +93,17 @@ def test_the_fleet_records_the_sessions_it_sees(tmp_path: Path):
             return httpx.Response(200, json=answers["session"])
         return httpx.Response(404)
 
-    store = SessionStore(tmp_path)
     settings = HubSettings(rigs="rig-3=http://rig-3:24070", data_dir=tmp_path)
-    fleet = Fleet(settings, client=httpx.AsyncClient(transport=httpx.MockTransport(rig)), sessions=store)
-    asyncio.run(fleet.poll_once())
-    assert store.query().items[0].status == "running"
-    answers["session"] = _session("r1", session_id="mouse-7_x")
-    asyncio.run(fleet.poll_once())
-    assert store.query().items[0].session_id == "mouse-7_x"
-    answers["busy"] = False  # the run exited before the hub saw it end
-    asyncio.run(fleet.poll_once())
-    assert store.query().items[0].status == "ended"
-
+    fleet = Fleet(settings, client=httpx.AsyncClient(transport=httpx.MockTransport(rig)))
     hub = TestClient(create_hub_app(fleet, static_dir=None, poll=False))
-    listed = hub.get("/api/hub/sessions", params={"q": "mouse"}).json()
-    assert listed["total"] == 1 and listed["items"][0]["key"] == "rig-3/r1"
-    assert hub.post("/api/hub/sessions/delete", json={"keys": ["rig-3/r1"]}).json() == {"deleted": 1}
-    store.close()
+    asyncio.run(fleet.poll_once())
+    assert hub.get("/api/hub/rigs").json()[0]["session"]["status"] == "running"
+    answers["session"] = _session("r1", session_id="mouse-7_x", subject="mouse-7")
+    asyncio.run(fleet.poll_once())
+    assert hub.get("/api/hub/rigs").json()[0]["session"]["session_id"] == "mouse-7_x"
+    answers["busy"] = False  # the run ended: nothing is kept
+    asyncio.run(fleet.poll_once())
+    assert hub.get("/api/hub/rigs").json()[0]["session"] is None
 
 
 def test_the_hub_serves_mcp_for_every_rig(tmp_path: Path):

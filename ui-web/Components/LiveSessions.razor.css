@@ -17,8 +17,7 @@
     text-transform: uppercase; letter-spacing: 0.04em; text-align: left; z-index: 2;
 }
 .sessions td { height: 44px; padding: 0 var(--s3); vertical-align: middle; color: var(--text-2); }
-.sessions tbody tr.live { cursor: pointer; }
-.sessions tbody tr.live td.c-start { box-shadow: inset 2px 0 0 var(--info); }
+.sessions tbody tr { cursor: pointer; }
 .sessions tbody tr:last-child td { border-bottom: 0; }
 
 .c-start { width: 128px; white-space: nowrap; color: var(--text) !important; font-variant-numeric: tabular-nums; }
@@ -61,4 +60,4 @@
 /* when it started stays in view while the details scroll sideways */
 .sessions .c-start { position: sticky; left: 0; z-index: 1; background: var(--surface); box-shadow: 1px 0 0 var(--border); }
 .sessions th.c-start { z-index: 3; background: var(--surface-2); }
-.sessions tbody tr.live:hover td { background: var(--surface-2); }
+.sessions tbody tr:hover td { background: var(--surface-2); }

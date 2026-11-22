@@ -191,8 +191,6 @@ else if (_confirm == Confirmation.Bulk)
     [Parameter] public EventCallback OnChanged { get; set; }
     /// <summary>Whether the hub stopped answering (the page shows one banner for it; the table reloads once it is back).</summary>
     [Parameter] public bool HubUnreachable { get; set; }
-    /// <summary>The search to start with (e.g. a run id, from the sessions table).</summary>
-    [Parameter] public string? InitialSearch { get; set; }
 
     private bool _wasUnreachable;
     private bool _failed;
@@ -250,10 +248,6 @@ else if (_confirm == Confirmation.Bulk)
 
     protected override async Task OnInitializedAsync()
     {
-        if (!string.IsNullOrEmpty(InitialSearch))
-        {
-            _query = _query with { Q = InitialSearch };
-        }
         await Load();
         // new reports arrive as the hub collects them: refresh quietly while the table is on screen
         _timer = new Timer(_ => InvokeAsync(async () =>

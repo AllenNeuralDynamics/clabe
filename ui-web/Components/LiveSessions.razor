@@ -1,0 +1,152 @@
+@* The hub's Live sessions tab: the session each rig is running now (from the rig statuses the hub polls; nothing is
+   stored), filled in as it goes: subject, experimenter, session id once registered, progress. A row opens the run. *@
+@using HubSession = Clabe.Web.Api.Hub.SessionInfo
+@inject HubApi Hub
+@inject NavigationManager Nav
+
+<div class="browser">
+    <div class="toolbar">
+        <ReportSearchBox Value="@_q" ValueChanged="q => _q = q" Placeholder="Search live sessions…" Wide="true"
+                         Count="@(string.IsNullOrEmpty(_q) ? null : Shown.Count)" Unit="sessions" />
+        <span class="grow"></span>
+        <span class="subtle small">refreshed every 2 s</span>
+    </div>
+
+    <div class="reports-card">
+        @if (Rigs is null)
+        {
+            <div class="state subtle"><span class="spinner"></span><span> Asking the rigs…</span></div>
+        }
+        else if (Shown.Count == 0)
+        {
+            <div class="state empty">
+                <div class="empty-icon"><HubIcon Name="flask" Size="22" /></div>
+                @if (Live.Count > 0)
+                {
+                    <h3>No session matches</h3>
+                    <p class="muted">Try other words.</p>
+                }
+                else
+                {
+                    <h3>No session is running</h3>
+                    <p class="muted">The session each rig is running shows here as it goes: who, which animal, the session id once registered, and how far it is.</p>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="scroll">
+                <table class="table sessions" aria-label="Live sessions">
+                    <thead>
+                        <tr>
+                            <th class="c-start">Started · @(ReportTime.Utc ? "UTC" : "local")</th>
+                            <th class="c-rig">Rig</th>
+                            <th class="c-state">Status</th>
+                            <th class="c-exp">Experiment</th>
+                            <th class="c-subject">Subject</th>
+                            <th class="c-person">Experimenter</th>
+                            <th class="c-session">Session</th>
+                            <th class="c-progress">Progress</th>
+                            <th class="c-dur">Duration</th>
+                            <th class="c-repo">Repository</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var (rig, session) in Shown)
+                        {
+                            <tr @key="rig.Id" tabindex="0" title="Open the run" @onclick="() => Open(rig)" @onkeydown="e => OnRowKey(e, rig)">
+                                <td class="c-start" title="@(session.StartedAt is { } s ? ReportTime.Both(s) : null)">@Started(session)</td>
+                                <td class="c-rig"><span class="rig">@rig.Id</span></td>
+                                <td class="c-state"><span class="chip @StatusClass(session)" title="@session.Reason">@StatusText(session)</span></td>
+                                <td class="c-exp truncate" title="@session.Experiment">@session.Experiment</td>
+                                <td class="c-subject truncate">@(session.Subject ?? "—")</td>
+                                <td class="c-person truncate" title="@People(session)">@People(session)</td>
+                                <td class="c-session truncate mono" title="@session.SessionId">@(session.SessionId ?? "—")</td>
+                                <td class="c-progress">
+                                    <div class="prog">
+                                        <span class="bar"><span style="width: @Percent(session)%"></span></span>
+                                        <span class="tabular">@session.StepsDone / @session.StepsTotal</span>
+                                    </div>
+                                    @if ((rig.CurrentStepTitle ?? session.CurrentStep) is { } step)
+                                    {
+                                        <div class="subtle tiny truncate">@step</div>
+                                    }
+                                </td>
+                                <td class="c-dur tabular">@Duration(session)</td>
+                                <td class="c-repo truncate" title="@session.Repository">
+                                    @session.Repository
+                                    @if (session.Commit is { Length: > 0 } commit)
+                                    {
+                                        <span class="commit mono">@("@" + commit[..Math.Min(7, commit.Length)])</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    /// <summary>The fleet's rigs, as last polled (each running one carries its session).</summary>
+    [Parameter] public List<RigStatus>? Rigs { get; set; }
+
+    private string _q = "";
+
+    /// <summary>The rigs running a session, the longest-running first.</summary>
+    public List<(RigStatus Rig, HubSession Session)> Live =>
+        (Rigs ?? []).Where(r => r.Reachable && r.Session is not null)
+            .Select(r => (r, r.Session!))
+            .OrderBy(x => x.Item2.StartedAt ?? DateTimeOffset.MaxValue)
+            .ToList();
+
+    private List<(RigStatus Rig, HubSession Session)> Shown =>
+        string.IsNullOrWhiteSpace(_q) ? Live : Live.Where(x => Matches(x.Rig, x.Session, _q.Trim())).ToList();
+
+    private static bool Matches(RigStatus rig, HubSession s, string q) =>
+        new[] { rig.Id, rig.Hostname, s.Experiment, s.Subject, s.SessionId, s.Repository, s.CurrentStep, People(s) }
+            .Any(v => v?.Contains(q, StringComparison.OrdinalIgnoreCase) == true);
+
+    private void Open(RigStatus rig) => Nav.NavigateTo(Hub.RigUrl(rig.Id, runPage: true));
+
+    private void OnRowKey(KeyboardEventArgs e, RigStatus rig)
+    {
+        if (e.Key == "Enter")
+        {
+            Open(rig);
+        }
+    }
+
+    private static string StatusClass(HubSession s) => s.Status switch
+    {
+        "running" when s.Waiting => "waiting",
+        "running" => "running",
+        "completed" => "completed",
+        "failed" or "aborted" => "failed",
+        _ => "plain",
+    };
+
+    private static string StatusText(HubSession s) => s.Status == "running" && s.Waiting ? "waiting" : s.Status;
+
+    private static string Started(HubSession s)
+    {
+        if (s.StartedAt is not { } start)
+        {
+            return "—";
+        }
+        var local = ReportTime.Local(start);
+        var today = ReportTime.Local(DateTimeOffset.UtcNow).Date;
+        return local.Date == today ? $"Today {local:HH:mm}"
+            : local.ToString("MMM d HH:mm", System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    private static string Duration(HubSession s) =>
+        s.StartedAt is { } start ? ReportTime.Duration((s.FinishedAt ?? DateTimeOffset.UtcNow) - start) : "—";
+
+    private static string Percent(HubSession s) =>
+        (s.StepsTotal == 0 ? 0 : 100.0 * s.StepsDone / s.StepsTotal).ToString("0", System.Globalization.CultureInfo.InvariantCulture);
+
+    private static string People(HubSession s) => s.Experimenter is { Count: > 0 } people ? string.Join(", ", people) : "—";
+}

@@ -63,22 +63,30 @@ public sealed record RigStatus(
     [property: JsonPropertyName("current_step_title")] string? CurrentStepTitle = null,
     [property: JsonPropertyName("header")] string? Header = null,
     [property: JsonPropertyName("waiting")] Waiting? Waiting = null,
+    [property: JsonPropertyName("session")] SessionInfo? Session = null,
     [property: JsonPropertyName("seen_at")] DateTimeOffset? SeenAt = null,
     [property: JsonPropertyName("reports_waiting")] long ReportsWaiting = 0,
     [property: JsonPropertyName("reports_stored")] long ReportsStored = 0);
 
-/// <summary>Sessions to delete, by key (``rig_id/run_id``).</summary>
-public sealed record SessionDeleteBody(
-    [property: JsonPropertyName("keys")] List<string> Keys);
-
-/// <summary>How many sessions were deleted.</summary>
-public sealed record SessionDeleteResult(
-    [property: JsonPropertyName("deleted")] long Deleted);
-
-/// <summary>A page of sessions, and how many match in all.</summary>
-public sealed record SessionPage(
-    [property: JsonPropertyName("total")] long Total,
-    [property: JsonPropertyName("items")] List<StoredSession> Items);
+/// <summary>What a run is about, as far as known so far: the hub lists it as a session.</summary>
+public sealed record SessionInfo(
+    [property: JsonPropertyName("run_id")] string RunId,
+    [property: JsonPropertyName("experiment")] string Experiment,
+    [property: JsonPropertyName("status")] string Status,
+    [property: JsonPropertyName("hostname")] string Hostname,
+    [property: JsonPropertyName("clabe_version")] string ClabeVersion,
+    [property: JsonPropertyName("current_step")] string? CurrentStep = null,
+    [property: JsonPropertyName("waiting")] bool Waiting = false,
+    [property: JsonPropertyName("steps_done")] long StepsDone = 0,
+    [property: JsonPropertyName("steps_total")] long StepsTotal = 0,
+    [property: JsonPropertyName("started_at")] DateTimeOffset? StartedAt = null,
+    [property: JsonPropertyName("finished_at")] DateTimeOffset? FinishedAt = null,
+    [property: JsonPropertyName("reason")] string? Reason = null,
+    [property: JsonPropertyName("session_id")] string? SessionId = null,
+    [property: JsonPropertyName("subject")] string? Subject = null,
+    [property: JsonPropertyName("experimenter")] List<string>? Experimenter = null,
+    [property: JsonPropertyName("repository")] string? Repository = null,
+    [property: JsonPropertyName("commit")] string? Commit = null);
 
 /// <summary>A report's new status.</summary>
 public sealed record StatusBody(
@@ -104,31 +112,6 @@ public sealed record StoredReport(
     [property: JsonPropertyName("repository")] string? Repository = null,
     [property: JsonPropertyName("commit")] string? Commit = null,
     [property: JsonPropertyName("status")] string Status = "new");
-
-/// <summary>A run the hub saw on a rig, as far as it knows.</summary>
-public sealed record StoredSession(
-    [property: JsonPropertyName("key")] string Key,
-    [property: JsonPropertyName("rig_id")] string RigId,
-    [property: JsonPropertyName("run_id")] string RunId,
-    [property: JsonPropertyName("experiment")] string Experiment,
-    [property: JsonPropertyName("status")] string Status,
-    [property: JsonPropertyName("first_seen")] DateTimeOffset FirstSeen,
-    [property: JsonPropertyName("last_seen")] DateTimeOffset LastSeen,
-    [property: JsonPropertyName("waiting")] bool Waiting = false,
-    [property: JsonPropertyName("current_step")] string? CurrentStep = null,
-    [property: JsonPropertyName("steps_done")] long StepsDone = 0,
-    [property: JsonPropertyName("steps_total")] long StepsTotal = 0,
-    [property: JsonPropertyName("started_at")] DateTimeOffset? StartedAt = null,
-    [property: JsonPropertyName("finished_at")] DateTimeOffset? FinishedAt = null,
-    [property: JsonPropertyName("reason")] string? Reason = null,
-    [property: JsonPropertyName("hostname")] string? Hostname = null,
-    [property: JsonPropertyName("clabe_version")] string? ClabeVersion = null,
-    [property: JsonPropertyName("session_id")] string? SessionId = null,
-    [property: JsonPropertyName("subject")] string? Subject = null,
-    [property: JsonPropertyName("experimenter")] List<string>? Experimenter = null,
-    [property: JsonPropertyName("repository")] string? Repository = null,
-    [property: JsonPropertyName("commit")] string? Commit = null,
-    [property: JsonPropertyName("reports")] long Reports = 0);
 
 public sealed record ValidationError(
     [property: JsonPropertyName("loc")] List<System.Text.Json.Nodes.JsonNode> Loc,

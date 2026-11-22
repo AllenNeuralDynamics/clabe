@@ -18,7 +18,6 @@ from ..server._proxy import RequireToken, TokenCookies, forward, token_check
 from ._fleet import Fleet, RigStatus, rig_token
 from ._report_api import report_routes
 from ._reports import InspectCache
-from ._session_api import session_routes
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +83,6 @@ def create_hub_app(
         return await asyncio.to_thread(fleet.statuses)
 
     report_routes(api, fleet, inspections)
-    session_routes(api, fleet)
     app.include_router(api)
     client = httpx.AsyncClient(timeout=httpx.Timeout(30.0, read=None))
 

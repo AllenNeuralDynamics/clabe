@@ -4,8 +4,9 @@ The hub is an optional fleet page: every rig's status, and every run waiting for
 
 - **Waiting for an answer**: runs waiting on a prompt, longest first, with a link to answer.
 - **Rigs**: each rig's status (idle, running, leased, offline), experiment and current step.
-- **Sessions**: every run seen on the rigs, newest first, filled in as it goes: subject, experimenter, session id once
-  registered, progress, duration, outcome, its reports. A live one opens its run page.
+- **Live sessions**: the session each rig is running now, filled in as it goes: subject, experimenter, session id
+  once registered, progress, duration. A row opens its run page. Nothing is stored: it comes from each poll
+  (`session` in `GET /api/hub/rigs`, from the run's `/run/api/session`).
 - **Reports**: issue reports collected from the rigs ([below](#issue-reports)).
 - **MCP** at `/mcp`: agents act on every rig through one address ([Agents](agents.md#mcp)).
 - The page asks for the hub's token (Sign in) and keeps it in a cookie; the tab shows "(n)" while runs wait.
@@ -59,26 +60,15 @@ deletes it on the rig. A report already stored (same id) is just deleted there; 
 - `docker compose down -v` deletes the volume, and every report with it.
 - Delete reports from the page or the API; `REPORT_RETENTION_DAYS` deletes old ones (at start, then hourly).
 
-## Sessions
-
-Each poll of a busy rig reads its run's `/run/api/session` and updates one row per run in `<DATA_DIR>/hub.db`
-(table `sessions`), kept with the reports.
-
-- What is learned later (session id, subject, outcome) is added; nothing already known is erased.
-- A run that disappears before the hub sees it end is marked `ended`.
-- Rigs running a clabe without `/run/api/session` are not listed.
-
 ## API
 
 Interactive docs at `/docs`.
 
 | Endpoint | Does |
 |---|---|
-| `GET /api/hub/rigs` | Every rig, as last polled |
+| `GET /api/hub/rigs` | Every rig, as last polled (with its live `session`) |
 | `GET /api/hub/inbox` | Rigs waiting for an answer |
 | `POST /api/hub/refresh` | Poll now (and collect reports) |
-| `GET /api/hub/sessions` | Sessions, newest first: `rig`, `experiment`, `status` (`live`: not finished), `q`, `limit`, `offset` → `{total, items}` |
-| `POST /api/hub/sessions/delete` | `{"keys": ["rig-3/<run_id>", ...]}` → `{deleted}` |
 | `GET /api/hub/reports` | Reports: `rig`, `experiment`, `status`, `q` (text anywhere), `sort`, `order`, `limit`, `offset` → `{total, items}` |
 | `GET /api/hub/reports/{id}` | One report |
 | `PATCH /api/hub/reports/{id}` | `{"status": "new" \| "looking" \| "closed"}` |

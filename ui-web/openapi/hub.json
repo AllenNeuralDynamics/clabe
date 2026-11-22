@@ -382,6 +382,17 @@
             ],
             "title": "Seen At"
           },
+          "session": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SessionInfo"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The run's session so far (subject, experimenter, session id, progress), when it runs"
+          },
           "status": {
             "default": "offline",
             "enum": [
@@ -415,57 +426,154 @@
         "title": "RigStatus",
         "type": "object"
       },
-      "SessionDeleteBody": {
-        "description": "Sessions to delete, by key (``rig_id/run_id``).",
+      "SessionInfo": {
+        "description": "What a run is about, as far as known so far: the hub lists it as a session.",
         "properties": {
-          "keys": {
+          "clabe_version": {
+            "title": "Clabe Version",
+            "type": "string"
+          },
+          "commit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commit"
+          },
+          "current_step": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Step"
+          },
+          "experiment": {
+            "title": "Experiment",
+            "type": "string"
+          },
+          "experimenter": {
             "items": {
               "type": "string"
             },
-            "title": "Keys",
-            "type": "array"
-          }
-        },
-        "required": [
-          "keys"
-        ],
-        "title": "SessionDeleteBody",
-        "type": "object"
-      },
-      "SessionDeleteResult": {
-        "description": "How many sessions were deleted.",
-        "properties": {
-          "deleted": {
-            "title": "Deleted",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "deleted"
-        ],
-        "title": "SessionDeleteResult",
-        "type": "object"
-      },
-      "SessionPage": {
-        "description": "A page of sessions, and how many match in all.",
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/StoredSession"
-            },
-            "title": "Items",
+            "title": "Experimenter",
             "type": "array"
           },
-          "total": {
-            "title": "Total",
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "hostname": {
+            "title": "Hostname",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why it ended, when it did not complete",
+            "title": "Reason"
+          },
+          "repository": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repository"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The session's name, once registered",
+            "title": "Session Id"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "description": "running, completed, aborted or failed",
+            "title": "Status",
+            "type": "string"
+          },
+          "steps_done": {
+            "default": 0,
+            "title": "Steps Done",
             "type": "integer"
+          },
+          "steps_total": {
+            "default": 0,
+            "title": "Steps Total",
+            "type": "integer"
+          },
+          "subject": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject"
+          },
+          "waiting": {
+            "default": false,
+            "description": "Whether a prompt waits for an answer",
+            "title": "Waiting",
+            "type": "boolean"
           }
         },
         "required": [
-          "total",
-          "items"
+          "run_id",
+          "experiment",
+          "status",
+          "hostname",
+          "clabe_version"
         ],
-        "title": "SessionPage",
+        "title": "SessionInfo",
         "type": "object"
       },
       "StatusBody": {
@@ -650,194 +758,6 @@
           "size"
         ],
         "title": "StoredReport",
-        "type": "object"
-      },
-      "StoredSession": {
-        "description": "A run the hub saw on a rig, as far as it knows.",
-        "properties": {
-          "clabe_version": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Clabe Version"
-          },
-          "commit": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Commit"
-          },
-          "current_step": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Current Step"
-          },
-          "experiment": {
-            "title": "Experiment",
-            "type": "string"
-          },
-          "experimenter": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Experimenter",
-            "type": "array"
-          },
-          "finished_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Finished At"
-          },
-          "first_seen": {
-            "format": "date-time",
-            "title": "First Seen",
-            "type": "string"
-          },
-          "hostname": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Hostname"
-          },
-          "key": {
-            "description": "rig_id/run_id: the row's id",
-            "title": "Key",
-            "type": "string"
-          },
-          "last_seen": {
-            "format": "date-time",
-            "title": "Last Seen",
-            "type": "string"
-          },
-          "reason": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reason"
-          },
-          "reports": {
-            "default": 0,
-            "description": "Issue reports the hub stores for this run",
-            "title": "Reports",
-            "type": "integer"
-          },
-          "repository": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Repository"
-          },
-          "rig_id": {
-            "title": "Rig Id",
-            "type": "string"
-          },
-          "run_id": {
-            "title": "Run Id",
-            "type": "string"
-          },
-          "session_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Session Id"
-          },
-          "started_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Started At"
-          },
-          "status": {
-            "description": "running, completed, aborted, failed, or ended (seen no more before it finished)",
-            "title": "Status",
-            "type": "string"
-          },
-          "steps_done": {
-            "default": 0,
-            "title": "Steps Done",
-            "type": "integer"
-          },
-          "steps_total": {
-            "default": 0,
-            "title": "Steps Total",
-            "type": "integer"
-          },
-          "subject": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Subject"
-          },
-          "waiting": {
-            "default": false,
-            "title": "Waiting",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "key",
-          "rig_id",
-          "run_id",
-          "experiment",
-          "status",
-          "first_seen",
-          "last_seen"
-        ],
-        "title": "StoredSession",
         "type": "object"
       },
       "ValidationError": {
@@ -1592,230 +1512,6 @@
           }
         },
         "summary": "Rigs"
-      }
-    },
-    "/api/hub/sessions": {
-      "get": {
-        "description": "The sessions matching the filters, sorted (newest first by default), a page at a time.",
-        "operationId": "sessions_api_hub_sessions_get",
-        "parameters": [
-          {
-            "description": "Only on this rig",
-            "in": "query",
-            "name": "rig",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Only on this rig",
-              "title": "Rig"
-            }
-          },
-          {
-            "description": "Only of this experiment",
-            "in": "query",
-            "name": "experiment",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Only of this experiment",
-              "title": "Experiment"
-            }
-          },
-          {
-            "description": "Only in this status (running, completed, aborted, failed, ended; live: not finished)",
-            "in": "query",
-            "name": "status",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Only in this status (running, completed, aborted, failed, ended; live: not finished)",
-              "title": "Status"
-            }
-          },
-          {
-            "description": "Text found (any case) in any field",
-            "in": "query",
-            "name": "q",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Text found (any case) in any field",
-              "title": "Q"
-            }
-          },
-          {
-            "in": "query",
-            "name": "sort",
-            "required": false,
-            "schema": {
-              "default": "started_at",
-              "enum": [
-                "started_at",
-                "finished_at",
-                "last_seen",
-                "rig_id",
-                "experiment",
-                "subject",
-                "session_id",
-                "experimenter",
-                "status",
-                "repository"
-              ],
-              "title": "Sort",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "order",
-            "required": false,
-            "schema": {
-              "default": "desc",
-              "enum": [
-                "asc",
-                "desc"
-              ],
-              "title": "Order",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 100,
-              "maximum": 1000,
-              "minimum": 1,
-              "title": "Limit",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "offset",
-            "required": false,
-            "schema": {
-              "default": 0,
-              "minimum": 0,
-              "title": "Offset",
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SessionPage"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Sessions"
-      }
-    },
-    "/api/hub/sessions/delete": {
-      "post": {
-        "description": "Deletes sessions from the hub's list (by ``rig_id/run_id``); unknown keys are skipped.",
-        "operationId": "delete_api_hub_sessions_delete_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SessionDeleteBody"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SessionDeleteResult"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Delete"
-      }
-    },
-    "/api/hub/sessions/experiments": {
-      "get": {
-        "description": "The experiments the sessions are of (for a filter).",
-        "operationId": "experiments_api_hub_sessions_experiments_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "type": "string"
-                  },
-                  "title": "Response Experiments Api Hub Sessions Experiments Get",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": "Experiments"
       }
     }
   }
