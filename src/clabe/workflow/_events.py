@@ -154,6 +154,27 @@ class ActivityEnded(_Event):
     activity_id: str
 
 
+class BranchStarted(_Event):
+    """A branch of a step started (see :func:`~clabe.workflow.concurrently`); ``attempt`` counts its retries."""
+
+    type: Literal["branch_started"] = "branch_started"
+    step: str
+    branch: str
+    attempt: int = 1
+
+
+class BranchEnded(_Event):
+    """A branch of a step ended: done, failed (``error``), cancelled (stopped with the others), or skipped (the user
+    continued without it after it failed)."""
+
+    type: Literal["branch_ended"] = "branch_ended"
+    step: str
+    branch: str
+    attempt: int = 1
+    outcome: Literal["done", "failed", "cancelled", "skipped"]
+    error: str | None = None
+
+
 Event = Annotated[
     RunStarted
     | RunFinished
@@ -168,7 +189,9 @@ Event = Annotated[
     | Notify
     | Header
     | ActivityStarted
-    | ActivityEnded,
+    | ActivityEnded
+    | BranchStarted
+    | BranchEnded,
     Field(discriminator="type"),
 ]
 _EVENT_ADAPTER: TypeAdapter[Event] = TypeAdapter(Event)

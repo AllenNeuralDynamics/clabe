@@ -196,3 +196,10 @@ a.button {
     display: inline-block; text-decoration: none; border-radius: 6px; padding: .45rem 1rem;
     background: var(--accent); color: var(--accent-text); border: 1px solid var(--accent);
 }
+
+.stepper .branches { list-style: none; flex-basis: 100%; margin: .15rem 0 0; padding-left: 1.4rem; font-size: .85rem; font-weight: 400; }
+.stepper .branches li { padding: .1rem 0; display: flex; gap: .35rem; align-items: baseline; }
+.stepper .branches li.running .icon { color: var(--accent); animation: spin 1.5s linear infinite; display: inline-block; }
+.stepper .branches li.done .icon { color: var(--ok); }
+.stepper .branches li.failed { color: var(--err); }
+.stepper .branches li.cancelled, .stepper .branches li.skipped { color: var(--muted); }

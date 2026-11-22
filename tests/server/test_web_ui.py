@@ -194,3 +194,44 @@ def test_the_web_ui_shows_markdown_and_media(page, tmp_path):
             run.abort("test teardown")
         server.stop()
     assert run.status is RunStatus.COMPLETED
+
+
+def test_a_failed_branch_is_retried_alone_from_the_web_ui(page):
+    import asyncio
+
+    from clabe.workflow import concurrently
+
+    attempts = {"behavior": 0, "ephys": 0}
+    wf = Workflow("branches")
+
+    @wf.step(title="Acquire")
+    async def acquire() -> dict:
+        async def behavior():
+            attempts["behavior"] += 1
+            await asyncio.sleep(3)
+            return "ok"
+
+        async def ephys():
+            attempts["ephys"] += 1
+            if attempts["ephys"] == 1:
+                raise RuntimeError("probe not found")
+            return "ok"
+
+        return await concurrently(behavior=behavior, ephys=ephys)
+
+    run = Run(wf)
+    server = RunServer(run, port=18296)
+    url = server.start()
+    try:
+        run.start()
+        page.goto(url)
+        page.get_by_role("button", name="Retry ephys").wait_for()
+        assert page.locator(".branches li.failed").inner_text().strip().endswith("ephys")
+        assert page.locator(".branches li.running").inner_text().strip().endswith("behavior")
+        page.get_by_role("button", name="Retry ephys").click()
+        assert run.wait(15)
+    finally:
+        if not run.wait(0):
+            run.abort("test teardown")
+        server.stop()
+    assert run.status is RunStatus.COMPLETED and attempts == {"behavior": 1, "ephys": 2}

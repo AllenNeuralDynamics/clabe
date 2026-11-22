@@ -59,6 +59,43 @@ several) or `Launcher(settings=...).run_experiment(wf)`. A legacy `@experiment` 
   accept `None`.
 - `cancellable=True` lets going back interrupt a busy async step; abort always interrupts.
 
+## Several things at once
+
+Steps run one at a time. When a step drives several things at once — Bonsai and Open Ephys, behavior and fiber
+photometry — give it **branches** with `concurrently`:
+
+```python
+from clabe.workflow import concurrently
+
+
+@wf.step(title="Acquire", cancellable=True)
+async def acquire(launcher: Launcher, rig: Rig, session: Session) -> dict[str, Any]:
+    behavior_done = asyncio.Event()
+
+    async def behavior() -> CommandResult:
+        try:
+            return await bonsai.run_async()
+        finally:
+            behavior_done.set()
+
+    async def ephys() -> None:
+        client = await open_ephys.launch()
+        try:
+            client.start_recording()
+            await behavior_done.wait()
+            client.stop()
+        finally:
+            await open_ephys.close()  # runs on retry, stop and abort too
+
+    return await concurrently(behavior=behavior, ephys=ephys)
+```
+
+The branches run together and show under the step in the web UI. When one fails, the others keep going and the
+user chooses, for that branch alone: **Retry** it, **Continue without** it (its result is `None`), or **Stop all**
+(the others are cancelled and the step fails, offering Retry / Go back / Abort for the whole step). Aborting the
+run cancels every branch. A cancelled branch has 30 s to clean up in its `finally`; commands run through clabe's
+executors (every app's `run_async`) stop their process when cancelled.
+
 ## Shared steps
 
 `clabe.steps` builds common steps. Each returns a plain function wired by name (`session`, `rig`, `launcher`) and

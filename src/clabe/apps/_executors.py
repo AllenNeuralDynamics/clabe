@@ -140,6 +140,8 @@ class AsyncLocalExecutor(AsyncExecutor):
         self.cwd = cwd or os.getcwd()
         self.env = env
         self.timeout = timeout
+        #: Seconds a cancelled command's process gets to exit after being asked to, before it is killed.
+        self.stop_timeout = 10.0
 
     async def run_async(self, command: Command) -> CommandResult:
         """Execute the command asynchronously and return the result.
@@ -176,6 +178,10 @@ class AsyncLocalExecutor(AsyncExecutor):
             await proc.wait()
             assert self.timeout is not None
             raise subprocess.TimeoutExpired(" ".join(command.cmd), self.timeout) from exc
+        except asyncio.CancelledError:
+            # e.g. the run was aborted: stop the process rather than leave it running
+            await _stop_process(proc, self.stop_timeout)
+            raise
 
         if proc.returncode is None:
             raise RuntimeError("Process did not complete successfully and returned no return code.")
@@ -188,6 +194,20 @@ class AsyncLocalExecutor(AsyncExecutor):
 
         command_result.check_returncode()
         return command_result
+
+
+async def _stop_process(proc: asyncio.subprocess.Process, timeout: float) -> None:
+    """Asks ``proc`` to exit, then kills it if it has not within ``timeout`` seconds."""
+    if proc.returncode is not None:
+        return
+    try:
+        proc.terminate()
+        await asyncio.wait_for(proc.wait(), timeout)
+    except ProcessLookupError:
+        return
+    except TimeoutError:
+        proc.kill()
+        await proc.wait()
 
 
 class LocalDetachedExecutor(Executor):

@@ -5,7 +5,6 @@ Every step is a plain function; its parameters name the earlier steps whose outp
 the browser). Try going back from the review, retrying the flaky step, or skipping the optional ones.
 """
 
-import asyncio
 import logging
 import random
 from enum import Enum
@@ -32,10 +31,9 @@ from clabe.apps import CommandResult, CurriculumApp, CurriculumSettings, PythonS
 from clabe.cache_manager import CacheManager
 from clabe.launcher import Launcher, LauncherCliArgs
 from clabe.logging import otel
-from clabe.runnable import runnable
 from clabe.stores import LocalFileStore, Store
 from clabe.ui import MessageLevel, NumberRequest, TextRequest
-from clabe.workflow import Workflow
+from clabe.workflow import Workflow, concurrently
 
 logger = logging.getLogger(__name__)
 
@@ -183,10 +181,14 @@ async def task(launcher: Launcher, config: SessionConfig, tuning: dict[str, Any]
     def script(label: str) -> list[str]:
         return ["python", "-c", f"import time; print('Hello {label}'); time.sleep(2); print('DONE')"]
 
-    await asyncio.gather(
-        runnable(PythonScriptApp(script=script("Behavior")).run_async, name="Running Behavior App")(),
-        runnable(PythonScriptApp(script=script("Physiology")).run_async, name="Running Physiology App")(),
-    )
+    async def physiology() -> None:
+        # flaky on purpose: retry it alone while the behavior app keeps running
+        await PythonScriptApp(script=script("Physiology")).run_async()
+        if random.random() < 0.5:
+            raise RuntimeError("the probe stopped streaming")
+
+    # Branches run at the same time; a failed one is retried (or dropped) on its own, "Stop all" stops both.
+    await concurrently(behavior=lambda: PythonScriptApp(script=script("Behavior")).run_async(), physiology=physiology)
     ui.notify("Both apps finished", MessageLevel.SUCCESS)
 
 

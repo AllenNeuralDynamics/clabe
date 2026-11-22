@@ -19,6 +19,7 @@ public sealed class RunConnection(RunApi api, IJSRuntime js, NavigationManager n
 
     private readonly Dictionary<string, RunEvent> _activities = [];
     private readonly Dictionary<string, RunEvent> _failures = [];
+    private readonly Dictionary<string, List<BranchView>> _branches = [];
     private DotNetObjectReference<RunConnection>? _self;
     private IJSObjectReference? _module;
     private IJSObjectReference? _stream;
@@ -44,6 +45,9 @@ public sealed class RunConnection(RunApi api, IJSRuntime js, NavigationManager n
     public bool Finished => State?.Status is "completed" or "aborted" or "failed";
 
     public event Action? Changed;
+
+    /// <summary>The branches of <paramref name="step"/>'s current attempt, in the order they started.</summary>
+    public IReadOnlyList<BranchView> BranchesOf(string step) => _branches.GetValueOrDefault(step) ?? [];
 
     /// <summary>The failure of <paramref name="step"/> in its current attempt, if any.</summary>
     public RunEvent? FailureOf(string step) => _failures.GetValueOrDefault(step);
@@ -146,6 +150,13 @@ public sealed class RunConnection(RunApi api, IJSRuntime js, NavigationManager n
                     });
                 }
                 break;
+            case "step_started":
+                _branches.Remove(e.Step!);
+                break;
+            case "branch_started":
+            case "branch_ended":
+                SetBranch(e);
+                break;
             case "step_finished":
             case "step_skipped":
                 _failures.Remove(e.Step!);
@@ -162,6 +173,25 @@ public sealed class RunConnection(RunApi api, IJSRuntime js, NavigationManager n
             case "run_finished":
                 _activities.Clear();
                 break;
+        }
+    }
+
+    private void SetBranch(RunEvent e)
+    {
+        var branches = _branches.TryGetValue(e.Step!, out var known) ? known : _branches[e.Step!] = [];
+        var view = new BranchView(e.Branch!, e.Type == "branch_started" ? "running" : e.Outcome!, e.Attempt, e.Error);
+        var index = branches.FindIndex(b => b.Name == e.Branch);
+        if (index < 0)
+        {
+            branches.Add(view);
+        }
+        else if (!(e.Type == "branch_ended" && e.Outcome == "skipped" && branches[index].Error is { } error))
+        {
+            branches[index] = view;
+        }
+        else
+        {
+            branches[index] = view with { Error = error }; // skipped after failing: keep why
         }
     }
 

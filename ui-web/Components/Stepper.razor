@@ -29,6 +29,21 @@
                 {
                     <small title="@summary">@summary</small>
                 }
+                @if (Branches?.Invoke(step.Name) is { Count: > 0 } branches)
+                {
+                    <ul class="branches">
+                        @foreach (var branch in branches)
+                        {
+                            <li class="@branch.Status" title="@(branch.Error ?? branch.Status)">
+                                <span class="icon">@BranchIcon(branch.Status)</span> @branch.Name
+                                @if (branch.Attempt > 1)
+                                {
+                                    <span class="tag">attempt @branch.Attempt</span>
+                                }
+                            </li>
+                        }
+                    </ul>
+                }
             </li>
         }
     </ol>
@@ -38,6 +53,16 @@
     [Parameter, EditorRequired] public RunState State { get; set; } = default!;
     [Parameter] public bool Finished { get; set; }
     [Parameter] public EventCallback<string> OnGoBack { get; set; }
+    [Parameter] public Func<string, IReadOnlyList<BranchView>>? Branches { get; set; }
+
+    private static string BranchIcon(string status) => status switch
+    {
+        "running" => "◌",
+        "done" => "✓",
+        "failed" => "✕",
+        "skipped" => "–",
+        _ => "■",
+    };
 
     private static string Icon(StepState step, bool current) => step.Status switch
     {

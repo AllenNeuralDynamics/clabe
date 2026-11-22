@@ -45,6 +45,7 @@ public sealed class RunEvent
     public DateTimeOffset Ts { get; set; }
     public string Type { get; set; } = "";
     public string? Step { get; set; }
+    public string? Branch { get; set; }
     public int Attempt { get; set; }
     public string? Summary { get; set; }
     public string? Status { get; set; }
@@ -81,3 +82,6 @@ public static class Json
         PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
     };
 }
+
+/// <summary>A branch of a step (see clabe.workflow.concurrently), as the events tell it.</summary>
+public sealed record BranchView(string Name, string Status, int Attempt, string? Error);

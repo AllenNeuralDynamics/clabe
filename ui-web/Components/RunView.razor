@@ -39,7 +39,7 @@
     else
     {
         <div class="body">
-            <Stepper State="state" Finished="Connection.Finished" OnGoBack="GoBack" />
+            <Stepper State="state" Finished="Connection.Finished" OnGoBack="GoBack" Branches="Connection.BranchesOf" />
             <main>
                 @if (_notice is not null)
                 {
