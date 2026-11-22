@@ -17,6 +17,7 @@ daemon:
     - path: C:/git/Aind.Experiment.DynamicForaging
       experiments: src/experiments   # file or folder of experiment files (default: experiments)
   run_arguments: [--skip-hardware-validation]
+  lease_grace: 300         # worker role: seconds a crashed run's lease stays reserved for it
 ```
 
 ## Run and install

@@ -34,6 +34,7 @@ from ..remote._models import (
     JobResult,
     JobStatus,
     JobSubmission,
+    JobSummary,
     Lease,
     LeaseRequest,
     WorkerInfo,
@@ -61,10 +62,12 @@ def environment_python(repository: Path) -> Path:
 class _Job:
     """A command running on the worker."""
 
-    def __init__(self, job_id: str, cmd: list[str], cwd: str) -> None:
+    def __init__(self, job_id: str, cmd: list[str], cwd: str, run_id: str | None = None) -> None:
         self.job_id = job_id
         self.cmd = cmd
         self.cwd = cwd
+        self.run_id = run_id
+        self.submitted_at = _now()
         self.process: subprocess.Popen | None = None
         self.stopped = False
         self.future: Future | None = None
@@ -94,6 +97,7 @@ class Worker:
         self._jobs: dict[str, _Job] = {}
         self._read: deque[_Job] = deque(maxlen=50)  # finished jobs whose result was read: output still served
         self._lease: Lease | None = None
+        self._expired: Lease | None = None  # the last lease that expired: its run may take the worker back first
         self._lock = threading.Lock()
         self.files_dir = settings.file_transfer_dir or Path(os.environ.get("TEMP", "/tmp")) / "clabe-worker"
         self.files_dir.mkdir(parents=True, exist_ok=True)
@@ -105,7 +109,7 @@ class Worker:
         with self._lock:
             if self._lease is not None and self._lease.expires_at <= _now():
                 logger.warning("The lease of %s expired", self._lease.owner)
-                self._lease = None
+                self._expired, self._lease = self._lease, None
             return self._lease
 
     def take(self, request: LeaseRequest) -> Lease:
@@ -116,6 +120,15 @@ class Worker:
                 raise HTTPException(status_code=423, detail=f"In use by {current.owner}.")
             if current is None and self._busy():
                 raise HTTPException(status_code=409, detail="This machine is running an experiment of its own.")
+            kept = self._expired
+            if current is None and kept is not None and kept.run_id is not None and kept.run_id != request.run_id:
+                until = kept.expires_at + datetime.timedelta(seconds=self.settings.lease_grace)
+                if _now() < until:
+                    raise HTTPException(
+                        status_code=423,
+                        detail=f"Kept for run {kept.run_id} of {kept.owner} until {until:%H:%M:%S} UTC (it may "
+                        "reattach to its jobs).",
+                    )
             lease_id = current.lease_id if current is not None else secrets.token_urlsafe(16)
             expires = _now() + datetime.timedelta(seconds=request.ttl)
             self._lease = Lease(lease_id=lease_id, owner=request.owner, run_id=request.run_id, expires_at=expires)
@@ -126,10 +139,11 @@ class Worker:
         with self._lock:
             if self._lease is None or self._lease.lease_id != lease_id:
                 raise HTTPException(status_code=404, detail="No such lease.")
-            self._lease = None
+            run_id, self._lease, self._expired = self._lease.run_id, None, None
         if stop_jobs:
             for job in list(self._jobs.values()):
-                self.stop(job.job_id)
+                if run_id is None or job.run_id == run_id:
+                    self.stop(job.job_id)
 
     def check_lease(self, given: str | None) -> None:
         """Refuses a request that does not carry the current lease (when there is one)."""
@@ -171,7 +185,7 @@ class Worker:
             raise HTTPException(status_code=422, detail="Empty command.")
         config = self.repository(submission.repository)
         cwd = submission.cwd or str(config.path if config is not None else Path.cwd())
-        job = _Job(str(uuid.uuid4()), submission.cmd, cwd)
+        job = _Job(str(uuid.uuid4()), submission.cmd, cwd, submission.run_id)
         span = _tracer.start_span(
             "clabe.worker.job",
             context=propagate.extract(submission.trace_context),
@@ -238,6 +252,20 @@ class Worker:
             except subprocess.TimeoutExpired:
                 process.kill()
         return JobResult(job_id=job_id, status=JobStatus.STOPPED)
+
+    def jobs_of(self, run_id: str) -> list[JobSummary]:
+        """The jobs of run ``run_id`` not yet collected (running, or finished with an unread result)."""
+        return [
+            JobSummary(
+                job_id=job.job_id,
+                run_id=job.run_id,
+                command=job.cmd,
+                running=job.future is not None and not job.future.done(),
+                submitted_at=job.submitted_at,
+            )
+            for job in list(self._jobs.values())
+            if job.run_id == run_id
+        ]
 
     def jobs(self) -> JobList:
         """The jobs, running and finished (but not yet read)."""
@@ -346,6 +374,11 @@ def worker_router(worker: Worker, token_check) -> APIRouter:
     def take(body: LeaseRequest) -> Lease:
         """Takes the worker for a run (or renews the lease); 423 while another run holds it."""
         return worker.take(body)
+
+    @guarded.get("/runs/{run_id}/jobs", response_model=list[JobSummary])
+    def jobs_of(run_id: str) -> list[JobSummary]:
+        """The jobs of a run not yet collected, e.g. for a restarted launcher to reattach to them."""
+        return worker.jobs_of(run_id)
 
     @api.delete("/lease/{lease_id}", status_code=204)
     def release(lease_id: str, stop_jobs: bool = Query(default=False)) -> None:

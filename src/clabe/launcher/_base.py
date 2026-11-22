@@ -6,7 +6,7 @@ import random
 import shutil
 import socket
 import threading
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from pathlib import Path
 from typing import Self, TypeVar
 
@@ -114,6 +114,7 @@ class Launcher:
         self._session: Session | None = None
         self._has_copied_logs = False
         self._manifest: RunManifest | None = None
+        self._manifest_lock = threading.Lock()
         self._has_run = False
 
     @property
@@ -353,6 +354,18 @@ class Launcher:
             return
         self._manifest.outcome.exit_code = exit_code
         self._write_manifest()
+
+    def update_manifest(self, change: Callable[[RunManifest], None]) -> None:
+        """Applies ``change`` to the run manifest and rewrites ``run.json`` (nothing happens without a run).
+
+        For what only becomes known during the run, e.g. the other machines it used (see :mod:`clabe.remote`).
+        Thread-safe.
+        """
+        with self._manifest_lock:
+            if self._manifest is None:
+                return
+            change(self._manifest)
+            self._write_manifest()
 
     def _write_manifest(self) -> None:
         """Writes the run manifest; a failure is logged, never raised."""

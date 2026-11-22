@@ -42,6 +42,7 @@ configuration sent to an app, a QC figure or a report, not bulk data.
 | environment | Python's version and executable, `uv`'s version, a copy of `uv.lock` and its hash, the installed distributions |
 | machine | host name, OS, CPU, memory, free disk, time zone, user, GPUs |
 | config | the launcher's settings, the clabe.yml files in effect (with hashes), the `CLABE_*` and `OTEL_*` environment variables |
+| workers | each other machine the run used: host, clabe version, its checkout as verified, and every command it ran there (with step and attempt) |
 | outcome | status, reason, start and end, exit code |
 
 ## Telemetry

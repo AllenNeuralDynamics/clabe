@@ -104,6 +104,31 @@ class Outcome(BaseModel):
     finished_at: datetime.datetime
 
 
+class RemoteJobRecord(BaseModel):
+    """A command the run ran on another machine."""
+
+    job_id: str
+    command: list[str]
+    step: str | None = None
+    attempt: int | None = None
+    submitted_at: datetime.datetime
+
+
+class WorkerRecord(BaseModel):
+    """Another machine the run used (a leased worker), and what it ran there."""
+
+    url: str
+    host: str
+    clabe_version: str
+    os_name: str
+    repository: str | None = None
+    working_dir: str
+    repository_state: GitRepositoryMetadata | None = Field(
+        default=None, description="The remote checkout, as RemoteRepository.verify() found it"
+    )
+    jobs: list[RemoteJobRecord] = Field(default_factory=list)
+
+
 class RunManifest(BaseModel):
     """Everything needed to tell exactly what ran. Sections that could not be collected are ``None``."""
 
@@ -113,6 +138,7 @@ class RunManifest(BaseModel):
     environment: EnvironmentInfo | None = None
     machine: MachineInfo | None = None
     config: ConfigInfo | None = None
+    workers: list[WorkerRecord] = Field(default_factory=list)
     outcome: Outcome | None = None
     errors: list[str] = Field(default_factory=list)
 

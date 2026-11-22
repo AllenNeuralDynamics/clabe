@@ -21,6 +21,7 @@ from ._models import (
     JobResult,
     JobStatus,
     JobSubmission,
+    JobSummary,
     Lease,
     LeaseRequest,
     WorkerInfo,
@@ -169,12 +170,17 @@ class WorkerClient:
         body = JobSubmission(
             cmd=[cmd_args] if isinstance(cmd_args, str) else [str(a) for a in cmd_args],
             cwd=cwd,
+            run_id=self._lease.run_id if self._lease is not None else None,
             repository=self.settings.repository,
             trace_context=trace_context,
         )
         submitted = JobResult.model_validate_json(self._request("POST", "/jobs", json=body.model_dump()).content)
         logger.info("Submitted %s to %s as job %s", body.cmd, self.base_url, submitted.job_id)
         return submitted
+
+    def jobs_of(self, run_id: str) -> list[JobSummary]:
+        """The jobs of run ``run_id`` not yet collected (running, or finished with an unread result)."""
+        return [JobSummary.model_validate(j) for j in self._request("GET", f"/runs/{run_id}/jobs").json()]
 
     def get_result(self, job_id: str) -> JobResult:
         """A job's state, with its output once it ended (the worker forgets it once read)."""

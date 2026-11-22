@@ -38,6 +38,7 @@ class JobSubmission(BaseModel):
 
     cmd: list[str]
     cwd: str | None = Field(default=None, description="Working directory; defaults to the repository's")
+    run_id: str | None = Field(default=None, description="The run it belongs to (to find it again after a crash)")
     repository: str | None = Field(default=None, description="Repository whose root is the default working directory")
     trace_context: dict[str, str] = Field(default_factory=dict, description="W3C trace context of the caller")
 
@@ -58,6 +59,16 @@ class JobOutput(BaseModel):
 
     lines: list[str]
     next: int
+
+
+class JobSummary(BaseModel):
+    """A job, as listed for the run it belongs to."""
+
+    job_id: str
+    run_id: str | None
+    command: list[str]
+    running: bool
+    submitted_at: datetime.datetime
 
 
 class JobList(BaseModel):

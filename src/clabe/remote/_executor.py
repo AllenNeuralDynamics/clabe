@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any
 from ..apps._base import Command, CommandResult
 from ..workflow._records import ACTIVE_STEP
 from ._models import JobResult, JobStatus
+from ._provenance import record_job
 from ._staged_command import StagedCommand, StagedFile
 
 if TYPE_CHECKING:
@@ -106,8 +107,14 @@ class RemoteExecutor:
     def run(self, command: Command[Any]) -> CommandResult:
         """Runs the command on the worker and waits for it; inside a run its output shows as a live activity."""
         logger.info("Running on %s: %s", self.client.base_url, command.cmd)
-        job_id = self.client.submit_command(self._prepare(command), cwd=self.cwd).job_id
-        with self._activity(command) as follow:
+        cmd = self._prepare(command)
+        job_id = self.client.submit_command(cmd, cwd=self.cwd).job_id
+        record_job(self.client, job_id, cmd)
+        return self.wait(job_id, _describe(cmd))
+
+    def wait(self, job_id: str, description: str = "job") -> CommandResult:
+        """Waits for a job already on the worker (e.g. one a crashed launcher started) and returns its result."""
+        with self._activity(f"{description} on {self.host}") as follow:
             started = time.monotonic()
             while True:
                 time.sleep(self._interval)
@@ -123,8 +130,13 @@ class RemoteExecutor:
         run its output shows as a live activity."""
         cmd = await asyncio.to_thread(self._prepare, command)
         job_id = (await asyncio.to_thread(self.client.submit_command, cmd, self.cwd)).job_id
+        await asyncio.to_thread(record_job, self.client, job_id, cmd)
+        return await self.wait_async(job_id, _describe(cmd))
+
+    async def wait_async(self, job_id: str, description: str = "job") -> CommandResult:
+        """Asynchronous :meth:`wait`; cancelling it stops the job."""
         try:
-            with self._activity(command) as follow:
+            with self._activity(f"{description} on {self.host}") as follow:
                 started = time.monotonic()
                 while True:
                     await asyncio.sleep(self._interval)
@@ -155,15 +167,19 @@ class RemoteExecutor:
         return started
 
     @contextlib.contextmanager
-    def _activity(self, command: Command[Any]) -> Iterator["_Follow"]:
+    def _activity(self, description: str) -> Iterator["_Follow"]:
         """Inside a run, the job as an activity tagged with the worker's host, its output recorded as it comes."""
         context = ACTIVE_STEP.get()
         if context is None:
             yield _Follow(self.client, None, None)
             return
-        description = f"{Path(command.cmd[0]).name} on {self.host}"
         with context.run.activity(description, machine=self.host) as activity_id:
             yield _Follow(self.client, context.run, activity_id)
+
+
+def _describe(cmd: list[str]) -> str:
+    """A short name for a command: its program."""
+    return Path(cmd[0]).name if cmd else "job"
 
 
 class _Follow:

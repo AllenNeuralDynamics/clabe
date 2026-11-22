@@ -21,7 +21,8 @@ from ..daemon._install import start as start_task
 from ..git_manager import GitRepository, GitRepositoryMetadata
 from ._client import WorkerClient, WorkerClientSettings
 from ._executor import RemoteExecutor
-from ._models import DEFAULT_PORT, WorkerInfo
+from ._models import DEFAULT_PORT, JobSummary, WorkerInfo
+from ._provenance import record_worker
 
 if TYPE_CHECKING:
     from ..workflow import RunStatus
@@ -190,8 +191,12 @@ class RemoteRepository:
         """Path of the repository on the remote machine."""
         return self._path or self.info().working_dir
 
-    def lease(self) -> None:
+    def lease(self, run_id: str | None = None) -> None:
         """Takes the remote machine for this run (the first command does it anyway); renewed until released.
+
+        Args:
+            run_id: The run to take it for; by default the running one. A restarted launcher passes the run id of
+                the session it recovers (see :meth:`reattach`).
 
         Raises:
             WorkerError: 423 if another run holds the machine, 409 if it runs an experiment of its own.
@@ -201,12 +206,34 @@ class RemoteRepository:
         from ..workflow._records import ACTIVE_STEP
 
         context = ACTIVE_STEP.get()
-        run_id = context.run.id if context is not None else None
+        run_id = run_id or (context.run.id if context is not None else None)
         self.client.lease(owner=f"{socket.gethostname()} ({Path(self.local_path).resolve().name})", run_id=run_id)
         atexit.register(self.client.release)
         if context is not None:
             context.run.add_finalizer(self._run_ended)
+            record_worker(self.client)
         logger.info("Took %s for this run", self.host)
+
+    def reattach(self, run_id: str) -> list[JobSummary]:
+        """Takes the remote machine back for run ``run_id`` and returns that run's jobs still there.
+
+        For recovering a session after the launcher crashed: its jobs kept running on the remote machine, and for a
+        grace period after its lease expired only the same run may take the machine back. The run id and the
+        machine are in the crashed session's ``run.json`` (``run_id``, ``workers``). Collect each job's result with
+        :meth:`wait_for`.
+        """
+        self.lease(run_id)
+        jobs = self.client.jobs_of(run_id)
+        logger.info("Reattached to %s: %d job(s) of run %s", self.host, len(jobs), run_id)
+        return jobs
+
+    def wait_for(self, job_id: str) -> CommandResult:
+        """Waits for a job already on the remote machine (see :meth:`reattach`) and returns its result."""
+        return self._executor().wait(job_id)
+
+    async def wait_for_async(self, job_id: str) -> CommandResult:
+        """Asynchronous :meth:`wait_for`; cancelling it stops the job."""
+        return await self._executor().wait_async(job_id)
 
     def _run_ended(self, status: "RunStatus") -> None:
         """Gives the machine back when the run ends; stops what still runs there unless the run completed (or
@@ -277,7 +304,9 @@ class RemoteRepository:
                 cmd=[info.python_executable, "-m", "clabe.cli", "repository-state", "."], output_parser=identity_parser
             )
         )
-        remote = _flatten_commits(GitRepositoryMetadata.model_validate_json(result.stdout or ""))
+        remote_state = GitRepositoryMetadata.model_validate_json(result.stdout or "")
+        record_worker(self.client, lambda record: setattr(record, "repository_state", remote_state))
+        remote = _flatten_commits(remote_state)
         local = _flatten_commits(GitRepository(self.local_path).get_metadata())
 
         if _normalize_url(remote["."].url) != _normalize_url(local["."].url):

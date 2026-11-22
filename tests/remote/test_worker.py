@@ -255,3 +255,64 @@ def test_a_remote_command_shows_as_an_activity_with_its_output(worker_url, repos
     assert lines == [f"frame {i}" for i in range(8)]
     assert sum(isinstance(e, ActivityOutput) for e in events) >= 2  # streamed while running, not only at the end
     assert any(isinstance(e, ActivityEnded) and e.activity_id == started[0].activity_id for e in events)
+
+
+def test_the_run_manifest_lists_the_workers_and_their_jobs(worker_url, repository):
+    import datetime
+
+    from clabe.launcher._manifest import RunManifest
+    from clabe.workflow import Run, RunStatus, Workflow
+
+    class _Launcher:
+        """Stands in for the launcher: keeps the manifest it is asked to update."""
+
+        def __init__(self) -> None:
+            self.manifest = RunManifest(run_id="r1", started_at=datetime.datetime.now(datetime.UTC))
+
+        def update_manifest(self, change) -> None:
+            change(self.manifest)
+
+    remote = RemoteRepository(_client(worker_url, repository="Aind.Experiment.Demo"), local_path=repository)
+    wf = Workflow("demo")
+
+    @wf.step
+    def verify() -> None:
+        remote.verify()
+
+    @wf.step
+    def acquire(verify: None) -> str:
+        return remote.run(Command(cmd=[sys.executable, "-c", "print('ok')"], output_parser=identity_parser)).stdout
+
+    launcher = _Launcher()
+    run = Run(wf, launcher=launcher)
+    run.start()
+    assert run.wait(30) and run.status is RunStatus.COMPLETED
+    (worker,) = launcher.manifest.workers
+    assert worker.repository == "Aind.Experiment.Demo" and worker.url == remote.client.base_url
+    assert worker.repository_state is not None and worker.repository_state.commit_sha
+    assert [(job.step, job.command[-1]) for job in worker.jobs] == [("verify", "."), ("acquire", "print('ok')")]
+
+
+def test_a_restarted_launcher_reattaches_to_the_jobs_of_its_run(worker_url, repository):
+    crashed = RemoteRepository(
+        _client(worker_url, repository="Aind.Experiment.Demo", lease_ttl=0.3), local_path=repository
+    )
+    crashed.lease(run_id="run-1")
+    job_id = crashed.client.submit_command(
+        [sys.executable, "-c", "import time; time.sleep(1.5); print('recorded')"]
+    ).job_id
+    crashed.client._stop_heartbeat.set()  # the launcher died: nobody renews the lease
+    time.sleep(0.6)
+
+    with pytest.raises(WorkerError) as kept:  # the machine is kept for run-1 for a while
+        _client(worker_url).lease(owner="another session", run_id="run-2")
+    assert kept.value.status == 423 and "run-1" in str(kept.value)
+
+    recovered = RemoteRepository(_client(worker_url, repository="Aind.Experiment.Demo"), local_path=repository)
+    jobs = recovered.reattach("run-1")
+    assert [(job.job_id, job.running) for job in jobs] == [(job_id, True)]
+    assert recovered.wait_for(job_id).stdout.strip() == "recorded"
+    recovered.release()
+    other = _client(worker_url)
+    other.lease(owner="another session", run_id="run-2")  # free for others once the recovery gave it back
+    other.release()

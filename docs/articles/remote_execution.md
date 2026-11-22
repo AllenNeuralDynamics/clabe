@@ -54,8 +54,13 @@ daemon:
 
 The first command a run sends **leases** the worker: until the run gives it back, the machine refuses commands from
 any other run (and starts no experiment of its own), and its page shows "in use by `<launcher>`". The launcher renews
-the lease in the background; if it crashes, the lease expires after a minute and the machine is free again. Jobs
-already running keep running.
+the lease in the background and gives it back when the run ends. If the run did not complete (it was aborted, or
+failed), the commands still running there are stopped too — unless you pass `detach_on_abort=True` to
+`RemoteRepository`, for recordings that must outlive the launcher.
+
+If the launcher crashes, its jobs keep running and the lease expires after a minute. For five more minutes
+(`daemon: lease_grace`) only the same run may take the machine back, so a restarted launcher can
+[recover](#recovering-after-a-crash) them.
 
 ### Telemetry
 
@@ -153,10 +158,13 @@ Running on the remote executor does three things on top of a local run:
 - **Inputs only exist while the command runs.** If a workflow needs its rig or session files afterwards, it has to
   copy them into the session folder itself.
 - **Inputs are text.** They are read as UTF-8, which suits the JSON models CLABE passes.
-- **Output comes back when the command ends.** There is no live output, and the remote process cannot ask the user
-  anything.
+- **Its output is live.** Inside a run, a remote command shows as an activity tagged with the other machine's name,
+  with its latest output lines (the web UI shows them as a collapsible tail). The full output comes back when it
+  ends. The remote process cannot ask the user anything.
 - **Cancelling stops it.** When the run is aborted (or a branch is stopped), the command is stopped on the other
   machine too.
+- **It is on record.** The run's `run.json` lists each machine it used (`workers`: host, clabe version, the remote
+  checkout as `verify()` found it) and each command it ran there, with its step.
 - **The launcher machine needs what validation looks for**, such as `.bonsai/`. Pass `skip_validation=True` to the
   app if it does not have it.
 
@@ -168,6 +176,17 @@ Everything above is built on the [`WorkerClient`][clabe.remote.WorkerClient], wh
 result = client.run_command(["python", "--version"])        # waits for the result
 job = client.submit_command(["python", "slow_script.py"])   # returns a job id, poll with get_result(job.job_id)
 client.upload_model(session, "session.json")                 # files, up to max_file_size
+```
+
+### Recovering after a crash
+
+If the launcher dies while the other machine records, its commands keep running there. A restarted launcher (or a
+recovery workflow) reattaches to them with the crashed session's run id, from its `run.json`:
+
+```python
+remote = RemoteRepository.from_computer_name("rig-b")
+for job in remote.reattach(crashed_run_id):        # takes the machine back for that run
+    result = remote.wait_for(job.job_id)           # or await remote.wait_for_async(...)
 ```
 
 ## 4. Data that the other machine saves

@@ -51,6 +51,11 @@ class DaemonSettings(ServiceSettings):
     run_arguments: list[str] = Field(
         default_factory=list, description="Extra arguments for every `clabe run`, e.g. --skip-hardware-validation"
     )
+    lease_grace: float = Field(
+        default=300.0,
+        description="Worker role: seconds after a lease expires during which only the same run may take it back "
+        "(a restarted launcher reattaching to its jobs)",
+    )
     max_jobs: int = Field(default=4, description="Worker role: jobs run at the same time for a remote run")
     max_file_size: int = Field(default=50 * 1024 * 1024, description="Worker role: largest file transferred (bytes)")
     file_transfer_dir: Path | None = Field(

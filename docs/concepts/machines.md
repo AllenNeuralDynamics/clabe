@@ -27,8 +27,9 @@ apps there as if they were local.
 
 A machine should serve one session at a time. A run that uses a worker takes its **lease**: until it gives it back,
 the worker refuses other runs and its own host starts no experiment; its page says who holds it. The run renews the
-lease in the background; if the run's machine crashes the lease expires and the worker is free again, while the
-jobs it was running carry on.
+lease in the background and gives it back when it ends, stopping its jobs there unless it completed. If the run's
+machine crashes the lease expires, the jobs carry on, and for a grace period only the same run may take the worker
+back — so a restarted launcher can reattach to them.
 
 ## The hub
 
