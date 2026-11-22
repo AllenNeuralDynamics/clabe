@@ -341,6 +341,127 @@
         "title": "ClientBody",
         "type": "object"
       },
+      "CommandFinished": {
+        "description": "A command an app ran (Bonsai, Open Ephys, a script) ended: what exactly ran, for provenance.\n\n``files`` maps each existing file the command named (its arguments, its inputs, ``Bonsai.config`` next to the\nprogram) to its SHA-256 (``None`` when too large to hash). Files of a remote command are hashed here, where the\nrun is (the remote checkout is the same commit when ``RemoteRepository.verify()`` passed).",
+        "properties": {
+          "attempt": {
+            "default": 1,
+            "title": "Attempt",
+            "type": "integer"
+          },
+          "command": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Command",
+            "type": "array"
+          },
+          "cwd": {
+            "title": "Cwd",
+            "type": "string"
+          },
+          "duration_s": {
+            "title": "Duration S",
+            "type": "number"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "executable": {
+            "title": "Executable",
+            "type": "string"
+          },
+          "executable_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Executable Sha256"
+          },
+          "exit_code": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exit Code"
+          },
+          "files": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Files",
+            "type": "object"
+          },
+          "machine": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine"
+          },
+          "run_id": {
+            "default": "",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "seq": {
+            "default": 0,
+            "title": "Seq",
+            "type": "integer"
+          },
+          "step": {
+            "title": "Step",
+            "type": "string"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "type": {
+            "const": "command_finished",
+            "default": "command_finished",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "step",
+          "command",
+          "cwd",
+          "executable",
+          "duration_s"
+        ],
+        "title": "CommandFinished",
+        "type": "object"
+      },
       "CommandResult": {
         "description": "Outcome of an answer or a command: accepted, or rejected with a reason to show the user.",
         "properties": {
@@ -676,6 +797,95 @@
           "answer_schema"
         ],
         "title": "PromptOpened",
+        "type": "object"
+      },
+      "RecordResolved": {
+        "description": "A step took a record (a rig, a trainer state, ...) from a store: which one, from where, and its content hash.\n\nThe record itself is saved as an artifact of the step (``stores/<kind>.json``), so the session keeps exactly what\nit used even if the store changes later.",
+        "properties": {
+          "artifact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Artifact"
+          },
+          "attempt": {
+            "default": 1,
+            "title": "Attempt",
+            "type": "integer"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "revision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revision"
+          },
+          "run_id": {
+            "default": "",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "scope": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Scope",
+            "type": "object"
+          },
+          "seq": {
+            "default": 0,
+            "title": "Seq",
+            "type": "integer"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          },
+          "step": {
+            "title": "Step",
+            "type": "string"
+          },
+          "store": {
+            "title": "Store",
+            "type": "string"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "type": {
+            "const": "record_resolved",
+            "default": "record_resolved",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "step",
+          "kind",
+          "store",
+          "label",
+          "sha256"
+        ],
+        "title": "RecordResolved",
         "type": "object"
       },
       "RunAgentInput": {
@@ -1489,10 +1699,12 @@
                             "artifact_exported": "#/components/schemas/ArtifactExported",
                             "branch_ended": "#/components/schemas/BranchEnded",
                             "branch_started": "#/components/schemas/BranchStarted",
+                            "command_finished": "#/components/schemas/CommandFinished",
                             "header": "#/components/schemas/Header",
                             "notify": "#/components/schemas/Notify",
                             "prompt_closed": "#/components/schemas/PromptClosed",
                             "prompt_opened": "#/components/schemas/PromptOpened",
+                            "record_resolved": "#/components/schemas/RecordResolved",
                             "run_finished": "#/components/schemas/RunFinished",
                             "run_started": "#/components/schemas/RunStarted",
                             "step_failed": "#/components/schemas/StepFailed",
@@ -1548,6 +1760,12 @@
                           },
                           {
                             "$ref": "#/components/schemas/ActivityOutput"
+                          },
+                          {
+                            "$ref": "#/components/schemas/CommandFinished"
+                          },
+                          {
+                            "$ref": "#/components/schemas/RecordResolved"
                           },
                           {
                             "$ref": "#/components/schemas/BranchStarted"

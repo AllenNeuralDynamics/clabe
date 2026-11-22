@@ -5,6 +5,8 @@ from typing import Generic, Protocol, Self, TypeAlias, TypeVar, runtime_checkabl
 
 from pydantic import BaseModel
 
+from ._provenance import recorded
+
 logger = logging.getLogger(__name__)
 
 
@@ -276,14 +278,16 @@ class Command(Generic[TOutput]):
     def execute(self, executor: Executor) -> TOutput:
         """Execute using a synchronous executor."""
         logger.info("Executing command: %s", self._cmd)
-        self._set_result(executor.run(self))
+        with recorded(self, executor):
+            self._set_result(executor.run(self))
         logger.info("Command execution completed.")
         return self._parse_output(self.result)
 
     async def execute_async(self, executor: AsyncExecutor) -> TOutput:
         """Execute using an async executor."""
         logger.info("Executing command asynchronously: %s", self._cmd)
-        self._set_result(await executor.run_async(self))
+        with recorded(self, executor):
+            self._set_result(await executor.run_async(self))
         logger.info("Command execution completed.")
         return self._parse_output(self.result)
 

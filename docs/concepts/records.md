@@ -26,6 +26,17 @@ credentials or huge objects) while keeping the lineage.
 Outputs are kept apart from events on purpose: events are streamed to every client, outputs can be large or
 sensitive.
 
+## Commands and configuration
+
+Two kinds of events pin down what a step used:
+
+- every command an app runs (Bonsai, Open Ephys, a script) ends with a `command_finished` event: the command line
+  (secret flags masked), the program and its hash, the hash of every file it named (the workflow, its inputs, the
+  `Bonsai.config` next to Bonsai), the machine, the exit code and the duration;
+- every record a step takes from a store (a rig, a trainer state) is a `record_resolved` event — which record, from
+  which store, its content hash and revision when the store knows it — and the record itself is saved as an artifact
+  of the step, so the session keeps exactly what it used even if the store changes later.
+
 ## Artifacts
 
 `export_artifact(...)`, called inside a step, saves a file, bytes, text or a model under
@@ -58,6 +69,9 @@ logs into the session folder (`<session>/Behavior/Logs/.launcher/`): `run.json`,
 
 ## Reproducibility
 
-Together these let you reconstruct a session: which commit and environment ran it, every decision a person made, and
-the inputs and outputs of each step. Keep in mind what they do not capture: the contents of external stores at the
-time (unless a step exported them as artifacts) and data the apps recorded themselves.
+Together these let you reconstruct a session: which commit and environment ran it, every decision a person made, the
+configuration it took from stores, the programs it ran with their files, and the inputs and outputs of each step.
+**Replaying** goes one step further: `clabe replay events.jsonl experiment.py` runs the experiment again, answering
+every prompt with the recorded answer (and failing clearly if the workflow now asks something else) — to reproduce a
+session's decisions, or to test a changed workflow against a real session. What the records do not capture is the
+data the apps recorded themselves, and decisions made outside prompts (clicking a step to go back, aborting).

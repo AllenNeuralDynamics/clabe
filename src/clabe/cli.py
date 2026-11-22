@@ -59,6 +59,23 @@ class _RunCli(LauncherCliArgs):
         return
 
 
+class _ReplayCli(LauncherCliArgs):
+    """Run an experiment answering its prompts with a recorded session's answers (its events.jsonl)."""
+
+    events: CliPositionalArg[Path] = Field(description="The recorded session's events.jsonl")
+    experiment_path: CliPositionalArg[Path] = Field(description="Path to the Python file containing the experiment")
+    experiment_name: str | None = Field(default=None, description="Name of the experiment, when the file has several")
+
+    def cli_cmd(self):
+        """Replay the session; exit with status 1 if the run asks something the recording did not answer."""
+        from .workflow import ReplayClient
+
+        client = ReplayClient(self.events)
+        launcher = Launcher(settings=self, client=client)
+        launcher.run_experiment(select_workflow(self.experiment_path, name=self.experiment_name))
+        print(f"Replayed {client.replayed} answer(s); {client.remaining} recorded answer(s) left unused.")
+
+
 class _RepositoryStateCli(BaseSettings):
     """Print the current Git repository state as JSON."""
 
@@ -120,6 +137,7 @@ class CliAppSettings(BaseSettings, cli_prog_name="clabe", cli_kebab_case=True):
     repository_state: CliSubCommand[_RepositoryStateCli]
     check: CliSubCommand[_CheckCli]
     list: CliSubCommand[_ListCli]
+    replay: CliSubCommand[_ReplayCli]
     daemon: CliSubCommand[DaemonCli]
     hub: CliSubCommand[HubCli]
     mcp: CliSubCommand[McpCli]

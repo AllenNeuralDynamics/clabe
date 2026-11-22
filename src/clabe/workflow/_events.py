@@ -164,6 +164,47 @@ class ActivityOutput(_Event):
     lines: list[str]
 
 
+class CommandFinished(_Event):
+    """A command an app ran (Bonsai, Open Ephys, a script) ended: what exactly ran, for provenance.
+
+    ``files`` maps each existing file the command named (its arguments, its inputs, ``Bonsai.config`` next to the
+    program) to its SHA-256 (``None`` when too large to hash). Files of a remote command are hashed here, where the
+    run is (the remote checkout is the same commit when ``RemoteRepository.verify()`` passed).
+    """
+
+    type: Literal["command_finished"] = "command_finished"
+    step: str
+    attempt: int = 1
+    command: list[str]
+    cwd: str
+    machine: str | None = None
+    executable: str
+    executable_sha256: str | None = None
+    files: dict[str, str | None] = Field(default_factory=dict)
+    exit_code: int | None = None
+    duration_s: float
+    error: str | None = None
+
+
+class RecordResolved(_Event):
+    """A step took a record (a rig, a trainer state, ...) from a store: which one, from where, and its content hash.
+
+    The record itself is saved as an artifact of the step (``stores/<kind>.json``), so the session keeps exactly what
+    it used even if the store changes later.
+    """
+
+    type: Literal["record_resolved"] = "record_resolved"
+    step: str
+    attempt: int = 1
+    kind: str
+    store: str
+    label: str
+    scope: dict[str, str] = Field(default_factory=dict)
+    sha256: str
+    revision: str | None = None
+    artifact: str | None = None
+
+
 class BranchStarted(_Event):
     """A branch of a step started (see :func:`~clabe.workflow.concurrently`); ``attempt`` counts its retries."""
 
@@ -201,6 +242,8 @@ Event = Annotated[
     | ActivityStarted
     | ActivityEnded
     | ActivityOutput
+    | CommandFinished
+    | RecordResolved
     | BranchStarted
     | BranchEnded,
     Field(discriminator="type"),

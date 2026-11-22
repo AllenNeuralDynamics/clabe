@@ -30,6 +30,12 @@ For example, in an MCP client's configuration:
 
 Through a hub, every tool takes the `rig` to act on.
 
+## Why there is no agent inside the web UI
+
+An agent needs a model, a key and somewhere to run, and clabe deliberately has none: rigs stay free of credentials
+and of calls to external services. Point the agent you already use (e.g. Claude) at `clabe mcp` instead. A hub-hosted
+agent panel can be added when there is a concrete use for it; the AG-UI endpoint below is its foundation.
+
 ## AG-UI
 
 Every run also speaks [AG-UI](https://docs.ag-ui.com) at `POST /api/agui` (through a daemon: `/run/api/agui`;

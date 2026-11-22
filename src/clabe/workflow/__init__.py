@@ -17,6 +17,7 @@ from ._discovery import (
 )
 from ._local import LocalClient
 from ._records import export_artifact
+from ._replay import ReplayClient, ReplayMismatch
 from ._run import Ack, Rejected, Run, RunState, RunStatus, StepState, StepStatus
 from ._workflow import Step, Workflow, WorkflowDefinitionError, step_defaults
 
@@ -31,6 +32,8 @@ __all__ = [
     "Issue",
     "LocalClient",
     "Rejected",
+    "ReplayClient",
+    "ReplayMismatch",
     "Run",
     "RunState",
     "RunStatus",

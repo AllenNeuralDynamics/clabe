@@ -16,6 +16,20 @@ At the end of a run they are in the session folder, under `Behavior/Logs/.launch
 | `uv.lock` | The lockfile the run used. |
 | `launcher.log`, `repository-state.json` | The diagnostic log; the repository and submodules. |
 
+`events.jsonl` also holds `command_finished` (each command an app ran, with its program's and files' hashes) and
+`record_resolved` (each store record a step used; the record is kept under `artifacts/<step>/<attempt>/stores/`).
+
+## Replaying a session
+
+```bash
+clabe replay <session>/Behavior/Logs/.launcher/events.jsonl experiments/vr_foraging.py --allow-dirty
+```
+
+The experiment runs again (headless), each prompt answered with the recorded answer in order. A prompt that differs
+from the recorded one (another kind or label) stops the replay with both; a secret answer cannot be replayed (it is
+recorded masked). In code: `LocalClient(run, ReplayClient("events.jsonl")).drive()` — handy as a test that a workflow
+still accepts a real session.
+
 ## Choosing how an output is recorded
 
 By default (`codecs.auto`) a pydantic model is recorded as its own JSON and anything else through pydantic's generic

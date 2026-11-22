@@ -14,6 +14,7 @@ from .. import ui
 from .._typing import TRig, TTask
 from ..cache_manager import CacheManager
 from ..utils.aind_validators import validate_rig_computer_name
+from ._provenance import record_resolution
 
 logger = logging.getLogger(__name__)
 
@@ -196,6 +197,8 @@ class Candidate(Generic[T]):
 
     label: str
     value: T
+    revision: str | None = None
+    """Which version of the record this is, when the backend knows (e.g. a modification time)."""
 
 
 class StoreBase(abc.ABC):
@@ -269,7 +272,7 @@ class StoreBase(abc.ABC):
             raise LookupError(f"No {_kind.name!r} records found in {self}.")
         if len(candidates) == 1:
             ui.notify(f"Found a single {_kind.name}. Using {candidates[0].label}.")
-            return self._validated(_kind, candidates[0].value)
+            return self._resolved(_kind, candidates[0], scope)
         by_label = {c.label: c.value for c in candidates}
         _request_kwargs: dict[str, Any] = {
             "label": f"Choose a {_kind.name} for {_kind.model.__name__}:",
@@ -286,7 +289,13 @@ class StoreBase(abc.ABC):
         if picked is None:
             raise LookupError(f"No {_kind.name} was selected.")
         CacheManager.get_instance().add_to_cache(_kind.name, picked)
-        return self._validated(_kind, by_label[picked])
+        return self._resolved(_kind, next(c for c in candidates if c.label == picked), scope)
+
+    def _resolved(self, kind: Kind[T], candidate: Candidate[T], scope: Scope | None) -> T:
+        """The chosen record, validated, and recorded for provenance when a run is going."""
+        value = self._validated(kind, candidate.value)
+        record_resolution(self, kind, candidate, value, self._merge_scope(scope))
+        return value
 
     @staticmethod
     def _validated(kind: Kind[T], value: T) -> T:

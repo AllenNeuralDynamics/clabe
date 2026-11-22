@@ -49,6 +49,8 @@ raised in a step does the same.
 
 **Prompt** — A question a run is waiting on; opened from a request, answered by any client.
 
+**Replay** — Running an experiment again with a recorded session's answers (`clabe replay`).
+
 **Request** — The description of a prompt: what to show, the answer schema, how to validate.
 
 **Run** — One execution of a workflow: its progress, outputs, open prompt and events.

@@ -42,6 +42,10 @@ public sealed class RunEvent
     public string? Description { get; set; }
     public string? Machine { get; set; }
     public List<string>? Lines { get; set; }
+    public List<string>? Command { get; set; }
+    [JsonPropertyName("exit_code")] public int? ExitCode { get; set; }
+    public string? Label { get; set; }
+    public string? Store { get; set; }
 
     /// <summary>The spec's field (e.g. <c>rig.failed</c>), naming what the prompt asks about.</summary>
     [JsonIgnore] public string? Field => Spec?["field"]?.GetValue<string>();

@@ -138,6 +138,8 @@
         "header" => e.Text ?? "",
         "activity_started" => e.Description ?? "",
         "artifact_exported" => e.Path ?? "",
+        "command_finished" => $"{string.Join(' ', e.Command ?? [])} → exit {e.ExitCode}",
+        "record_resolved" => $"{e.Kind} from {e.Label}",
         "run_started" => e.Workflow ?? "",
         "run_finished" => $"{e.Status} {e.Reason}",
         _ => "",

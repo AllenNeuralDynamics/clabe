@@ -531,7 +531,11 @@ class DataverseStore(StoreBase):
         subject, task_name = self._required_scope(scope)
         suggestions = _get_last_suggestions(self._client, subject, task_name, self._history)
         return [
-            Candidate(self._label(s), s.trainer_state)  # type: ignore[arg-type]
+            Candidate(
+                self._label(s),
+                s.trainer_state,  # type: ignore[arg-type]
+                revision=s.modified_on.isoformat() if s.modified_on else None,
+            )
             for s in suggestions
             if s.trainer_state is not None and s.trainer_state.stage is not None
         ]

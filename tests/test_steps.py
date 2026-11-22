@@ -139,3 +139,28 @@ def test_a_workflow_of_shared_steps_passes_the_static_check():
     wf.step(steps.register())
     wf.step(steps.transfer(lambda launcher, session: MagicMock()))
     assert [i for i in check_workflow(wf, strict=True) if i.severity == "error"] == []
+
+
+def test_mappers_report_the_environment_the_run_manifest_recorded():
+    import datetime
+    import types
+
+    from clabe.data_mapper import snapshot_python_environment
+    from clabe.launcher._manifest import EnvironmentInfo, RunManifest
+    from clabe.workflow import Run
+
+    manifest = RunManifest(run_id="r", started_at=datetime.datetime.now(datetime.UTC))
+    manifest.environment = EnvironmentInfo(
+        python_version="3.12",
+        python_implementation="CPython",
+        python_executable="python",
+        uv_version=None,
+        uv_lock_sha256=None,
+        distributions={"aind-clabe": "9.9.9"},
+    )
+    wf = Workflow("demo")
+    wf.step(snapshot_python_environment, name="environment")
+    run = Run(wf, launcher=types.SimpleNamespace(manifest=manifest))
+    run.start()
+    assert run.wait(10) and run.output("environment") == {"aind-clabe": "9.9.9"}
+    assert "pydantic" in snapshot_python_environment()  # outside a run: the live environment

@@ -355,6 +355,11 @@ class Launcher:
         self._manifest.outcome.exit_code = exit_code
         self._write_manifest()
 
+    @property
+    def manifest(self) -> RunManifest | None:
+        """The run manifest (``run.json``) of the run going on, once it has started."""
+        return self._manifest
+
     def update_manifest(self, change: Callable[[RunManifest], None]) -> None:
         """Applies ``change`` to the run manifest and rewrites ``run.json`` (nothing happens without a run).
 
