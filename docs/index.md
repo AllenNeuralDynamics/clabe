@@ -93,7 +93,7 @@ powershell -ExecutionPolicy ByPass -File scripts/demo.ps1         # followed by 
 ## Install
 
 ```bash
-uv add aind-clabe                      # in an experiment repository
+uv add "aind-clabe[frontend]"          # in an experiment repository; without [frontend]: console prompts only
 ```
 
 ```powershell

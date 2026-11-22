@@ -30,6 +30,16 @@ def _utc_formatter() -> logging.Formatter:
     return formatter
 
 
+def _need_web() -> None:
+    """Stops with a clear message when the web server (the ``frontend`` extra) is not installed."""
+    from .._extras import require_web
+
+    try:
+        require_web("The daemon")
+    except ImportError as exc:
+        raise SystemExit(str(exc)) from None
+
+
 def _send_logs_to_otel(endpoint: str | None) -> None:
     """Sends the daemon's logs through OpenTelemetry, as service ``clabe-daemon``, when an endpoint is set
     (``DAEMON_CLABE_OTEL_ENDPOINT``)."""
@@ -59,6 +69,7 @@ class _RunDaemonCli(DaemonSettings, cli_kebab_case=True):
 
     def cli_cmd(self):
         """Serve until interrupted."""
+        _need_web()
         import uvicorn
 
         from ._app import create_daemon
@@ -97,6 +108,7 @@ class _InstallCli(BaseSettings, cli_kebab_case=True):
 
     def cli_cmd(self):
         """Register the scheduled task."""
+        _need_web()
         _report(lambda: _install.install(working_directory=self.working_directory))
 
 

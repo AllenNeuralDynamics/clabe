@@ -37,7 +37,7 @@ def _commands(lines: list[str]) -> list[str]:
 def test_as_a_file_with_arguments():
     lines = _powershell("-File", str(SCRIPT), "-Version", "0.18.0", "-Token", "t0k", "-DryRun")
     commands = _commands(lines)
-    assert commands[0].endswith("tool install --force aind-clabe[otel]==0.18.0")
+    assert commands[0].endswith("tool install --force aind-clabe[frontend,otel]==0.18.0")
     assert commands[1].endswith("clabe.exe daemon install")
     assert commands[2].endswith("clabe.exe daemon restart --timeout 120")
     assert "t0k" not in "\n".join(lines)  # the token is never printed
@@ -47,7 +47,7 @@ def test_piped_into_iex_with_environment_variables():
     """What `irm <url> | iex` does: no arguments, options from CLABE_* variables."""
     env = {"DAEMON_CLABE_VERSION": "0.18.0", "DAEMON_CLABE_FORCE": "1", "DAEMON_CLABE_DRY_RUN": "1"}
     commands = _commands(_powershell("-Command", f"Get-Content -Raw '{SCRIPT}' | Invoke-Expression", env=env))
-    assert commands[0].endswith("tool install --force aind-clabe[otel]==0.18.0")
+    assert commands[0].endswith("tool install --force aind-clabe[frontend,otel]==0.18.0")
     assert commands[2].endswith("daemon restart --timeout 120 --force")
 
 

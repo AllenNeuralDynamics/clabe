@@ -297,6 +297,15 @@ class Launcher:
         if not self.settings.serve:
             yield
             return
+        from .._extras import FRONTEND_HINT, has_web
+
+        if not has_web():
+            # the core works without the frontend extra: the run is just not served
+            ui.notify(
+                f"Not served in the browser: the web server is not installed ({FRONTEND_HINT}).", MessageLevel.INFO
+            )
+            yield
+            return
         from ..server import RunServer
 
         token = self.settings.token or os.environ.get("CLABE_TOKEN") or None

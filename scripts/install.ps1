@@ -10,7 +10,7 @@
     Options come from parameters, or — for `irm ... | iex`, which cannot pass any — from environment variables:
 
         -Version / DAEMON_CLABE_VERSION      clabe version to install (default: the latest release)
-        -Package / DAEMON_CLABE_PACKAGE      any uv package spec instead (aind-clabe[otel,agents]==0.18.0, git+https://...)
+        -Package / DAEMON_CLABE_PACKAGE      any uv package spec instead (aind-clabe[frontend,otel,agents]==0.18.0, git+https://...)
         -Token   / DAEMON_CLABE_TOKEN        the daemon's token, saved as this user's DAEMON_CLABE_TOKEN
         -Config  / DAEMON_CLABE_CONFIG       a clabe.yml to install as %PROGRAMDATA%\clabe.yml: a path on this PC, or - to
                                       read it from standard input (over SSH: ssh rig "..." < clabe.yml)
@@ -53,7 +53,7 @@ function Install-Clabe {
         }
     }
 
-    $spec = if ($Package) { $Package } elseif ($Version) { "aind-clabe[otel]==$Version" } else { 'aind-clabe[otel]' }
+    $spec = if ($Package) { $Package } elseif ($Version) { "aind-clabe[frontend,otel]==$Version" } else { 'aind-clabe[frontend,otel]' }
 
     # uv. A fresh session (e.g. over SSH) may not have the user's PATH yet: look where uv's installer puts it too.
     $userBin = Join-Path $env:USERPROFILE '.local\bin'

@@ -67,6 +67,10 @@ class LauncherCliArgs(ServiceSettings, cli_prog_name="clabe", cli_kebab_case=Tru
         """A headless run can only be answered through the run server."""
         if self.frontend == "headless" and not self.serve:
             raise ValueError("--frontend headless needs --serve: nothing else could answer its prompts.")
+        if self.frontend == "headless":
+            from .._extras import require_web
+
+            require_web("--frontend headless")  # its prompts are answered in the browser
         return self
 
     @model_validator(mode="after")

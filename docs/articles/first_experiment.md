@@ -6,7 +6,7 @@ Write a workflow, run it, answer its prompts from a browser and find what it rec
 
 ```bash
 uv init my-experiments && cd my-experiments
-uv add aind-clabe
+uv add "aind-clabe[frontend]"   # the terminal UI and the browser page; plain aind-clabe asks in the console
 git init && git add -A && git commit -m "start"   # clabe records the commit each run used
 ```
 

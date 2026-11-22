@@ -1,6 +1,8 @@
 """How clabe talks to the user: requests that describe and validate themselves, a session API to ask them
 (``ui.ask``, ``ui.confirm``, ``ui.group``, ...), and clients (console, TUI) that render and collect answers."""
 
+from typing import TYPE_CHECKING
+
 from ._client import Client, ClientSession, HeadlessClient, make_client
 from ._console import ConsoleClient
 from ._messages import MessageLevel
@@ -52,7 +54,22 @@ from ._session import (
     text,
     url,
 )
-from ._textual import TextualClient
+
+if TYPE_CHECKING:
+    from ._textual import TextualClient
+
+
+def __getattr__(name: str):
+    """Loads the terminal UI (``TextualClient``) only when it is used: it needs the ``frontend`` extra."""
+    if name == "TextualClient":
+        from .._extras import require_tui
+
+        require_tui()
+        from ._textual import TextualClient
+
+        return TextualClient
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __all__ = [
     "AcknowledgeRequest",

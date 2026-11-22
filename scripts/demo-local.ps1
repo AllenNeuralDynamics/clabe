@@ -9,7 +9,7 @@
 
     Runs examples/demo/main.py: the terminal UI in this window and the same run in a browser tab
     (http://localhost:8090, this computer only, so no token). Answer in either; the first answer wins. This is all a
-    PC needs to run experiments: uv, git, and the aind-clabe package in the experiment's repository.
+    PC needs to run experiments: uv, git, and "aind-clabe[frontend]" in the experiment's repository.
 
     The run would announce itself to a daemon on this PC if one were running (so a hub could follow it); this
     demo makes sure it does not, even when one is.

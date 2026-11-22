@@ -141,20 +141,24 @@ def make_client(backend: str = "auto") -> Client:
     """Builds a client for the requested backend.
 
     Args:
-        backend: ``"auto"`` (TUI on a terminal, else console), ``"tui"``, ``"console"`` or ``"headless"`` (no
-            screen: prompts are answered from the web UI).
+        backend: ``"auto"`` (TUI on a terminal when the ``frontend`` extra is installed, else console), ``"tui"``,
+            ``"console"`` or ``"headless"`` (no screen: prompts are answered from the web UI).
 
     Raises:
         ValueError: ``backend`` is not a recognized option.
+        ImportError: ``"tui"`` without the ``frontend`` extra.
     """
+    from .._extras import has_tui, require_tui
     from ..logging import clabe_console
     from ._console import ConsoleClient
-    from ._textual import TextualClient
 
     choice = (backend or "auto").lower()
     if choice == "auto":
-        choice = "tui" if clabe_console.is_terminal else "console"
+        choice = "tui" if clabe_console.is_terminal and has_tui() else "console"
     if choice == "tui":
+        require_tui()
+        from ._textual import TextualClient
+
         return TextualClient()
     if choice == "console":
         return ConsoleClient()

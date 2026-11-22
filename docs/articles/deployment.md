@@ -38,7 +38,7 @@ missing.
 | Parameter | Variable | Meaning |
 |---|---|---|
 | `-Version` | `DAEMON_CLABE_VERSION` | clabe version (default: latest). **Pin it on rigs.** |
-| `-Package` | `DAEMON_CLABE_PACKAGE` | Any uv spec instead of `aind-clabe[otel]`, e.g. `aind-clabe[otel,agents]==0.18.0` |
+| `-Package` | `DAEMON_CLABE_PACKAGE` | Any uv spec instead of `aind-clabe[frontend,otel]`, e.g. `aind-clabe[frontend,otel,agents]==0.18.0` |
 | `-Token` | `DAEMON_CLABE_TOKEN` | Daemon token, saved as the user's `DAEMON_CLABE_TOKEN` |
 | `-Config` | `DAEMON_CLABE_CONFIG` | The experiments' `clabe.yml` to install as `%PROGRAMDATA%\clabe.yml`; `-` reads it from standard input |
 | `-Force` | `DAEMON_CLABE_FORCE=1` | Restart even during a session |

@@ -77,11 +77,14 @@ or in the browser tab it opens. `scripts/demo.ps1` runs the same session with a 
 ## Install
 
 ```bash
-uv add aind-clabe                     # in an experiment repository
+uv add "aind-clabe[frontend]"         # in an experiment repository
 uv add "aind-clabe[aind-services]"    # AIND data schema, data transfer and watchdog
 uv add "aind-clabe[otel]"             # sending logs to OpenTelemetry
 uv add "aind-clabe[agents]"           # the MCP server (clabe mcp)
 ```
+
+The `frontend` extra adds the terminal UI and the browser page (and the web server the daemon and the hub run on).
+Without it, clabe asks its questions as plain console prompts and the rest works the same.
 
 To install the daemon on a rig PC, see [Deploy a rig](https://allenneuraldynamics.github.io/clabe/articles/deployment/).
 

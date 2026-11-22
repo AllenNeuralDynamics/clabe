@@ -45,7 +45,6 @@ version = "0.17.0"
 source = { editable = "." }
 dependencies = [
     { name = "aind-behavior-services" },
-    { name = "fastapi" },
     { name = "gitpython" },
     { name = "httpx" },
     { name = "markdown-it-py" },
@@ -54,9 +53,6 @@ dependencies = [
     { name = "pydantic-settings" },
     { name = "requests" },
     { name = "rich" },
-    { name = "textual" },
-    { name = "textual-fspicker" },
-    { name = "uvicorn" },
 ]
 
 [package.optional-dependencies]
@@ -73,6 +69,12 @@ aind-services = [
     { name = "pyyaml" },
     { name = "requests" },
 ]
+frontend = [
+    { name = "fastapi" },
+    { name = "textual" },
+    { name = "textual-fspicker" },
+    { name = "uvicorn" },
+]
 otel = [
     { name = "opentelemetry-exporter-otlp-proto-grpc" },
     { name = "opentelemetry-exporter-otlp-proto-http" },
@@ -82,7 +84,7 @@ otel = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "aind-clabe", extra = ["agents", "aind-services", "otel"] },
+    { name = "aind-clabe", extra = ["agents", "aind-services", "frontend", "otel"] },
     { name = "codespell" },
     { name = "coverage" },
     { name = "interrogate" },
@@ -92,7 +94,7 @@ dev = [
     { name = "ruff" },
 ]
 docs = [
-    { name = "aind-clabe", extra = ["aind-services"] },
+    { name = "aind-clabe", extra = ["aind-services", "frontend"] },
     { name = "mkdocstrings", extra = ["python"] },
     { name = "pymdown-extensions" },
     { name = "zensical" },
@@ -105,7 +107,7 @@ requires-dist = [
     { name = "aind-data-transfer-service", marker = "extra == 'aind-services'", specifier = ">=2.2.0" },
     { name = "aind-watchdog-service", marker = "extra == 'aind-services'", specifier = ">=0.1.10.dev0" },
     { name = "confierge", marker = "extra == 'aind-services'", git = "https://github.com/AllenNeuralDynamics/ficus.git?subdirectory=packages%2Fconfierge&tag=v0.3.0" },
-    { name = "fastapi", specifier = ">=0.115" },
+    { name = "fastapi", marker = "extra == 'frontend'", specifier = ">=0.115" },
     { name = "gitpython" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "markdown-it-py", specifier = ">=2" },
@@ -123,16 +125,17 @@ requires-dist = [
     { name = "requests" },
     { name = "requests", marker = "extra == 'aind-services'" },
     { name = "rich" },
-    { name = "textual", specifier = ">=8.2.7" },
-    { name = "textual-fspicker", specifier = ">=1.0.1" },
-    { name = "uvicorn", specifier = ">=0.30" },
+    { name = "textual", marker = "extra == 'frontend'", specifier = ">=8.2.7" },
+    { name = "textual-fspicker", marker = "extra == 'frontend'", specifier = ">=1.0.1" },
+    { name = "uvicorn", marker = "extra == 'frontend'", specifier = ">=0.30" },
 ]
-provides-extras = ["otel", "aind-services", "agents"]
+provides-extras = ["otel", "aind-services", "agents", "frontend"]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "aind-clabe", extras = ["agents"] },
     { name = "aind-clabe", extras = ["aind-services"] },
+    { name = "aind-clabe", extras = ["frontend"] },
     { name = "aind-clabe", extras = ["otel"] },
     { name = "codespell" },
     { name = "coverage" },
@@ -144,6 +147,7 @@ dev = [
 ]
 docs = [
     { name = "aind-clabe", extras = ["aind-services"] },
+    { name = "aind-clabe", extras = ["frontend"] },
     { name = "mkdocstrings", extras = ["python"] },
     { name = "pymdown-extensions" },
     { name = "zensical" },

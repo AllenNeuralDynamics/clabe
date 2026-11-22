@@ -7,11 +7,13 @@ import socket
 import threading
 import time
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-import uvicorn
-
+from .._extras import require_web
 from ..workflow import Run
-from ._app import create_app
+
+if TYPE_CHECKING:
+    import uvicorn
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +60,16 @@ class RunServer:
         return f"http://{host}:{self.port}{suffix}"
 
     def start(self, timeout: float = 10.0) -> str:
-        """Starts serving (on the next free port if needed) and returns the URL."""
+        """Starts serving (on the next free port if needed) and returns the URL.
+
+        Raises:
+            ImportError: The web server (the ``frontend`` extra) is not installed.
+        """
+        require_web("Serving a run")
+        import uvicorn
+
+        from ._app import create_app
+
         self.port = free_port(self.host, self.port)
         config = uvicorn.Config(
             create_app(self.run, token=self.token),

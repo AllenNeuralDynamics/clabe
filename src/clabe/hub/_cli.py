@@ -10,6 +10,12 @@ class _RunHubCli(HubSettings, cli_kebab_case=True):
 
     def cli_cmd(self):
         """Serve until interrupted."""
+        from .._extras import require_web
+
+        try:
+            require_web("The hub")
+        except ImportError as exc:
+            raise SystemExit(str(exc)) from None
         import uvicorn
 
         from ._app import create_hub_app

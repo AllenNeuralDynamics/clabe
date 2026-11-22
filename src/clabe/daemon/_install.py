@@ -40,7 +40,7 @@ def daemon_command() -> list[str]:
     if _in_uv_cache():
         raise OSError(
             "This clabe runs from uv's cache (uvx): the daemon's task needs an installed clabe. Install it with the "
-            "installer (see the Deploying docs) or `uv tool install aind-clabe`, then run `clabe daemon install`."
+            "installer (see the Deploying docs) or `uv tool install 'aind-clabe[frontend]'`, then run `clabe daemon install`."
         )
     executable = shutil.which("clabe")
     return [executable, "daemon", "run"] if executable else [sys.executable, "-m", "clabe.cli", "daemon", "run"]
