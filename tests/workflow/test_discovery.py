@@ -24,6 +24,23 @@ def test_a_function_of_the_launcher_runs_as_a_one_step_workflow():
     assert run.output("experiment") is sentinel
 
 
+def test_files_of_a_package_load_with_their_relative_imports(tmp_path):
+    from clabe.workflow import check_path, list_experiments
+
+    package = tmp_path / "_clabe_pkg_experiments"
+    package.mkdir()
+    (package / "__init__.py").write_text("")
+    (package / "_shared.py").write_text("TITLE = 'shared'\n")
+    (package / "vr.py").write_text(
+        "from clabe.workflow import Workflow\nfrom ._shared import TITLE\n"
+        "wf = Workflow('vr')\n@wf.step(title=TITLE)\ndef a() -> int:\n    return 1\n"
+    )
+    assert check_path(package, strict=True) == []
+    listing = list_experiments(package)
+    assert listing.errors == [] and [e.name for e in listing.experiments] == ["vr"]
+    assert load_module(package / "vr.py").__name__ == "_clabe_pkg_experiments.vr"
+
+
 def test_as_workflow_accepts_workflows_and_plain_callables():
     wf = Workflow("w")
     assert as_workflow(wf) is wf

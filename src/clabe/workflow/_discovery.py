@@ -40,7 +40,21 @@ def as_workflow(target: "Workflow | ExperimentCallable") -> Workflow:
 
 
 def load_module(path: Path) -> ModuleType:
-    """Imports the Python file at ``path``; its directory is put on ``sys.path`` so sibling imports resolve."""
+    """Imports the Python file at ``path``; its directory is put on ``sys.path`` so sibling imports resolve.
+
+    A file inside a package (a folder with an ``__init__.py``) is imported as a module of that package, so its relative
+    imports resolve: the folder above the outermost package is put on ``sys.path`` instead.
+    """
+    path = Path(path).resolve()
+    package = path.parent
+    parts = [path.stem]
+    while (package / "__init__.py").is_file():
+        parts.insert(0, package.name)
+        package = package.parent
+    if len(parts) > 1:
+        if str(package) not in sys.path:
+            sys.path.insert(0, str(package))
+        return importlib.import_module(".".join(parts))
     script_dir = str(path.parent)
     if script_dir not in sys.path:
         sys.path.insert(0, script_dir)
