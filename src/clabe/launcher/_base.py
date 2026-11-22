@@ -301,9 +301,19 @@ class Launcher:
             import webbrowser
 
             webbrowser.open(url)
+        from ..daemon._announce import announce
+
+        withdraw = announce(
+            port=server.port,
+            token=token,
+            repository=Path(self.repository.working_dir).name,
+            experiment=run.workflow.name,
+        )
         try:
             yield
         finally:
+            if withdraw is not None:
+                withdraw()
             server.stop()
 
     def _with_preflight(self, workflow: Workflow) -> Workflow:

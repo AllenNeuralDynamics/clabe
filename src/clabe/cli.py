@@ -20,7 +20,7 @@ class _RunCli(LauncherCliArgs):
     """CLI arguments for running a CLABE experiment from a Python file."""
 
     experiment_path: CliPositionalArg[Path] = Field(
-        description="Path to the Python file containing the CLABE experiment to run"
+        default=Path("main.py"), description="The Python file declaring the workflows"
     )
     single_session: CliImplicitFlag[bool] = Field(
         default=False,
@@ -110,7 +110,9 @@ class _CheckCli(BaseSettings):
 class _ListCli(BaseSettings):
     """List the workflows of an experiment file or directory (as JSON with --json)."""
 
-    path: CliPositionalArg[Path] = Field(description="Experiment file, or a directory of experiment files")
+    path: CliPositionalArg[Path] = Field(
+        default=Path("main.py"), description="Experiment file, or a directory of experiment files"
+    )
     json_output: CliImplicitFlag[bool] = Field(default=False, alias="json", description="Print JSON")
 
     def cli_cmd(self):
@@ -129,6 +131,25 @@ class _ListCli(BaseSettings):
             raise SystemExit(1)
 
 
+class _ShortcutCli(BaseSettings, cli_kebab_case=True):
+    """Put an icon on the desktop that runs an experiment of this repository (its main.py) in a terminal."""
+
+    experiment_name: str | None = Field(default=None, description="The workflow to run, when main.py offers several")
+    name: str | None = Field(default=None, description="The icon's name (default: the experiment's)")
+    repository: Path = Field(default=Path("."), description="The experiment repository")
+
+    def cli_cmd(self):
+        """Create the shortcut and print where it is."""
+        from ._shortcut import create_shortcut
+
+        try:
+            path = create_shortcut(self.repository, experiment=self.experiment_name, name=self.name)
+        except (OSError, RuntimeError) as exc:
+            print(exc, file=sys.stderr)
+            raise SystemExit(1) from exc
+        print(f"Created {path}")
+
+
 class CliAppSettings(BaseSettings, cli_prog_name="clabe", cli_kebab_case=True):
     """CLI application settings."""
 
@@ -138,6 +159,7 @@ class CliAppSettings(BaseSettings, cli_prog_name="clabe", cli_kebab_case=True):
     check: CliSubCommand[_CheckCli]
     list: CliSubCommand[_ListCli]
     replay: CliSubCommand[_ReplayCli]
+    shortcut: CliSubCommand[_ShortcutCli]
     daemon: CliSubCommand[DaemonCli]
     hub: CliSubCommand[HubCli]
     mcp: CliSubCommand[McpCli]

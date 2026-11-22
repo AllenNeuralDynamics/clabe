@@ -43,12 +43,13 @@ def _serve(app, port: int):
 @pytest.fixture
 def fleet(tmp_path: Path):
     repo = tmp_path / "Aind.Experiment.Demo"
-    (repo / "experiments").mkdir(parents=True)
-    (repo / "experiments" / "demo.py").write_text(_EXPERIMENT, encoding="utf-8")
+    repo.mkdir(parents=True)
+    (repo / "main.py").write_text(_EXPERIMENT, encoding="utf-8")
     for args in (["init", "-q"], ["add", "."], ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "x"]):
         subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True)
     daemon_settings = DaemonSettings(
         port=free_port("127.0.0.1", 18270),
+        repository_roots=[],
         repositories=[RepositoryConfig(path=repo)],
         command=[sys.executable, "-m", "clabe.cli"],
         run_arguments=["--allow-dirty", "--skip-hardware-validation"],
@@ -82,7 +83,7 @@ def _launch_and_wait_for_prompt(base: str) -> dict:
         base,
         "/rigs/rig-3/api/daemon/runs",
         "POST",
-        json={"repository": "Aind.Experiment.Demo", "file": "experiments/demo.py"},
+        json={"repository": "Aind.Experiment.Demo", "file": "main.py"},
     )
     assert launched.ok, launched.text
     deadline = time.monotonic() + 180  # a first launch on a CI runner can be slow

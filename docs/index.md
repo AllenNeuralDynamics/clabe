@@ -54,6 +54,7 @@ hide:
 ## A taste
 
 ```python
+# main.py
 from clabe import steps, ui
 from clabe.launcher import Launcher
 from clabe.workflow import Workflow, concurrently
@@ -77,7 +78,7 @@ async def acquire(launcher: Launcher, trials: float) -> dict:
 ```
 
 ```bash
-uv run clabe run my_experiment.py          # the TUI here, the web UI at the printed address
+uv run clabe run                           # main.py: the TUI here, the web UI at the printed address
 ```
 
 ## Install

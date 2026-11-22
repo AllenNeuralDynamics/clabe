@@ -131,7 +131,7 @@ async def acquire(rig: MyRig) -> dict[str, Any]:
 ## 7. Run it
 
 ```bash
-clabe run my_experiment.py                      # pass --experiment-name if the file declares several
+clabe run                                       # main.py; --experiment-name if it declares several
 clabe check my_experiments/ --strict            # CI: checks wiring and annotations, runs nothing
 ```
 

@@ -2,11 +2,12 @@
 environment, and serves it (proxied under ``/run/``) so each rig has one stable URL."""
 
 from ._app import create_daemon, create_daemon_app
-from ._host import Host, HostError, HostInfo, LaunchBody, RepositoryInfo, RunInfo
+from ._host import AttachBody, Host, HostError, HostInfo, LaunchBody, RepositoryInfo, RunInfo
 from ._settings import DaemonSettings, RepositoryConfig
 from ._worker import Worker
 
 __all__ = [
+    "AttachBody",
     "DaemonSettings",
     "Host",
     "HostError",

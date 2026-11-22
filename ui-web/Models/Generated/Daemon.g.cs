@@ -7,6 +7,15 @@ using System.Text.Json.Serialization;
 
 namespace Clabe.Web.Api.Daemon;
 
+/// <summary>A run started on this machine outside the daemon (e.g. from a terminal), announcing itself.</summary>
+public sealed record AttachBody(
+    [property: JsonPropertyName("port")] long Port,
+    [property: JsonPropertyName("pid")] long Pid,
+    [property: JsonPropertyName("repository")] string Repository,
+    [property: JsonPropertyName("token")] string? Token = null,
+    [property: JsonPropertyName("file")] string File = "main.py",
+    [property: JsonPropertyName("experiment")] string? Experiment = null);
+
 /// <summary>A workflow offered by an experiment file, as listed by `list_experiments`.</summary>
 public sealed record ExperimentInfo(
     [property: JsonPropertyName("file")] string File,
@@ -74,7 +83,7 @@ public sealed record JobSummary(
 /// <summary>Which experiment to run.</summary>
 public sealed record LaunchBody(
     [property: JsonPropertyName("repository")] string Repository,
-    [property: JsonPropertyName("file")] string File,
+    [property: JsonPropertyName("file")] string File = "main.py",
     [property: JsonPropertyName("experiment")] string? Experiment = null);
 
 /// <summary>The worker taken by a run; requests carrying it (``X-Clabe-Lease``) are served, others refused.</summary>
@@ -110,6 +119,7 @@ public sealed record RunInfo(
     [property: JsonPropertyName("status")] string Status,
     [property: JsonPropertyName("started_at")] DateTimeOffset StartedAt,
     [property: JsonPropertyName("pid")] long Pid,
+    [property: JsonPropertyName("origin")] string Origin = "daemon",
     [property: JsonPropertyName("port")] long? Port = null,
     [property: JsonPropertyName("exit_code")] long? ExitCode = null,
     [property: JsonPropertyName("log_tail")] List<string>? LogTail = null);

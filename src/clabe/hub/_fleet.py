@@ -25,12 +25,13 @@ class RigConfig(BaseModel):
 class HubSettings(ServiceSettings):
     """Settings of ``clabe hub run`` (``hub:`` in clabe.yml).
 
-    Example::
-
+    Example:
+        ```yaml
         hub:
           rigs:
             - {id: rig-3, url: "http://rig-3:8070"}
             - {id: rig-4, url: "http://rig-4:8070"}
+        ```
     """
 
     __yml_section__: ClassVar[str | None] = "hub"

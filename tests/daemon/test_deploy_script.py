@@ -16,9 +16,10 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-def _powershell(*args: str, env: dict[str, str] | None = None) -> list[str]:
+def _powershell(*args: str, env: dict[str, str] | None = None, stdin: str | None = None) -> list[str]:
     done = subprocess.run(
         ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", *args],
+        input=stdin,
         capture_output=True,
         text=True,
         timeout=60,
@@ -36,7 +37,7 @@ def _commands(lines: list[str]) -> list[str]:
 def test_as_a_file_with_arguments():
     lines = _powershell("-File", str(SCRIPT), "-Version", "0.18.0", "-Token", "t0k", "-DryRun")
     commands = _commands(lines)
-    assert commands[0].endswith("tool install --force aind-clabe==0.18.0")
+    assert commands[0].endswith("tool install --force aind-clabe[otel]==0.18.0")
     assert commands[1].endswith("clabe.exe daemon install")
     assert commands[2].endswith("clabe.exe daemon restart --timeout 120")
     assert "t0k" not in "\n".join(lines)  # the token is never printed
@@ -46,7 +47,7 @@ def test_piped_into_iex_with_environment_variables():
     """What `irm <url> | iex` does: no arguments, options from CLABE_* variables."""
     env = {"CLABE_VERSION": "0.18.0", "CLABE_FORCE": "1", "CLABE_DRY_RUN": "1"}
     commands = _commands(_powershell("-Command", f"Get-Content -Raw '{SCRIPT}' | Invoke-Expression", env=env))
-    assert commands[0].endswith("tool install --force aind-clabe==0.18.0")
+    assert commands[0].endswith("tool install --force aind-clabe[otel]==0.18.0")
     assert commands[2].endswith("daemon restart --timeout 120 --force")
 
 
@@ -65,3 +66,26 @@ def test_a_failure_is_a_non_zero_exit_and_installs_nothing():
         env={**os.environ, "CLABE_CONFIG": "C:/does/not/exist/clabe.yml"},
     )
     assert done.returncode != 0 and "Installing aind-clabe" not in done.stdout
+
+
+def test_the_configuration_can_come_from_standard_input():
+    """Over SSH: ssh rig "powershell ... -Config -" < clabe.yml (no file to copy first)."""
+    command = f"& ([scriptblock]::Create((Get-Content -Raw '{SCRIPT}'))) -Config - -DryRun"
+    config = "daemon:\n  repository_roots: [D:/git]\n"
+    lines = _powershell("-Command", command, stdin=config)
+    assert any("from standard input" in line for line in lines)
+    assert "repository_roots: [D:/git]" in lines
+
+
+def test_without_uv_it_stops_before_doing_anything(tmp_path):
+    env = {"PATH": os.environ.get("SystemRoot", "C:/Windows") + "/System32", "USERPROFILE": str(tmp_path)}
+    done = subprocess.run(
+        ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(SCRIPT), "-DryRun"],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+        env={**os.environ, **env},
+    )
+    assert done.returncode != 0 and "uv is not installed" in done.stderr + done.stdout
+    assert "Installing" not in done.stdout

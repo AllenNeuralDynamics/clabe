@@ -154,8 +154,8 @@ class Worker:
     # --- jobs -------------------------------------------------------------------------------------------
 
     def repository(self, name: str | None) -> RepositoryConfig | None:
-        """The repository called ``name`` (by default the only, or first, configured one)."""
-        repositories = self.settings.repositories
+        """The repository called ``name`` (by default the first one offered)."""
+        repositories = self.settings.find_repositories()
         if name is None:
             return repositories[0] if repositories else None
         for repository in repositories:

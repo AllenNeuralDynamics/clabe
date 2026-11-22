@@ -44,14 +44,15 @@ async def concurrently(**branches: Callable[[], Any]) -> dict[str, Any]:
     Outside a run (e.g. calling the step function in a test) nobody is asked: a failure stops all the branches and
     is raised.
 
-    Example::
-
+    Example:
+        ```python
         @wf.step(title="Acquire", cancellable=True)
         async def acquire(launcher: Launcher, rig: Rig, session: Session) -> dict[str, Any]:
             return await concurrently(
                 behavior=lambda: bonsai_app(rig, session).run_async(),
                 ephys=record_ephys,  # async def: launch Open Ephys, start acquiring, close it in `finally`
             )
+        ```
     """
     if not branches:
         return {}

@@ -19,7 +19,7 @@ from pydantic import BaseModel, ValidationError
 from ..server import free_port
 from ..server._server import ANNOUNCE_ENV
 from ..workflow import ExperimentListing
-from ._settings import DaemonSettings, RepositoryConfig
+from ._settings import MAIN_FILE, DaemonSettings, RepositoryConfig
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +47,18 @@ class LaunchBody(BaseModel):
     """Which experiment to run."""
 
     repository: str
-    file: str
+    file: str = MAIN_FILE
+    experiment: str | None = None
+
+
+class AttachBody(BaseModel):
+    """A run started on this machine outside the daemon (e.g. from a terminal), announcing itself."""
+
+    port: int
+    token: str | None = None
+    pid: int
+    repository: str
+    file: str = MAIN_FILE
     experiment: str | None = None
 
 
@@ -60,6 +71,7 @@ class RunInfo(BaseModel):
     status: Literal["starting", "running", "exited"]
     started_at: datetime.datetime
     pid: int
+    origin: Literal["daemon", "terminal"] = "daemon"
     port: int | None = None
     exit_code: int | None = None
     log_tail: list[str] = []
@@ -86,6 +98,10 @@ class _Launched:
         self.token = token
         self.started_at = datetime.datetime.now(datetime.UTC)
         self.port: int | None = None
+
+    def alive(self) -> bool:
+        """Whether the run's process is still going."""
+        return self.process.poll() is None
 
     def poll_port(self) -> int | None:
         """The run server's port, once it has announced it."""
@@ -118,6 +134,60 @@ class _Launched:
         )
 
 
+class _Attached:
+    """A run started outside the daemon that announced itself; followed until its process ends or it withdraws."""
+
+    def __init__(self, body: AttachBody) -> None:
+        self.body = body
+        self.token = body.token
+        self.port: int | None = body.port
+        self.started_at = datetime.datetime.now(datetime.UTC)
+
+    def alive(self) -> bool:
+        """Whether the run's process is still going (and it has not withdrawn)."""
+        return self.port is not None and pid_alive(self.body.pid)
+
+    def poll_port(self) -> int | None:
+        """The run server's port."""
+        return self.port
+
+    def info(self, tail: int = 40) -> RunInfo:
+        """The run's state (its output is in its own terminal)."""
+        return RunInfo(
+            repository=self.body.repository,
+            file=self.body.file,
+            experiment=self.body.experiment,
+            status="running" if self.alive() else "exited",
+            started_at=self.started_at,
+            pid=self.body.pid,
+            origin="terminal",
+            port=self.port,
+        )
+
+
+def pid_alive(pid: int) -> bool:
+    """Whether process ``pid`` is running (without signalling it: on Windows, ``os.kill`` would end it)."""
+    if sys.platform == "win32":
+        import ctypes
+
+        kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
+        handle = kernel32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+        if not handle:
+            return False
+        try:
+            code = ctypes.c_ulong()
+            return bool(kernel32.GetExitCodeProcess(handle, ctypes.byref(code))) and code.value == 259  # STILL_ACTIVE
+        finally:
+            kernel32.CloseHandle(handle)
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
 class Host:
     """Lists the configured repositories and runs one experiment at a time.
 
@@ -129,19 +199,19 @@ class Host:
         self.settings = settings
         self._leased_by = leased_by
         self._lock = threading.Lock()
-        self._current: _Launched | None = None
+        self._current: _Launched | _Attached | None = None
         self._runs_dir = settings.runs_directory or Path(tempfile.gettempdir()) / "clabe-daemon"
 
     def repositories(self) -> list[RepositoryInfo]:
         """The configured repositories."""
         return [
             RepositoryInfo(name=r.display_name, path=str(r.path), exists=r.path.is_dir())
-            for r in self.settings.repositories
+            for r in self.settings.find_repositories()
         ]
 
     def repository(self, name: str) -> RepositoryConfig:
         """The repository called ``name``."""
-        for repository in self.settings.repositories:
+        for repository in self.settings.find_repositories():
             if repository.display_name == name:
                 return repository
         raise HostError(f"No repository named {name!r}.", status=404)
@@ -155,7 +225,7 @@ class Host:
         repository = self.repository(name)
         if not repository.path.is_dir():
             raise HostError(f"{repository.path} does not exist.", status=404)
-        command = self._command(repository, "list", repository.experiments, "--json")
+        command = self._command(repository, "list", MAIN_FILE, "--json")
         try:
             done = subprocess.run(
                 command, cwd=repository.path, capture_output=True, text=True, timeout=LIST_TIMEOUT, check=False
@@ -172,7 +242,7 @@ class Host:
         """Starts ``body``'s experiment; refused while another run is going."""
         repository = self.repository(body.repository)
         with self._lock:
-            if self._current is not None and self._current.process.poll() is None:
+            if self._current is not None and self._current.alive():
                 raise HostError("A run is already going on this machine.", status=409)
             if (owner := self._leased_by()) is not None:
                 raise HostError(f"This machine is in use by {owner}.", status=423)
@@ -205,13 +275,34 @@ class Host:
             self._current = _Launched(body, process, log, announce, token)
             return self._current.info()
 
-    def current(self) -> _Launched | None:
-        """The run launched last, running or not."""
+    def current(self) -> "_Launched | _Attached | None":
+        """The run launched (or attached) last, running or not."""
         return self._current
+
+    def attach(self, body: AttachBody) -> RunInfo:
+        """Follows a run started outside the daemon on this machine; refused while another run is going."""
+        with self._lock:
+            current = self._current
+            again = isinstance(current, _Attached) and current.body.pid == body.pid
+            if current is not None and current.alive() and not again:
+                raise HostError("A run is already going on this machine.", status=409)
+            if (owner := self._leased_by()) is not None:
+                raise HostError(f"This machine is in use by {owner}.", status=423)
+            self._current = _Attached(body)
+            logger.info("Following %s (pid %s), started from a terminal", body.repository, body.pid)
+            return self._current.info()
+
+    def detach(self, pid: int) -> None:
+        """Stops following the run of process ``pid``: it has ended."""
+        with self._lock:
+            if isinstance(self._current, _Attached) and self._current.body.pid == pid:
+                self._current.port = None
 
     def stop(self, timeout: float = 10.0) -> RunInfo:
         """Stops the current run's process (prefer aborting it through its API: it cleans up)."""
         current = self._current
+        if isinstance(current, _Attached):
+            raise HostError("This run was started from a terminal: abort it (POST /run/api/abort).", status=409)
         if current is None or current.process.poll() is not None:
             raise HostError("No run is going.", status=409)
         current.process.terminate()
@@ -238,5 +329,5 @@ class Host:
         )
 
     def busy(self) -> bool:
-        """Whether a run launched here is going."""
-        return self._current is not None and self._current.process.poll() is None
+        """Whether a run launched (or attached) here is going."""
+        return self._current is not None and self._current.alive()

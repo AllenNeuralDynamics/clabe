@@ -13,7 +13,7 @@ git init && git add -A && git commit -m "start"   # clabe records the commit eac
 ## 2. Declare the steps
 
 ```python
-# experiments/hello.py
+# main.py (uv init made one: replace it)
 from pathlib import Path
 
 from pydantic import BaseModel
@@ -52,7 +52,7 @@ def task() -> Task:
 ## 3. Run it
 
 ```bash
-uv run clabe run experiments/hello.py --allow-dirty
+uv run clabe run --allow-dirty   # runs main.py
 ```
 
 - The terminal shows the prompts.
@@ -105,14 +105,22 @@ def acquire(task: Task, calibrate: float, register: Path) -> None:
 Replay the session with the same answers:
 
 ```bash
-uv run clabe replay <session>/Behavior/Logs/.launcher/events.jsonl experiments/hello.py --allow-dirty
+uv run clabe replay <session>/Behavior/Logs/.launcher/events.jsonl main.py --allow-dirty
 ```
 
 ## 7. Check it in CI
 
 ```bash
-uv run clabe check experiments --strict   # wiring and types, nothing runs
+uv run clabe check main.py --strict   # wiring and types, nothing runs
 ```
+
+## 8. Put it on the desktop
+
+```bash
+uv run clabe shortcut --name "Hello"   # an icon that runs main.py in a terminal
+```
+
+On a rig with the [daemon](daemon.md), a run started this way shows up in the hub too.
 
 ## Next
 

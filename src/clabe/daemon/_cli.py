@@ -20,6 +20,24 @@ def _token(settings: DaemonSettings) -> str | None:
     return settings.token.get_secret_value() if settings.token else os.environ.get("CLABE_TOKEN") or None
 
 
+def _send_logs_to_otel() -> None:
+    """Sends the daemon's logs (and spans) through OpenTelemetry when clabe.yml's ``otel:`` enables it."""
+    try:
+        from ..logging.otel import OtelSettings
+    except ImportError:  # the otel extra is not installed
+        return
+    try:
+        settings = OtelSettings()
+        if not settings.enabled:
+            return
+        from ..logging.otel._setup import configure
+
+        configure(settings.model_copy(update={"service_name": "clabe-daemon"}))
+        logger.info("Sending the daemon's logs to %s", settings.endpoint)
+    except Exception:  # telemetry must never keep the daemon from starting
+        logger.exception("Could not set up OpenTelemetry for the daemon")
+
+
 class _RunDaemonCli(DaemonSettings, cli_kebab_case=True):
     """Run the daemon in the foreground (what the scheduled task starts)."""
 
@@ -42,8 +60,10 @@ class _RunDaemonCli(DaemonSettings, cli_kebab_case=True):
             logging.getLogger().addHandler(handler)
             logging.getLogger().setLevel(logging.INFO)
         token = _token(self)
+        _send_logs_to_otel()
         app = create_daemon(self, token=token)
-        shown = "localhost" if self.host in ("127.0.0.1", "0.0.0.0", "::") else self.host
+        host = self.bind_host(token)
+        shown = "localhost" if host in ("127.0.0.1", "0.0.0.0", "::") else host
         url = f"http://{shown}:{self.port}/" + (f"?token={token}" if token else "")
         logger.info("clabe daemon starting at http://%s:%s/ (pid %s)", shown, self.port, os.getpid())
         print(f"clabe daemon at {url}", flush=True)
@@ -51,7 +71,7 @@ class _RunDaemonCli(DaemonSettings, cli_kebab_case=True):
             import webbrowser
 
             webbrowser.open(url)
-        uvicorn.run(app, host=self.host, port=self.port, log_level="warning", log_config=None)
+        uvicorn.run(app, host=host, port=self.port, log_level="warning", log_config=None)
 
 
 class _InstallCli(BaseSettings, cli_kebab_case=True):

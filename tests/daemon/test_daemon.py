@@ -35,8 +35,8 @@ def trials(subject: str) -> float:
 @pytest.fixture
 def repository(tmp_path: Path) -> Path:
     repo = tmp_path / "Aind.Experiment.Demo"
-    (repo / "experiments").mkdir(parents=True)
-    (repo / "experiments" / "demo.py").write_text(_EXPERIMENT, encoding="utf-8")
+    repo.mkdir(parents=True)
+    (repo / "main.py").write_text(_EXPERIMENT, encoding="utf-8")
     for args in (["init", "-q"], ["add", "."], ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "x"]):
         subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True)
     return repo
@@ -46,6 +46,7 @@ def repository(tmp_path: Path) -> Path:
 def daemon(repository: Path, tmp_path: Path):
     settings = DaemonSettings(
         port=free_port("127.0.0.1", 18070),
+        repository_roots=[],
         repositories=[RepositoryConfig(path=repository)],
         command=[sys.executable, "-m", "clabe.cli"],
         run_arguments=["--allow-dirty", "--skip-hardware-validation"],
@@ -63,7 +64,7 @@ def daemon(repository: Path, tmp_path: Path):
         time.sleep(0.02)
     yield f"http://127.0.0.1:{settings.port}", host
     current = host.current()
-    if current is not None and current.process.poll() is None:
+    if current is not None and hasattr(current, "process") and current.process.poll() is None:
         current.process.kill()
     server.should_exit = True
     thread.join(5)
@@ -84,14 +85,14 @@ def test_a_run_is_launched_and_driven_through_the_daemon(daemon):
 
     launched = requests.post(
         f"{base}/api/daemon/runs",
-        json={"repository": "Aind.Experiment.Demo", "file": "experiments/demo.py"},
+        json={"repository": "Aind.Experiment.Demo", "file": "main.py"},
         headers={"Authorization": "Bearer d4emon"},
         timeout=30,
     )
     assert launched.ok, launched.text
     busy = requests.post(
         f"{base}/api/daemon/runs",
-        json={"repository": "Aind.Experiment.Demo", "file": "experiments/demo.py"},
+        json={"repository": "Aind.Experiment.Demo", "file": "main.py"},
         headers={"Authorization": "Bearer d4emon"},
         timeout=30,
     )
@@ -196,7 +197,7 @@ def test_a_token_starting_with_a_dash_reaches_the_run(daemon, monkeypatch):
     base, host = daemon
     launched = requests.post(
         f"{base}/api/daemon/runs",
-        json={"repository": "Aind.Experiment.Demo", "file": "experiments/demo.py"},
+        json={"repository": "Aind.Experiment.Demo", "file": "main.py"},
         headers={"Authorization": "Bearer d4emon"},
         timeout=30,
     )
@@ -275,3 +276,41 @@ def test_probe_reads_the_daemon(daemon):
     assert _install.probe(port, "d4emon")["status"] == "idle"
     assert _install.probe(port, "wrong") == {"status": "unauthorized"}
     assert _install.probe(free_port("127.0.0.1", 18170), None) is None
+
+
+def test_a_run_started_from_a_terminal_is_followed_through_the_daemon(daemon):
+    """`clabe run` in a terminal announces itself: the daemon serves it under /run/ and reports the machine busy."""
+    import os
+
+    from clabe import ui
+    from clabe.server import RunServer
+    from clabe.workflow import Run, Workflow
+
+    base, _host = daemon
+    wf = Workflow("terminal")
+    wf.step(lambda: ui.text("Subject"), name="subject")
+    run = Run(wf)
+    server = RunServer(run, port=free_port("127.0.0.1", 18470), token="run-secret")
+    server.start()
+    run.start()
+    try:
+        response = requests.post(
+            f"{base}/api/daemon/runs/attached",
+            json={"port": server.port, "token": "run-secret", "pid": os.getpid(), "repository": "Repo"},
+            headers={"Authorization": "Bearer d4emon"},
+            timeout=10,
+        )
+        assert response.status_code == 200 and response.json()["origin"] == "terminal"
+        assert _get(base, "/api/daemon/info").json()["status"] == "busy"
+        state = _get(base, "/run/api/state").json()  # the daemon's token, forwarded with the run's own
+        assert state["workflow"] == "terminal"
+        deleted = requests.delete(
+            f"{base}/api/daemon/runs/attached/{os.getpid()}", headers={"Authorization": "Bearer d4emon"}, timeout=10
+        )
+        assert deleted.status_code == 204
+        assert _get(base, "/api/daemon/info").json()["status"] == "idle"
+        assert _get(base, "/run/api/state").status_code == 503
+    finally:
+        run.abort("test over")
+        run.wait(5)
+        server.stop()

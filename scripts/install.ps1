@@ -10,18 +10,20 @@
     Options come from parameters, or — for `irm ... | iex`, which cannot pass any — from environment variables:
 
         -Version / CLABE_VERSION      clabe version to install (default: the latest release)
-        -Package / CLABE_PACKAGE      any uv package spec instead (aind-clabe[agents]==0.18.0, git+https://...@v0.18.0)
+        -Package / CLABE_PACKAGE      any uv package spec instead (aind-clabe[otel,agents]==0.18.0, git+https://...)
         -Token   / CLABE_TOKEN        the daemon's token, saved as this user's CLABE_TOKEN
-        -Config  / CLABE_CONFIG       a clabe.yml on this PC to install as %PROGRAMDATA%\clabe.yml
+        -Config  / CLABE_CONFIG       a clabe.yml to install as %PROGRAMDATA%\clabe.yml: a path on this PC, or - to
+                                      read it from standard input (over SSH: ssh rig "..." < clabe.yml)
         -Force   / CLABE_FORCE=1      restart even if the daemon runs a session (it is interrupted)
-        -NoInstallUv                  fail instead of installing uv when it is missing
         -DryRun  / CLABE_DRY_RUN=1    print the commands instead of running them
+
+    uv must be installed for this user (https://docs.astral.sh/uv/); the script stops if it is not.
 
     With arguments, from a script or over SSH:
 
         & ([scriptblock]::Create((irm https://raw.githubusercontent.com/AllenNeuralDynamics/clabe/main/scripts/install.ps1))) -Version 0.18.0
 
-    Steps, each safe to repeat: install uv if missing; set the token and the configuration; install clabe as a uv tool
+    Steps, each safe to repeat: set the token and the configuration; install clabe as a uv tool
     (a stable clabe.exe that starts without the network); register the clabe-daemon scheduled task (at logon, in the
     user's desktop session, restarted on failure); restart the daemon and wait until it answers. A daemon running a
     session is never interrupted unless -Force. Any failure throws (a non-zero exit code for `powershell -c`).
@@ -32,7 +34,6 @@ param(
     [string]$Token = $env:CLABE_TOKEN,
     [string]$Config = $env:CLABE_CONFIG,
     [switch]$Force = ($env:CLABE_FORCE -eq '1'),
-    [switch]$NoInstallUv,
     [switch]$DryRun = ($env:CLABE_DRY_RUN -eq '1'),
     [int]$Timeout = 120
 )
@@ -52,18 +53,15 @@ function Install-Clabe {
         }
     }
 
-    $spec = if ($Package) { $Package } elseif ($Version) { "aind-clabe==$Version" } else { 'aind-clabe' }
+    $spec = if ($Package) { $Package } elseif ($Version) { "aind-clabe[otel]==$Version" } else { 'aind-clabe[otel]' }
 
     # uv. A fresh session (e.g. over SSH) may not have the user's PATH yet: look where uv's installer puts it too.
     $userBin = Join-Path $env:USERPROFILE '.local\bin'
     if (-not (($env:PATH -split ';') -contains $userBin)) { $env:PATH = "$userBin;$env:PATH" }
-    if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
-        if ($NoInstallUv) { throw "uv is not installed for $env:USERNAME (-NoInstallUv was given)." }
-        Write-Host '==> Installing uv'
-        if (-not $DryRun) { Invoke-RestMethod https://astral.sh/uv/install.ps1 | Invoke-Expression }
-    }
     $uv = (Get-Command uv -ErrorAction SilentlyContinue).Source
-    if (-not $uv) { $uv = Join-Path $userBin 'uv.exe' }
+    if (-not $uv) {
+        throw "uv is not installed for $env:USERNAME: install it first (https://docs.astral.sh/uv/getting-started/installation/)."
+    }
 
     if ($Token) {
         Write-Host "==> Setting CLABE_TOKEN for $env:USERNAME"
@@ -74,8 +72,15 @@ function Install-Clabe {
     }
     if ($Config) {
         $target = Join-Path $env:ProgramData 'clabe.yml'
-        Write-Host "==> Installing $Config as $target"
-        if (-not $DryRun) { Copy-Item -LiteralPath $Config -Destination $target -Force }
+        if ($Config -eq '-') {
+            $text = [Console]::In.ReadToEnd()
+            if (-not $text.Trim()) { throw 'No configuration on standard input (-Config -).' }
+            Write-Host "==> Installing the configuration from standard input as $target"
+            if ($DryRun) { Write-Host $text } else { Set-Content -LiteralPath $target -Value $text -Encoding UTF8 -NoNewline }
+        } else {
+            Write-Host "==> Installing $Config as $target"
+            if (-not $DryRun) { Copy-Item -LiteralPath $Config -Destination $target -Force }
+        }
     }
 
     Invoke-ClabeStep "Installing $spec" $uv @('tool', 'install', '--force', $spec)

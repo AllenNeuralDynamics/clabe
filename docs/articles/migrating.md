@@ -90,7 +90,7 @@ async def acquire(rig: AindVrForagingRig, session: Session, trainer_state: Train
 | `XmlRpcClient(XmlRpcClientSettings(server_url=..., token=...))` | `WorkerClient(WorkerClientSettings(url=..., token=...))` |
 | `XmlRpcExecutor(client)` | `RemoteExecutor(client)` |
 | `xml_rpc_client: {server_url, token}` | `worker_client: {url, token, repository}` |
-| `xml_rpc_server: {...}` on the other PC | `daemon: {repositories: [{path: <checkout>}], ...}` on the other PC |
+| `xml_rpc_server: {...}` on the other PC | the daemon there, with the checkout under `C:/git` (found by itself) |
 | `uv run clabe xml-rpc-server register-task` | the [one-line installer](deployment.md) (or `uv tool install aind-clabe` + `clabe daemon install`) |
 | port 25223 | port 8070 |
 | `client.upload_file(...)` response `.path` | a `FileInfo` (`.path`, `.size`) |

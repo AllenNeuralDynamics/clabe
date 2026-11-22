@@ -20,7 +20,7 @@ hub:
 
 - Hub token: `$CLABE_HUB_TOKEN` (or `token:`).
 - Rig token: the rig's `token:`, else `$CLABE_TOKEN`.
-- Rig daemons must bind `daemon: host: 0.0.0.0`.
+- Rig daemons need a token: with one, they listen on the network.
 
 ## Run it
 

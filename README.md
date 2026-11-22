@@ -39,6 +39,7 @@ off. clabe turns that sequence into plain Python steps — and gives you the res
 ## A taste
 
 ```python
+# main.py
 from clabe import checks, steps, ui
 from clabe.launcher import Launcher
 from clabe.workflow import Workflow, concurrently
@@ -63,7 +64,8 @@ async def acquire(launcher: Launcher, trials: float) -> dict:
 ```
 
 ```bash
-uv run clabe run my_experiment.py     # the terminal UI here, the web UI at the printed address
+uv run clabe run                      # main.py: the terminal UI here, the web UI at the printed address
+uv run clabe shortcut                 # or a desktop icon that does it
 ```
 
 ## Install

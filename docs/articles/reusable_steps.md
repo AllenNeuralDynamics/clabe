@@ -19,7 +19,6 @@ wf.step(steps.register())
 | `steps.preflight(*checks)` | what the checks take | Runs every [check](#checks); fails once, listing each failure | |
 | `steps.free_space(bytes)` | `rig` | Fails when the data drive is short of space | |
 | `steps.register()` | `launcher`, `session`, `rig` | Creates the session's data directory | barrier |
-| `steps.transfer(service)` | `launcher`, `session` | Hands the data to a data-transfer service | barrier |
 | `steps.waterlog(earned_water)` | `launcher`, `session` | Logs the water earned | `on_error="warn"` |
 
 Options passed to `wf.step(...)` override the defaults.

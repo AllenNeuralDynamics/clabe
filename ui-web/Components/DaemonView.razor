@@ -29,7 +29,7 @@
             <section class="prompt run-card">
                 <h2>
                     @(run.Status == "exited" ? "Last run" : "Running"): @(run.Experiment ?? run.File)
-                    <small class="muted">@run.Repository · started @run.StartedAt.ToLocalTime().ToString("HH:mm:ss")</small>
+                    <small class="muted">@run.Repository · started @run.StartedAt.ToLocalTime().ToString("HH:mm:ss")@(run.Origin == "terminal" ? " from a terminal" : "")</small>
                 </h2>
                 @switch (run.Status)
                 {
@@ -39,11 +39,21 @@
                     case "running":
                         <div class="actions">
                             <a class="button" href="@Daemon.RunPageUrl">Open the run</a>
-                            <button type="button" class="danger" @onclick="Stop">Stop</button>
+                            @if (run.Origin != "terminal")
+                            {
+                                <button type="button" class="danger" @onclick="Stop">Stop</button>
+                            }
                         </div>
                         break;
                     default:
-                        <p class="@(run.ExitCode == 0 ? "muted" : "error")">Exited with code @run.ExitCode.</p>
+                        @if (run.Origin == "terminal")
+                        {
+                            <p class="muted">Ended.</p>
+                        }
+                        else
+                        {
+                            <p class="@(run.ExitCode == 0 ? "muted" : "error")">Exited with code @run.ExitCode.</p>
+                        }
                         break;
                 }
                 @if (run.LogTail is { Count: > 0 })

@@ -3,16 +3,17 @@
 Each function here builds a step for [`Workflow.step`][clabe.workflow.Workflow.step]. The built step is a plain
 function whose parameters wire it to other steps by name — ``session`` (a `Session`),
 ``rig`` (anything with a ``data_directory``) and the built-in ``launcher`` — and which carries sensible default
-options (``register`` is a barrier, ``waterlog`` only warns when it fails); options given when declaring it win::
+options (``register`` is a barrier, ``waterlog`` only warns when it fails); options given when declaring it win:
 
-    wf = Workflow("vr-foraging")
-    wf.step(steps.session())
-    ...                                         # store, trainer_state, rig, ...
-    wf.step(steps.review("session", "trainer_state", back_to="session"))
-    wf.step(steps.preflight(checks.free_space(200e9), checks.exists(SHARE)))
-    wf.step(steps.register())                   # barrier: nothing before it can run again
-    ...                                         # run the task
-    wf.step(steps.transfer(make_watchdog))
+```python
+wf = Workflow("vr-foraging")
+wf.step(steps.session())
+...                                         # store, trainer_state, rig, ...
+wf.step(steps.review("session", "trainer_state", back_to="session"))
+wf.step(steps.preflight(checks.free_space(200e9), checks.exists(SHARE)))
+wf.step(steps.register())                   # barrier: nothing before it can run again
+...                                         # run the task, transfer the data
+```
 """
 
 import inspect
@@ -26,13 +27,12 @@ from pydantic import BaseModel
 
 from . import checks as _checks
 from . import ui
-from .data_transfer import DataTransfer
 from .launcher import Launcher
 from .session import SessionBuilder
 from .utils.aind_validators import validate_username
 from .workflow import GoBack, step_defaults
 
-__all__ = ["free_space", "preflight", "register", "review", "session", "transfer", "waterlog"]
+__all__ = ["free_space", "preflight", "register", "review", "session", "waterlog"]
 
 
 def session(
@@ -149,24 +149,6 @@ def register(*, directory: Callable[[Any], os.PathLike] | None = None) -> Callab
         return launcher.session_directory
 
     return register
-
-
-def transfer(service: Callable[[Launcher, Session], DataTransfer]) -> Callable[..., None]:
-    """A ``transfer`` step (a barrier) handing the session's data to a data-transfer service.
-
-    Args:
-        service: Builds the service from the launcher and the session, e.g. a
-            [`WatchdogDataTransferService`][clabe.data_transfer.aind_watchdog.WatchdogDataTransferService].
-    """
-
-    @step_defaults(title="Transfer data", barrier=True)
-    def transfer(launcher: Launcher, session: Session) -> None:
-        transfer_service = service(launcher, session)
-        if not transfer_service.validate():
-            raise RuntimeError(f"{type(transfer_service).__name__} is not ready to transfer the data.")
-        transfer_service.transfer()
-
-    return transfer
 
 
 def waterlog(earned_water: Callable[[Launcher], float]) -> Callable[..., None]:

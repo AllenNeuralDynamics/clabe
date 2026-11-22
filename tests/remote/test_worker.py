@@ -47,6 +47,7 @@ def repository(tmp_path: Path) -> Path:
 def worker_url(repository: Path, tmp_path: Path):
     settings = DaemonSettings(
         port=free_port("127.0.0.1", 18170),
+        repository_roots=[],
         repositories=[RepositoryConfig(path=repository)],
         command=[sys.executable, "-m", "clabe.cli"],
         file_transfer_dir=tmp_path / "transfer",

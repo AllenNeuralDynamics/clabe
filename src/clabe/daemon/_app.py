@@ -11,7 +11,7 @@ from .. import __version__
 from ..server._app import STATIC_DIR
 from ..server._proxy import forward, token_check
 from ..workflow import ExperimentListing
-from ._host import Host, HostError, HostInfo, LaunchBody, RepositoryInfo, RunInfo
+from ._host import AttachBody, Host, HostError, HostInfo, LaunchBody, RepositoryInfo, RunInfo
 from ._settings import DaemonSettings
 from ._worker import Worker, worker_router
 
@@ -22,6 +22,21 @@ def _guarded(call):
         return call()
     except HostError as exc:
         raise HTTPException(status_code=exc.status, detail=str(exc)) from exc
+
+
+def _attach_routes(api: APIRouter, host: Host) -> None:
+    """The routes through which a run started outside the daemon announces itself and withdraws."""
+
+    @api.post("/runs/attached", response_model=RunInfo)
+    def attach(body: AttachBody) -> RunInfo:
+        """A run started on this machine outside the daemon (``clabe run`` in a terminal) announces itself: it is
+        then served under /run/ and seen by the hub. 409 while another run is going."""
+        return _guarded(lambda: host.attach(body))
+
+    @api.delete("/runs/attached/{pid}", status_code=204)
+    def detach(pid: int) -> None:
+        """The announced run of process ``pid`` has ended."""
+        host.detach(pid)
 
 
 def create_daemon_app(
@@ -63,6 +78,8 @@ def create_daemon_app(
     def launch(body: LaunchBody) -> RunInfo:
         """Starts an experiment; 409 while another one runs. Follow it under /run/."""
         return _guarded(lambda: host.launch(body))
+
+    _attach_routes(api, host)
 
     @api.get("/runs/current", response_model=RunInfo | None)
     def current() -> RunInfo | None:
@@ -116,7 +133,7 @@ def create_daemon(settings: DaemonSettings, *, token: str | None = None) -> Fast
 async def _proxy(host: Host, client: httpx.AsyncClient, path: str, request: Request) -> Response:
     """Forwards ``request`` to the current run's server, with the run's own token; streams the answer back."""
     launched = host.current()
-    port = launched.poll_port() if launched is not None and launched.process.poll() is None else None
+    port = launched.poll_port() if launched is not None and launched.alive() else None
     if launched is None or port is None:
         if path in ("", "index.html"):
             return HTMLResponse(_NO_RUN, status_code=503)

@@ -1,6 +1,57 @@
 {
   "components": {
     "schemas": {
+      "AttachBody": {
+        "description": "A run started on this machine outside the daemon (e.g. from a terminal), announcing itself.",
+        "properties": {
+          "experiment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Experiment"
+          },
+          "file": {
+            "default": "main.py",
+            "title": "File",
+            "type": "string"
+          },
+          "pid": {
+            "title": "Pid",
+            "type": "integer"
+          },
+          "port": {
+            "title": "Port",
+            "type": "integer"
+          },
+          "repository": {
+            "title": "Repository",
+            "type": "string"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          }
+        },
+        "required": [
+          "port",
+          "pid",
+          "repository"
+        ],
+        "title": "AttachBody",
+        "type": "object"
+      },
       "ExperimentInfo": {
         "description": "A workflow offered by an experiment file, as listed by `list_experiments`.",
         "properties": {
@@ -385,6 +436,7 @@
             "title": "Experiment"
           },
           "file": {
+            "default": "main.py",
             "title": "File",
             "type": "string"
           },
@@ -394,8 +446,7 @@
           }
         },
         "required": [
-          "repository",
-          "file"
+          "repository"
         ],
         "title": "LaunchBody",
         "type": "object"
@@ -561,6 +612,15 @@
             },
             "title": "Log Tail",
             "type": "array"
+          },
+          "origin": {
+            "default": "daemon",
+            "enum": [
+              "daemon",
+              "terminal"
+            ],
+            "title": "Origin",
+            "type": "string"
           },
           "pid": {
             "title": "Pid",
@@ -1032,6 +1092,144 @@
           }
         },
         "summary": "Launch"
+      }
+    },
+    "/api/daemon/runs/attached": {
+      "post": {
+        "description": "A run started on this machine outside the daemon (``clabe run`` in a terminal) announces itself: it is\nthen served under /run/ and seen by the hub. 409 while another run is going.",
+        "operationId": "attach_api_daemon_runs_attached_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Token"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttachBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunInfo"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Attach"
+      }
+    },
+    "/api/daemon/runs/attached/{pid}": {
+      "delete": {
+        "description": "The announced run of process ``pid`` has ended.",
+        "operationId": "detach_api_daemon_runs_attached__pid__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pid",
+            "required": true,
+            "schema": {
+              "title": "Pid",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Token"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Detach"
       }
     },
     "/api/daemon/runs/current": {

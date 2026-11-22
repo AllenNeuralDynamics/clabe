@@ -101,23 +101,13 @@ class TestFreeSpace:
         assert seen == [tmp_path]
 
 
-class TestRegisterAndTransfer:
+class TestRegisterAndWaterlog:
     def test_register_creates_the_session_directory(self):
         launcher = MagicMock()
         launcher.session_directory = Path("D:/data/mouse-7_2026")
         rig = _Rig(name="r", data_directory=Path("D:/data"))
         assert steps.register()(launcher=launcher, session="s", rig=rig) == launcher.session_directory
         launcher.register_session.assert_called_once_with("s", Path("D:/data"))
-
-    def test_transfer_refuses_when_the_service_is_not_ready(self):
-        service = MagicMock()
-        service.validate.return_value = False
-        step = steps.transfer(lambda launcher, session: service)
-        with pytest.raises(RuntimeError, match="not ready"):
-            step(launcher=MagicMock(), session="s")
-        service.validate.return_value = True
-        step(launcher=MagicMock(), session="s")
-        service.transfer.assert_called_once()
 
     def test_waterlog_only_warns(self):
         wf = Workflow("demo")
@@ -137,7 +127,6 @@ def test_a_workflow_of_shared_steps_passes_the_static_check():
     wf.step(steps.review("session", "rig"))
     wf.step(steps.free_space(1e9))
     wf.step(steps.register())
-    wf.step(steps.transfer(lambda launcher, session: MagicMock()))
     assert [i for i in check_workflow(wf, strict=True) if i.severity == "error"] == []
 
 

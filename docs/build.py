@@ -11,125 +11,128 @@ DOCS_DIR = ROOT_DIR / "docs"
 API_DIR = DOCS_DIR / "api"
 ZENSICAL_TOML = ROOT_DIR / "zensical.toml"
 API_LABEL = "API Reference"
-INCLUDE_PRIVATE_MODULES = False
 
 TO_COPY = ["examples", "LICENSE"]
 log = logging.getLogger("docs")
 
 
-def discover_python_modules(package_root: Path, include_private: bool = False) -> list[str]:
-    modules = []
+# The API reference, grouped by task: (section, [(page title, module), ...]), in nav order. Public modules only;
+# internal (``_x``), command-line and deprecated modules (``logging_helper``, ``resource_monitor``) are left out.
+API_SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
+    (
+        "Workflows",
+        [
+            ("clabe.workflow", "clabe.workflow"),
+            ("clabe.steps", "clabe.steps"),
+            ("clabe.checks", "clabe.checks"),
+            ("clabe.workflow.events", "clabe.workflow.events"),
+            ("clabe.workflow.codecs", "clabe.workflow.codecs"),
+        ],
+    ),
+    ("Talking to the user", [("clabe.ui", "clabe.ui")]),
+    (
+        "Launching and apps",
+        [
+            ("clabe.launcher", "clabe.launcher"),
+            ("clabe.apps", "clabe.apps"),
+            ("clabe.apps.open_ephys", "clabe.apps.open_ephys"),
+            ("clabe.runnable", "clabe.runnable"),
+            ("clabe.session", "clabe.session"),
+        ],
+    ),
+    (
+        "Rigs and fleets",
+        [
+            ("clabe.remote", "clabe.remote"),
+            ("clabe.daemon", "clabe.daemon"),
+            ("clabe.hub", "clabe.hub"),
+            ("clabe.agents", "clabe.agents"),
+            ("clabe.server", "clabe.server"),
+        ],
+    ),
+    (
+        "Configuration and stores",
+        [
+            ("clabe.stores", "clabe.stores"),
+            ("clabe.stores.confierge", "clabe.stores.confierge"),
+            ("clabe.stores.dataverse", "clabe.stores.dataverse"),
+            ("clabe.services", "clabe.services"),
+            ("clabe.modifiers", "clabe.modifiers"),
+            ("clabe.cache_manager", "clabe.cache_manager"),
+        ],
+    ),
+    (
+        "Data",
+        [
+            ("clabe.data_transfer", "clabe.data_transfer"),
+            ("clabe.data_transfer.aind_watchdog", "clabe.data_transfer.aind_watchdog"),
+            ("clabe.data_transfer.robocopy", "clabe.data_transfer.robocopy"),
+            ("clabe.data_mapper", "clabe.data_mapper"),
+            ("clabe.data_mapper.aind_data_schema", "clabe.data_mapper.aind_data_schema"),
+            ("clabe.data_mapper.helpers", "clabe.data_mapper.helpers"),
+            ("clabe.git_manager", "clabe.git_manager"),
+        ],
+    ),
+    ("Logging", [("clabe.logging", "clabe.logging"), ("clabe.logging.otel", "clabe.logging.otel")]),
+    (
+        "AIND",
+        [
+            ("clabe.aind_apps", "clabe.aind_apps"),
+            ("clabe.aind_apps.waterlog", "clabe.aind_apps.waterlog"),
+            ("clabe.utils", "clabe.utils"),
+            ("clabe.utils.aind_auth", "clabe.utils.aind_auth"),
+            ("clabe.utils.aind_smartsheet", "clabe.utils.aind_smartsheet"),
+            ("clabe.utils.aind_validators", "clabe.utils.aind_validators"),
+            ("clabe.utils.keepass", "clabe.utils.keepass"),
+        ],
+    ),
+]
 
-    def _find_modules(current_path: Path, prefix: str = "") -> None:
-        if not current_path.exists() or not current_path.is_dir():
-            return
 
-        for item in current_path.iterdir():
-            if not item.is_dir():
-                continue
-            if not (item / "__init__.py").exists():
-                continue
-
-            if item.name.startswith("_") and not include_private:
-                continue
-
-            module_name = f"{prefix}{item.name}" if prefix else item.name
-            modules.append(module_name)
-
-            # Recursively search subdirectories for nested modules
-            _find_modules(item, f"{module_name}.")
-
-    _find_modules(package_root)
-    return sorted(modules)
+def page_path(module: str) -> str:
+    """The page of a module, relative to docs/: ``clabe.workflow.events`` -> ``api/workflow/events.md``."""
+    parts = module.split(".")
+    if parts[0] != PACKAGE_NAME:
+        raise ValueError(f"{module} is not in {PACKAGE_NAME}")
+    return "/".join(["api", *parts[1:]]) + ".md"
 
 
-def discover_module_files(module_path: Path, include_private: bool = False) -> list[str]:
-    files = []
-
-    def _find_files(current_path: Path, prefix: str = "") -> None:
-        if not current_path.exists() or not current_path.is_dir():
-            return
-
-        for item in current_path.iterdir():
-            if item.is_file() and item.suffix == ".py":
-                if item.name.startswith("_") and not include_private:
-                    continue
-                file_name = f"{prefix}{item.stem}" if prefix else item.stem
-                files.append(file_name)
-            elif item.is_dir() and not item.name.startswith("__"):
-                if item.name.startswith("_") and not include_private:
-                    continue
-                # Recursively search subdirectories
-                _find_files(item, f"{prefix}{item.name}." if prefix else f"{item.name}.")
-
-    _find_files(module_path)
-    return sorted(files)
-
-
-def generate_api_structure() -> dict[str, list[dict[str, str]]]:
-    api_structure: dict[str, list[dict[str, str]]] = {}
-    modules = discover_python_modules(SRC_DIR, INCLUDE_PRIVATE_MODULES)
-
+def generate_api_structure() -> list[tuple[str, list[tuple[str, str]]]]:
+    """Writes one page per module of `API_SECTIONS`; returns (section, [(title, page path), ...])."""
     if API_DIR.exists():
         shutil.rmtree(API_DIR)  # pages of removed modules must not linger
-    API_DIR.mkdir(parents=True, exist_ok=True)
 
-    for item in SRC_DIR.iterdir():
-        if item.is_file() and item.suffix == ".py":
-            if item.name.startswith("_") and not INCLUDE_PRIVATE_MODULES:
-                continue
-            file_name = item.stem.replace("-", "_").replace(" ", "_")
-            safe_file_name = item.stem.replace(".", "_")
-            api_structure[file_name] = [{file_name: f"api/{safe_file_name}.md"}]
-
-            with open(DOCS_DIR / f"api/{safe_file_name}.md", "w") as f:
-                f.write(f"# {file_name}\n\n")
-                f.write(f"::: {PACKAGE_NAME}.{file_name}\n")
-
-    for module_name in modules:
-        module_structure: list[dict[str, str]] = []
-        module_path = SRC_DIR / module_name.replace(".", "/")
-
-        # Add the module's __init__.py as the main module entry
-        safe_module_name = module_name.replace(".", "_")
-        module_structure.append({module_name: f"api/{safe_module_name}/{safe_module_name}.md"})
-
-        module_files = discover_module_files(module_path, INCLUDE_PRIVATE_MODULES)
-        for file_name in module_files:
-            safe_file_name = file_name.replace(".", "_")
-            module_structure.append({file_name: f"api/{safe_module_name}/{safe_file_name}.md"})
-
-        (API_DIR / safe_module_name).mkdir(parents=True, exist_ok=True)
-
-        with open(DOCS_DIR / f"api/{safe_module_name}/{safe_module_name}.md", "w") as f:
-            f.write(f"# {module_name}\n\n")
-            f.write(f"::: {PACKAGE_NAME}.{module_name}\n")
-
-        for file_name in module_files:
-            safe_file_name = file_name.replace(".", "_")
-            with open(DOCS_DIR / f"api/{safe_module_name}/{safe_file_name}.md", "w") as f:
-                f.write(f"# {module_name}.{file_name}\n\n")
-                f.write(f"::: {PACKAGE_NAME}.{module_name}.{file_name}\n")
-
-        api_structure[module_name] = module_structure
-    return api_structure
+    structure: list[tuple[str, list[tuple[str, str]]]] = []
+    for section, pages in API_SECTIONS:
+        entries: list[tuple[str, str]] = []
+        for title, module in pages:
+            path = page_path(module)
+            page = DOCS_DIR / path
+            page.parent.mkdir(parents=True, exist_ok=True)
+            # The module heading is the page's only title (H1); the front matter titles the tab.
+            page.write_text(
+                f"---\ntitle: {title}\n---\n\n::: {module}\n    options:\n      heading_level: 1\n",
+                encoding="utf-8",
+                newline="\n",
+            )
+            entries.append((title, path))
+        structure.append((section, entries))
+    return structure
 
 
 API_BEGIN = "# --- API reference: generated by docs/build.py, do not edit by hand ---"
 API_END = "# --- end of the API reference ---"
 
 
-def update_zensical_toml(api_structure: dict[str, list[dict[str, str]]]) -> None:
+def update_zensical_toml(api_structure: list[tuple[str, list[tuple[str, str]]]]) -> None:
     """Rewrites the API reference part of the nav in zensical.toml (between its markers)."""
     text = ZENSICAL_TOML.read_text(encoding="utf-8")
     start, end = text.index(API_BEGIN), text.index(API_END)
     lines = [API_BEGIN, f"  {{ {json.dumps(API_LABEL)} = ["]
-    for module_name, module_content in api_structure.items():
-        display_name = module_name.replace("_", " ").title()
-        lines.append(f"    {{ {json.dumps(display_name)} = [")
-        for page in module_content:
-            for title, path in page.items():
-                lines.append(f"      {{ {json.dumps(title)} = {json.dumps(path)} }},")
+    for section, pages in api_structure:
+        lines.append(f"    {{ {json.dumps(section)} = [")
+        for title, path in pages:
+            lines.append(f"      {{ {json.dumps(title)} = {json.dumps(path)} }},")
         lines.append("    ] },")
     lines.append("  ] },")
     lines.append("  ")
@@ -250,7 +253,7 @@ def main() -> None:
     copy_assets()
     log.info("Regenerating API documentation...")
     # Generate API structure
-    api_structure: dict[str, list[dict[str, str]]] = generate_api_structure()
+    api_structure = generate_api_structure()
 
     # Update the nav of zensical.toml
     update_zensical_toml(api_structure)

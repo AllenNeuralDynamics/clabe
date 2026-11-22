@@ -14,19 +14,9 @@ The full script is in the [remote execution example](../docs_examples/remote_exe
 ## 1. Install the daemon on the other PC
 
 - Install it once per rig PC: see [Deploy a rig](deployment.md).
-- List **this repository's** checkout under `repositories`; commands run there, in its `.venv`.
-
-```yaml
-# %PROGRAMDATA%\clabe.yml on rig-b
-daemon:
-  host: 0.0.0.0
-  repositories:
-    - path: C:/git/Aind.Experiment.VrForaging
-  max_jobs: 4                    # commands running at the same time
-  max_file_size: 52428800        # largest file transferred (50 MB)
-  file_transfer_dir: D:/clabe-transfer
-  lease_grace: 300               # seconds a crashed run can take the machine back
-```
+- Clone **this repository** on rig-b too, under `C:/git`: the daemon finds it (see
+  [Repositories](daemon.md#repositories)); commands run there, in its `.venv`.
+- Give both PCs the same `CLABE_TOKEN`. Nothing else to configure.
 
 !!! warning "The token is the only protection"
     The daemon runs **any command** it is given, as its user. Keep the token (`CLABE_TOKEN`) out of the repository
@@ -148,7 +138,7 @@ for job in remote.reattach(crashed_run_id):
 | --- | --- |
 | `401` | `worker_client.token` differs from the daemon's `CLABE_TOKEN`. |
 | `423 In use by ...` | Another run holds the lease; it frees when that run ends (or a minute after a crash). |
-| `404 No repository named ...` | Add the checkout under `daemon: repositories:` there, or set `worker_client.repository`. |
+| `404 No repository named ...` | Clone it under a root there (default `C:/git`), or list it under `daemon: repositories:`; or set `worker_client.repository`. |
 | `ConnectionError` from `ensure_running()` | The computer name does not resolve (typo, other network). |
 | `ensure_running()` times out | Daemon not installed, user not logged on, or remote task scheduling blocked. |
 | `verify()` lists commits | Update the other checkout and `uv sync`. |
