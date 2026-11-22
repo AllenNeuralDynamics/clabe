@@ -1185,7 +1185,9 @@ class Run:
 
     def _confirm_optional(self, step: Step) -> bool:
         """Asks whether to run an optional step; records it as skipped on "no"."""
-        request = ConfirmRequest(label=step.optional or step.title, default=True, field=f"{step.name}.optional")
+        request = ConfirmRequest(
+            label=step.optional or step.title, default=step.optional_default, field=f"{step.name}.optional"
+        )
         try:
             run_it = self._ask(request, step)
         except PromptCancelledError:

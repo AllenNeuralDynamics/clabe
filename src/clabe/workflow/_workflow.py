@@ -30,6 +30,7 @@ class Step:
         on_error: ``"raise"`` pauses the run with Retry/Go back/Abort; ``"warn"`` notifies and continues
             with ``None`` as the step's output.
         optional: When set, the run asks this question first and skips the step on "no".
+        optional_default: The answer the ``optional`` question suggests (``True``: run the step).
         when: A condition on earlier outputs (taken by parameter name, like a step's inputs): the step runs only
             when it returns something true, and is skipped otherwise. Going back to a step it reads evaluates it
             again.
@@ -52,6 +53,7 @@ class Step:
     codec: Codec | None = None
     when: Callable[..., Any] | None = None
     when_params: tuple[str, ...] = ()
+    optional_default: bool = True
 
     @property
     def deps(self) -> tuple[str, ...]:
@@ -65,6 +67,7 @@ class Step:
             "barrier": self.barrier,
             "on_error": self.on_error,
             "optional": self.optional,
+            "optional_default": self.optional_default,
             "undo": self.undo,
             "cancellable": self.cancellable,
             "codec": self.codec,
@@ -105,6 +108,7 @@ def _build_step(
     barrier: bool = False,
     on_error: OnError = "raise",
     optional: str | None = None,
+    optional_default: bool = True,
     undo: Callable[[Any], Any] | None = None,
     cancellable: bool = False,
     codec: Codec | None = None,
@@ -144,6 +148,7 @@ def _build_step(
         barrier=barrier,
         on_error=on_error,
         optional=optional,
+        optional_default=optional_default,
         undo=undo,
         cancellable=cancellable,
         codec=codec,

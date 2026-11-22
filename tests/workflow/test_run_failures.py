@@ -99,6 +99,16 @@ def test_optional_steps_ask_first():
     assert events_of(run, StepSkipped) == []
 
 
+def test_an_optional_question_can_suggest_no():
+    wf = Workflow("demo")
+    wf.step(lambda: "report", name="qc", optional="Generate a QC report?", optional_default=False)
+    _, client = execute(wf, [False])
+    assert client.prompts[0].spec["default"] is False
+    assert wf.get("qc").options()["optional_default"] is False
+    _, client = execute(wf.variant("other").replace("qc", lambda: "other"), [False])
+    assert client.prompts[0].spec["default"] is False  # replace keeps it
+
+
 def test_a_rejected_go_back_pauses_and_can_be_retried():
     attempts = []
     wf = Workflow("demo")

@@ -69,7 +69,7 @@ def qc(launcher: Launcher) -> QcReport: ...
 | `title=` | Label shown in the clients |
 | `barrier=True` | Once run, neither it nor any step before it can run again |
 | `undo=` | Called with the output when going back invalidates the step (reversible side effects) |
-| `optional="question?"` | Asks first; a skipped step outputs `None` |
+| `optional="question?"` | Asks first; a skipped step outputs `None`. Add `optional_default=False` to suggest "no" |
 | `when=lambda mode: mode == 1` | Runs only when the condition on earlier outputs holds; otherwise skipped, output `None` |
 | `on_error="warn"` | Warns and continues with `None` instead of pausing with Retry / Go back / Abort |
 | `cancellable=True` | Going back may interrupt the busy async step (abort always does) |
