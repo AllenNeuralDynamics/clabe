@@ -17,7 +17,7 @@ from ._worker import Worker, worker_router
 
 
 def _guarded(call):
-    """Calls ``call``, answering a :class:`HostError` with its HTTP status."""
+    """Calls ``call``, answering a `HostError` with its HTTP status."""
     try:
         return call()
     except HostError as exc:

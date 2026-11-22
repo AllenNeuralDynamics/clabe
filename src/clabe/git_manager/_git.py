@@ -342,7 +342,7 @@ class GitRepository(Repo):
         Prompts the user to perform a full reset if the repository is dirty.
 
         Checks if the repository has uncommitted changes and either asks the user (through the active
-        :mod:`clabe.ui` session) or automatically performs a full reset based on ``force_reset``.
+        [`clabe.ui`][clabe.ui] session) or automatically performs a full reset based on ``force_reset``.
 
         Args:
             force_reset: Whether to skip the prompt and force a reset

@@ -34,11 +34,11 @@ async def concurrently(**branches: Callable[[], Any]) -> dict[str, Any]:
 
     - **Retry** it (it is called again),
     - **Continue without** it (its result is ``None``), or
-    - **Stop all**: every other branch is cancelled and :class:`BranchesStopped` is raised, so the step fails and the
+    - **Stop all**: every other branch is cancelled and `BranchesStopped` is raised, so the step fails and the
       run offers Retry / Go back / Abort for the whole step.
 
     Aborting the run (or going back, when the step is ``cancellable``) cancels every branch too. Cancelled branches
-    get :data:`STOP_TIMEOUT` seconds to clean up: put the shutting-down in ``finally`` (e.g.
+    get `STOP_TIMEOUT` seconds to clean up: put the shutting-down in ``finally`` (e.g.
     ``await open_ephys.close()``); commands run by clabe's executors are stopped for you.
 
     Outside a run (e.g. calling the step function in a test) nobody is asked: a failure stops all the branches and

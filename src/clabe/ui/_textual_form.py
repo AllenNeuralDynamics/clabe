@@ -325,7 +325,7 @@ def build_picker_screen(
 
     ``kind`` must already be resolved to ``"file"`` or ``"dir"`` — a
     ``PathRequest(kind="any")`` is disambiguated one level up, by
-    :func:`push_path_picker`, before this is called. There's no single
+    `push_path_picker`, before this is called. There's no single
     ``textual-fspicker`` dialog that can return either: ``FileOpen`` treats
     picking a directory as "cd into it" and never dismisses with one.
 
@@ -430,10 +430,10 @@ async def push_path_picker(
 ) -> None:
     """Pushes the picker screen(s) matching ``kind``, delivering the answer to ``on_result``.
 
-    For ``kind="file"``/``"dir"`` this is just :func:`build_picker_screen`
+    For ``kind="file"``/``"dir"`` this is just `build_picker_screen`
     pushed directly. For ``kind="any"`` -- used for a generic ``Path``-typed
     field, where neither "file" nor "dir" is known -- a tiny disambiguation
-    modal (:class:`_PathKindScreen`) is pushed first, since no single
+    modal (`_PathKindScreen`) is pushed first, since no single
     ``textual-fspicker`` dialog can return either. ``on_result`` fires exactly
     once with the final path or ``None``, however many screens it took.
 
@@ -442,10 +442,10 @@ async def push_path_picker(
             ``push_screen``).
         label: Shown as the dialog's title (and the disambiguation prompt's
             label, for ``kind="any"``).
-        start: Forwarded to :func:`build_picker_screen`.
+        start: Forwarded to `build_picker_screen`.
         kind: ``"file"``, ``"dir"``, or ``"any"``.
-        extensions: Forwarded to :func:`build_picker_screen`.
-        must_exist: Forwarded to :func:`build_picker_screen`.
+        extensions: Forwarded to `build_picker_screen`.
+        must_exist: Forwarded to `build_picker_screen`.
         on_result: Called exactly once with the chosen ``Path``, or ``None``
             if the user cancelled at any point.
     """

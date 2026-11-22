@@ -13,7 +13,7 @@ T = TypeVar("T")
 
 class ByAnimalModifier(abc.ABC, Generic[TRig]):
     """
-    Injects per-animal state into a rig, and saves it back, through a :class:`~clabe.stores.Store`.
+    Injects per-animal state into a rig, and saves it back, through a [`Store`][clabe.stores.Store].
 
     The store decides where per-animal state lives, so the same modifier works against the config
     library, Dataverse or an in-memory fake. The store is narrowed to ``subject`` on construction.
@@ -90,10 +90,10 @@ class ByAnimalModifier(abc.ABC, Generic[TRig]):
 
     def update(self) -> None:
         """
-        Persists the record produced by :meth:`_process_before_update`.
+        Persists the record produced by `_process_before_update`.
 
         Raises:
-            Exception: Whatever :meth:`_process_before_update` or the store raises.
+            Exception: Whatever `_process_before_update` or the store raises.
         """
         try:
             to_update = self._process_before_update()

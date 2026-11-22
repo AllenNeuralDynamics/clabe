@@ -42,7 +42,7 @@ def experiment(
 ) -> Callable[[ExperimentCallable], ExperimentCallable]:
     """Marks a ``(launcher) -> None`` function (sync or async) as a one-step workflow.
 
-    The function is returned unchanged; the workflow is attached to it (see :func:`as_workflow`).
+    The function is returned unchanged; the workflow is attached to it (see `as_workflow`).
 
     Args:
         name: Name of the experiment. Defaults to the function's ``__name__``.
@@ -113,7 +113,7 @@ def select_workflow(path: Path, *, name: str | None = None) -> Workflow:
     """Loads ``path`` and returns one of its workflows.
 
     ``name`` selects directly; a single workflow is returned as is; otherwise the user is asked through the active
-    :mod:`clabe.ui` session.
+    [`clabe.ui`][clabe.ui] session.
 
     Raises:
         ValueError: If workflow names are not unique within the file.
@@ -141,7 +141,7 @@ def select_workflow(path: Path, *, name: str | None = None) -> Workflow:
 
 
 class StepInfo(BaseModel):
-    """A step as listed by :func:`list_experiments`."""
+    """A step as listed by `list_experiments`."""
 
     name: str
     title: str
@@ -150,7 +150,7 @@ class StepInfo(BaseModel):
 
 
 class ExperimentInfo(BaseModel):
-    """A workflow offered by an experiment file, as listed by :func:`list_experiments`."""
+    """A workflow offered by an experiment file, as listed by `list_experiments`."""
 
     file: str
     name: str

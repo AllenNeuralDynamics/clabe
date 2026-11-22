@@ -6,5 +6,5 @@ The following example runs an app on another rig through its XML-RPC server, the
 machines with the watchdog. See [Running on other rigs](../articles/remote_execution.md) for how each step works.
 
 ```python
---8<-- "examples/client_behavior_launcher.py"
+--8 < --"examples/client_behavior_launcher.py"
 ```

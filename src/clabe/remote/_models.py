@@ -1,4 +1,4 @@
-"""The worker API's models, shared by the daemon (server) and :class:`~clabe.remote.WorkerClient`."""
+"""The worker API's models, shared by the daemon (server) and [`WorkerClient`][clabe.remote.WorkerClient]."""
 
 import datetime
 from enum import Enum

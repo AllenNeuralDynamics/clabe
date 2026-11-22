@@ -11,7 +11,7 @@ from clabe.workflow import GoBack, Workflow
 
 wf = Workflow("vr-foraging", exit_prompt_timeout=60)
 
-wf.step(steps.session())                       # a `session` step: who is running, on which animal
+wf.step(steps.session())  # a `session` step: who is running, on which animal
 
 
 @wf.step(title="Trainer state")
@@ -25,7 +25,7 @@ def rig(session: Session) -> AindVrForagingRig: ...
 
 wf.step(steps.review("session", "trainer_state", back_to="session"))
 wf.step(steps.free_space(200e9))
-wf.step(steps.register())                      # a barrier: nothing before it runs again
+wf.step(steps.register())  # a barrier: nothing before it runs again
 
 
 @wf.step(title="Run Bonsai", barrier=True)

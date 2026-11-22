@@ -39,7 +39,7 @@ class WorkerError(RuntimeError):
 
 
 class WorkerClientSettings(ServiceSettings):
-    """Settings of a :class:`WorkerClient` (``worker_client:`` in clabe.yml)."""
+    """Settings of a `WorkerClient` (``worker_client:`` in clabe.yml)."""
 
     __yml_section__ = "worker_client"
 
@@ -62,8 +62,8 @@ class WorkerClientSettings(ServiceSettings):
 class WorkerClient:
     """Talks to the worker role of another machine's daemon.
 
-    Jobs and files need the worker's **lease** when someone holds it: :meth:`lease` takes it (and keeps renewing
-    it in the background) so that no other run uses the machine meanwhile; :meth:`release` gives it back.
+    Jobs and files need the worker's **lease** when someone holds it: `lease` takes it (and keeps renewing
+    it in the background) so that no other run uses the machine meanwhile; `release` gives it back.
     """
 
     def __init__(self, settings: WorkerClientSettings) -> None:
@@ -81,7 +81,7 @@ class WorkerClient:
         return str(self.settings.url).rstrip("/")
 
     def _request(self, method: str, path: str, **kwargs) -> requests.Response:
-        """Sends a request to the worker API; raises :class:`WorkerError` when it is refused."""
+        """Sends a request to the worker API; raises `WorkerError` when it is refused."""
         headers = kwargs.pop("headers", {})
         if self._lease is not None:
             headers[LEASE_HEADER] = self._lease.lease_id
@@ -112,7 +112,7 @@ class WorkerClient:
         return True
 
     def lease(self, owner: str | None = None, run_id: str | None = None) -> Lease:
-        """Takes the worker for this run and keeps renewing it until :meth:`release`.
+        """Takes the worker for this run and keeps renewing it until `release`.
 
         Raises:
             WorkerError: 423 if another run holds it, 409 if the machine runs an experiment of its own.
@@ -269,7 +269,7 @@ class WorkerClient:
 
     @property
     def executor(self):
-        """An executor running commands on the worker (see :class:`~clabe.remote.RemoteExecutor`)."""
+        """An executor running commands on the worker (see [`RemoteExecutor`][clabe.remote.RemoteExecutor])."""
         from ._executor import RemoteExecutor
 
         return RemoteExecutor(self)

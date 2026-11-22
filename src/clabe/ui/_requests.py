@@ -76,12 +76,12 @@ class Request:
     Base of every declarative prompt request.
 
     A request describes *what* to ask; it never asks. It knows its prompt kind, how to describe itself to any
-    client as JSON (:meth:`spec`), the JSON Schema of a valid answer (:meth:`answer_schema`) and how to check and
-    coerce an answer (:meth:`validate_answer`), so every client and the run apply the same rules.
+    client as JSON (`spec`), the JSON Schema of a valid answer (`answer_schema`) and how to check and
+    coerce an answer (`validate_answer`), so every client and the run apply the same rules.
 
     Attributes:
         prompt_kind: The prompt kind (``"text"``, ``"pick"``, ...), shared by every instance of a request class.
-            (Not ``kind``: :class:`PathRequest` already has a ``kind`` field.)
+            (Not ``kind``: `PathRequest` already has a ``kind`` field.)
     """
 
     prompt_kind: ClassVar[str]
@@ -91,7 +91,7 @@ class Request:
         return pydantic_core.to_jsonable_python(self._spec_fields(), fallback=_jsonable_fallback, bytes_mode="base64")
 
     def _spec_fields(self) -> dict[str, Any]:
-        """The fields :meth:`spec` describes, before JSON conversion (validators and models left out)."""
+        """The fields `spec` describes, before JSON conversion (validators and models left out)."""
         return {
             f.name: getattr(self, f.name) for f in dataclasses.fields(self) if f.name not in ("validators", "model")
         }
@@ -113,8 +113,8 @@ def normalize_extensions(extensions: Sequence[str] | None) -> set[str] | None:
     """Returns ``extensions`` as lowercase, dot-prefixed suffixes, or ``None`` if unset/empty.
 
     The single source of truth for extension matching everywhere a
-    :class:`PathRequest` is consumed — every frontend and
-    :func:`~clabe.ui._validation.validate_path`
+    `PathRequest` is consumed — every frontend and
+    [`validate_path`][clabe.ui._validation.validate_path]
     must compare a candidate's ``Path.suffix.lower()`` against this rather than
     re-deriving its own normalized set, so a file offered by a picker is never
     subsequently rejected by validation over a case or leading-dot mismatch.
@@ -127,7 +127,7 @@ def normalize_extensions(extensions: Sequence[str] | None) -> set[str] | None:
 @dataclasses.dataclass
 class Choice:
     """
-    A single selectable option in a :class:`PickRequest`.
+    A single selectable option in a `PickRequest`.
 
     Attributes:
         value: The value returned when this option is chosen.
@@ -154,7 +154,7 @@ class PickRequest(Request):
 
     Attributes:
         label: The prompt shown to the user.
-        options: The available options (plain strings or :class:`Choice`).
+        options: The available options (plain strings or `Choice`).
         default: Value selected by default when the frontend supports it.
         allow_none: Whether a "none" sentinel option is offered.
         none_label: Label for the "none" option when ``allow_none`` is set.
@@ -173,7 +173,7 @@ class PickRequest(Request):
     prompt_kind: ClassVar[str] = "pick"
 
     def choices(self) -> list[Choice]:
-        """Normalize ``options`` into a list of :class:`Choice`."""
+        """Normalize ``options`` into a list of `Choice`."""
         return [opt if isinstance(opt, Choice) else Choice(value=opt) for opt in self.options]
 
     def _spec_fields(self) -> dict[str, Any]:
@@ -257,7 +257,7 @@ class MarkdownRequest(Request):
     Shows a Markdown document and blocks until the user continues (no answer is collected).
 
     The web UI and the TUI render the Markdown; the console prints it with Rich. Raw HTML in the document is not
-    rendered (use :class:`MediaRequest` with ``media="html"`` for HTML).
+    rendered (use `MediaRequest` with ``media="html"`` for HTML).
 
     Attributes:
         markdown: The document (CommonMark, plus tables and strikethrough).
@@ -398,7 +398,7 @@ class AutoCompleteRequest(Request):
 
     As the user types, frontends narrow the offered options; the user may keep
     typing a free-form value to the end, or pick a suggestion with the arrow
-    keys. Unlike :class:`PickRequest`, the answer is not constrained to the
+    keys. Unlike `PickRequest`, the answer is not constrained to the
     provided options unless ``strict`` is set.
 
     Attributes:
@@ -551,7 +551,7 @@ class PathRequest(Request):
     def normalized_extensions(self) -> set[str] | None:
         """Returns ``extensions`` as lowercase, dot-prefixed suffixes, or ``None`` if unset.
 
-        See :func:`normalize_extensions` — every frontend must compare against
+        See `normalize_extensions` — every frontend must compare against
         this (or the free function directly) rather than re-deriving its own
         normalized set, so a file offered by a picker is never subsequently
         rejected by validation over a case or leading-dot mismatch.
@@ -621,7 +621,7 @@ class FieldRequest(Request):
     """
     A declarative request to enter a single field from a Pydantic model.
 
-    The asker resolves it (:meth:`resolve`) into the most appropriate primitive
+    The asker resolves it (`resolve`) into the most appropriate primitive
     request from the field's type annotation: strict autocomplete for
     ``Literal`` / ``Enum`` fields, yes/no for ``bool``, a path for ``Path`` and
     a validated text prompt for everything else. Clients never see it.
@@ -658,10 +658,10 @@ class FieldRequest(Request):
             return {}
 
     def validate_answer(self, value: Any) -> Any:
-        """Validates a field value answered directly (as :meth:`answer_schema` describes it).
+        """Validates a field value answered directly (as `answer_schema` describes it).
 
         An empty answer falls back to the default, else ``None`` if the field is optional. Askers do not open field
-        prompts: they ask the request :meth:`resolve` returns, whose answers are validated by that request.
+        prompts: they ask the request `resolve` returns, whose answers are validated by that request.
         """
         if value == "":
             info = self.model.model_fields[self.field_name]
@@ -765,9 +765,9 @@ class ReadOnlyTable(Request):
 
     Prefer the constructors over populating ``columns`` and ``rows`` by hand:
 
-    * :meth:`from_records` — a sequence of mappings, one row each; columns are
+    * `from_records` — a sequence of mappings, one row each; columns are
       inferred from the keys (first-seen order) unless given explicitly.
-    * :meth:`from_object` — a Pydantic model instance or a plain mapping rendered
+    * `from_object` — a Pydantic model instance or a plain mapping rendered
       as a two-column ``Parameter | Value`` table, one row per field/key.
 
     Attributes:

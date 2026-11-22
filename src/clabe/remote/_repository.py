@@ -96,8 +96,8 @@ class RemoteRepository:
     """A checkout of this repository on another machine, reached through that machine's clabe daemon (its worker).
 
     The repository must be one of the remote daemon's repositories (``daemon: repositories:`` there); commands run in
-    it and in its environment by default. The first command (or :meth:`lease`) takes the worker's lease, so no other
-    run uses the machine meanwhile; it is renewed in the background and given back by :meth:`release` (or at exit).
+    it and in its environment by default. The first command (or `lease`) takes the worker's lease, so no other
+    run uses the machine meanwhile; it is renewed in the background and given back by `release` (or at exit).
 
     Example:
         ```python
@@ -126,10 +126,10 @@ class RemoteRepository:
         Args:
             client: Client of the remote machine's worker (its ``repository`` setting names the checkout).
             path: Path of the repository on the remote machine. Defaults to the worker's repository.
-                When given, :meth:`verify` checks that it is the worker's repository.
+                When given, `verify` checks that it is the worker's repository.
             local_path: Path of the local repository the remote one is compared against.
             data_roots: Maps data directories on the remote machine to the network shares exposing them,
-                e.g. ``{r"D:\\data": r"\\\\rig-b\\data"}``. Used by :meth:`to_unc`; paths under none of them are
+                e.g. ``{r"D:\\data": r"\\\\rig-b\\data"}``. Used by `to_unc`; paths under none of them are
                 reached through the drive's administrative share.
             detach_on_abort: Keep the commands running on the remote machine when the run does not complete (e.g.
                 a recording that must outlive the launcher). By default they are stopped with the run.
@@ -161,7 +161,7 @@ class RemoteRepository:
         Args:
             computer_name: Network name of the remote machine.
             port: Port of its daemon.
-            path: Path of the repository on the remote machine. See :meth:`__init__`.
+            path: Path of the repository on the remote machine. See `__init__`.
             repository: The remote daemon's name for the repository; by default this repository's folder name.
             local_path: Path of the local repository the remote one is compared against.
             data_roots: Maps data directories on the remote machine to the network shares exposing them.
@@ -196,7 +196,7 @@ class RemoteRepository:
 
         Args:
             run_id: The run to take it for; by default the running one. A restarted launcher passes the run id of
-                the session it recovers (see :meth:`reattach`).
+                the session it recovers (see `reattach`).
 
         Raises:
             WorkerError: 423 if another run holds the machine, 409 if it runs an experiment of its own.
@@ -220,7 +220,7 @@ class RemoteRepository:
         For recovering a session after the launcher crashed: its jobs kept running on the remote machine, and for a
         grace period after its lease expired only the same run may take the machine back. The run id and the
         machine are in the crashed session's ``run.json`` (``run_id``, ``workers``). Collect each job's result with
-        :meth:`wait_for`.
+        `wait_for`.
         """
         self.lease(run_id)
         jobs = self.client.jobs_of(run_id)
@@ -228,11 +228,11 @@ class RemoteRepository:
         return jobs
 
     def wait_for(self, job_id: str) -> CommandResult:
-        """Waits for a job already on the remote machine (see :meth:`reattach`) and returns its result."""
+        """Waits for a job already on the remote machine (see `reattach`) and returns its result."""
         return self._executor().wait(job_id)
 
     async def wait_for_async(self, job_id: str) -> CommandResult:
-        """Asynchronous :meth:`wait_for`; cancelling it stops the job."""
+        """Asynchronous `wait_for`; cancelling it stops the job."""
         return await self._executor().wait_async(job_id)
 
     def _run_ended(self, status: "RunStatus") -> None:
@@ -331,7 +331,7 @@ class RemoteRepository:
         """Translates a path on the remote machine to the network share path other machines reach it by.
 
         Paths under none of the ``data_roots`` are reached through the drive's administrative share; see
-        :func:`to_unc`.
+        `to_unc`.
 
         Raises:
             ValueError: If the path is under none of the ``data_roots`` and has no drive letter.
@@ -344,8 +344,8 @@ class RemoteRepository:
     def register_session(self, session: Session, data_directory: os.PathLike | str) -> Self:
         """Registers the session this machine records data for, and creates its session directory there.
 
-        The remote counterpart of :meth:`~clabe.launcher.Launcher.register_session`. Optional: only
-        :attr:`data_directory`, :attr:`session_directory` and :attr:`session_directory_unc` need it.
+        The remote counterpart of [`register_session`][clabe.launcher.Launcher.register_session]. Optional: only
+        `data_directory`, `session_directory` and `session_directory_unc` need it.
 
         Raises:
             ValueError: If a session is already registered, or the session has no name.
@@ -398,7 +398,7 @@ class RemoteRepository:
 
     @property
     def data_directory(self) -> PurePath:
-        """Root data directory on the remote machine, set by :meth:`register_session`."""
+        """Root data directory on the remote machine, set by `register_session`."""
         if self._data_directory is None:
             raise ValueError("Data directory is not set. Call register_session first.")
         return self._data_directory
@@ -423,7 +423,7 @@ class RemoteRepository:
         )
 
     def run(self, command: Command[Any]) -> CommandResult:
-        """Runs a command in the remote repository and waits for it (an :class:`~clabe.apps.Executor`).
+        """Runs a command in the remote repository and waits for it (an [`Executor`][clabe.apps.Executor]).
 
         Paths under the local repository are rewritten to the remote one, and the command's ``inputs`` are copied
         to the remote machine.
@@ -434,6 +434,6 @@ class RemoteRepository:
         return self._executor().run(command)
 
     async def run_async(self, command: Command[Any]) -> CommandResult:
-        """Asynchronous version of :meth:`run`, e.g. ``await app.run_async(executor=remote)``; cancelling it stops
+        """Asynchronous version of `run`, e.g. ``await app.run_async(executor=remote)``; cancelling it stops
         the command on the remote machine."""
         return await self._executor().run_async(command)

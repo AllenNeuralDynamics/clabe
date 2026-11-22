@@ -26,8 +26,8 @@ ui.notify("Transferring data…")
 if ui.confirm("Start the session?", default=True):
     rig = ui.pick("Choose a rig:", ["rig-1", "rig-2"], allow_none=False)
     trials = ui.number("Trials", default=200, minimum=1)
-    config = ui.form(SessionConfig)                     # a pydantic model, field by field
-    mode = ui.field(SessionConfig, "recording_mode")    # one field of a model, with its type and constraints
+    config = ui.form(SessionConfig)  # a pydantic model, field by field
+    mode = ui.field(SessionConfig, "recording_mode")  # one field of a model, with its type and constraints
 ```
 
 Every helper builds the matching request and calls `ui.ask(request)`; you can build requests yourself and call
@@ -56,8 +56,8 @@ Four prompts show something and wait until the user continues (they return `None
 
 ```python
 ui.markdown("## Before you start\n\n1. Check the **water** line", title="Checklist")
-ui.image("qc/frame_0001.png", title="Camera 1", caption="Last frame")   # a local file or a URL
-ui.html("qc/report.html", title="QC report")                            # a file, a URL, or the HTML itself
+ui.image("qc/frame_0001.png", title="Camera 1", caption="Last frame")  # a local file or a URL
+ui.html("qc/report.html", title="QC report")  # a file, a URL, or the HTML itself
 ui.url("https://grafana.example.org/d/rig-3", title="Rig dashboard")
 ```
 
@@ -111,8 +111,8 @@ Implement the `Client` protocol — five methods, no validation:
 
 ```python
 class MyClient:
-    def ask(self, request): ...        # show it, block, return the raw answer; raise PromptCancelledError after cancel()
-    def cancel(self): ...              # thread-safe: abort the prompt being shown
+    def ask(self, request): ...  # show it, block, return the raw answer; raise PromptCancelledError after cancel()
+    def cancel(self): ...  # thread-safe: abort the prompt being shown
     def notify(self, message, level=ui.MessageLevel.INFO): ...
     def header(self, text): ...
     def close(self): ...

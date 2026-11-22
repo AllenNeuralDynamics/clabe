@@ -18,7 +18,7 @@ class GoBack(Exception):
 
 
 class GoBackRejected(RuntimeError):
-    """Raised when a step's :class:`GoBack` cannot be honoured (no earlier step, a barrier, or not run yet)."""
+    """Raised when a step's `GoBack` cannot be honoured (no earlier step, a barrier, or not run yet)."""
 
 
 class Abort(Exception):

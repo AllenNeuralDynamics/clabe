@@ -85,7 +85,7 @@ class LocalFileStore(StoreBase):
         """
         Args:
             root: The config library directory.
-            layout: Maps kinds onto paths within ``root``. Defaults to :class:`DefaultLayout`.
+            layout: Maps kinds onto paths within ``root``. Defaults to `DefaultLayout`.
             scope: Initial scope. ``computer_name`` defaults to this machine's.
         """
         super().__init__(scope={"computer_name": os.environ.get("COMPUTERNAME", platform.node()), **(scope or {})})

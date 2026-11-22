@@ -220,7 +220,7 @@ class Worker:
             )
 
     def output(self, job_id: str, after: int) -> JobOutput:
-        """A job's output lines after line ``after`` (the last :data:`OUTPUT_LINES` are kept)."""
+        """A job's output lines after line ``after`` (the last `OUTPUT_LINES` are kept)."""
         job = self._jobs.get(job_id) or next((j for j in self._read if j.job_id == job_id), None)
         if job is None:
             raise HTTPException(status_code=404, detail=f"No job {job_id}.")

@@ -38,7 +38,7 @@ def get_aind_rig_name(*, required: bool = False) -> str | None:
     over reading ``aibs_comp_id`` directly so the variable name lives in exactly one place.
 
     Args:
-        required: When True, raise :class:`ValueError` if the variable is unset instead of
+        required: When True, raise `ValueError` if the variable is unset instead of
             returning ``None``.
 
     Returns:

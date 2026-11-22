@@ -284,7 +284,7 @@
         "type": "object"
       },
       "BranchStarted": {
-        "description": "A branch of a step started (see :func:`~clabe.workflow.concurrently`); ``attempt`` counts its retries.",
+        "description": "A branch of a step started (see [`concurrently`][clabe.workflow.concurrently]); ``attempt`` counts its retries.",
         "properties": {
           "attempt": {
             "default": 1,
@@ -638,7 +638,7 @@
         "type": "object"
       },
       "Notify": {
-        "description": "A message for the user. ``level`` is a :class:`~clabe.ui.MessageLevel` value.",
+        "description": "A message for the user. ``level`` is a [`MessageLevel`][clabe.ui.MessageLevel] value.",
         "properties": {
           "level": {
             "title": "Level",

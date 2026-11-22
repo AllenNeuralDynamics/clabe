@@ -141,6 +141,6 @@ uv add "aind-clabe[agents]"         # MCP server for AI agents (clabe mcp)
 - Browse the [documentation](https://allenneuraldynamics.github.io/clabe/) for API references and guides.
 - Run tests with `uv run pytest`.
 - Check style with `uv run ruff check`.
-- Build documentation locally with `uv run mkdocs serve` after installing the `docs` dependency group.
+- Build documentation locally with `uv run docs/build.py` then `uv run zensical serve` (the `docs` dependency group; the site is built with [Zensical](https://zensical.org) from `zensical.toml`).
 
 Contributions are welcome. Please include focused tests for behavior changes and keep the package's cross-platform support in mind.

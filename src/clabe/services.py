@@ -25,7 +25,7 @@ def set_clabe_yml(config: t.Mapping[str, t.Any] | None) -> None:
     Installs a process-wide, in-memory configuration document.
 
     The document has the same shape as a clabe.yml file (top-level keys are ``__yml_section__`` names) and is
-    consulted by every :class:`ServiceSettings` subclass constructed afterwards. It takes priority over all
+    consulted by every `ServiceSettings` subclass constructed afterwards. It takes priority over all
     known config files except ``./local/clabe.yml``. Settings objects created before this call are not affected.
 
     Args:
@@ -49,7 +49,7 @@ def override_clabe_yml(config: t.Mapping[str, t.Any] | None) -> t.Iterator[None]
     """
     Temporarily overrides the in-memory configuration document for the current context.
 
-    While active, the given document replaces the one installed by :func:`set_clabe_yml`. Passing ``None``
+    While active, the given document replaces the one installed by `set_clabe_yml`. Passing ``None``
     disables the in-memory document inside the block. The override is scoped with a ``ContextVar``, so it
     does not leak across threads or asyncio tasks.
 
@@ -74,7 +74,7 @@ def get_clabe_yml() -> t.Mapping[str, t.Any] | None:
     """
     Returns the active in-memory configuration document, if any.
 
-    A document set via :func:`override_clabe_yml` takes precedence over the one set via :func:`set_clabe_yml`.
+    A document set via `override_clabe_yml` takes precedence over the one set via `set_clabe_yml`.
 
     Returns:
         The active configuration document, or ``None`` if none is installed.
@@ -143,8 +143,8 @@ class ServiceSettings(ps.BaseSettings, abc.ABC):
     Base class for service settings with YAML configuration support.
 
     This class provides automatic YAML configuration loading using pydantic-settings. The configuration is loaded from
-    files defined in KNOWN_CONFIG_FILES and, optionally, from an in-memory document installed via :func:`set_clabe_yml`
-    or :func:`override_clabe_yml`. The in-memory document ranks right after ``./local/clabe.yml``.
+    files defined in KNOWN_CONFIG_FILES and, optionally, from an in-memory document installed via `set_clabe_yml`
+    or `override_clabe_yml`. The in-memory document ranks right after ``./local/clabe.yml``.
 
     Attributes:
         __yml_section__: Optional class variable to override the config section name
@@ -266,7 +266,7 @@ class _InMemorySettingsSource(ps.PydanticBaseSettingsSource):
     """
     A settings source that reads from the active in-memory configuration document.
 
-    Mirrors :class:`_SafeYamlSettingsSource`: a missing document or section yields no settings.
+    Mirrors `_SafeYamlSettingsSource`: a missing document or section yields no settings.
     """
 
     def __init__(self, settings_cls: type[ps.BaseSettings], config_section: str | None = None):
@@ -281,7 +281,7 @@ class _InMemorySettingsSource(ps.PydanticBaseSettingsSource):
         self._config_section = config_section
 
     def get_field_value(self, field: t.Any, field_name: str) -> tuple[t.Any, str, bool]:
-        """Unused; values are resolved in bulk by :meth:`__call__`."""
+        """Unused; values are resolved in bulk by `__call__`."""
         return None, field_name, False
 
     def __call__(self) -> dict[str, t.Any]:

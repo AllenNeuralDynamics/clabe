@@ -18,7 +18,7 @@ def _now() -> datetime.datetime:
 
 
 class _Event(BaseModel):
-    """Fields shared by every event; ``seq`` and ``run_id`` are stamped by :class:`EventLog`."""
+    """Fields shared by every event; ``seq`` and ``run_id`` are stamped by `EventLog`."""
 
     seq: int = 0
     ts: datetime.datetime = Field(default_factory=_now)
@@ -124,7 +124,7 @@ class PromptClosed(_Event):
 
 
 class Notify(_Event):
-    """A message for the user. ``level`` is a :class:`~clabe.ui.MessageLevel` value."""
+    """A message for the user. ``level`` is a [`MessageLevel`][clabe.ui.MessageLevel] value."""
 
     type: Literal["notify"] = "notify"
     message: str
@@ -206,7 +206,7 @@ class RecordResolved(_Event):
 
 
 class BranchStarted(_Event):
-    """A branch of a step started (see :func:`~clabe.workflow.concurrently`); ``attempt`` counts its retries."""
+    """A branch of a step started (see [`concurrently`][clabe.workflow.concurrently]); ``attempt`` counts its retries."""
 
     type: Literal["branch_started"] = "branch_started"
     step: str
@@ -257,7 +257,7 @@ class EventLog:
     Subscribers are called synchronously, in order, on the appending thread while the log's lock is held, and
     possibly re-entrantly: an event appended from inside a subscriber reaches the later subscribers before the
     event being published does. A subscriber must return quickly, must never block on another thread that appends
-    events, and must not call :class:`~clabe.workflow.Run` methods that take the run's lock (``answer``,
+    events, and must not call [`Run`][clabe.workflow.Run] methods that take the run's lock (``answer``,
     ``state``, ``abort``, ``go_back``, ...): hand such work to a queue or another thread.
 
     Writing the file never fails a run: if a write raises, it is logged once and the file stops being written for
@@ -319,7 +319,7 @@ class EventLog:
         ``subscriber`` is called synchronously on the thread that appends the event, with the log's lock held, and
         possibly re-entrantly (an event appended from inside a subscriber reaches the later subscribers before the
         event being published does). It must return quickly, must never block on another thread that appends
-        events, and must not call :class:`~clabe.workflow.Run` methods that take the run's lock (``answer``,
+        events, and must not call [`Run`][clabe.workflow.Run] methods that take the run's lock (``answer``,
         ``state``, ``abort``, ``go_back``, ...): hand such work to a queue or another thread. An exception it
         raises is logged and otherwise ignored.
         """

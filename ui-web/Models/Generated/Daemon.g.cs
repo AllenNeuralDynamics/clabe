@@ -7,7 +7,7 @@ using System.Text.Json.Serialization;
 
 namespace Clabe.Web.Api.Daemon;
 
-/// <summary>A workflow offered by an experiment file, as listed by :func:`list_experiments`.</summary>
+/// <summary>A workflow offered by an experiment file, as listed by `list_experiments`.</summary>
 public sealed record ExperimentInfo(
     [property: JsonPropertyName("file")] string File,
     [property: JsonPropertyName("name")] string Name,
@@ -114,7 +114,7 @@ public sealed record RunInfo(
     [property: JsonPropertyName("exit_code")] long? ExitCode = null,
     [property: JsonPropertyName("log_tail")] List<string>? LogTail = null);
 
-/// <summary>A step as listed by :func:`list_experiments`.</summary>
+/// <summary>A step as listed by `list_experiments`.</summary>
 public sealed record StepInfo(
     [property: JsonPropertyName("name")] string Name,
     [property: JsonPropertyName("title")] string Title,

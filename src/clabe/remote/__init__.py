@@ -1,4 +1,4 @@
-"""Running on other machines: a checkout of this repository on another rig (:class:`RemoteRepository`), reached
+"""Running on other machines: a checkout of this repository on another rig (`RemoteRepository`), reached
 through that machine's clabe daemon, which runs jobs and keeps files for the run that leased it."""
 
 from ._client import WorkerClient, WorkerClientSettings, WorkerError

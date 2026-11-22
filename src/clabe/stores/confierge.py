@@ -24,11 +24,11 @@ DEFAULT_SCOPE_MAPPING: ScopeMapping = MappingProxyType(
     }
 )
 """The scopes ficus is keyed on today. Extend it by passing ``{**DEFAULT_SCOPE_MAPPING, "rig": "rig_id"}`` to
-:class:`ConfiergeStore`."""
+`ConfiergeStore`."""
 
 
 class ConfiergeSettings(ServiceSettings):
-    """Settings for :class:`ConfiergeStore`, read from the ``confierge`` section of clabe.yml."""
+    """Settings for `ConfiergeStore`, read from the ``confierge`` section of clabe.yml."""
 
     __yml_section__: ClassVar[str | None] = "confierge"
 
@@ -62,12 +62,12 @@ class ConfiergeStore(StoreBase):
     A store over ficus, through the `confierge` client.
 
     This is a thin adapter: it translates the store API's scope into ficus' scopes (see
-    :data:`DEFAULT_SCOPE_MAPPING`) and leaves merging, validation of scope names and the offline
+    `DEFAULT_SCOPE_MAPPING`) and leaves merging, validation of scope names and the offline
     cache to ficus and confierge. Ficus owns the layering, so a read yields exactly one document and
     never prompts.
 
     A store addresses one ficus namespace, whatever the kind. To serve several kinds, give each its
-    own store and route them with :class:`~clabe.stores.CompositeStore`.
+    own store and route them with [`CompositeStore`][clabe.stores.CompositeStore].
 
     Example:
         ```python
@@ -88,9 +88,9 @@ class ConfiergeStore(StoreBase):
         Args:
             settings: Which namespace and server to use, and how writes behave.
             scope: Initial scope. ``computer_name`` defaults to this machine's, as in
-                :class:`~clabe.stores.LocalFileStore`.
+                [`LocalFileStore`][clabe.stores.LocalFileStore].
             scope_mapping: Translates scope keys into ficus scope names. Defaults to
-                :data:`DEFAULT_SCOPE_MAPPING`.
+                `DEFAULT_SCOPE_MAPPING`.
             client: A ready confierge client. Built from ``settings.base_url`` when omitted.
         """
         super().__init__(scope={"computer_name": get_computer_name(), **(scope or {})})

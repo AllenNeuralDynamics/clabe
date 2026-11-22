@@ -1,7 +1,7 @@
-"""Deprecated alias for :mod:`clabe.logging`.
+"""Deprecated alias for [`clabe.logging`][clabe.logging].
 
-``clabe.logging_helper`` was renamed to :mod:`clabe.logging`. This module re-exports the
-same public names so existing imports keep working, but emits a :class:`DeprecationWarning`
+``clabe.logging_helper`` was renamed to [`clabe.logging`][clabe.logging]. This module re-exports the
+same public names so existing imports keep working, but emits a `DeprecationWarning`
 on import. Update ``from clabe.logging_helper import ...`` (or ``clabe.logging_helper.x``) to
 ``clabe.logging`` — this alias will be removed in a future release.
 """

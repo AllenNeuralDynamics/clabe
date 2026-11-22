@@ -2,7 +2,7 @@
   "components": {
     "schemas": {
       "ExperimentInfo": {
-        "description": "A workflow offered by an experiment file, as listed by :func:`list_experiments`.",
+        "description": "A workflow offered by an experiment file, as listed by `list_experiments`.",
         "properties": {
           "file": {
             "title": "File",
@@ -608,7 +608,7 @@
         "type": "object"
       },
       "StepInfo": {
-        "description": "A step as listed by :func:`list_experiments`.",
+        "description": "A step as listed by `list_experiments`.",
         "properties": {
           "barrier": {
             "title": "Barrier",

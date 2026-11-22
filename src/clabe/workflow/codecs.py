@@ -1,7 +1,7 @@
 """Codecs: how a step's output is recorded in ``outputs.jsonl``.
 
 A codec is any callable ``value -> JSON-able``; pass it as ``@wf.step(codec=...)``. It runs inside the step's
-context, so it may call :func:`~clabe.workflow.export_artifact` and return the artifact's path.
+context, so it may call [`export_artifact`][clabe.workflow.export_artifact] and return the artifact's path.
 """
 
 from collections.abc import Callable
@@ -17,13 +17,13 @@ _TEXT_LIMIT = 10_000
 
 
 class _Omit:
-    """Marker returned by :func:`omit`: record no value."""
+    """Marker returned by `omit`: record no value."""
 
     def __repr__(self) -> str:
         return "OMIT"
 
 
-#: Returned by :func:`omit`: the output line records no value.
+#: Returned by `omit`: the output line records no value.
 OMIT = _Omit()
 
 
@@ -38,7 +38,7 @@ def jsonable(value: Any) -> Any:
 
 
 def auto(value: Any) -> Any:
-    """The default: :func:`model_dump` for pydantic models, :func:`jsonable` for anything else."""
+    """The default: `model_dump` for pydantic models, `jsonable` for anything else."""
     return model_dump(value) if isinstance(value, BaseModel) else jsonable(value)
 
 

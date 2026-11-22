@@ -1,0 +1,327 @@
+/* clabe's docs: the layout of zephyr's site, in the colours of the catalog browser (Allen Institute palette):
+   an off-white page, a dark navy bar, lime for what is active, purple for links. */
+
+:root {
+  --clabe-bg: #f3f0e9;
+  --clabe-card: #fbfaf6;
+  --clabe-line: #d9d4c7;
+  --clabe-text: #000000;
+  --clabe-muted: #5d625f;
+  --clabe-navy: #141d28;
+  --clabe-navy-light: #1f2b3a;
+  --clabe-lime: #cceb05;
+  --clabe-purple: #8146e1;
+  --clabe-purple-light: #b48fed;
+  --clabe-teal: #00a59a;
+  --clabe-blue: #6464ff;
+  --clabe-crimson: #cd0f55;
+  --clabe-ok: #00c853;
+  --clabe-warn: #ffdf40;
+  --clabe-err: #ff1d1d;
+}
+
+[data-md-color-primary="custom"] {
+  --md-primary-fg-color: var(--clabe-navy);
+  --md-primary-fg-color--light: var(--clabe-navy-light);
+  --md-primary-fg-color--dark: #0b1118;
+  --md-primary-bg-color: #ffffff;
+  --md-primary-bg-color--light: rgba(255, 255, 255, 0.7);
+}
+
+[data-md-color-accent="custom"] {
+  --md-accent-fg-color: var(--clabe-purple);
+  --md-accent-fg-color--transparent: rgba(129, 70, 225, 0.1);
+  --md-accent-bg-color: #ffffff;
+}
+
+[data-md-color-scheme="default"] {
+  --md-default-bg-color: var(--clabe-bg);
+  --md-default-fg-color: var(--clabe-text);
+  --md-typeset-a-color: var(--clabe-purple);
+  --md-code-bg-color: var(--clabe-card);
+  --md-typeset-mark-color: rgba(204, 235, 5, 0.55);
+  --md-footer-bg-color: var(--clabe-navy);
+  --md-footer-bg-color--dark: #0b1118;
+}
+
+[data-md-color-scheme="slate"] {
+  --md-hue: 213;
+  --md-default-bg-color: #0f151d;
+  --md-default-bg-color--light: #18212c;
+  --md-code-bg-color: #18212c;
+  --md-typeset-a-color: var(--clabe-purple-light);
+  --md-accent-fg-color: var(--clabe-lime);
+  --md-typeset-mark-color: rgba(204, 235, 5, 0.35);
+  --md-footer-bg-color: #0b1118;
+}
+
+/* The bar and tabs: dark navy, the active tab underlined in lime — as the catalog browser's header. */
+.md-header,
+.md-tabs {
+  background-color: var(--clabe-navy);
+  color: #ffffff;
+}
+
+[data-md-color-scheme="slate"] .md-header,
+[data-md-color-scheme="slate"] .md-tabs {
+  background-color: #0b1118;
+}
+
+.md-tabs__link {
+  color: #cfd5da;
+  opacity: 1;
+}
+
+.md-tabs__link--active,
+.md-tabs__item--active .md-tabs__link {
+  color: #ffffff;
+  border-bottom: 3px solid var(--clabe-lime);
+}
+
+.md-tabs__link:hover {
+  color: var(--clabe-lime);
+}
+
+/* The wordmark: "clabe" with a lime slash. */
+.md-header__title {
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+
+.md-header__topic:first-child .md-ellipsis::after {
+  content: "/";
+  color: var(--clabe-lime);
+  font-weight: 700;
+  display: inline-block;
+  transform: skewX(-8deg);
+  margin-left: 1px;
+}
+
+/* Search, on the navy bar: as the catalog browser's buttons there. */
+.md-header .md-search__form,
+.md-header .md-search__button {
+  background-color: rgba(255, 255, 255, 0.08);
+  border: 1px solid #3a4655;
+  border-radius: 0.25rem;
+  color: #cfd5da;
+}
+
+.md-header .md-search__form:hover,
+.md-header .md-search__button:hover {
+  border-color: var(--clabe-lime);
+}
+
+.md-header .md-search__input::placeholder,
+.md-header .md-search__button {
+  color: #cfd5da;
+}
+
+/* Headings and text. */
+.md-typeset h1 {
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--md-default-fg-color);
+}
+
+.md-typeset h2 {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.md-typeset a:hover {
+  color: var(--clabe-purple);
+  text-decoration: underline;
+  text-decoration-color: var(--clabe-lime);
+  text-decoration-thickness: 2px;
+}
+
+[data-md-color-scheme="slate"] .md-typeset a:hover {
+  color: var(--clabe-lime);
+}
+
+/* Sidebars: the current page marked in lime. */
+.md-nav__link--active {
+  color: var(--md-default-fg-color);
+  font-weight: 600;
+  box-shadow: inset 3px 0 0 var(--clabe-lime);
+  padding-left: 0.5rem;
+}
+
+/* Code: cards on the off-white page, a thin line around them. */
+.md-typeset pre > code,
+.md-typeset .highlight {
+  border-radius: 0.25rem;
+}
+
+[data-md-color-scheme="default"] .md-typeset pre > code {
+  border: 1px solid var(--clabe-line);
+}
+
+[data-md-color-scheme="default"] .md-typeset :not(pre) > code {
+  background-color: #e8e4d8;
+}
+
+/* Tables: as the catalog browser's results. */
+[data-md-color-scheme="default"] .md-typeset table:not([class]) {
+  background-color: var(--clabe-card);
+  border: 1px solid var(--clabe-line);
+}
+
+[data-md-color-scheme="default"] .md-typeset table:not([class]) th {
+  background-color: #ece8dc;
+}
+
+/* Buttons: pills; the primary one lime, as the catalog browser's. */
+.md-typeset .md-button {
+  border-radius: 999px;
+  border-color: var(--clabe-text);
+  color: var(--clabe-text);
+}
+
+[data-md-color-scheme="slate"] .md-typeset .md-button {
+  border-color: #cfd5da;
+  color: #cfd5da;
+}
+
+.md-typeset .md-button--primary,
+[data-md-color-scheme="slate"] .md-typeset .md-button--primary {
+  background-color: var(--clabe-lime);
+  border-color: var(--clabe-lime);
+  color: #000000;
+  font-weight: 600;
+}
+
+.md-typeset .md-button:hover,
+.md-typeset .md-button:focus {
+  background-color: var(--clabe-purple);
+  border-color: var(--clabe-purple);
+  color: #ffffff;
+}
+
+/* The home page's hero. */
+.clabe-hero {
+  background: var(--clabe-navy);
+  color: #f3f0e9;
+  border-radius: 1rem;
+  padding: 2rem 2rem 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.md-typeset .clabe-hero h1 {
+  font-size: 2.6rem;
+  margin: 0 0 0.5rem;
+  color: #f3f0e9;
+  letter-spacing: -0.04em;
+}
+
+.md-typeset .clabe-hero .clabe-slash {
+  color: var(--clabe-lime);
+  display: inline-block;
+  transform: skewX(-8deg);
+  margin-left: 2px;
+}
+
+.clabe-hero p.lead {
+  font-size: 1.1rem;
+  max-width: 46rem;
+  color: #cfd5da;
+}
+
+.md-typeset .clabe-hero .md-button {
+  border: 1px solid #cfd5da;
+  color: #f3f0e9;
+  background-color: transparent;
+}
+
+.md-typeset .clabe-hero .md-button--primary {
+  background-color: var(--clabe-lime);
+  border-color: var(--clabe-lime);
+  color: #000000;
+}
+
+.md-typeset .clabe-hero .md-button:hover,
+.md-typeset .clabe-hero .md-button:focus {
+  background-color: var(--clabe-purple);
+  border-color: var(--clabe-purple);
+  color: #ffffff;
+}
+
+.md-typeset .clabe-hero code {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #f3f0e9;
+}
+
+/* Grid cards: a coloured top edge, cycling the accents. */
+.md-typeset .grid.cards > ul > li {
+  border-top: 4px solid var(--clabe-lime);
+  border-radius: 0.5rem;
+  background-color: var(--clabe-card);
+}
+
+[data-md-color-scheme="slate"] .md-typeset .grid.cards > ul > li {
+  background-color: #18212c;
+}
+
+.md-typeset .grid.cards > ul > li:nth-child(4n + 2) {
+  border-top-color: var(--clabe-purple);
+}
+
+.md-typeset .grid.cards > ul > li:nth-child(4n + 3) {
+  border-top-color: var(--clabe-teal);
+}
+
+.md-typeset .grid.cards > ul > li:nth-child(4n + 4) {
+  border-top-color: var(--clabe-blue);
+}
+
+/* Admonitions in the palette. */
+.md-typeset .admonition.tip,
+.md-typeset details.tip {
+  border-color: var(--clabe-ok);
+}
+
+.md-typeset .tip > .admonition-title,
+.md-typeset .tip > summary {
+  background-color: rgba(0, 200, 83, 0.1);
+}
+
+.md-typeset .admonition.note,
+.md-typeset details.note {
+  border-color: var(--clabe-purple);
+}
+
+.md-typeset .note > .admonition-title,
+.md-typeset .note > summary {
+  background-color: rgba(129, 70, 225, 0.1);
+}
+
+.md-typeset .admonition.warning,
+.md-typeset details.warning {
+  border-color: var(--clabe-warn);
+}
+
+.md-typeset .warning > .admonition-title,
+.md-typeset .warning > summary {
+  background-color: rgba(255, 223, 64, 0.18);
+}
+
+.md-typeset .admonition.danger,
+.md-typeset details.danger {
+  border-color: var(--clabe-err);
+}
+
+/* API reference: signatures on a card, as code. */
+[data-md-color-scheme="default"] .doc-signature {
+  background-color: var(--clabe-card);
+}
+
+/* The search button's shortcut badge, readable on the navy bar. */
+.md-header .md-search__button::after {
+  background-color: rgba(255, 255, 255, 0.14);
+  color: #cfd5da;
+}
+
+/* No "edit this page" button on top of the home page's hero. */
+.md-content__inner:has(> .clabe-hero) > .md-content__button {
+  display: none;
+}

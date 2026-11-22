@@ -57,7 +57,7 @@ class _RobocopyCommand(Command[CommandResult]):
 
     Robocopy exits non-zero even on a perfectly successful copy (codes 1–7 are
     bitmask flags for what happened, not failures).  Catching the resulting
-    :class:`CommandError` here — inside :meth:`execute` / :meth:`execute_async` —
+    `CommandError` here — inside `execute` / `execute_async` —
     means callers never observe it, so the ``@runnable`` lifecycle and OTel spans
     always reflect the true outcome regardless of which executor is used.
 

@@ -10,12 +10,12 @@ from ._run import Ack, Run
 
 
 class LocalClient:
-    """Answers a run's prompts with a local :class:`~clabe.ui.Client` and renders its messages.
+    """Answers a run's prompts with a local [`Client`][clabe.ui.Client] and renders its messages.
 
     The client only collects raw answers: the run validates them, and a rejected answer is shown to the user (with
     the reason) and asked again.
 
-    :meth:`drive` must run on the main thread (it is where Ctrl+C lands). The first Ctrl+C aborts the run;
+    `drive` must run on the main thread (it is where Ctrl+C lands). The first Ctrl+C aborts the run;
     a second one propagates as ``KeyboardInterrupt``.
 
     Args:

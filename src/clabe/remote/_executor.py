@@ -1,4 +1,4 @@
-"""Running commands on another machine's worker as if they were local (an :class:`~clabe.apps.Executor`)."""
+"""Running commands on another machine's worker as if they were local (an [`Executor`][clabe.apps.Executor])."""
 
 import asyncio
 import contextlib
@@ -29,7 +29,7 @@ class RemoteExecutor:
     Inputs a command declares (``Command.inputs``) are sent along with it, and ``path_mapping`` rewrites local path
     prefixes to their location on the worker. A cancelled ``run_async`` (e.g. the run was aborted) stops the job on
     the worker. To run apps in a checkout of this repository on another machine, use
-    :class:`~clabe.remote.RemoteRepository`, which builds on this executor.
+    [`RemoteRepository`][clabe.remote.RemoteRepository], which builds on this executor.
 
     Args:
         client: The worker's client.
@@ -134,7 +134,7 @@ class RemoteExecutor:
         return await self.wait_async(job_id, _describe(cmd))
 
     async def wait_async(self, job_id: str, description: str = "job") -> CommandResult:
-        """Asynchronous :meth:`wait`; cancelling it stops the job."""
+        """Asynchronous `wait`; cancelling it stops the job."""
         try:
             with self._activity(f"{description} on {self.host}") as follow:
                 started = time.monotonic()

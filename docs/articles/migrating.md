@@ -42,6 +42,7 @@ async def vr_foraging(launcher: Launcher) -> None:
     await asyncio.gather(bonsai_app.run_async(), fip_app.run_async())
     ...
 
+
 # after
 wf = Workflow("vr-foraging", exit_prompt_timeout=60)
 wf.step(steps.session())
@@ -62,8 +63,8 @@ def rig(store: Store) -> AindVrForagingRig:
     return store.resolve(VR_RIG)
 
 
-wf.step(steps.review("session", "trainer_state", "rig", back_to="session"))   # "Go back" replaces the early return
-wf.step(steps.register())                                                        # a barrier
+wf.step(steps.review("session", "trainer_state", "rig", back_to="session"))  # "Go back" replaces the early return
+wf.step(steps.register())  # a barrier
 
 
 @wf.step(title="Acquire", cancellable=True)

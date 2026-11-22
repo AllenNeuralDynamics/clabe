@@ -99,7 +99,7 @@ def task_state() -> str | None:
 def install(*, working_directory: Path | None = None) -> str:
     """Registers (or replaces) the scheduled task and starts it.
 
-    A daemon that is already running keeps running the old task's command: :func:`restart` it to use the new one.
+    A daemon that is already running keeps running the old task's command: `restart` it to use the new one.
     """
     directory = working_directory or default_working_directory()
     directory.mkdir(parents=True, exist_ok=True)

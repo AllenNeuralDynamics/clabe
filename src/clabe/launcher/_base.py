@@ -206,9 +206,9 @@ class Launcher:
         """
         Main entry point for the launcher execution.
 
-        Accepts a :class:`~clabe.workflow.Workflow`, an ``@experiment`` function or a plain ``(launcher)``
+        Accepts a [`Workflow`][clabe.workflow.Workflow], an ``@experiment`` function or a plain ``(launcher)``
         callable (sync or async), and executes it as a run driven by this launcher's client. Unless in debug mode,
-        :meth:`validate` runs as the run's first step (``clabe_preflight``). The run's records are written to
+        `validate` runs as the run's first step (``clabe_preflight``). The run's records are written to
         ``temp_dir``. Orchestrates the complete launcher workflow including validation, execution and cleanup.
 
         Steps (including legacy experiments) run on a dedicated run thread, not the main thread; code that must
@@ -307,7 +307,7 @@ class Launcher:
             server.stop()
 
     def _with_preflight(self, workflow: Workflow) -> Workflow:
-        """``workflow`` with :meth:`validate` as its first step, ``clabe_preflight`` (none in debug mode)."""
+        """``workflow`` with `validate` as its first step, ``clabe_preflight`` (none in debug mode)."""
         if self.settings.debug_mode:
             return workflow
 
@@ -363,7 +363,7 @@ class Launcher:
     def update_manifest(self, change: Callable[[RunManifest], None]) -> None:
         """Applies ``change`` to the run manifest and rewrites ``run.json`` (nothing happens without a run).
 
-        For what only becomes known during the run, e.g. the other machines it used (see :mod:`clabe.remote`).
+        For what only becomes known during the run, e.g. the other machines it used (see [`clabe.remote`][clabe.remote]).
         Thread-safe.
         """
         with self._manifest_lock:

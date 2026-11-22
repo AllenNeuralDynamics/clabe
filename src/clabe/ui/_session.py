@@ -1,6 +1,6 @@
 """Sessions: whoever can ask the user right now (a run, or a local client outside a run), and the ask API over it.
 
-Code asks through the bound session with :func:`ask` or the typed helpers (:func:`confirm`, :func:`text`, ...);
+Code asks through the bound session with `ask` or the typed helpers (`confirm`, `text`, ...);
 it never talks to a client directly. The binding is process-wide (not per thread or task), so steps, the library
 code they call and the threads they start all reach the same session: one session per process.
 """
@@ -42,7 +42,7 @@ class PromptCancelledError(Exception):
 
 
 class NoSessionError(RuntimeError):
-    """Raised by :func:`ask` when nothing can ask the user."""
+    """Raised by `ask` when nothing can ask the user."""
 
 
 @runtime_checkable
@@ -63,7 +63,7 @@ class Session(Protocol):
 
 
 class _Binding:
-    """One active :func:`bind` block; its identity tells it apart from other bindings of the same session."""
+    """One active `bind` block; its identity tells it apart from other bindings of the same session."""
 
     __slots__ = ("session",)
 
@@ -108,10 +108,10 @@ def ask(request: Request) -> Any:
     """Asks ``request`` through the bound session and returns its validated answer.
 
     Args:
-        request: What to ask (e.g. a :class:`~clabe.ui.TextRequest`).
+        request: What to ask (e.g. a [`TextRequest`][clabe.ui.TextRequest]).
 
     Returns:
-        The answer, validated and coerced by the request (a :class:`~clabe.ui.FieldRequest` gives the typed field
+        The answer, validated and coerced by the request (a [`FieldRequest`][clabe.ui.FieldRequest] gives the typed field
         value).
 
     Raises:
@@ -167,7 +167,7 @@ def activity(description: str) -> contextlib.AbstractContextManager[None]:
 
 
 def confirm(label: str, *, default: bool = False, field: str | None = None) -> bool:
-    """Asks a yes/no question (see :class:`~clabe.ui.ConfirmRequest`)."""
+    """Asks a yes/no question (see [`ConfirmRequest`][clabe.ui.ConfirmRequest])."""
     return ask(ConfirmRequest(label=label, default=default, field=field))
 
 
@@ -179,7 +179,7 @@ def text(
     validators: Sequence[Validator] = (),
     field: str | None = None,
 ) -> str:
-    """Asks for free-form text (see :class:`~clabe.ui.TextRequest`)."""
+    """Asks for free-form text (see [`TextRequest`][clabe.ui.TextRequest])."""
     return ask(TextRequest(label=label, default=default, multiline=multiline, validators=list(validators), field=field))
 
 
@@ -193,7 +193,7 @@ def number(
     step: float | None = None,
     widget: Literal["input", "slider"] = "input",
 ) -> float:
-    """Asks for a number, optionally bounded (see :class:`~clabe.ui.NumberRequest`)."""
+    """Asks for a number, optionally bounded (see [`NumberRequest`][clabe.ui.NumberRequest])."""
     request = NumberRequest(
         label=label, default=default, field=field, minimum=minimum, maximum=maximum, step=step, widget=widget
     )
@@ -210,7 +210,7 @@ def pick(
     field: str | None = None,
     help: str | None = None,
 ) -> str | None:
-    """Asks to pick one option; ``None`` when the "none" option is picked (see :class:`~clabe.ui.PickRequest`)."""
+    """Asks to pick one option; ``None`` when the "none" option is picked (see [`PickRequest`][clabe.ui.PickRequest])."""
     return ask(
         PickRequest(
             label=label,
@@ -234,7 +234,7 @@ def autocomplete(
     field: str | None = None,
     help: str | None = None,
 ) -> str:
-    """Asks for text completed against ``options`` (see :class:`~clabe.ui.AutoCompleteRequest`)."""
+    """Asks for text completed against ``options`` (see [`AutoCompleteRequest`][clabe.ui.AutoCompleteRequest])."""
     return ask(
         AutoCompleteRequest(
             label=label,
@@ -259,7 +259,7 @@ def path(
     field: str | None = None,
     help: str | None = None,
 ) -> Path | None:
-    """Asks for a filesystem path; ``None`` when cancelled (see :class:`~clabe.ui.PathRequest`)."""
+    """Asks for a filesystem path; ``None`` when cancelled (see [`PathRequest`][clabe.ui.PathRequest])."""
     return ask(
         PathRequest(
             label=label,
@@ -276,12 +276,12 @@ def path(
 
 def form(model: type, *, title: str | None = None, initial: object | None = None, field: str | None = None) -> Any:
     """Asks to fill in ``model`` as a form; the model instance, or ``None`` when cancelled (see
-    :class:`~clabe.ui.FormRequest`)."""
+    [`FormRequest`][clabe.ui.FormRequest])."""
     return ask(FormRequest(model=model, title=title, initial=initial, field=field))
 
 
 def field(model: type, field_name: str, *, initial: object | None = None) -> Any:
-    """Asks for one field of ``model`` and returns the typed value (see :class:`~clabe.ui.FieldRequest`).
+    """Asks for one field of ``model`` and returns the typed value (see [`FieldRequest`][clabe.ui.FieldRequest]).
 
     The session resolves the field to the prompt its type calls for (e.g. yes/no for a ``bool``).
     """
@@ -298,7 +298,7 @@ def table(
     cancel_label: str = "Cancel",
     field: str | None = None,
 ) -> bool:
-    """Shows a read-only table and asks yes/no (see :class:`~clabe.ui.ReadOnlyTable`)."""
+    """Shows a read-only table and asks yes/no (see [`ReadOnlyTable`][clabe.ui.ReadOnlyTable])."""
     return ask(
         ReadOnlyTable(
             columns=columns,
@@ -313,12 +313,12 @@ def table(
 
 
 def acknowledge(message: str, *, title: str = "Notice", button_label: str = "OK", field: str | None = None) -> None:
-    """Shows ``message`` and blocks until the user dismisses it (see :class:`~clabe.ui.AcknowledgeRequest`)."""
+    """Shows ``message`` and blocks until the user dismisses it (see [`AcknowledgeRequest`][clabe.ui.AcknowledgeRequest])."""
     ask(AcknowledgeRequest(message=message, title=title, button_label=button_label, field=field))
 
 
 def markdown(text: str, *, title: str | None = None, button_label: str = "Continue", field: str | None = None) -> None:
-    """Shows a Markdown document and blocks until the user continues (see :class:`~clabe.ui.MarkdownRequest`)."""
+    """Shows a Markdown document and blocks until the user continues (see [`MarkdownRequest`][clabe.ui.MarkdownRequest])."""
     ask(MarkdownRequest(markdown=text, title=title, button_label=button_label, field=field))
 
 
@@ -332,7 +332,7 @@ def image(
 ) -> None:
     """Shows an image (a local file or a URL) and blocks until the user continues.
 
-    Clients that cannot show images log a warning with the file instead (see :class:`~clabe.ui.MediaRequest`).
+    Clients that cannot show images log a warning with the file instead (see [`MediaRequest`][clabe.ui.MediaRequest]).
     """
     ask(MediaRequest(source, "image", title=title, caption=caption, button_label=button_label, field=field))
 
@@ -347,7 +347,7 @@ def html(
 ) -> None:
     """Shows an HTML page (a local file, a URL, or the HTML itself) and blocks until the user continues.
 
-    The page is sandboxed. Clients that cannot show HTML log a warning instead (see :class:`~clabe.ui.MediaRequest`).
+    The page is sandboxed. Clients that cannot show HTML log a warning instead (see [`MediaRequest`][clabe.ui.MediaRequest]).
     """
     ask(MediaRequest(source, "html", title=title, caption=caption, button_label=button_label, field=field))
 
@@ -363,7 +363,7 @@ def url(
     """Shows a web page and blocks until the user continues.
 
     Sites that refuse to be framed still get a link to open them. Clients that cannot show web pages log a warning
-    with the URL instead (see :class:`~clabe.ui.MediaRequest`).
+    with the URL instead (see [`MediaRequest`][clabe.ui.MediaRequest]).
     """
     ask(MediaRequest(address, "url", title=title, caption=caption, button_label=button_label, field=field))
 

@@ -12,7 +12,7 @@ from ..logging._stdlib import clabe_console as _default_console
 class ActivitySink(Protocol):
     """An alternative destination for activity displays.
 
-    When a sink is registered on an :class:`ActivityIndicator`, activities are
+    When a sink is registered on an `ActivityIndicator`, activities are
     rendered through the sink instead of the rich console. This lets a live TUI
     own the terminal and show progress *inside* itself, rather than having a
     console-based spinner corrupt the TUI's display.
@@ -184,7 +184,7 @@ _default_indicator_lock = threading.Lock()
 
 def get_activity_indicator() -> ActivityIndicator:
     """
-    Return the process-wide shared :class:`ActivityIndicator`.
+    Return the process-wide shared `ActivityIndicator`.
 
     Using a single shared indicator guarantees that concurrent runnables
     cooperate on one live display rather than each trying to start its own

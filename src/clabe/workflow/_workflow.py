@@ -19,7 +19,7 @@ class WorkflowDefinitionError(ValueError):
 
 @dataclass(frozen=True)
 class Step:
-    """One declared step of a :class:`Workflow`.
+    """One declared step of a `Workflow`.
 
     Attributes:
         name: Unique name; the step's return value is stored under it.
@@ -32,7 +32,7 @@ class Step:
         optional: When set, the run asks this question first and skips the step on "no".
         undo: Called with the step's output when a completed step is invalidated by going back.
         cancellable: An async step that may be interrupted by going back while it is busy.
-        codec: How the output is recorded in ``outputs.jsonl`` (see :mod:`clabe.workflow.codecs`); ``None`` uses
+        codec: How the output is recorded in ``outputs.jsonl`` (see [`clabe.workflow.codecs`][clabe.workflow.codecs]); ``None`` uses
             ``codecs.auto``.
     """
 
@@ -53,7 +53,7 @@ class Step:
         return tuple(p for p in self.params if p not in BUILTINS)
 
     def options(self) -> dict[str, Any]:
-        """The declaration options, as accepted by :meth:`Workflow.step`."""
+        """The declaration options, as accepted by `Workflow.step`."""
         return {
             "title": self.title,
             "barrier": self.barrier,
@@ -65,7 +65,7 @@ class Step:
         }
 
 
-#: Attribute holding the default options a step function carries (see :func:`step_defaults`).
+#: Attribute holding the default options a step function carries (see `step_defaults`).
 STEP_DEFAULTS = "__clabe_step_defaults__"
 
 _F = TypeVar("_F", bound=Callable[..., Any])
@@ -74,7 +74,7 @@ _F = TypeVar("_F", bound=Callable[..., Any])
 def step_defaults(**options: Any) -> Callable[[_F], _F]:
     """Gives a step function default options, e.g. a reusable step that should be a barrier.
 
-    Options passed when the step is declared (``wf.step(func, barrier=False)``) override these. See :class:`Step`
+    Options passed when the step is declared (``wf.step(func, barrier=False)``) override these. See `Step`
     for the options.
     """
 
@@ -86,7 +86,7 @@ def step_defaults(**options: Any) -> Callable[[_F], _F]:
 
 
 def make_step(func: Callable[..., Any], /, **options: Any) -> Step:
-    """Builds a :class:`Step` from a function: its :func:`step_defaults`, overridden by ``options``."""
+    """Builds a `Step` from a function: its `step_defaults`, overridden by ``options``."""
     return _build_step(func, **{**getattr(func, STEP_DEFAULTS, {}), **options})
 
 
@@ -102,7 +102,7 @@ def _build_step(
     cancellable: bool = False,
     codec: Codec | None = None,
 ) -> Step:
-    """Builds a :class:`Step` from a function, checking the options that do not depend on other steps."""
+    """Builds a `Step` from a function, checking the options that do not depend on other steps."""
     step_name = name if name is not None else getattr(func, "__name__", None)
     if not isinstance(step_name, str) or not step_name.isidentifier():
         raise WorkflowDefinitionError(
@@ -207,7 +207,7 @@ class Workflow:
         The decorated function is returned unchanged, so steps stay testable as plain functions.
         Every parameter must name an earlier step or a built-in (``launcher``, ``run``), even one with a
         default value: a misspelled input fails here rather than silently falling back to its default.
-        See :class:`Step` for the options.
+        See `Step` for the options.
         """
 
         def register(f: Callable[..., Any]) -> Callable[..., Any]:
@@ -244,14 +244,14 @@ class Workflow:
         return copy
 
     def insert_before(self, anchor: str, func: Callable[..., Any], /, **options: Any) -> Self:
-        """Inserts a new step right before ``anchor``. See :class:`Step` for the options."""
+        """Inserts a new step right before ``anchor``. See `Step` for the options."""
         steps = list(self._steps)
         steps.insert(self.index(anchor), make_step(func, **options))
         self._set_steps(steps)
         return self
 
     def insert_after(self, anchor: str, func: Callable[..., Any], /, **options: Any) -> Self:
-        """Inserts a new step right after ``anchor``. See :class:`Step` for the options."""
+        """Inserts a new step right after ``anchor``. See `Step` for the options."""
         steps = list(self._steps)
         steps.insert(self.index(anchor) + 1, make_step(func, **options))
         self._set_steps(steps)

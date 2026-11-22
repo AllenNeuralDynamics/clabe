@@ -1,7 +1,7 @@
 """Reusable workflow steps.
 
-Each function here builds a step for :meth:`Workflow.step <clabe.workflow.Workflow.step>`. The built step is a plain
-function whose parameters wire it to other steps by name — ``session`` (a :class:`~aind_behavior_services.Session`),
+Each function here builds a step for [`Workflow.step`][clabe.workflow.Workflow.step]. The built step is a plain
+function whose parameters wire it to other steps by name — ``session`` (a `Session`),
 ``rig`` (anything with a ``data_directory``) and the built-in ``launcher`` — and which carries sensible default
 options (``register`` is a barrier, ``waterlog`` only warns when it fails); options given when declaring it win::
 
@@ -38,7 +38,7 @@ __all__ = ["free_space", "register", "review", "session", "transfer", "waterlog"
 def session(
     *, experimenter_validator: Callable[[str], str | None] | None = validate_username, use_cache: bool = True
 ) -> Callable[[Launcher], Session]:
-    """A ``session`` step asking who is running and on which animal (see :class:`~clabe.session.SessionBuilder`).
+    """A ``session`` step asking who is running and on which animal (see [`SessionBuilder`][clabe.session.SessionBuilder]).
 
     Args:
         experimenter_validator: Validates each experimenter name; ``None`` accepts names as typed.
@@ -134,7 +134,7 @@ def transfer(service: Callable[[Launcher, Session], DataTransfer]) -> Callable[.
 
     Args:
         service: Builds the service from the launcher and the session, e.g. a
-            :class:`~clabe.data_transfer.aind_watchdog.WatchdogDataTransferService`.
+            [`WatchdogDataTransferService`][clabe.data_transfer.aind_watchdog.WatchdogDataTransferService].
     """
 
     @step_defaults(title="Transfer data", barrier=True)

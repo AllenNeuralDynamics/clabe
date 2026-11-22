@@ -1,4 +1,4 @@
-"""Executes a :class:`~clabe.workflow.Workflow`: owns its state, its event log and its command inbox."""
+"""Executes a [`Workflow`][clabe.workflow.Workflow]: owns its state, its event log and its command inbox."""
 
 import asyncio
 import concurrent.futures
@@ -170,7 +170,7 @@ def _summarize(value: Any, limit: int = 160) -> str | None:
 
 
 def _short(value: Any) -> str:
-    """The text of :func:`_summarize`, before truncation."""
+    """The text of `_summarize`, before truncation."""
     if isinstance(value, str):
         return value
     if isinstance(value, bool | int | float | Path | enum.Enum):
@@ -262,19 +262,19 @@ class Run:
     Steps run on a dedicated run thread, which has no running event loop: a sync step may run its own (e.g.
     ``asyncio.run``). Async steps run on one event loop per run, on a thread of its own, so tasks they create
     (e.g. an app's background task) and loop-bound objects carry across steps; tasks still running when the run
-    ends are cancelled. Every state change is recorded in :attr:`events`. Commands (answers, go back,
+    ends are cancelled. Every state change is recorded in `events`. Commands (answers, go back,
     abort) are thread-safe and may come from any client.
 
-    While it executes, the run is the process' :class:`~clabe.ui.Session`: ``ui.ask``, the typed helpers (e.g.
+    While it executes, the run is the process' [`Session`][clabe.ui.Session]: ``ui.ask``, the typed helpers (e.g.
     ``ui.confirm``), ``ui.notify`` and ``ui.header`` called from steps, from library code and from any thread reach
     it. One run per process is supported.
 
     Args:
-        workflow: The workflow to execute. The run keeps a copy (:attr:`workflow`) of its steps as they are when the
+        workflow: The workflow to execute. The run keeps a copy (`workflow`) of its steps as they are when the
             run is created; later changes to ``workflow`` do not affect the run.
         launcher: Passed to steps that take a ``launcher`` parameter.
         record_dir: When given, the run's records are written there: ``events.jsonl``, ``outputs.jsonl`` (one
-            line per completed step attempt) and ``artifacts/`` (see :func:`~clabe.workflow.export_artifact`).
+            line per completed step attempt) and ``artifacts/`` (see [`export_artifact`][clabe.workflow.export_artifact]).
         run_id: Identifier of the run; generated when omitted.
     """
 
@@ -551,7 +551,7 @@ class Run:
             self.notify(f"Could not record the output of {step.title}: {exc}", MessageLevel.WARNING)
 
     def _export_artifact(self, step: Step, attempt: int, source: Any, name: str | None) -> Path:
-        """Writes an artifact of ``step``'s attempt ``attempt`` and records it (see :func:`export_artifact`)."""
+        """Writes an artifact of ``step``'s attempt ``attempt`` and records it (see `export_artifact`)."""
         if self.record_dir is None:
             raise RuntimeError("This run has no record directory, so it cannot keep artifacts.")
         directory = self.record_dir / "artifacts" / step.name / str(attempt)
@@ -605,8 +605,8 @@ class Run:
     def _await_on_loop(self, step: Step, awaitable: Awaitable[Any], context: contextvars.Context) -> Any:
         """Awaits ``awaitable`` as a task on the run's loop, in ``context``, blocking the run thread until it ends.
 
-        The task is registered as cancellable by commands (see :meth:`_interrupt_locked`). A cancelled task raises
-        :class:`asyncio.CancelledError` here; ``KeyboardInterrupt`` and ``SystemExit`` raised by the step are re-raised
+        The task is registered as cancellable by commands (see `_interrupt_locked`). A cancelled task raises
+        `asyncio.CancelledError` here; ``KeyboardInterrupt`` and ``SystemExit`` raised by the step are re-raised
         here rather than escaping the loop (which would stop it).
 
         Raises:
@@ -719,12 +719,12 @@ class Run:
     def ask(self, request: Request) -> Any:
         """Opens a prompt for ``request`` and blocks until a client answers it.
 
-        Called from step code (directly, or through :func:`clabe.ui.ask` and its helpers). A :class:`~clabe.ui.FieldRequest` is
+        Called from step code (directly, or through [`clabe.ui.ask`][clabe.ui.ask] and its helpers). A [`FieldRequest`][clabe.ui.FieldRequest] is
         resolved first: the run opens the primitive prompt it resolves to (e.g. a ``confirm`` for a ``bool`` field)
         and returns the answer converted to the field's type.
 
         Args:
-            request: A prompt request from :mod:`clabe.ui` (e.g. a :class:`~clabe.ui.TextRequest`).
+            request: A prompt request from [`clabe.ui`][clabe.ui] (e.g. a [`TextRequest`][clabe.ui.TextRequest]).
 
         Returns:
             The validated, coerced answer.
@@ -786,7 +786,7 @@ class Run:
             client: Who answered; recorded in the ``PromptClosed`` event.
 
         Returns:
-            :class:`Ack` if the answer closed the prompt, otherwise :class:`Rejected` with the reason.
+            `Ack` if the answer closed the prompt, otherwise `Rejected` with the reason.
         """
         with self._lock:
             prompt = self._prompt
@@ -814,7 +814,7 @@ class Run:
         return Ack()
 
     def cancel_prompt(self) -> None:
-        """Cancels the open prompt, if any; the waiting step gets :class:`~clabe.ui.PromptCancelledError`."""
+        """Cancels the open prompt, if any; the waiting step gets [`PromptCancelledError`][clabe.ui.PromptCancelledError]."""
         with self._lock:
             if self._prompt is not None:
                 self._cancel_prompt_locked()
@@ -849,7 +849,7 @@ class Run:
             target: Name of the step to go back to.
 
         Returns:
-            :class:`Ack` if the command was accepted, otherwise :class:`Rejected` with the reason.
+            `Ack` if the command was accepted, otherwise `Rejected` with the reason.
         """
         with self._lock:
             if self._finished.is_set():
@@ -896,7 +896,7 @@ class Run:
             reason: Why the run was aborted; recorded as the run's reason.
 
         Returns:
-            :class:`Ack`.
+            `Ack`.
         """
         with self._lock:
             if not (self._finished.is_set() or self._finishing or self._aborting_locked()):
@@ -909,7 +909,7 @@ class Run:
         return self._pending is not None and self._pending.kind == "abort"
 
     def _stop(self, status: RunStatus, reason: str | None = None, error: BaseException | None = None) -> _Stop:
-        """Marks the run as finishing (commands are refused from here on) and returns the :class:`_Stop` to raise."""
+        """Marks the run as finishing (commands are refused from here on) and returns the `_Stop` to raise."""
         with self._lock:
             self._finishing = True
         return _Stop(status, reason, error)
@@ -1106,7 +1106,7 @@ class Run:
             machine: The machine the work runs on, when not this one.
 
         Yields:
-            The activity's id, to record its output with :meth:`activity_output`.
+            The activity's id, to record its output with `activity_output`.
         """
         activity_id = uuid.uuid4().hex[:12]
         with self._lock:  # the step read and the event are one atomic change: no step can start or end between

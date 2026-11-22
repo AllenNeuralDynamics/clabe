@@ -103,7 +103,7 @@ jobs:
         run: |
           uv sync --group docs
           uv run docs/build.py
-          uv run mkdocs build --strict
+          uv run zensical build --strict --clean
 
   hub-image:
     name: Hub Docker image
@@ -259,4 +259,5 @@ jobs:
       - name: Build & Deploy docs
         run: |
           uv run docs/build.py
-          uv run mkdocs gh-deploy --force
+          uv run zensical build --clean
+          uvx ghp-import --no-jekyll --push --force site

@@ -39,15 +39,15 @@ serialization. Choose another with `codec=`:
 from clabe.workflow import codecs
 
 
-@wf.step(codec=codecs.omit)          # credentials, huge objects: lineage only
+@wf.step(codec=codecs.omit)  # credentials, huge objects: lineage only
 def credentials() -> Credentials: ...
 
 
-@wf.step(codec=codecs.text)          # repr(), truncated
+@wf.step(codec=codecs.text)  # repr(), truncated
 def handle() -> SerialPort: ...
 
 
-@wf.step(codec=lambda frames: {"n": len(frames), "first": frames[0].timestamp})   # your own
+@wf.step(codec=lambda frames: {"n": len(frames), "first": frames[0].timestamp})  # your own
 def frames() -> list[Frame]: ...
 ```
 
@@ -62,9 +62,9 @@ from clabe.workflow import export_artifact
 @wf.step
 def configure(rig: Rig, session: Session) -> Path:
     path = write_bonsai_config(rig, session)
-    export_artifact(path)                          # a copy, under artifacts/configure/<attempt>/
-    export_artifact(rig, "rig.json")               # a model, as JSON
-    export_artifact(b"...", "figures/qc.png")      # bytes, under a sub-folder
+    export_artifact(path)  # a copy, under artifacts/configure/<attempt>/
+    export_artifact(rig, "rig.json")  # a model, as JSON
+    export_artifact(b"...", "figures/qc.png")  # bytes, under a sub-folder
     return path
 ```
 
@@ -86,7 +86,7 @@ for e in answers:
 
 outputs = [json.loads(line) for line in (logs / "outputs.jsonl").read_text().splitlines()]
 register = next(o for o in outputs if o["step"] == "register")
-print(register["inputs"])        # {"session": 2, "rig": 1}: the attempts it used
+print(register["inputs"])  # {"session": 2, "rig": 1}: the attempts it used
 ```
 
 ## The manifest: `run.json`

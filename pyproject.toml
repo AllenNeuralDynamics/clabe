@@ -82,8 +82,7 @@ dev = [
 
 docs = [
     "aind-clabe[aind-services]",
-    'mkdocs',
-    'mkdocs-material',
+    'zensical',
     'mkdocstrings[python]',
     'pymdown-extensions',
 ]

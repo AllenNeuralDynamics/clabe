@@ -16,11 +16,11 @@ class OtelSettings(ServiceSettings):
     run with only its name. A profile enriches the run with domain identity by overriding
     the two population hooks:
 
-    * :meth:`initial_attributes` — values known at process start (config + auto-defaults).
-    * :meth:`session_attributes` — values derived from the session, once it is registered.
+    * `initial_attributes` — values known at process start (config + auto-defaults).
+    * `session_attributes` — values derived from the session, once it is registered.
 
     Both feed a single attribute bag that is stamped on every span and log. Attributes may
-    also be set at any time during a run via :func:`clabe.logging.otel.enrich_attribute`.
+    also be set at any time during a run via [`clabe.logging.otel.enrich_attribute`][clabe.logging.otel.enrich_attribute].
     """
 
     __yml_section__: ClassVar[str] = "otel"
@@ -88,7 +88,7 @@ class AindOtelSettings(OtelSettings):
     Every field is optional and settable in clabe.yml. Fields left unset are auto-populated
     at creation time where a default exists (``hostname``, ``rig_id``, ``software_version``);
     ``subject_id`` and ``user_id`` stay ``None`` until the session is registered. Any field
-    can also be overridden at any time via :func:`clabe.logging.otel.enrich_attribute` (this is also
+    can also be overridden at any time via [`clabe.logging.otel.enrich_attribute`][clabe.logging.otel.enrich_attribute] (this is also
     how one-off attributes such as ``instrument_id`` are set — they have no dedicated field).
 
     See https://github.com/AllenNeuralDynamics/log-schema for the field definitions.
@@ -124,7 +124,7 @@ class AindOtelSettings(OtelSettings):
 
         ``software_name`` is the producing application, which is exactly what ``service.name``
         should identify. It is also emitted as the explicit ``software_name`` attribute (see
-        :meth:`initial_attributes`) for log-schema consumers that key on that field by name.
+        `initial_attributes`) for log-schema consumers that key on that field by name.
         """
         return self.software_name or self.service_name
 

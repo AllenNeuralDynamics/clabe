@@ -48,7 +48,7 @@ _ValidatorsArg = _Validator | Iterable[_Validator] | None
 
 class PickRequestKwargs(TypedDict, total=False):
     """
-    Optional overrides forwarded to :class:`ui.PickRequest` by :meth:`StoreBase.resolve`.
+    Optional overrides forwarded to `ui.PickRequest` by `StoreBase.resolve`.
 
     All fields are optional; omitted fields fall back to ``resolve``'s own defaults.
     ``options`` is always computed from the store's candidates and cannot be overridden here.
@@ -85,8 +85,8 @@ class Kind(Generic[T]):
     The name routes the record to a backend and determines its storage layout;
     the model types the return value of every store call made with this kind.
 
-    Canonical kinds should be built through :meth:`from_rig`, :meth:`from_task`,
-    :meth:`from_session` or :meth:`from_trainer_state`, which fix the framework
+    Canonical kinds should be built through `from_rig`, `from_task`,
+    `from_session` or `from_trainer_state`, which fix the framework
     name. The bare constructor derives the name from the model class instead,
     so ``Kind(AindVrForagingRig)`` is named ``"aind_vr_foraging_rig"``, *not*
     ``"rig"`` -- it is for custom records only.
@@ -155,14 +155,14 @@ KindLike = Kind[T] | type[T]
 
 
 def as_kind(kind: KindLike[T]) -> Kind[T]:
-    """Normalizes a kind-or-model argument into a :class:`Kind`."""
+    """Normalizes a kind-or-model argument into a `Kind`."""
     return kind if isinstance(kind, Kind) else Kind(kind)
 
 
 @runtime_checkable
 class Store(Protocol):
     """
-    Reads, resolves and writes records of a given :class:`Kind`.
+    Reads, resolves and writes records of a given `Kind`.
 
     Which kinds a store actually serves is a deployment fact, not a type-level
     one: an unsupported kind raises when the call is made.
@@ -205,8 +205,8 @@ class StoreBase(abc.ABC):
     """
     Base for stores, supplying scope narrowing and the default resolution policy.
 
-    Subclasses implement :meth:`_candidates` and :meth:`write`, and may override
-    :meth:`resolve` when their backend affords a better presentation than a flat
+    Subclasses implement `_candidates` and `write`, and may override
+    `resolve` when their backend affords a better presentation than a flat
     pick list.
     """
 
@@ -238,7 +238,7 @@ class StoreBase(abc.ABC):
 
     @abc.abstractmethod
     def write(self, kind: KindLike[T], value: T, *, scope: Scope | None = None) -> None:
-        """Persists a record. See :meth:`Store.write`."""
+        """Persists a record. See `Store.write`."""
 
     def list(self, kind: KindLike[T], *, scope: Scope | None = None) -> Sequence[T]:
         """Returns every record of this kind in scope, validated but unprompted."""
@@ -258,7 +258,7 @@ class StoreBase(abc.ABC):
         Args:
             kind: The kind of record to resolve.
             scope: Narrows which records are considered. Layered over the store's own scope.
-            pick_kwargs: Optional overrides for the :class:`ui.PickRequest` shown to the user.
+            pick_kwargs: Optional overrides for the `ui.PickRequest` shown to the user.
                 Any key present here takes precedence over ``resolve``'s own defaults.
                 ``options`` is always derived from the store's candidates and is not overridable.
 
@@ -329,7 +329,7 @@ class CompositeStore(StoreBase):
         Args:
             default: Serves any kind not named in ``routes``. If ``None``,
                 unrouted kinds raise.
-            routes: Maps a :attr:`Kind.name` to the store serving it.
+            routes: Maps a `Kind.name` to the store serving it.
         """
         super().__init__()
         self._default = default

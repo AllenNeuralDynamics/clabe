@@ -173,9 +173,9 @@ Running on the remote executor does three things on top of a local run:
 Everything above is built on the [`WorkerClient`][clabe.remote.WorkerClient], which you can also use on its own:
 
 ```python
-result = client.run_command(["python", "--version"])        # waits for the result
-job = client.submit_command(["python", "slow_script.py"])   # returns a job id, poll with get_result(job.job_id)
-client.upload_model(session, "session.json")                 # files, up to max_file_size
+result = client.run_command(["python", "--version"])  # waits for the result
+job = client.submit_command(["python", "slow_script.py"])  # returns a job id, poll with get_result(job.job_id)
+client.upload_model(session, "session.json")  # files, up to max_file_size
 ```
 
 ### Recovering after a crash
@@ -185,8 +185,8 @@ recovery workflow) reattaches to them with the crashed session's run id, from it
 
 ```python
 remote = RemoteRepository.from_computer_name("rig-b")
-for job in remote.reattach(crashed_run_id):        # takes the machine back for that run
-    result = remote.wait_for(job.job_id)           # or await remote.wait_for_async(...)
+for job in remote.reattach(crashed_run_id):  # takes the machine back for that run
+    result = remote.wait_for(job.job_id)  # or await remote.wait_for_async(...)
 ```
 
 ## 4. Data that the other machine saves

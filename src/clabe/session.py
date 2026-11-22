@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 class SessionBuilder:
     """
-    Assembles a :class:`Session` by asking the user who is running and on which animal.
+    Assembles a `Session` by asking the user who is running and on which animal.
 
     This is the one genuinely interactive job with no database behind it, which
     is why it is not a store. It holds no state between calls, so a recovery

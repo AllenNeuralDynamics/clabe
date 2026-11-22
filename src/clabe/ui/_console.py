@@ -66,7 +66,7 @@ class _KeyLineReader:
 
     ``input()`` cannot be interrupted from another thread, so on an interactive
     terminal line prompts read key by key instead, echoing as they go, which
-    lets :meth:`ConsoleClient.cancel` abort them.
+    lets `ConsoleClient.cancel` abort them.
     """
 
     def __init__(self, console: Console, cancel: threading.Event) -> None:
@@ -122,16 +122,16 @@ _LEVEL_PREFIXES = {
 
 class ConsoleClient:
     """
-    A :class:`~clabe.ui.Client` using `rich` for styled, line-based prompts.
+    A [`Client`][clabe.ui.Client] using `rich` for styled, line-based prompts.
 
     Renders messages and prompts with colour and structure on an interactive terminal while degrading gracefully:
     rich strips styling automatically and falls back to plain ``input`` when output is not a terminal (e.g. piped to
     a file or running in CI), so this also serves as the non-interactive fallback.
 
-    Like every client it never validates: :meth:`ask` returns the raw answer and whoever drives the client (a run,
-    or a :class:`~clabe.ui.ClientSession`) validates it and asks again if needed.
+    Like every client it never validates: `ask` returns the raw answer and whoever drives the client (a run,
+    or a [`ClientSession`][clabe.ui.ClientSession]) validates it and asks again if needed.
 
-    On an interactive terminal every prompt reads the keyboard key by key, so :meth:`cancel` can abort it from
+    On an interactive terminal every prompt reads the keyboard key by key, so `cancel` can abort it from
     another thread. When stdin or stdout is not a terminal, prompts fall back to ``input()`` and cannot be cancelled.
 
     Args:
@@ -170,7 +170,7 @@ class ConsoleClient:
         """Shows ``request`` and returns the raw answer.
 
         Raises:
-            PromptCancelledError: :meth:`cancel` was called while the prompt was shown.
+            PromptCancelledError: `cancel` was called while the prompt was shown.
             ValueError: ``request`` is not a primitive prompt (e.g. an unresolved field request).
         """
         handler = self._HANDLERS.get(request.prompt_kind)
@@ -179,7 +179,7 @@ class ConsoleClient:
         return getattr(self, handler)(request)
 
     def cancel(self) -> None:
-        """Aborts the waiting prompt; it raises :class:`PromptCancelledError`."""
+        """Aborts the waiting prompt; it raises `PromptCancelledError`."""
         self._cancel.set()
 
     def notify(self, message: str, level: MessageLevel = MessageLevel.INFO) -> None:
@@ -442,7 +442,7 @@ class ConsoleClient:
         """Lists the start directory's contents, then collects a line of typed text.
 
         A non-interactive console cannot offer a live browser, so the directory
-        is shown up front (mirroring :meth:`_autocomplete_listed`) and any typed
+        is shown up front (mirroring `_autocomplete_listed`) and any typed
         value is returned; whoever drives the client enforces the request's
         constraints.
         """

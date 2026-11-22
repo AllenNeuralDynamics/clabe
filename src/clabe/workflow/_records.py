@@ -60,7 +60,7 @@ class Encoded:
 
 
 def _safe_text(value: Any) -> str:
-    """:func:`codecs.text` of ``value`` (always UTF-8 encodable), or its type name if even ``repr`` fails."""
+    """`codecs.text` of ``value`` (always UTF-8 encodable), or its type name if even ``repr`` fails."""
     try:
         text = codecs.text(value)
     except Exception:  # noqa: BLE001 -- the last-resort rendering must not fail
@@ -69,7 +69,7 @@ def _safe_text(value: Any) -> str:
 
 
 def encode_output(value: Any, codec: codecs.Codec | None) -> Encoded:
-    """Encodes a step output with ``codec`` (default :func:`codecs.auto`); any failure falls back to ``repr``.
+    """Encodes a step output with ``codec`` (default `codecs.auto`); any failure falls back to ``repr``.
 
     The output is serialized once, canonically, to check it has a JSON form and to hash it. Never raises.
     """

@@ -308,7 +308,7 @@ class _LauncherApp(App):
 
         ``kind="any"`` takes an extra screen (a File/Folder disambiguation) since
         no single ``textual-fspicker`` dialog can return either — see
-        :func:`push_path_picker`.
+        `push_path_picker`.
         """
         self._pending = reply
         self._kind = "path"
@@ -519,14 +519,14 @@ def _unwrap(value: object) -> object:
 
 class TextualClient:
     """
-    A :class:`~clabe.ui.Client` backed by a single persistent Textual app.
+    A [`Client`][clabe.ui.Client] backed by a single persistent Textual app.
 
     The app is started lazily on first use and runs on a background thread for the remainder of the session.
     Messages, answered prompts, and live activity all render inside the one app; console logging is muted for the
     app's lifetime so nothing corrupts the display.
 
-    Like every client it never validates: :meth:`ask` returns the raw answer and whoever drives the client (a run,
-    or a :class:`~clabe.ui.ClientSession`) validates it and asks again if needed.
+    Like every client it never validates: `ask` returns the raw answer and whoever drives the client (a run,
+    or a [`ClientSession`][clabe.ui.ClientSession]) validates it and asks again if needed.
     """
 
     #: The method that asks each primitive prompt kind.
@@ -608,7 +608,7 @@ class TextualClient:
         """Shows ``request`` in the TUI and returns the raw answer, echoing it in the Session pane.
 
         Raises:
-            PromptCancelledError: :meth:`cancel` was called while the prompt was shown.
+            PromptCancelledError: `cancel` was called while the prompt was shown.
             ValueError: ``request`` is not a primitive prompt (e.g. an unresolved field request).
         """
         handler = self._HANDLERS.get(request.prompt_kind)
@@ -631,7 +631,7 @@ class TextualClient:
         app.call_from_thread(app.set_logo, text)
 
     def cancel(self) -> None:
-        """Abort the waiting prompt from any thread; it raises :class:`PromptCancelledError`."""
+        """Abort the waiting prompt from any thread; it raises `PromptCancelledError`."""
         app = self._app
         if app is None:
             return

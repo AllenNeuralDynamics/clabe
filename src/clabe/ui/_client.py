@@ -1,7 +1,7 @@
 """Clients: user interfaces (console, TUI, later web/MCP) that render messages and collect raw answers.
 
 A client never validates. Whoever drives it does, with the request's own rules: a run (through
-:class:`~clabe.workflow.LocalClient`) or, outside a run, a :class:`ClientSession`.
+[`LocalClient`][clabe.workflow.LocalClient]) or, outside a run, a `ClientSession`.
 """
 
 import logging
@@ -21,7 +21,7 @@ class Client(Protocol):
         """Shows ``request`` and blocks until the user answers; returns the raw answer.
 
         Raises:
-            PromptCancelledError: :meth:`cancel` was called while the prompt was shown.
+            PromptCancelledError: `cancel` was called while the prompt was shown.
         """
         ...
 
@@ -43,9 +43,9 @@ class Client(Protocol):
 
 
 class ClientSession:
-    """Uses a :class:`Client` as the :class:`~clabe.ui.Session` outside a run.
+    """Uses a `Client` as the [`Session`][clabe.ui.Session] outside a run.
 
-    Resolves :class:`~clabe.ui.FieldRequest` s, validates answers with the request's own rules and asks again
+    Resolves [`FieldRequest`][clabe.ui.FieldRequest] s, validates answers with the request's own rules and asks again
     (showing the reason) until an answer is accepted, as a run does.
 
     Args:

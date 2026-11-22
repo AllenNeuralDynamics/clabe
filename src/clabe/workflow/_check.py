@@ -26,7 +26,7 @@ class Issue:
         message: What is wrong and how to fix it.
         workflow: The workflow concerned, if any.
         step: The step concerned, if any.
-        source: The file checked, when the issue comes from :func:`check_path`.
+        source: The file checked, when the issue comes from `check_path`.
     """
 
     severity: Severity

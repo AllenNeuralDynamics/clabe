@@ -56,7 +56,7 @@ and logs all three. Turn each off with a flag, or set the start message:
 def transfer(self) -> None: ...
 
 
-@runnable(notify_start=False, notify_success=False)   # only speak up on failure
+@runnable(notify_start=False, notify_success=False)  # only speak up on failure
 def check(self) -> bool: ...
 ```
 

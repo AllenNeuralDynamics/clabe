@@ -1,8 +1,8 @@
-"""Run events: the append-only, sequenced record of a :class:`~clabe.workflow.Run`.
+"""Run events: the append-only, sequenced record of a [`Run`][clabe.workflow.Run].
 
-Every state change of a run is one of the event models below, appended to the run's :class:`EventLog`
-(``run.events``) and mirrored to ``events.jsonl`` when the run keeps records. :data:`Event` is the discriminated
-union of all of them (on ``type``); :meth:`EventLog.read` loads a persisted log back.
+Every state change of a run is one of the event models below, appended to the run's `EventLog`
+(``run.events``) and mirrored to ``events.jsonl`` when the run keeps records. `Event` is the discriminated
+union of all of them (on ``type``); `EventLog.read` loads a persisted log back.
 """
 
 from ._events import (

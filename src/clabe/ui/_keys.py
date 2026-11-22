@@ -9,7 +9,7 @@ returned verbatim.
 import sys
 import threading
 
-#: Normalized key names returned by :func:`read_key`.
+#: Normalized key names returned by `read_key`.
 UP = "up"
 DOWN = "down"
 LEFT = "left"
@@ -89,11 +89,11 @@ def read_key(cancel: threading.Event | None = None) -> str:
 
     Args:
         cancel: Optional event that aborts the wait when set; the read then
-            returns :data:`CANCELLED` instead of a key.
+            returns `CANCELLED` instead of a key.
 
     Returns:
-        str: One of the module-level key-name constants (e.g. :data:`UP`,
-        :data:`ENTER`) for special keys, or the literal character typed for
+        str: One of the module-level key-name constants (e.g. `UP`,
+        `ENTER`) for special keys, or the literal character typed for
         printable input. Unrecognized control sequences yield an empty string.
     """
     if sys.platform == "win32":
