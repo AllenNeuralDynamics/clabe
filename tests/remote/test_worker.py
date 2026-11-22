@@ -299,7 +299,7 @@ def test_the_run_manifest_lists_the_workers_and_their_jobs(worker_url, repositor
     steps_and_commands = [(job.step, job.command[-1]) for job in worker.jobs]
     assert steps_and_commands[:2] == [("verify", "."), ("acquire", "print('ok')")]
     assert [step for step, _ in steps_and_commands[2:]] == ["register"]  # creating its session folder there
-    assert worker.session_directory == str(PureWindowsPath(repository.parent) / "s1")
+    assert worker.session_directory == str(remote.session_directory)  # as that machine writes paths
     assert worker.session_directory_unc == str(remote.session_directory_unc)
 
     from clabe.launcher import Launcher
