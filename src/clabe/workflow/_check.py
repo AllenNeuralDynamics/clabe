@@ -4,11 +4,12 @@ import dataclasses
 import inspect
 import types
 import typing
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Literal
 
 from ._discovery import collect_workflows, load_module
-from ._workflow import Workflow, WorkflowDefinitionError
+from ._workflow import Step, Workflow, WorkflowDefinitionError
 
 Severity = Literal["error", "warning"]
 
@@ -146,8 +147,7 @@ def check_workflow(workflow: Workflow, *, strict: bool = False) -> list[Issue]:
         The issues found (empty when the workflow is fine).
     """
     issues: list[Issue] = []
-    produced: dict[str, Any] = {}
-    declared: dict[str, Any] = {}
+    declared: dict[str, Any] = {}  # each step's return annotation
     unresolved_returns: set[str] = set()  # already reported as errors; not worth a strict warning downstream
     for step in workflow.steps:
 
@@ -170,7 +170,9 @@ def check_workflow(workflow: Workflow, *, strict: bool = False) -> list[Issue]:
         for dep in (*inputs, *condition_inputs):
             if dep in errors or dep in unresolved_returns:
                 continue
-            expected, given = hints.get(dep, _UNKNOWN), produced.get(dep, _UNKNOWN)
+            expected, given = hints.get(dep, _UNKNOWN), declared.get(dep, _UNKNOWN)
+            if given is not _UNKNOWN and _may_receive_none(workflow.get(dep), step):
+                given = typing.Optional[given]  # noqa: UP045 -- a runtime value, not an annotation
             if expected is _UNKNOWN or given is _UNKNOWN:
                 if strict and dep in inputs:
                     report("warning", f"cannot check {dep!r}: annotate this parameter and the return of step {dep!r}.")
@@ -188,12 +190,42 @@ def check_workflow(workflow: Workflow, *, strict: bool = False) -> list[Issue]:
                 )
             elif verdict is None and strict:
                 report("warning", f"cannot decide whether {_name(given)} fits {_name(expected)} for {dep!r}.")
-        returned = hints.get("return", _UNKNOWN)
-        declared[step.name] = returned
-        if returned is not _UNKNOWN and (step.optional is not None or step.when is not None or step.on_error == "warn"):
-            returned = typing.Optional[returned]  # noqa: UP045 -- a runtime value, not an annotation
-        produced[step.name] = returned
+        declared[step.name] = hints.get("return", _UNKNOWN)
     return issues
+
+
+def _may_receive_none(producer: Step, consumer: Step) -> bool:
+    """Whether ``consumer`` may receive None from ``producer``: an optional or ``on_error='warn'`` step may give None,
+    and a conditional one too, unless ``consumer`` has the same condition (it then runs only when ``producer`` did)."""
+    if producer.optional is not None or producer.on_error == "warn":
+        return True
+    if producer.when is None:
+        return False
+    return consumer.when is None or not _same_condition(producer.when, consumer.when)
+
+
+def _same_condition(first: Callable[..., Any], second: Callable[..., Any]) -> bool:
+    """Whether two ``when=`` conditions always agree: the same function, or two functions with the same code, globals,
+    defaults and closure values (e.g. the same lambda written twice)."""
+    if first is second:
+        return True
+    a, b = getattr(first, "__code__", None), getattr(second, "__code__", None)
+    if a is None or b is None:
+        return False
+    same_code = (a.co_code, a.co_consts, a.co_names, a.co_varnames) == (
+        b.co_code,
+        b.co_consts,
+        b.co_names,
+        b.co_varnames,
+    )
+    cells_a, cells_b = first.__closure__ or (), second.__closure__ or ()  # type: ignore[attr-defined]
+    return (
+        same_code
+        and first.__globals__ is second.__globals__  # type: ignore[attr-defined]
+        and first.__defaults__ == second.__defaults__  # type: ignore[attr-defined]
+        and len(cells_a) == len(cells_b)
+        and all(x.cell_contents is y.cell_contents for x, y in zip(cells_a, cells_b, strict=True))
+    )
 
 
 def _check_file(path: Path, strict: bool) -> tuple[list[Issue], int]:

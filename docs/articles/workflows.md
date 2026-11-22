@@ -102,6 +102,8 @@ def acquire(calibrate: Calibration | None, last_calibration: Calibration | None)
 - `when` takes earlier outputs by name, as a step does. It must be a regular function, not an async one.
 - Skipped steps output `None`, so annotate the parameters that receive them as `T | None`. `clabe check` reports
   the ones that are not.
+- A step with the same condition never receives `None` from it, so a chain of steps can share one `when` and keep
+  plain `T` annotations: pass the same function, or write the same lambda again.
 - Going back to `mode` evaluates the conditions again.
 - If a step also has `optional=`, the question is asked only when the condition holds.
 - If the two cases differ only in code, one step with an `if` is simpler.

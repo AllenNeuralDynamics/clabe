@@ -132,6 +132,47 @@ def test_the_static_check_treats_a_conditional_output_as_optional():
     assert not [i for i in issues if i.step == "calibrate"]  # an unannotated lambda condition is fine
 
 
+def test_a_step_with_the_same_condition_never_receives_none():
+    def ephys_on(mode: int) -> bool:
+        return mode == 1
+
+    wf = Workflow("demo")
+
+    @wf.step
+    def mode() -> int:
+        return 1
+
+    @wf.step(when=ephys_on)
+    def probe() -> float:
+        return 1.0
+
+    @wf.step(when=ephys_on)  # the same function
+    def record(probe: float) -> str:
+        return "rec"
+
+    @wf.step(when=lambda mode: mode == 1)
+    def calibrate() -> float:
+        return 1.0
+
+    @wf.step(when=lambda mode: mode == 1)  # the same lambda, written again
+    def check(calibrate: float, record: str | None) -> None: ...
+
+    @wf.step(when=lambda mode: mode == 2)  # another condition: calibrate may be None here
+    def other(calibrate: float) -> None: ...
+
+    @wf.step(when=ephys_on, optional="Stop?")
+    def stop() -> int:
+        return 1
+
+    @wf.step(when=ephys_on)  # stop may be declined: None despite the same condition
+    def after(stop: int) -> None: ...
+
+    errors = [(i.step, i.message) for i in check_workflow(wf) if i.severity == "error"]
+    assert [step for step, _ in errors] == ["other", "after"]
+    run, _ = execute(wf, [True])
+    assert run.status is RunStatus.COMPLETED
+
+
 def test_replace_keeps_the_condition():
     wf = Workflow("demo")
     wf.step(lambda: 1, name="mode")
