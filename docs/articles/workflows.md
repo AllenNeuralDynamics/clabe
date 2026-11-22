@@ -1,131 +1,119 @@
-# Workflows
+# Write a workflow
 
-An experiment is a **workflow**: an ordered list of steps. Each step is a plain function; its parameters name the
-earlier steps whose outputs it needs, and what it returns is stored under its own name. The launcher runs the steps
-in order, shows them to every client (the TUI, the console, the web UI) and lets the user go back, retry or skip.
+Build an experiment as a [`Workflow`][clabe.workflow.Workflow]: an ordered list of steps that clabe runs, shows to
+every client and lets the user go back, retry or skip.
+
+## 1. Declare the workflow
 
 ```python
-from clabe import checks, steps, ui
+# my_experiment.py
+from clabe import checks, steps
 from clabe.launcher import Launcher
-from clabe.workflow import GoBack, Workflow
-
-SHARE = r"\\allen\aind\scratch"  # where the data is copied to
+from clabe.workflow import Workflow
 
 wf = Workflow("vr-foraging", exit_prompt_timeout=60)
-
 wf.step(steps.session())  # a `session` step: who is running, on which animal
+```
 
+- `exit_prompt_timeout`: `None` waits for Enter at the end, `0` exits at once, `N` waits `N` seconds.
 
-@wf.step(title="Trainer state")
-def trainer_state(session: Session) -> TrainerState:
-    return store_for(session).resolve(TRAINER_STATE)
+## 2. Add your own steps
+
+```python
+from aind_behavior_services.session import Session
 
 
 @wf.step
-def rig(session: Session) -> AindVrForagingRig: ...
+def rig(session: Session) -> MyRig:
+    return load_rig(session)
 
+
+@wf.step(title="Trainer state")
+def trainer_state(session: Session, rig: MyRig) -> TrainerState:
+    return store_for(session).resolve(TRAINER_STATE)
+```
+
+Wiring is by name:
+
+- Parameters name earlier steps' outputs, or `launcher` / `run`.
+- The return value is stored under the step's name.
+- Bad wiring (unknown names, duplicates, `*args`) fails at import.
+- Return new values (`session.model_copy(update=...)`); don't mutate inputs.
+
+## 3. Review, check and register
+
+```python
+SHARE = r"\\allen\aind\scratch"
 
 wf.step(steps.review("session", "trainer_state", back_to="session"))
-wf.step(steps.preflight(checks.free_space(200e9), checks.exists(SHARE)))  # fails once, listing every problem
-wf.step(steps.register())  # a barrier: nothing before it runs again
+wf.step(steps.preflight(checks.free_space(200e9), checks.exists(SHARE)))
+wf.step(steps.register())  # creates the session folder; a barrier
+```
 
+See the [built-in steps](reusable_steps.md#built-in-steps) and [checks](reusable_steps.md#checks).
 
+## 4. Run the task and optional steps { #step-options }
+
+```python
 @wf.step(title="Run Bonsai", barrier=True)
-async def bonsai(launcher: Launcher, session: Session, rig: AindVrForagingRig) -> None: ...
+async def bonsai(launcher: Launcher, session: Session, rig: MyRig) -> None: ...
 
 
 @wf.step(optional="Generate a QC report?")
 def qc(launcher: Launcher) -> QcReport: ...
 ```
 
-Run it with `clabe run my_experiment.py` (it is found by name; pass `--experiment-name` when a file declares
-several) or `Launcher(settings=...).run_experiment(wf)`. A legacy `@experiment` function is a workflow of one step.
+| Option | Effect |
+|---|---|
+| `title=` | Label shown in the clients |
+| `barrier=True` | Once run, neither it nor any step before it can run again |
+| `undo=` | Called with the output when going back invalidates the step (reversible side effects) |
+| `optional="question?"` | Asks first; a skipped step outputs `None` |
+| `on_error="warn"` | Warns and continues with `None` instead of pausing with Retry / Go back / Abort |
+| `cancellable=True` | Going back may interrupt the busy async step (abort always does) |
+| `codec=` | How the output is recorded (see [Run records](records.md#choosing-how-an-output-is-recorded)) |
+| `name=` | Store the output under another name |
 
-## Wiring and sharing values
+Going back (web UI, `raise GoBack("session")`) reruns that step and everything depending on it.
 
-- A step's parameters are resolved **by name**: from earlier steps' outputs and the built-ins `launcher` and `run`.
-  Unknown or forward references, duplicate names and `*args` fail when the file is imported.
-- Outputs are passed **by reference**. By convention a step never mutates what it receives; it returns a new value
-  (`session.model_copy(update=...)`). Several values: return a model or a `NamedTuple`, or split the step.
-- Every output is recorded in the run's `outputs.jsonl` (see [Logging](logging.md)); `codec=` chooses how.
-
-## Going back, barriers and failures
-
-- **Going back** to a step (clicking it in the web UI, `raise GoBack("session")` from a step, `run.go_back(...)`)
-  runs it again along with every step that depends on it, directly or not. Independent steps keep their outputs.
-- A **barrier** step (`barrier=True`) locks itself and everything before it once it has run — e.g. once the session
-  folder exists or the task has started. A step with reversible side effects declares `undo=` instead.
-- A **failing** step pauses the run with *Retry / Go back / Abort*. `on_error="warn"` only warns and continues with
-  `None`.
-- An **optional** step (`optional="question?"`) asks first; a skipped step produces `None`, so its consumers must
-  accept `None`.
-- `cancellable=True` lets going back interrupt a busy async step; abort always interrupts.
-
-## Several things at once
-
-Steps run one at a time. When a step drives several things at once — Bonsai and Open Ephys, behavior and fiber
-photometry — give it **branches** with `concurrently`:
+## 5. Run several things at once
 
 ```python
 from clabe.workflow import concurrently
 
 
 @wf.step(title="Acquire", cancellable=True)
-async def acquire(launcher: Launcher, rig: Rig, session: Session) -> dict[str, Any]:
-    behavior_done = asyncio.Event()
-
+async def acquire(rig: MyRig) -> dict[str, Any]:
     async def behavior() -> CommandResult:
-        try:
-            return await bonsai.run_async()
-        finally:
-            behavior_done.set()
+        return await bonsai_app.run_async()
 
     async def ephys() -> None:
         client = await open_ephys.launch()
         try:
-            client.start_recording()
-            await behavior_done.wait()
-            client.stop()
+            await record_until_behavior_ends(client)
         finally:
-            await open_ephys.close()  # runs on retry, stop and abort too
+            await open_ephys.close()  # also runs on retry, stop and abort
 
-    return await concurrently(behavior=behavior, ephys=ephys)
+    return await concurrently(behavior=behavior, ephys=ephys)  # {"behavior": ..., "ephys": None}
 ```
 
-The branches run together and show under the step in the web UI. When one fails, the others keep going and the
-user chooses, for that branch alone: **Retry** it, **Continue without** it (its result is `None`), or **Stop all**
-(the others are cancelled and the step fails, offering Retry / Go back / Abort for the whole step). Aborting the
-run cancels every branch. A cancelled branch has 30 s to clean up in its `finally`; commands run through clabe's
-executors (every app's `run_async`) stop their process when cancelled.
+- A failed branch offers **Retry**, **Continue without** (result `None`) or **Stop all**.
+- A cancelled branch gets 30 s for its `finally`.
 
-## Shared steps
+## 6. Run it
 
-`clabe.steps` builds common steps. Each returns a plain function wired by name (`session`, `rig`, `launcher`) and
-carrying default options, which the options you pass override:
+```bash
+clabe run my_experiment.py                      # pass --experiment-name if the file declares several
+clabe check my_experiments/ --strict            # CI: checks wiring and annotations, runs nothing
+```
 
-| Step | Takes | Does | Defaults |
-|---|---|---|---|
-| `steps.session()` | `launcher` | asks who is running and on which animal | |
-| `steps.review(*names, back_to=)` | the named outputs | shows them; "Go back" goes back to `back_to` | |
-| `steps.preflight(*checks)` | what the checks take | runs every [check](reusable_steps.md#checks); fails once, listing each failure | |
-| `steps.free_space(bytes)` | `rig` | fails when the data drive is short of space | |
-| `steps.register()` | `launcher`, `session`, `rig` | creates the session's data directory | barrier |
-| `steps.transfer(service)` | `launcher`, `session` | hands the data to a data-transfer service | barrier |
-| `steps.waterlog(earned_water)` | `launcher`, `session` | logs the water earned | warns on failure |
+From Python: `Launcher(settings=...).run_experiment(wf)`.
 
-Your own reusable steps can carry defaults the same way, with `clabe.workflow.step_defaults(barrier=True, ...)`;
-see [Reusable steps and checks](reusable_steps.md) for writing them and sharing them across experiment repositories.
+## 7. Derive a variant
 
-## Variants
-
-`wf.variant("vr-foraging-fip").insert_after("rig", fip_rig).replace("qc", my_qc)` derives a workflow without
-copying it.
-
-## Checking workflows in CI
-
-`clabe check path/to/experiments --strict` imports the files (so every wiring rule is enforced) and compares each
-parameter's annotation with the annotation of the step that produces it: subclasses fit, `int` fits `float`, an
-optional or `warn` producer yields `T | None`. With `--strict`, unannotated wiring is an error too. Nothing runs.
+```python
+fip = wf.variant("vr-foraging-fip").insert_after("rig", fip_rig).replace("qc", my_qc)
+```
 
 See [examples/behavior_launcher.py](https://github.com/AllenNeuralDynamics/clabe/blob/main/examples/behavior_launcher.py)
 for a complete workflow.

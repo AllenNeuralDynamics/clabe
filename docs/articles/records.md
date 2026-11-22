@@ -1,23 +1,23 @@
 # Run records
 
-What a run writes and how to control it. For why, see [Events and records](../concepts/records.md).
+What a run writes, and how to control and read it. For the ideas, see [Records](../concepts/index.md#records).
 
 ## The files
 
-At the end of a run they are in the session folder, under `Behavior/Logs/.launcher/`:
+In the session folder, under `Behavior/Logs/.launcher/`:
 
 | File | Contents |
 |---|---|
-| `run.json` | The [manifest](#the-manifest-runjson): code, environment, machine, configuration, outcome. |
-| `events.jsonl` | Every event, one JSON object per line. |
-| `outputs.jsonl` | One line per step attempt: its output, lineage and artifacts. |
-| `artifacts/<step>/<attempt>/` | Files steps exported. |
-| `repository.diff` | Uncommitted changes, when the repository was dirty. |
-| `uv.lock` | The lockfile the run used. |
-| `launcher.log`, `repository-state.json` | The diagnostic log; the repository and submodules. |
+| `run.json` | The [manifest](#the-manifest-runjson): code, environment, machine, configuration, outcome |
+| `events.jsonl` | Every event, one JSON object per line |
+| `outputs.jsonl` | One line per step attempt: output, lineage, artifacts |
+| `artifacts/<step>/<attempt>/` | Files steps exported |
+| `repository.diff` | Uncommitted changes, when the repository was dirty |
+| `uv.lock` | The lockfile the run used |
+| `launcher.log`, `repository-state.json` | The diagnostic log; the repository and submodules |
 
-`events.jsonl` also holds `command_finished` (each command an app ran, with its program's and files' hashes) and
-`record_resolved` (each store record a step used; the record is kept under `artifacts/<step>/<attempt>/stores/`).
+`events.jsonl` includes `command_finished` (each app command, with hashes) and `record_resolved` (each store record
+used, copied under `artifacts/<step>/<attempt>/stores/`).
 
 ## Replaying a session
 
@@ -25,15 +25,10 @@ At the end of a run they are in the session folder, under `Behavior/Logs/.launch
 clabe replay <session>/Behavior/Logs/.launcher/events.jsonl experiments/vr_foraging.py --allow-dirty
 ```
 
-The experiment runs again (headless), each prompt answered with the recorded answer in order. A prompt that differs
-from the recorded one (another kind or label) stops the replay with both; a secret answer cannot be replayed (it is
-recorded masked). In code: `LocalClient(run, ReplayClient("events.jsonl")).drive()` — handy as a test that a workflow
-still accepts a real session.
+- Reruns headless with the recorded answers; stops at a prompt that differs. Secrets can't be replayed.
+- In a test: `LocalClient(run, ReplayClient("events.jsonl")).drive()`.
 
 ## Choosing how an output is recorded
-
-By default (`codecs.auto`) a pydantic model is recorded as its own JSON and anything else through pydantic's generic
-serialization. Choose another with `codec=`:
 
 ```python
 from clabe.workflow import codecs
@@ -51,7 +46,8 @@ def handle() -> SerialPort: ...
 def frames() -> list[Frame]: ...
 ```
 
-A codec that fails falls back to `repr` (the line is marked `lossy`); it never fails the step.
+- Default `codecs.auto`: a pydantic model as its JSON, anything else via pydantic's serialization.
+- A failing codec falls back to `repr` (line marked `lossy`); it never fails the step.
 
 ## Exporting artifacts
 
@@ -68,8 +64,8 @@ def configure(rig: Rig, session: Session) -> Path:
     return path
 ```
 
-`export_artifact` only works inside a running step (or code it calls, including its tasks and
-`asyncio.to_thread`). Use it for provenance-sized files, not for the session's data.
+- Only inside a running step (and its tasks or `asyncio.to_thread`; not a new `threading.Thread`).
+- For provenance-sized files, not session data.
 
 ## Reading the records
 
@@ -80,9 +76,9 @@ from pathlib import Path
 from clabe.workflow.events import EventLog, PromptClosed
 
 logs = Path(session_folder) / "Behavior/Logs/.launcher"
-answers = [e for e in EventLog.read(logs / "events.jsonl") if isinstance(e, PromptClosed)]
-for e in answers:
-    print(e.answered_by, e.answer)
+for e in EventLog.read(logs / "events.jsonl"):
+    if isinstance(e, PromptClosed):
+        print(e.answered_by, e.answer)
 
 outputs = [json.loads(line) for line in (logs / "outputs.jsonl").read_text().splitlines()]
 register = next(o for o in outputs if o["step"] == "register")
@@ -91,7 +87,6 @@ print(register["inputs"])  # {"session": 2, "rig": 1}: the attempts it used
 
 ## The manifest: `run.json`
 
-`run.json` is written as soon as the run starts (so a crashed session still has one) and rewritten with the outcome
-when it ends. Secrets are kept out: credentials in `https://user:password@...` repository URLs are stripped; the
-values of secret-looking command-line flags, settings and environment variables (names containing `TOKEN`, `KEY`,
-`SECRET`, `PASSWORD`, `AUTH`, ...) are masked; and only `CLABE_*` and `OTEL_*` environment variables are recorded.
+- Written at start, rewritten with the outcome at the end.
+- Secrets stay out: URL credentials stripped; `TOKEN`/`KEY`/`SECRET`/`PASSWORD`/`AUTH`-like values masked; only
+  `CLABE_*` and `OTEL_*` environment variables kept.

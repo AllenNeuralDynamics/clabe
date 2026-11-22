@@ -1,45 +1,19 @@
-# Logging in CLABE
+# Logging
 
-## Getting a logger
-
-Use the standard library. Every module creates a module-scoped logger:
+clabe uses the standard `logging` module: log for the record, `notify()` for the user.
 
 ```python
 import logging
 
 logger = logging.getLogger(__name__)
-```
 
-Because modules live under the `clabe` package, their loggers are named
-`clabe.<module>` and inherit the configuration installed in `clabe/__init__.py`.
-Never use the root logger or `print()` for diagnostics — always go through a
-named logger.
-
-## Choosing a level
-
-| Level | Use it for | Shown by default? |
-| --- | --- | --- |
-| `DEBUG` | Fine-grained detail for diagnosis (payloads, resolved paths, internal state) | No (file only with `--debug-mode`) |
-| `INFO` | Normal milestones ("Executing command", "Manifest created") | No (shown with `--verbose`; always in the file) |
-| `WARNING` | Unexpected-but-recoverable ("service not running, restarting", "deprecated version") | Yes |
-| `ERROR` | An operation failed | Yes |
-| `CRITICAL` | Rare, catastrophic failures | Yes |
-
-```python
-logger.debug("Resolved rig config: %s", path)
 logger.info("Starting transfer to %s", destination)
 logger.warning("Git repository is dirty: %s", changes)
-logger.error("Failed to create directory %s: %s", directory, error)
 ```
 
-Use **lazy `%`-style arguments** (`logger.info("x=%s", x)`), *not* f-strings.
-With `%`-style, the string is only formatted if the level is actually enabled,
-which keeps disabled `DEBUG` calls essentially free.
-
-### Logging exceptions
-
-Pass `exc_info=True` to attach the traceback to the record (it goes to the file,
-not the user-facing console):
+- Always use a named logger, never the root logger or `print()`.
+- Use `%`-style arguments, not f-strings: disabled levels then cost nothing.
+- Attach a traceback (file only) with `exc_info=True`:
 
 ```python
 try:
@@ -49,27 +23,27 @@ except OSError as e:
     raise
 ```
 
-## Where the records go (the sinks)
+## Levels
 
-At import time, `clabe/__init__.py` configures the root logger with a console
-handler. When a `Launcher` runs it adds the others:
+| Level | Use it for | On screen by default? |
+| --- | --- | --- |
+| `DEBUG` | Payloads, resolved paths, internal state | No (file only, with `--debug-mode`) |
+| `INFO` | Normal milestones | No (with `--verbose`; always in the file) |
+| `WARNING` | Unexpected but recoverable | Yes |
+| `ERROR` | An operation failed | Yes |
+| `CRITICAL` | Catastrophic failures | Yes |
 
-| Sink | What | Default level | Notes |
-| --- | --- | --- | --- |
-| **Console** | A `rich` handler with severity highlighting | `WARNING` | Quieted/raised by the verbosity ladder; muted entirely while the TUI owns the terminal |
-| **Log file** | `launcher.log` in the run's temp dir, UTC timestamps | `INFO` (`DEBUG` with `--debug-mode`) | The complete record; copied to `<session>/Behavior/Logs/.launcher/` at the end of a run |
-| **TUI "Logs" pane** | Active only with the Textual frontend | `INFO`+ | Color-coded by level, local-time stamps |
+## Where records go
 
-The key idea: **the file is exhaustive**, while the **console / TUI is filtered**
-for humans. You can make the console quieter or noisier without ever losing
-detail from the file.
+| Sink | Level | Notes |
+| --- | --- | --- |
+| Console (`rich`) | `WARNING` | Follows the verbosity flags; muted while the TUI is open |
+| `launcher.log` | `INFO` (`DEBUG` with `--debug-mode`) | Everything, UTC timestamps |
+| TUI "Logs" pane | `INFO`+ | Textual frontend only |
 
-## Controlling verbosity
+## Verbosity
 
-A single ladder controls what is *shown* (the console and the user-facing
-Session pane). The **log file always records full detail** regardless.
-
-| Flag | Console / UI shows | Log file |
+| Flag | Screen | Log file |
 | --- | --- | --- |
 | `--quiet` | `ERROR`+ | `INFO` |
 | *(default)* | `WARNING`+ | `INFO` |
@@ -77,78 +51,38 @@ Session pane). The **log file always records full detail** regardless.
 | `--debug-mode` | `DEBUG`+ | `DEBUG` |
 
 ```bash
-clabe run my_experiment.py            # only warnings/errors on screen
-clabe run my_experiment.py --verbose  # also show INFO
-clabe run my_experiment.py --debug-mode
+clabe run my_experiment.py --verbose
 ```
 
-If you need to adjust the console level yourself, use the helper directly:
+Or set the console level in code:
 
 ```python
-from clabe.logging import set_console_level
 import logging
+from clabe.logging import set_console_level
 
 set_console_level(logging.DEBUG)
 ```
 
-## Logging vs. talking to the user
-
-A simple rule of thumb:
-
-- **Diagnostics / the record** → `logger.*`. Lands in the file and the Logs pane.
-- **A milestone the user cares about, or something they must act on** → surface
-  it to the user *as well*.
-
-The launcher holds a `frontend` and calls it directly. Everything else — stores,
-`SessionBuilder`, reusable library modules — reaches the registered frontend
-through `clabe.ui`:
+## Telling the user
 
 ```python
-import logging
 from clabe.ui import MessageLevel, notify
 
-logger = logging.getLogger(__name__)
-
-logger.info("Starting robocopy transfer service.")  # the record (file / Logs pane)
-notify("Transferring data…", MessageLevel.INFO)  # the user-facing summary (Session pane)
+logger.info("Starting robocopy transfer service.")  # the record
+notify("Transferring data…", MessageLevel.INFO)      # what the user sees
 ```
 
-With nothing to show it (no run, no launcher), `notify()` **logs the message** at its level instead, so it is safe
-to call from library code used standalone. Inside a run every notification, prompt and answer is recorded in the
-run's `events.jsonl`; outside a run the launcher's client also writes them to the log file at debug level.
+- Levels: `INFO`, `SUCCESS`, `WARNING`, `ERROR`; the screen shows those at or above the verbosity threshold.
+- With nothing to show it (no run, no launcher), `notify()` logs the message instead, so library code can call it.
+- Every message, prompt and answer is recorded for you: in the run's `events.jsonl` (see [Run records](records.md)),
+  or at debug level in the log file outside a run.
 
-`MessageLevel` mirrors the logging levels for presentation intent:
-`INFO`, `SUCCESS`, `WARNING`, `ERROR`. Like the console, the Session pane only
-renders messages at/above the current verbosity threshold (warnings and above by
-default), while `events.jsonl` records them all.
+## Finding the log
 
-## What the user saw and answered
-
-Every message shown to the user and every prompt and answer is recorded without you logging it. Inside a run they are
-events, written to the run's `events.jsonl` with who answered each prompt (see [Run records](records.md)); outside a
-run (before it starts, at the exit prompt) the launcher's client session writes them to the log file at debug level.
-The console does not repeat them: the client already showed them.
-
-## Finding the log after a run
-
-While a run is in progress, logs are written to a temporary directory. On
-completion the launcher's `copy_logs()` copies them into the session directory:
+After a run, the launcher copies its logs into the session:
 
 ```text
 <data_directory>/<session_name>/Behavior/Logs/.launcher/launcher.log
 ```
 
-This file is the UTC-timestamped diagnostic record of the entire run; next to it, `events.jsonl` holds what the
-user saw and answered (see [Run records](records.md)).
-
-## Recipes
-
-- **Add logging to a new module** — `logger = logging.getLogger(__name__)`, then
-  log at the appropriate level with `%`-style args.
-- **Make a message visible by default** — log it at `WARNING`/`ERROR`, or
-  `notify()` it to the user.
-- **Keep noisy detail off-screen but in the file** — use `DEBUG`.
-- **Surface a library event to the user** — `clabe.ui.notify(...)` (and keep the
-  `logger` call for the record).
-- **Debug a failed run** — re-run with `--debug-mode`, or open
-  `…/Behavior/Logs/.launcher/launcher.log`.
+- To debug a failed run, re-run with `--debug-mode` and open this file.

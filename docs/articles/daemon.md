@@ -1,57 +1,67 @@
 # The clabe daemon
 
-The daemon runs on every rig PC. It lists the experiment repositories of the machine, starts an experiment in its
-repository's own environment, and serves the run under one stable address: `http://<rig>:8070/` shows the machine
-and its experiments, `http://<rig>:8070/run/` the run in progress (its web UI and its API).
+The daemon runs on every rig PC: it lists the machine's experiments, starts them, and serves the run at one address.
+
+| URL | Shows |
+|---|---|
+| `http://<rig>:8070/` | The machine and its experiments |
+| `http://<rig>:8070/run/` | The run in progress (web UI and API) |
+| `http://<rig>:8070/docs` | The API |
+
+To install it on a rig, use the one-line installer: [Deploy a rig](deployment.md).
 
 ## Configure
 
-In the machine's `clabe.yml`:
-
 ```yaml
 daemon:
-  host: 0.0.0.0            # reachable from the LAN (default: localhost only)
-  port: 8070              # the token comes from $CLABE_TOKEN (or `token:` here)
+  host: 0.0.0.0            # reachable from the LAN (default: 127.0.0.1)
+  port: 8070
   repositories:
     - path: C:/git/Aind.Experiment.VrForaging
     - path: C:/git/Aind.Experiment.DynamicForaging
       experiments: src/experiments   # file or folder of experiment files (default: experiments)
   run_arguments: [--skip-hardware-validation]
-  lease_grace: 300         # worker role: seconds a crashed run's lease stays reserved for it
 ```
 
-## Run and install
+- Token: `$CLABE_TOKEN` of the logged-on user (or `token:` here).
+- Remote-execution settings (`max_jobs`, `max_file_size`, `file_transfer_dir`, `lease_grace`): see
+  [Run on two PCs](remote_execution.md).
 
-```bash
-clabe daemon run --open-browser   # in the foreground, e.g. to try it
-clabe daemon install              # start it at logon, restart it on failure (Windows Task Scheduler), and now
-clabe daemon restart              # after an update; refused during a session unless --force
-clabe daemon status               # the task, and whether the daemon answers
-clabe daemon uninstall
-```
+## Commands
 
-The daemon runs as the logged-in user, not as a service: the experiments it starts open windows (Bonsai, Open
-Ephys) on the rig's desktop. It logs to `%LOCALAPPDATA%\clabe\daemon.log`. Installing again replaces the task, but a
-daemon already running keeps its old command until it is restarted.
+| Command | Does |
+|---|---|
+| `clabe daemon run [--open-browser]` | Run in the foreground, e.g. to try it |
+| `clabe daemon install` | Register the `clabe-daemon` logon task (restarts on failure) and start it |
+| `clabe daemon restart [--force] [--timeout 60]` | Restart from the task and wait; refused during a session unless `--force` |
+| `clabe daemon status` | The task, and whether the daemon answers |
+| `clabe daemon upgrade` | Upgrade the uv tool install; restart afterwards |
+| `clabe daemon uninstall` | Stop it and remove the task |
 
-To install and update rigs — one line, also over SSH — see [Deploying](deployment.md).
+- It runs as the logged-on user (not a service), so experiments can open windows.
+- Logs: `%LOCALAPPDATA%\clabe\daemon.log`.
+- After reinstalling or upgrading, `clabe daemon restart` to pick up the new version.
 
-## How a run is started
+## Starting a run
 
-Starting an experiment (from the page, or `POST /api/daemon/runs`) runs, in the repository's folder:
+From the page, or `POST /api/daemon/runs`, the daemon runs in the repository:
 
 ```bash
 uv run --directory <repository> clabe run <file> --experiment-name <name> --frontend headless --serve ...
 ```
 
-The run uses the repository's locked environment, so each experiment repository pins its own clabe. It has no
-screen (`--frontend headless`): its prompts are answered from the web UI, through the daemon. One run at a time:
-starting another while one is going is refused (409). The run server listens on localhost with a token only the
-daemon knows; the daemon checks its own token and forwards.
+- Each repository's own locked environment (and clabe version) is used.
+- Prompts are answered in the web UI.
+- One run at a time: another start returns `409`.
 
 ## API
 
-Described at `/docs`: `GET /api/daemon/info` (idle or busy, for the hub), `GET /api/daemon/repositories`,
-`GET /api/daemon/repositories/{name}/experiments`, `POST /api/daemon/runs`, `GET /api/daemon/runs/current` (with
-the end of its output), `POST /api/daemon/runs/current/stop`, and the run's own API under `/run/api/` (see
-[Frontends](frontends.md#serving-a-run-over-http)).
+| Endpoint | Does |
+|---|---|
+| `GET /api/daemon/info` | Idle, busy or leased |
+| `GET /api/daemon/repositories` | The repositories |
+| `GET /api/daemon/repositories/{name}/experiments` | Their experiments |
+| `POST /api/daemon/runs` | Start a run |
+| `GET /api/daemon/runs/current` | The current run, with the end of its output |
+| `POST /api/daemon/runs/current/stop` | Stop it |
+| `/run/api/...` | The run's own API (see [Frontends](frontends.md)) |

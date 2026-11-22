@@ -1,146 +1,103 @@
-# clabe
-
 <div align="center">
 
-<pre>
- ██████╗██╗      █████╗ ██████╗ ███████╗
-██╔════╝██║     ██╔══██╗██╔══██╗██╔════╝
-██║     ██║     ███████║██████╔╝█████╗  
-██║     ██║     ██╔══██║██╔══██╗██╔══╝  
-╚██████╗███████╗██║  ██║██████╔╝███████╗
- ╚═════╝╚══════╝╚═╝  ╚═╝╚═════╝ ╚══════╝
+<img src="docs/logo.svg" width="96" alt="clabe">
 
-Command-line-interface Launcher for AIND Behavior Experiments
-</pre>
-</div>
+# clabe
+
+**Behavior experiments as declared workflows: run them on the rig, answer them from anywhere, and record everything.**
 
 [![Documentation](https://img.shields.io/badge/documentation-blue)](https://allenneuraldynamics.github.io/clabe/)
 [![CI](https://github.com/AllenNeuralDynamics/clabe/actions/workflows/clabe.yml/badge.svg)](https://github.com/AllenNeuralDynamics/clabe/actions/workflows/clabe.yml)
 [![PyPI version](https://img.shields.io/pypi/v/aind-clabe)](https://pypi.org/project/aind-clabe/)
 [![License](https://img.shields.io/badge/license-MIT-brightgreen)](LICENSE)
 
-CLABE is a Python toolkit for building, running, and operating behavioral-experiment workflows. It provides a launcher for experiment scripts alongside composable utilities for user interaction, external applications, configuration and storage, resource checks, data transfer, remote execution, logging, and repository-state capture.
+</div>
 
-The library is designed to be useful both in an interactive experiment session and in scripted or remote workflows.
+A behavior session is a sequence of things a person and a rig do together: pick the animal, load its training stage
+and the rig's configuration, check them, start Bonsai and Open Ephys, then run the curriculum, QC and hand the data
+off. clabe turns that sequence into plain Python steps — and gives you the rest for free.
+
+## Why clabe
+
+- **Write steps, not plumbing.** Each step is a function; its parameters name what it needs. No global state, no
+  hand-written menus or confirmation loops.
+- **Go back without starting over.** Change the rig and only what depends on it runs again. Failed steps offer
+  Retry / Go back / Abort; what must not run twice (registering the session, starting acquisition) is a barrier.
+- **Answer from anywhere.** The terminal on the rig, a browser in the corridor and an AI agent all see the same
+  prompts; the first valid answer wins. Forms come from your Pydantic models.
+- **Run several things at once.** Bonsai, Open Ephys and a camera in one step; each fails, retries and stops on its
+  own.
+- **Two PCs, one session.** Run apps on a second rig PC as if they were local; clabe checks it runs the same commit and
+  leases it for the session.
+- **Recorded by default.** Every prompt and answer, every step's inputs and outputs, every program run with its
+  hash, the configuration used, and the code, environment and machine behind it. Replay a session with
+  `clabe replay`.
+- **A fleet, not a pile of PCs.** A daemon on each rig starts experiments from the browser; an optional hub shows
+  every rig and every run waiting for an answer. Install a rig with one line, over SSH.
+- **Checked in CI.** `clabe check --strict` verifies every workflow's wiring and types without running anything.
+
+## A taste
+
+```python
+from clabe import checks, steps, ui
+from clabe.launcher import Launcher
+from clabe.workflow import Workflow, concurrently
+
+wf = Workflow("vr-foraging")
+wf.step(steps.session())                                  # who is running, on which animal
+
+
+@wf.step
+def trials() -> float:
+    return ui.number("Trials", minimum=1, maximum=500)   # validated wherever it is answered
+
+
+wf.step(steps.review("session", "trials", back_to="session"))
+wf.step(steps.preflight(checks.free_space(200e9)))       # every problem reported at once
+wf.step(steps.register())                                 # a barrier: the session folder exists now
+
+
+@wf.step(title="Acquire", cancellable=True)
+async def acquire(launcher: Launcher, trials: float) -> dict:
+    return await concurrently(behavior=run_bonsai, ephys=run_open_ephys)
+```
+
+```bash
+uv run clabe run my_experiment.py     # the terminal UI here, the web UI at the printed address
+```
 
 ## Install
 
-For a project managed with [uv](https://docs.astral.sh/uv/):
-
 ```bash
-uv add aind-clabe
+uv add aind-clabe                       # in an experiment repository
+uv add "aind-clabe[aind-services]"      # + AIND services, data schema and transfer tooling
+uv add "aind-clabe[otel]"               # + OpenTelemetry
+uv add "aind-clabe[agents]"             # + MCP server for AI agents (clabe mcp)
 ```
 
-Or install with pip:
-
-```bash
-pip install aind-clabe
-```
-
-To install the daemon on a rig PC (see [Deploying](https://github.com/AllenNeuralDynamics/clabe/blob/main/docs/articles/deployment.md)):
+The daemon on a rig PC (PowerShell; see [Deploy a rig](https://allenneuraldynamics.github.io/clabe/articles/deployment/)):
 
 ```powershell
 powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/AllenNeuralDynamics/clabe/main/scripts/install.ps1 | iex"
 ```
 
-To work on this repository locally:
+## Learn more
+
+The [documentation](https://allenneuraldynamics.github.io/clabe/) has tutorials — your first workflow, reusable steps
+and checks, two-PC sessions, deploying rigs, migrating an existing experiment — and the API reference.
+[examples/behavior_launcher.py](examples/behavior_launcher.py) is a complete workflow to start from.
+
+## Development
 
 ```bash
-git clone https://github.com/AllenNeuralDynamics/clabe.git
-cd clabe
+git clone https://github.com/AllenNeuralDynamics/clabe.git && cd clabe
 uv sync
+uv run pytest
+uv run ruff check
+uv run docs/build.py && uv run zensical serve   # the docs, with the docs dependency group
 ```
 
-## What CLABE provides
+The web UI (`ui-web/`, Blazor) is built into `src/clabe/server/static` by `uv run python scripts/build_web.py`; its
+models are generated from the APIs with `uv run python scripts/openapi.py` (a test fails when they are stale).
 
-- **Workflows** — declare an experiment as steps wired by name; the launcher runs them with go-back, barriers, retries and optional steps, records every output, and checks the wiring statically in CI (`clabe check`).
-- **Rigs and fleets** — a daemon on every rig PC starts experiments from the browser and runs jobs for other rigs; an optional hub (Docker) shows the whole fleet and every run waiting for an answer.
-- **Agents** — `clabe mcp` (MCP) and an AG-UI endpoint let AI agents follow runs and answer prompts.
-- **One run, many clients** — answer prompts in the TUI, the console or the web UI served by the run (Markdown, images and pages included); the first answer wins.
-- **Frontends and forms** — collect typed input from Pydantic models, prompt for paths, confirmations, selections, and read-only reviews.
-- **Applications and executors** — describe external commands once and run them locally, asynchronously, detached, or on another rig through its clabe daemon.
-- **Multi-rig experiments** — run apps in a matching checkout on another computer (`RemoteRepository`, which leases that machine for the run), start its daemon automatically, and transfer both machines' data through one watchdog manifest. See [Running on other rigs](https://github.com/AllenNeuralDynamics/clabe/blob/main/docs/articles/remote_execution.md).
-- **Stores and services** — compose local, in-memory, and optional Ficus (confierge) and Dataverse-backed configuration and data services.
-- **Operational helpers** — resource constraints, data transfer, structured logging, OpenTelemetry support, and session construction.
-- **Repository state** — capture a JSON snapshot of a repository and its submodules for dataset or experiment metadata.
-
-## Quick start
-
-New to CLABE? [The big picture](https://github.com/AllenNeuralDynamics/clabe/blob/main/docs/concepts/overview.md) explains the pieces and how a session flows through them.
-
-Declare an experiment as a workflow in a Python module:
-
-```python
-from clabe import steps, ui
-from clabe.launcher import Launcher
-from clabe.workflow import Workflow
-
-wf = Workflow("my-experiment")
-wf.step(steps.session())
-
-
-@wf.step
-def trials() -> float:
-    return ui.number("Trials", minimum=1)
-
-
-@wf.step(barrier=True)
-async def run_task(launcher: Launcher, trials: float) -> None:
-    ui.notify(f"Running {trials:g} trials")
-```
-
-Run it with the CLABE CLI — it is served in the browser too (`--no-serve` to turn that off):
-
-```bash
-uv run clabe run path/to/my_experiment.py
-```
-
-See [examples/behavior_launcher.py](examples/behavior_launcher.py) for a fuller example that combines sessions, forms, stores, resource checks, applications, and telemetry, and [Workflows](https://github.com/AllenNeuralDynamics/clabe/blob/main/docs/articles/workflows.md) for the rules.
-
-## Command line
-
-Show available commands and their options:
-
-```bash
-uv run clabe --help
-```
-
-Run an experiment interactively:
-
-```bash
-uv run clabe run path/to/my_experiment.py
-```
-
-`clabe run` also serves the run over HTTP while it executes (`--no-serve` to disable): open the printed URL to
-follow and answer it from a browser, or drive it from code through the API described at `/docs`.
-
-```bash
-uv run clabe run path/to/my_experiment.py --host 0.0.0.0 --token "$CLABE_TOKEN"
-```
-
-Capture Git state for a repository and all declared submodules:
-
-```bash
-uv run clabe repository-state path/to/repository > repository-state.json
-```
-
-Each repository entry includes its URL, commit SHA, exact and nearest tags, branch, dirty state, name, cwd-relative path, and nested submodules. The launcher writes this snapshot alongside its temporary output; when logs are copied, it is saved at `Behavior/Logs/.launcher/repository-state.json` in the session directory.
-
-## Optional integrations
-
-Some integrations are optional so a basic installation remains lightweight:
-
-```bash
-uv add "aind-clabe[aind-services]"  # AIND services, data schema, and transfer tooling
-uv add "aind-clabe[otel]"           # OpenTelemetry exporters and YAML support
-uv add "aind-clabe[agents]"         # MCP server for AI agents (clabe mcp)
-```
-
-## Documentation and development
-
-- Browse the [documentation](https://allenneuraldynamics.github.io/clabe/) for API references and guides.
-- Run tests with `uv run pytest`.
-- Check style with `uv run ruff check`.
-- Build documentation locally with `uv run docs/build.py` then `uv run zensical serve` (the `docs` dependency group; the site is built with [Zensical](https://zensical.org) from `zensical.toml`).
-
-Contributions are welcome. Please include focused tests for behavior changes and keep the package's cross-platform support in mind.
+Contributions are welcome: include focused tests for behavior changes and keep Windows and Linux working.

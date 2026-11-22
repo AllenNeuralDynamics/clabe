@@ -1,32 +1,29 @@
-# Migrating to workflows, clients and the daemon
+# Migrate an experiment
 
-What changes for an experiment repository moving to this version, in the order you are likely to meet it. The
-concepts behind the changes are in [Concepts](../concepts/index.md).
+Move an experiment repository to workflows, clients and the daemon, one step at a time. Background:
+[Concepts](../concepts/index.md).
 
-## 1. It still runs
+## 1. Run it unchanged
 
-An `@experiment` function keeps working unchanged: it runs as a workflow of one step. Start there, then split it into
-steps when convenient (section 3).
+An `@experiment` function still works: it runs as a workflow of one step.
 
-## 2. Talking to the user
+## 2. Replace the frontend calls
 
-The frontend API is gone; ask through `clabe.ui`, which asks whatever is running (the run, or the launcher's client).
+Ask through `clabe.ui`; answers come back validated and typed. See [Frontends](frontends.md).
 
 | Before | Now |
 | --- | --- |
-| `launcher.frontend.prompt_text(TextRequest(label=...))` (and every `prompt_*`) | `ui.text(...)`, or `ui.ask(TextRequest(...))` |
-| `ui.prompt_confirm(ConfirmRequest(...))` (and every `ui.prompt_*`) | `ui.confirm(...)`, or `ui.ask(ConfirmRequest(...))` |
-| `launcher.frontend.prompt_path(PathRequest(...))` | `ui.path(...)`, or `ui.ask(PathRequest(...))` |
+| `launcher.frontend.prompt_text(TextRequest(label=...))` (every `prompt_*`) | `ui.text(...)` or `ui.ask(TextRequest(...))` |
+| `ui.prompt_confirm(ConfirmRequest(...))` (every `ui.prompt_*`) | `ui.confirm(...)` or `ui.ask(ConfirmRequest(...))` |
+| `launcher.frontend.prompt_path(PathRequest(...))` | `ui.path(...)` or `ui.ask(PathRequest(...))` |
 | `Launcher(settings=..., frontend=...)` | `Launcher(settings=..., client=...)` |
 | `ConsoleFrontend` / `TextualFrontend` / `make_frontend` | `ConsoleClient` / `TextualClient` / `make_client` |
 | `ui.use_frontend(x)` / `ui.set_current_frontend(x)` | `ui.bind(ClientSession(client))` |
 | `ui.NoFrontendError` | `ui.NoSessionError` |
-| subclassing `FrontendBase` | implement the five-method `Client` protocol |
-| a loop re-asking until the text parses (e.g. a date) | a validator on the request, or `ui.number(..., minimum=, maximum=)`; the run re-asks with the reason |
+| subclassing `FrontendBase` | implement the `Client` protocol |
+| a loop re-asking until the text parses | a validator on the request, or `ui.number(..., minimum=, maximum=)` |
 
-Answers come back validated and typed. See [Frontends](frontends.md).
-
-## 3. Splitting an experiment into steps
+## 3. Split it into steps
 
 ```python
 # before
@@ -72,48 +69,45 @@ async def acquire(rig: AindVrForagingRig, session: Session, trainer_state: Train
     return await concurrently(behavior=lambda: bonsai_app(...).run_async(), fip=lambda: fip_app(...).run_async())
 ```
 
-Rules of thumb:
+| Before | Now |
+| --- | --- |
+| a block a user might redo, or a failure might interrupt | its own step |
+| several values passed on | return a model or a `NamedTuple` |
+| "Would you like to ...?" confirm | `optional="..."` on the step |
+| `try/except: log` | `on_error="warn"` |
+| early `return` on a "no" | `raise GoBack(...)` or `raise Abort(...)` |
+| register, start acquisition, transfer | a `barrier` step |
+| `ResourceMonitor` and its constraints | checks in `steps.preflight(...)` (or `checks.run(...)`): see [Reusable steps and checks](reusable_steps.md) |
 
-- One step per thing a user might want to redo or a failure might interrupt.
-- A step returns what later steps need; several values → a model or a `NamedTuple`.
-- "Would you like to ...?" confirms become `optional="..."` steps; best-effort work (`try/except: log`) becomes
-  `on_error="warn"`; early `return`s on a "no" become `raise GoBack(...)` or `raise Abort(...)`.
-- What must not run twice (registering the session, starting acquisition, transferring) is a `barrier`.
-- `ResourceMonitor` and its constraints become checks run by a `steps.preflight(...)` step (or `checks.run(...)` in
-  a script that is not a workflow yet): see [Reusable steps and checks](reusable_steps.md#from-the-resource-monitor).
 - Annotate parameters and returns, and add `clabe check experiments --strict` to CI.
+- See [Workflows](workflows.md).
 
-See [Workflows](workflows.md).
-
-## 4. Running on other rigs
-
-`clabe.xml_rpc` is replaced by the [daemon](daemon.md)'s worker role and `clabe.remote`.
+## 4. Replace `clabe.xml_rpc`
 
 | Before | Now |
 | --- | --- |
 | `from clabe.xml_rpc import RemoteRepository, to_unc` | `from clabe.remote import RemoteRepository, to_unc` |
 | `XmlRpcClient(XmlRpcClientSettings(server_url=..., token=...))` | `WorkerClient(WorkerClientSettings(url=..., token=...))` |
 | `XmlRpcExecutor(client)` | `RemoteExecutor(client)` |
-| `clabe.yml`: `xml_rpc_client: {server_url, token}` | `worker_client: {url, token, repository}` |
-| `clabe.yml`: `xml_rpc_server: {...}` on the other PC | `daemon: {repositories: [{path: <checkout>}], ...}` on the other PC |
-| `uv run clabe xml-rpc-server register-task` | `uv tool install aind-clabe` + `clabe daemon install` |
+| `xml_rpc_client: {server_url, token}` | `worker_client: {url, token, repository}` |
+| `xml_rpc_server: {...}` on the other PC | `daemon: {repositories: [{path: <checkout>}], ...}` on the other PC |
+| `uv run clabe xml-rpc-server register-task` | the [one-line installer](deployment.md) (or `uv tool install aind-clabe` + `clabe daemon install`) |
 | port 25223 | port 8070 |
-| `client.upload_file(...)` returned a response with `.path` | returns a `FileInfo` (`.path`, `.size`) |
+| `client.upload_file(...)` response `.path` | a `FileInfo` (`.path`, `.size`) |
 
-`RemoteRepository.from_computer_name(...)`, `ensure_running()`, `verify()`, `register_session()`, `write_file()`,
-`session_directory_unc` and `executor=remote` keep their meaning. New: the run **leases** the remote machine on its
-first command, and cancelling a remote command stops it there. See [Remote execution](remote_execution.md).
+- `from_computer_name`, `ensure_running`, `verify`, `register_session`, `write_file`, `session_directory_unc` and
+  `executor=remote` work as before.
+- New: a run leases the remote PC, and aborting stops its commands. See [Run on two PCs](remote_execution.md).
 
-## 5. Serving and the command line
+## 5. Update the command line
 
 | Before | Now |
 | --- | --- |
-| `clabe serve file.py` (textual-serve) | `clabe run file.py` serves the run by default (`--no-serve` to turn it off); open the printed URL |
+| `clabe serve file.py` | `clabe run file.py` (serves by default; `--no-serve` to turn off) |
 | the `web` extra | removed; the web UI ships in the package |
-| — | `clabe list`, `clabe check`, `clabe daemon`, `clabe hub`, `clabe mcp` (the `agents` extra) |
+| — | `clabe list`, `clabe check`, `clabe replay`, `clabe daemon`, `clabe hub`, `clabe mcp` (`agents` extra) |
 
 ## 6. Records
 
-Nothing to do: `events.jsonl`, `outputs.jsonl`, `artifacts/` and `run.json` are written next to `launcher.log`. The
-`clabe.transcript` logger is gone; what the user saw and answered is in `events.jsonl`. See
-[Run records](records.md).
+Nothing to do: `events.jsonl`, `outputs.jsonl`, `artifacts/` and `run.json` sit next to `launcher.log`. The
+`clabe.transcript` logger is gone; use `events.jsonl`. See [Run records](records.md).

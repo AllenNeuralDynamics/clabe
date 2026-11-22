@@ -7,42 +7,29 @@ hide:
 
 # clabe<span class="clabe-slash">/</span>
 
-<p class="lead">Behavior experiments as declared workflows. Write a session as plain Python steps; clabe runs it on the
-rig, lets anyone answer it from the terminal, a browser or an agent, recovers when a step fails, and records everything
-needed to reproduce it.</p>
+<p class="lead">Write a behavior session as Python steps. Run it on the rig, answer it from anywhere, record everything.</p>
 
-[Get started](concepts/overview.md){ .md-button .md-button--primary }
+[Get started](articles/first_experiment.md){ .md-button .md-button--primary }
 [Install a rig](articles/deployment.md){ .md-button }
 [GitHub](https://github.com/AllenNeuralDynamics/clabe){ .md-button }
 
 </div>
 
-## What it does
-
-- **Declared, not scripted.** A session is a list of steps wired by name. Go back to any step and only what depends on
-  it runs again; a failed step is retried on its own; what must not run twice is a barrier.
-- **One run, many clients.** The TUI on the rig, the web page in the corridor and an AI agent answer the same prompts;
-  the first valid answer wins, and every client sees it.
-- **Recorded by default.** Every prompt and answer, each step's inputs and outputs, the programs it ran with their
-  hashes, the configuration it used, and the code, environment and machine behind it.
-- **Rigs and fleets.** A daemon on each rig PC starts experiments from the browser and runs jobs for the other rigs of
-  a session; an optional hub shows the whole fleet and every run waiting for an answer.
-
 <div class="grid cards" markdown>
 
--   :material-lightbulb-on-outline:{ .lg .middle } **Concepts**
+-   :material-rocket-launch-outline:{ .lg .middle } **First experiment**
 
     ---
 
-    Workflows, runs, prompts and clients, records, machines: how clabe is put together, and why.
+    Write a workflow, run it, answer it from a browser, find its records.
 
-    [:octicons-arrow-right-24: The big picture](concepts/overview.md)
+    [:octicons-arrow-right-24: Start here](articles/first_experiment.md)
 
 -   :material-source-branch:{ .lg .middle } **Write a workflow**
 
     ---
 
-    Steps, wiring, going back, barriers, failures, branches, shared steps and static checks in CI.
+    Steps, going back, barriers, failures, branches, reusable steps and checks.
 
     [:octicons-arrow-right-24: Workflows](articles/workflows.md)
 
@@ -50,17 +37,17 @@ needed to reproduce it.</p>
 
     ---
 
-    One line installs the daemon on a rig PC; deploy and update over SSH; follow the fleet from the hub.
+    One-line install, two-PC sessions, the fleet hub.
 
-    [:octicons-arrow-right-24: Deploying](articles/deployment.md)
+    [:octicons-arrow-right-24: Deploy a rig](articles/deployment.md)
 
--   :material-code-braces:{ .lg .middle } **Reference**
+-   :material-sitemap-outline:{ .lg .middle } **Concepts**
 
     ---
 
-    Every module, class and function, from the source.
+    How the pieces relate, in diagrams; and the glossary.
 
-    [:octicons-arrow-right-24: API reference](api/workflow/workflow.md)
+    [:octicons-arrow-right-24: Concepts](concepts/index.md)
 
 </div>
 
