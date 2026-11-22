@@ -1,8 +1,16 @@
+"""The clabe demo: a behavior session declared as a workflow, shaped like a real rig's launcher.
+
+Every step is a plain function; its parameters name the earlier steps whose outputs it needs. Run it with
+``uv run examples/behavior_launcher.py`` (TUI) or ``uv run clabe run examples/behavior_launcher.py`` (also served in
+the browser). Try going back from the review, retrying the flaky step, or skipping the optional ones.
+"""
+
 import asyncio
 import logging
+import random
 from enum import Enum
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from _mocks import (
     LIB_CONFIG,
@@ -10,32 +18,24 @@ from _mocks import (
     SUGGESTION,
     DemoAindDataSchemaSessionDataMapper,
     MockTask,
+    RigModel,
     create_fake_rig,
     create_fake_subjects,
 )
+from aind_behavior_curriculum import TrainerState
+from aind_behavior_services.session import Session
 from pydantic import BaseModel, Field
 from pydantic_settings import CliApp
 
-from clabe import resource_monitor, ui
-from clabe.apps import CurriculumApp, CurriculumSettings, PythonScriptApp
+from clabe import steps, ui
+from clabe.apps import CommandResult, CurriculumApp, CurriculumSettings, PythonScriptApp
 from clabe.cache_manager import CacheManager
-from clabe.launcher import Launcher, LauncherCliArgs, experiment
+from clabe.launcher import Launcher, LauncherCliArgs
 from clabe.logging import otel
 from clabe.runnable import runnable
-from clabe.session import SessionBuilder
-from clabe.stores import LocalFileStore
-from clabe.ui import (
-    AcknowledgeRequest,
-    ConfirmRequest,
-    FieldRequest,
-    FormRequest,
-    MessageLevel,
-    NumberRequest,
-    PathRequest,
-    ReadOnlyTable,
-    TextRequest,
-    notify,
-)
+from clabe.stores import LocalFileStore, Store
+from clabe.ui import MessageLevel, NumberRequest, TextRequest
+from clabe.workflow import Workflow
 
 logger = logging.getLogger(__name__)
 
@@ -82,183 +82,155 @@ class SessionConfig(BaseModel):
     )
 
 
-@experiment()
-async def demo_experiment(launcher: Launcher) -> None:
-    """Demo experiment showcasing CLABE functionality."""
-    # Seed the mock rig/subjects/cache here so the demo also works when launched
-    # via ``clabe run`` (which call this function but not main()).
+_WELCOME = """\
+This demo walks through a behavior session the way a rig's launcher does:
+
+1. **Who and what** — the session, the subject's trainer state and the rig, from a config store.
+2. **Review** — confirm it, or go back and change the session.
+3. **Register** — a *barrier*: once the session folder exists, nothing before it runs again.
+4. **Run** — the task apps, then the curriculum, metadata and a QC report.
+
+Every step shows on the left; click a finished one to go back to it.
+"""
+
+demo = Workflow("demo", exit_prompt_timeout=30)
+
+
+@demo.step(title="Welcome")
+def welcome() -> None:
+    """Seeds the mock rig, subjects and caches, then greets the user."""
     create_fake_subjects()
     create_fake_rig()
     _seed_cache()
-
-    logger.info("Starting the demo experiment")
-    notify("Welcome to the CLABE demo experiment!", MessageLevel.INFO)
-
-    # A custom span, in addition to the automatic root span and the per-@runnable spans.
-    # Look for "demo-preflight" under the run's trace in OpenObserve.
-    with otel.span("demo-preflight", attributes={"example": "behavior_launcher"}) as preflight:
-        preflight.set_attribute("rig.subjects", len(["demo"]))
+    # A custom span, in addition to the automatic run and step spans (see the run's trace in OpenObserve).
+    with otel.span("demo-preflight", attributes={"example": "behavior_launcher"}):
         otel.event("preflight-checks-started")
-
-    # --- AcknowledgeRequest demo: modal acknowledgement gate --------------
-    ui.ask(
-        AcknowledgeRequest(
-            title="Safety Check",
-            message="Ensure the animal is properly head-fixed and all cables are connected before proceeding.",
-            button_label="Confirmed",
-        )
+    ui.markdown(_WELCOME, title="The clabe demo")
+    ui.acknowledge(
+        "Ensure the animal is properly head-fixed and all cables are connected before proceeding.",
+        title="Safety check",
+        button_label="Confirmed",
     )
-    # ----------------------------------------------------------------------
 
-    config = ui.ask(FormRequest(model=SessionConfig, title="Session Configuration"))
-    if config is not None:
-        notify(
-            f"Config: type={config.session_type!r}  mode={config.recording_mode.name}"
-            f"  trials={config.trial_count}  debug={config.debug_mode}",
-            MessageLevel.SUCCESS,
-        )
-    else:
-        notify("Form cancelled — using defaults.", MessageLevel.WARNING)
-        config = SessionConfig()
 
-    # --- ReadOnlyTable demo (from_object): review the filled config ---------
-    # Renders the model as a read-only "Parameter | Value" table with OK/Cancel.
-    confirmed = ui.ask(
-        ReadOnlyTable.from_object(
-            config,
-            title="Confirm Session Configuration",
-            prompt="Are these settings correct?",
-            confirm_label="Looks good",
-            cancel_label="Go back",
-        )
-    )
-    if not confirmed:
-        notify("Configuration not confirmed — using defaults.", MessageLevel.WARNING)
-        config = SessionConfig()
-    # ----------------------------------------------------------------------
+demo.step(steps.session(experimenter_validator=None))
 
-    updated_type = ui.ask(
-        FieldRequest(
-            model=SessionConfig,
-            field_name="session_type",
-            initial=config.session_type,
-        )
-    )
-    notify(f"Final session type: {updated_type!r}", MessageLevel.INFO)
 
-    # --- FieldRequest (Path) demo: a single Path-typed field routes through
-    # prompt_path — same browser as below, just for one form field at a time.
-    updated_output_dir = ui.ask(FieldRequest(model=SessionConfig, field_name="output_dir", initial=config.output_dir))
-    notify(f"Final output directory: {updated_output_dir}", MessageLevel.INFO)
-    # ----------------------------------------------------------------------
+@demo.step
+def store(session: Session) -> Store:
+    """The config store, scoped to the subject."""
+    return LocalFileStore(LIB_CONFIG).scoped(subject=session.subject)
 
-    # --- PathRequest demo: browse the filesystem for a rig config file ------
-    # create_fake_rig() (called above) populated `{LIB_CONFIG}/Rig/<computer_name>/rig1.json`,
-    # so descending one level and picking the .json file demonstrates real browsing.
-    rig_path = ui.ask(
-        PathRequest(
-            label="Browse for a rig configuration file",
-            start=str(Path(LIB_CONFIG) / "Rig"),
-            kind="file",
-            extensions=[".json"],
-        )
-    )
-    if rig_path is not None:
-        notify(f"Picked rig config: {rig_path}", MessageLevel.SUCCESS)
-    else:
-        notify("No rig config picked.", MessageLevel.WARNING)
-    # ----------------------------------------------------------------------
 
-    # --- GroupRequest demo: several prompts answered together, incl. a slider ---------------
-    tuning = ui.group(
+@demo.step(title="Trainer state")
+def trainer_state(store: Store) -> TrainerState:
+    """The subject's current stage, chosen from the store."""
+    return store.resolve(SUGGESTION)
+
+
+@demo.step(title="Rig")
+def rig(store: Store) -> RigModel:
+    """The rig's configuration, chosen from the store."""
+    return store.resolve(RIG)
+
+
+@demo.step(title="Session configuration")
+def config() -> SessionConfig:
+    """A form of every widget type; cancelling it keeps the defaults."""
+    config = ui.form(SessionConfig, title="Session configuration")
+    if config is None:
+        ui.notify("Form cancelled — using defaults.", MessageLevel.WARNING)
+        return SessionConfig()
+    return config
+
+
+@demo.step
+def tuning() -> dict[str, Any]:
+    """Several prompts answered together, including a slider."""
+    return ui.group(
         "Tuning",
         operator_note=TextRequest(label="Operator note"),
         gain=NumberRequest(label="Reward gain", default=0.5, minimum=0, maximum=1, step=0.05, widget="slider"),
     )
-    notify(f"Tuning: note={tuning['operator_note']!r} gain={tuning['gain']:g}", MessageLevel.SUCCESS)
-    # ----------------------------------------------------------------------
 
-    if not ui.ask(
-        ConfirmRequest(label="Is this True", default=True),
+
+demo.step(steps.review("session", "rig", "config", back_to="session"))
+demo.step(steps.free_space(1e9))
+demo.step(steps.register())
+
+
+@demo.step(title="Calibrate")
+def calibrate(rig: RigModel) -> float:
+    """A flaky step: it fails now and then, so the run offers Retry / Go back / Abort."""
+    if random.random() < 0.5:
+        raise RuntimeError(f"{rig.rig_name}: the valve did not respond. Check the tubing and retry.")
+    return 4.2
+
+
+@demo.step(title="Run the task", cancellable=True)
+async def task(launcher: Launcher, config: SessionConfig, tuning: dict[str, Any], calibrate: float) -> None:
+    """Runs the behavior and physiology apps side by side."""
+    if not ui.table(
+        ["App", "Trials", "Gain", "Valve (µL)"],
+        [["Behavior", config.trial_count, tuning["gain"], calibrate], ["Physiology", "–", "–", "–"]],
+        title="Run plan",
+        prompt="Start these apps?",
+        confirm_label="Start",
+        cancel_label="Not yet",
     ):
-        notify("hahaha", MessageLevel.INFO)
+        ui.notify("Run plan not confirmed: starting anyway (it is a demo).", MessageLevel.WARNING)
 
-    if not ui.ask(
-        ConfirmRequest(label="Proceed with the experiment?"),
-    ):
-        notify("Experiment cancelled by user.", MessageLevel.WARNING)
+    def script(label: str) -> list[str]:
+        return ["python", "-c", f"import time; print('Hello {label}'); time.sleep(2); print('DONE')"]
 
-    ui.ask(
-        AcknowledgeRequest(
-            title="Experiment Starting",
-            message="All checks passed. The experiment is about to begin. Press OK to continue.",
-        )
+    await asyncio.gather(
+        runnable(PythonScriptApp(script=script("Behavior")).run_async, name="Running Behavior App")(),
+        runnable(PythonScriptApp(script=script("Physiology")).run_async, name="Running Physiology App")(),
     )
+    ui.notify("Both apps finished", MessageLevel.SUCCESS)
 
-    session = SessionBuilder(launcher, experimenter_validator=lambda name: name).build()
-    store = LocalFileStore(LIB_CONFIG).scoped(subject=session.subject)
 
-    rig = store.resolve(RIG)
-    launcher.register_session(session, rig.data_directory)
-    trainer_state = store.resolve(SUGGESTION)
-    task = MockTask.model_validate_json(trainer_state.stage.task.model_dump_json())
-    _temp_trainer_state_path = launcher.save_temp_model(trainer_state)
-
-    resource_monitor.ResourceMonitor(
-        constrains=[
-            resource_monitor.available_storage_constraint_factory_from_rig(rig, 1e9),
-        ]
-    ).run()
-
-    def fmt(value: str) -> list[str]:
-        return ["python", "-c", f"import time; print('Hello {value}'); time.sleep(2); print('DONE')"]
-
-    app_1 = PythonScriptApp(script=fmt("Behavior"))
-    app_2 = PythonScriptApp(script=fmt("Physiology"))
-
-    # --- ReadOnlyTable demo (from_records): review the app run plan ---------
-    # A general grid built from a list of dicts; columns are inferred from keys.
-    if not ui.ask(
-        ReadOnlyTable.from_records(
-            [
-                {"App": "Behavior", "Timeout (s)": 2, "Blocking": False},
-                {"App": "Physiology", "Timeout (s)": 2, "Blocking": False},
-            ],
-            title="App Run Plan",
-            prompt="Run these apps?",
-        )
-    ):
-        notify("App run cancelled by user.", MessageLevel.WARNING)
-    # ----------------------------------------------------------------------
-
-    notify("Running the behavior and physiology apps…", MessageLevel.INFO)
-    app_1_result, app_2_result = await asyncio.gather(
-        runnable(app_1.run_async, name="Running Behavior App")(),
-        runnable(app_2.run_async, name="Running Physiology App")(),
-    )
-    logger.debug("App results: behavior=%r, physiology=%r", app_1_result, app_2_result)
-    notify("Both apps finished", MessageLevel.SUCCESS)
-
-    suggestion = CurriculumApp(
+@demo.step(title="Curriculum", optional="Run the curriculum on this session?")
+def curriculum(launcher: Launcher, trainer_state: TrainerState, task: None) -> CommandResult:
+    """Suggests the next stage from this session's data."""
+    return CurriculumApp(
         settings=CurriculumSettings(
             curriculum="template",
             data_directory=Path("demo"),
             project_directory=Path("./tests/assets/Aind.Behavior.VrForaging"),
-            input_trainer_state=_temp_trainer_state_path,
+            input_trainer_state=launcher.save_temp_model(trainer_state),
         )
     ).run()
 
+
+@demo.step(title="Metadata", on_error="warn")
+def metadata(
+    launcher: Launcher,
+    session: Session,
+    rig: RigModel,
+    trainer_state: TrainerState,
+    curriculum: CommandResult | None,
+) -> None:
+    """Maps the session to the data schema (a failure only warns)."""
+    assert trainer_state.stage is not None
     DemoAindDataSchemaSessionDataMapper(
         rig,
         session,
-        task,
+        MockTask.model_validate_json(trainer_state.stage.task.model_dump_json()),
         repository=launcher.repository,
         script_path=Path("./mock/script.py"),
-        output_parameters={"suggestion": suggestion.model_dump()},
+        output_parameters={"suggestion": curriculum.model_dump() if curriculum is not None else None},
     ).map()
 
-    logger.info("Demo experiment finished")
-    notify("Demo experiment complete!", MessageLevel.SUCCESS)
+
+@demo.step(title="QC report", optional="Show the QC report?")
+def qc(session: Session, config: SessionConfig) -> None:
+    """A report the web UI shows as a page (other clients warn and name it)."""
+    ui.html(
+        f"<h2 style='font-family: sans-serif'>QC — {session.subject}</h2>"
+        f"<p style='font-family: sans-serif'>{config.trial_count} trials planned; all checks passed.</p>",
+        title="QC report",
+    )
 
 
 def _seed_cache() -> None:
@@ -275,15 +247,9 @@ def _seed_cache() -> None:
 def main():
     settings = CliApp.run(
         LauncherCliArgs,
-        cli_args=[
-            "--allow-dirty",
-            "--skip-hardware-validation",
-            "--verbose",
-            "--frontend",
-            "tui",
-        ],
+        cli_args=["--allow-dirty", "--skip-hardware-validation", "--verbose", "--frontend", "tui"],
     )
-    Launcher(settings=settings).run_experiment(demo_experiment)
+    Launcher(settings=settings).run_experiment(demo)
 
 
 if __name__ == "__main__":

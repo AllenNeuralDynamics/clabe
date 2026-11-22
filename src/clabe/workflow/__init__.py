@@ -7,7 +7,7 @@ from ._discovery import ExperimentCallable, as_workflow, collect_workflows, expe
 from ._local import LocalClient
 from ._records import export_artifact
 from ._run import Ack, Rejected, Run, RunState, RunStatus, StepState, StepStatus
-from ._workflow import Step, Workflow, WorkflowDefinitionError
+from ._workflow import Step, Workflow, WorkflowDefinitionError, step_defaults
 
 __all__ = [
     "Abort",
@@ -34,4 +34,5 @@ __all__ = [
     "export_artifact",
     "load_module",
     "select_workflow",
+    "step_defaults",
 ]

@@ -104,6 +104,8 @@ nav:
     - services: api/services.md
   - Session:
     - session: api/session.md
+  - Steps:
+    - steps: api/steps.md
   - Aind Apps:
     - aind_apps: api/aind_apps/aind_apps.md
     - waterlog: api/aind_apps/waterlog.md
@@ -161,6 +163,7 @@ nav:
   - ServiceSettings and yaml tags: articles/service_settings.md
   - Stores: articles/stores.md
   - Store Backends: articles/store_backends.md
+  - Workflows: articles/workflows.md
 - Issues: https://github.com/AllenNeuralDynamics/clabe/issues
 - Examples:
   - AIND Experiment: docs_examples/behavior_launcher.md

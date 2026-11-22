@@ -58,7 +58,10 @@ main { padding: 1.25rem 1.5rem; min-width: 0; }
 .stepper ol { list-style: none; margin: 0; padding: 0; }
 .stepper li { padding: .4rem .6rem; border-radius: 6px; display: flex; flex-wrap: wrap; align-items: baseline; gap: .4rem; }
 .stepper li.current { background: color-mix(in srgb, var(--accent) 12%, transparent); font-weight: 600; }
-.stepper li small { flex-basis: 100%; padding-left: 1.4rem; color: var(--muted); }
+.stepper li small {
+    flex-basis: 100%; padding-left: 1.4rem; color: var(--muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; max-width: 100%;
+}
 .stepper .icon { width: 1rem; text-align: center; }
 .stepper li.done .icon { color: var(--ok); }
 .stepper li.failed .icon { color: var(--err); }

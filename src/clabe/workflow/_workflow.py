@@ -3,7 +3,7 @@
 import inspect
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
-from typing import Any, Literal, Self
+from typing import Any, Literal, Self, TypeVar
 
 from .codecs import Codec
 
@@ -65,7 +65,32 @@ class Step:
         }
 
 
-def make_step(
+#: Attribute holding the default options a step function carries (see :func:`step_defaults`).
+STEP_DEFAULTS = "__clabe_step_defaults__"
+
+_F = TypeVar("_F", bound=Callable[..., Any])
+
+
+def step_defaults(**options: Any) -> Callable[[_F], _F]:
+    """Gives a step function default options, e.g. a reusable step that should be a barrier.
+
+    Options passed when the step is declared (``wf.step(func, barrier=False)``) override these. See :class:`Step`
+    for the options.
+    """
+
+    def mark(func: _F) -> _F:
+        setattr(func, STEP_DEFAULTS, dict(options))
+        return func
+
+    return mark
+
+
+def make_step(func: Callable[..., Any], /, **options: Any) -> Step:
+    """Builds a :class:`Step` from a function: its :func:`step_defaults`, overridden by ``options``."""
+    return _build_step(func, **{**getattr(func, STEP_DEFAULTS, {}), **options})
+
+
+def _build_step(
     func: Callable[..., Any],
     *,
     name: str | None = None,

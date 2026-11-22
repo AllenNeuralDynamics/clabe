@@ -47,7 +47,8 @@ uv sync
 
 ## What CLABE provides
 
-- **Experiment launcher** — discover and run functions marked with `@experiment`, with console, TUI, and web-served interaction options.
+- **Workflows** — declare an experiment as steps wired by name; the launcher runs them with go-back, barriers, retries and optional steps, records every output, and checks the wiring statically in CI (`clabe check`).
+- **One run, many clients** — answer prompts in the TUI, the console or the web UI served by the run (Markdown, images and pages included); the first answer wins.
 - **Frontends and forms** — collect typed input from Pydantic models, prompt for paths, confirmations, selections, and read-only reviews.
 - **Applications and executors** — describe external commands once and run them locally, asynchronously, detached, or on another rig through XML-RPC.
 - **Multi-rig experiments** — run apps in a matching checkout on another computer (`RemoteRepository`), start its server automatically, and transfer both machines' data through one watchdog manifest. See [Running on other rigs](https://github.com/AllenNeuralDynamics/clabe/blob/main/docs/articles/remote_execution.md).
@@ -57,26 +58,34 @@ uv sync
 
 ## Quick start
 
-Define an experiment in a Python module:
+Declare an experiment as a workflow in a Python module:
 
 ```python
-from clabe import ui
-from clabe.launcher import Launcher, experiment
+from clabe import steps, ui
+from clabe.launcher import Launcher
+from clabe.workflow import Workflow
+
+wf = Workflow("my-experiment")
+wf.step(steps.session())
 
 
-@experiment()
-async def my_experiment(launcher: Launcher) -> None:
-    ui.notify("Experiment started")
-    # Configure the session, check resources, and run applications here.
+@wf.step
+def trials() -> float:
+    return ui.number("Trials", minimum=1)
+
+
+@wf.step(barrier=True)
+async def run_task(launcher: Launcher, trials: float) -> None:
+    ui.notify(f"Running {trials:g} trials")
 ```
 
-Run the module with the CLABE CLI:
+Run it with the CLABE CLI — it is served in the browser too (`--no-serve` to turn that off):
 
 ```bash
 uv run clabe run path/to/my_experiment.py
 ```
 
-See [examples/behavior_launcher.py](examples/behavior_launcher.py) for a fuller example that combines sessions, forms, stores, resource checks, applications, and telemetry.
+See [examples/behavior_launcher.py](examples/behavior_launcher.py) for a fuller example that combines sessions, forms, stores, resource checks, applications, and telemetry, and [Workflows](docs/articles/workflows.md) for the rules.
 
 ## Command line
 
