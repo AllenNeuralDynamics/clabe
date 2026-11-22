@@ -117,21 +117,41 @@ from clabe.workflow import concurrently
 
 @wf.step(title="Acquire", cancellable=True)
 async def acquire(rig: MyRig) -> dict[str, Any]:
-    async def behavior() -> CommandResult:
-        return await bonsai_app.run_async()
-
-    async def ephys() -> None:
-        client = await open_ephys.launch()
-        try:
-            await record_until_behavior_ends(client)
-        finally:
-            await open_ephys.close()  # also runs on retry, stop and abort
-
-    return await concurrently(behavior=behavior, ephys=ephys)  # {"behavior": ..., "ephys": None}
+    return await concurrently(
+        behavior=lambda: bonsai_app.run_async(),
+        fip=lambda: fip_app.run_async(),
+    )  # {"behavior": ..., "fip": ...}
 ```
 
 - A failed branch offers **Retry**, **Continue without** (result `None`) or **Stop all**.
 - A cancelled branch has 30 s to run its `finally` block.
+
+To record for as long as the branches run, pass `around=`: it starts before them and stops once they have all
+ended, also on failure, stop or abort.
+
+```python
+from contextlib import asynccontextmanager
+
+
+@asynccontextmanager
+async def recording():
+    await open_ephys.launch(executor=remote)
+    try:
+        open_ephys.start()
+        yield
+    finally:
+        open_ephys.stop()
+        await open_ephys.close()
+
+
+@wf.step(title="Acquire", cancellable=True)
+async def acquire(rig: MyRig) -> dict[str, Any]:
+    return await concurrently(behavior=lambda: bonsai_app.run_async(), around=recording)
+```
+
+- If `recording` fails to start, the user picks **Retry**, **Continue without** (the branches run without it) or
+  **Stop all**.
+- No branch can be named `around`.
 
 ## 7. Run it
 
