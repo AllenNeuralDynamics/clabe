@@ -1,0 +1,106 @@
+@* The fleet (served by a hub): which rigs wait for an answer, and what every rig is doing. *@
+@inject HubApi Hub
+@implements IDisposable
+
+<div class="shell">
+    <header class="bar">
+        <span class="brand">clabe</span>
+        <span>fleet</span>
+        <span class="spacer"></span>
+        @if (_rigs is not null)
+        {
+            <span class="muted">@_rigs.Count(r => r.Status == "busy") running · @_rigs.Count(r => r.Waiting is not null) waiting · @_rigs.Count(r => !r.Reachable) offline</span>
+        }
+    </header>
+    <main class="daemon">
+        @if (_error is not null)
+        {
+            <p class="notice error">@_error</p>
+        }
+        <h2 class="section">Waiting for an answer</h2>
+        @if (_rigs?.Where(r => r.Waiting is not null).OrderBy(r => r.Waiting!.Since).ToList() is { Count: > 0 } waiting)
+        {
+            <ul class="inbox">
+                @foreach (var rig in waiting)
+                {
+                    <li>
+                        <div>
+                            <strong>@rig.Id</strong> <span class="muted">@rig.Experiment · @(rig.CurrentStepTitle ?? rig.CurrentStep)</span>
+                            <div>@rig.Waiting!.Label</div>
+                        </div>
+                        <span class="muted" title="@rig.Waiting.Since.ToLocalTime()">@Ago(rig.Waiting.Since)</span>
+                        <a class="button" href="@Hub.RigUrl(rig.Id, runPage: true)">Answer</a>
+                    </li>
+                }
+            </ul>
+        }
+        else
+        {
+            <p class="muted">Nothing is waiting.</p>
+        }
+        <h2 class="section">Rigs</h2>
+        <table class="fleet">
+            <thead><tr><th>Rig</th><th>Status</th><th>Experiment</th><th>Step</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var rig in _rigs ?? [])
+                {
+                    <tr class="@(rig.Reachable ? rig.Status : "offline")">
+                        <td><strong>@rig.Id</strong> <small class="muted">@rig.Hostname</small></td>
+                        <td>
+                            <span class="status @(rig.Status is "idle" ? "completed" : rig.Reachable ? "running" : "failed")">@(rig.Reachable ? rig.Status : "offline")</span>
+                            @if (rig.LeasedBy is { } owner)
+                            {
+                                <small class="muted">by @owner</small>
+                            }
+                            @if (!rig.Reachable && rig.Error is { } error)
+                            {
+                                <small class="muted" title="@error">unreachable</small>
+                            }
+                        </td>
+                        <td>@rig.Experiment</td>
+                        <td>@(rig.CurrentStepTitle ?? rig.CurrentStep)</td>
+                        <td>
+                            @if (rig.Reachable)
+                            {
+                                <a href="@Hub.RigUrl(rig.Id, runPage: rig.Status == "busy")">Open</a>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </main>
+</div>
+
+@code {
+    private List<RigStatus>? _rigs;
+    private string? _error;
+    private Timer? _timer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Refresh();
+        _timer = new Timer(_ => InvokeAsync(async () => { await Refresh(); StateHasChanged(); }), null, 2000, 2000);
+    }
+
+    private async Task Refresh()
+    {
+        try
+        {
+            _rigs = await Hub.RigsAsync();
+            _error = null;
+        }
+        catch (HttpRequestException exc)
+        {
+            _error = exc.Message.Contains("401") ? "The hub requires a token: open the link with ?token=..." : exc.Message;
+        }
+    }
+
+    private static string Ago(DateTimeOffset since)
+    {
+        var elapsed = DateTimeOffset.UtcNow - since;
+        return elapsed.TotalMinutes < 1 ? $"{(int)elapsed.TotalSeconds} s" : elapsed.TotalHours < 1 ? $"{(int)elapsed.TotalMinutes} min" : $"{elapsed.TotalHours:0.#} h";
+    }
+
+    public void Dispose() => _timer?.Dispose();
+}

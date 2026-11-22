@@ -61,6 +61,9 @@ aind-services = [
     "aind-watchdog-service >= 0.1.10.dev0",
     "confierge>=0.1.4",
 ]
+agents = [
+    "mcp>=1.10",
+]
 
 [dependency-groups]
 
@@ -74,6 +77,7 @@ dev = [
     'interrogate',
     "aind-clabe[aind-services]",
     "aind-clabe[otel]",
+    "aind-clabe[agents]",
 ]
 
 docs = [

@@ -48,6 +48,8 @@ uv sync
 ## What CLABE provides
 
 - **Workflows** — declare an experiment as steps wired by name; the launcher runs them with go-back, barriers, retries and optional steps, records every output, and checks the wiring statically in CI (`clabe check`).
+- **Rigs and fleets** — a daemon on every rig PC starts experiments from the browser and runs jobs for other rigs; an optional hub (Docker) shows the whole fleet and every run waiting for an answer.
+- **Agents** — `clabe mcp` (MCP) and an AG-UI endpoint let AI agents follow runs and answer prompts.
 - **One run, many clients** — answer prompts in the TUI, the console or the web UI served by the run (Markdown, images and pages included); the first answer wins.
 - **Frontends and forms** — collect typed input from Pydantic models, prompt for paths, confirmations, selections, and read-only reviews.
 - **Applications and executors** — describe external commands once and run them locally, asynchronously, detached, or on another rig through its clabe daemon.
@@ -123,6 +125,7 @@ Some integrations are optional so a basic installation remains lightweight:
 ```bash
 uv add "aind-clabe[aind-services]"  # AIND services, data schema, and transfer tooling
 uv add "aind-clabe[otel]"           # OpenTelemetry exporters and YAML support
+uv add "aind-clabe[agents]"         # MCP server for AI agents (clabe mcp)
 ```
 
 ## Documentation and development

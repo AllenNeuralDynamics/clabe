@@ -5,9 +5,11 @@ from pathlib import Path
 from pydantic import Field
 from pydantic_settings import BaseSettings, CliApp, CliImplicitFlag, CliPositionalArg, CliSubCommand
 
+from .agents._cli import McpCli
 from .cache_manager import _CacheManagerCli
 from .daemon._cli import DaemonCli
 from .git_manager import GitRepository
+from .hub._cli import HubCli
 from .launcher import Launcher, LauncherCliArgs
 from .workflow import select_workflow
 
@@ -119,6 +121,8 @@ class CliAppSettings(BaseSettings, cli_prog_name="clabe", cli_kebab_case=True):
     check: CliSubCommand[_CheckCli]
     list: CliSubCommand[_ListCli]
     daemon: CliSubCommand[DaemonCli]
+    hub: CliSubCommand[HubCli]
+    mcp: CliSubCommand[McpCli]
 
     def cli_cmd(self):
         """Run the selected subcommand."""

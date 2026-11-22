@@ -11,8 +11,7 @@ In the machine's `clabe.yml`:
 ```yaml
 daemon:
   host: 0.0.0.0            # reachable from the LAN (default: localhost only)
-  port: 8070
-  token: !env CLABE_TOKEN  # required by every API call when set
+  port: 8070              # the token comes from $CLABE_TOKEN (or `token:` here)
   repositories:
     - path: C:/git/Aind.Experiment.VrForaging
     - path: C:/git/Aind.Experiment.DynamicForaging

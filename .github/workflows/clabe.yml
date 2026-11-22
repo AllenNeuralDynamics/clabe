@@ -87,7 +87,24 @@ jobs:
       - name: Run the browser tests
         run: |
           uv run --with playwright playwright install --with-deps chromium
-          uv run --with playwright pytest tests/server -p no:cacheprovider
+          uv run --with playwright pytest tests/server tests/daemon tests/hub -p no:cacheprovider
+
+  hub-image:
+    name: Hub Docker image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Build the hub image
+        run: docker build -f docker/hub/Dockerfile -t clabe-hub .
+
+      - name: Smoke test it
+        run: |
+          docker run -d --name hub -p 8080:8080 -e CLABE_HUB_TOKEN=ci clabe-hub
+          for i in $(seq 1 30); do curl -sf localhost:8080/openapi.json > /dev/null && break; sleep 1; done
+          test "$(curl -s -o /dev/null -w '%{http_code}' localhost:8080/api/hub/rigs)" = 401
+          curl -sf -H 'Authorization: Bearer ci' localhost:8080/api/hub/rigs
+          curl -sf localhost:8080/ | grep -q '<title>clabe</title>'
 
   # ╔───────────────────────────────────────────────────────────╗
   # │    ____ ___ ____ ____    ____      _                      │

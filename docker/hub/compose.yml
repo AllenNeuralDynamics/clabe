@@ -1,0 +1,14 @@
+# docker compose -f docker/hub/compose.yml up -d   (from the repository root)
+services:
+  hub:
+    build:
+      context: ../..
+      dockerfile: docker/hub/Dockerfile
+    image: clabe-hub
+    ports: ["8080:8080"]
+    environment:
+      CLABE_HUB_TOKEN: ${CLABE_HUB_TOKEN:?set a token for the hub}
+      CLABE_TOKEN: ${CLABE_TOKEN:?the rigs' daemon token}
+    volumes:
+      - ./hub.yml:/app/clabe.yml:ro
+    restart: unless-stopped

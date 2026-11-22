@@ -10,7 +10,7 @@ from collections.abc import AsyncIterable
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Query, Request
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from fastapi.sse import EventSourceResponse, ServerSentEvent
 from fastapi.staticfiles import StaticFiles
 
@@ -18,6 +18,7 @@ from .. import __version__
 from ..ui._requests import normalize_extensions
 from ..workflow import Ack, Rejected, Run, RunState
 from ..workflow.events import Event, PromptOpened, RunFinished
+from ._agui import RunAgentInput, agui_stream
 from ._models import (
     AbortBody,
     AnswerBody,
@@ -143,22 +144,31 @@ def create_app(run: Run, *, token: str | None = None, static_dir: Path | None = 
         """Aborts the run."""
         return _result(run.abort((body or AbortBody()).reason))
 
+    @api.post("/agui", response_class=StreamingResponse)
+    async def agui(body: RunAgentInput, request: Request) -> StreamingResponse:
+        """The run as an AG-UI agent: one turn follows the run until it needs the user (see ``clabe.server._agui``)."""
+        return StreamingResponse(agui_stream(run, body, request, _event_stream), media_type="text/event-stream")
+
     @api.post("/fs/list", response_model=DirListing)
     def list_dir(body: ListDirBody) -> DirListing:
         """Lists a directory of the machine running the run (for remote path pickers)."""
         return _list_dir(body)
 
     app.include_router(api)
+    _mount_ui(app, static_dir)
+    return app
+
+
+def _mount_ui(app: FastAPI, static_dir: Path | None) -> None:
+    """Serves the web UI at ``/`` (a placeholder page pointing at the API when it is not built)."""
     if static_dir is not None and (static_dir / "index.html").is_file():
         app.mount("/", StaticFiles(directory=static_dir, html=True), name="ui")
-    else:
+        return
 
-        @app.get("/", response_class=HTMLResponse, include_in_schema=False)
-        def placeholder() -> str:
-            """A page pointing at the API when the web UI is not built."""
-            return _PLACEHOLDER
-
-    return app
+    @app.get("/", response_class=HTMLResponse, include_in_schema=False)
+    def placeholder() -> str:
+        """A page pointing at the API when the web UI is not built."""
+        return _PLACEHOLDER
 
 
 async def _event_stream(run: Run, request: Request, start: int) -> AsyncIterable[Event]:

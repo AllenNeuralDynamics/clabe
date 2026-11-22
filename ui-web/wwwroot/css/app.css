@@ -203,3 +203,13 @@ a.button {
 .stepper .branches li.done .icon { color: var(--ok); }
 .stepper .branches li.failed { color: var(--err); }
 .stepper .branches li.cancelled, .stepper .branches li.skipped { color: var(--muted); }
+
+.inbox { list-style: none; margin: 0; padding: 0; }
+.inbox li {
+    display: grid; grid-template-columns: 1fr auto auto; gap: 1rem; align-items: center;
+    background: var(--panel); border: 1px solid var(--border); border-left: 4px solid var(--warn);
+    border-radius: 8px; padding: .7rem 1rem; margin-bottom: .5rem;
+}
+table.fleet { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; }
+table.fleet tr.offline td { color: var(--muted); }
+table.fleet small { margin-left: .4rem; }

@@ -30,7 +30,6 @@ class DaemonSettings(ServiceSettings):
 
         daemon:
           host: 0.0.0.0
-          token: !env CLABE_TOKEN
           repositories:
             - path: C:/git/Aind.Experiment.VrForaging
             - path: C:/git/Aind.Experiment.DynamicForaging

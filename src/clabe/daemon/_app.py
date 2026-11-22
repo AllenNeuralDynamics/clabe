@@ -1,26 +1,19 @@
 """The daemon's HTTP app: its own API under /api/daemon, the run it hosts proxied under /run/, and the web UI."""
 
-import hmac
 from pathlib import Path
 
 import httpx
-from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Query, Request, Response
-from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, Response
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from starlette.background import BackgroundTask
 
 from .. import __version__
 from ..server._app import STATIC_DIR
+from ..server._proxy import forward, token_check
 from ..workflow import ExperimentListing
 from ._host import Host, HostError, HostInfo, LaunchBody, RepositoryInfo, RunInfo
 from ._settings import DaemonSettings
 from ._worker import Worker, worker_router
-
-#: Hop-by-hop headers, which a proxy must not forward.
-_HOP_HEADERS = frozenset(
-    {"connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailers",
-     "transfer-encoding", "upgrade", "host", "content-length", "authorization"}
-)  # fmt: skip
 
 
 def _guarded(call):
@@ -29,30 +22,6 @@ def _guarded(call):
         return call()
     except HostError as exc:
         raise HTTPException(status_code=exc.status, detail=str(exc)) from exc
-
-
-def _given_token(authorization: str | None, token_param: str | None) -> str | None:
-    """The token a request carries, from ``Authorization: Bearer`` or ``?token=``."""
-    if authorization and authorization.lower().startswith("bearer "):
-        return authorization[7:]
-    return token_param
-
-
-def _token_check(token: str | None):
-    """A dependency rejecting requests without the daemon's token (when one is set)."""
-
-    async def check(
-        authorization: str | None = Header(default=None),
-        token_param: str | None = Query(default=None, alias="token"),
-    ) -> None:
-        """Raises 401 unless the request carries the token."""
-        if token is None:
-            return
-        given = _given_token(authorization, token_param)
-        if given is None or not hmac.compare_digest(given, token):
-            raise HTTPException(status_code=401, detail="A valid token is required.")
-
-    return check
 
 
 def create_daemon_app(
@@ -72,7 +41,7 @@ def create_daemon_app(
         description="Run experiments on this machine: list repositories and experiments, launch one, and reach the "
         "run's own API under /run/api.",
     )
-    check = _token_check(token)
+    check = token_check(token)
     api = APIRouter(prefix="/api/daemon", dependencies=[Depends(check)])
 
     @api.get("/info", response_model=HostInfo)
@@ -152,22 +121,8 @@ async def _proxy(host: Host, client: httpx.AsyncClient, path: str, request: Requ
         if path in ("", "index.html"):
             return HTMLResponse(_NO_RUN, status_code=503)
         raise HTTPException(status_code=503, detail="No run is being served on this machine.")
-    query = [(k, v) for k, v in request.query_params.multi_items() if k != "token"]
-    headers = {k: v for k, v in request.headers.items() if k.lower() not in _HOP_HEADERS}
-    headers["authorization"] = f"Bearer {launched.token}"
-    upstream = client.build_request(
-        request.method, f"http://127.0.0.1:{port}/{path}", params=query, headers=headers, content=await request.body()
-    )
-    try:
-        response = await client.send(upstream, stream=True)
-    except httpx.HTTPError as exc:
-        raise HTTPException(status_code=502, detail=f"The run is not reachable: {exc}") from exc
-    return StreamingResponse(
-        response.aiter_raw(),
-        status_code=response.status_code,
-        headers={k: v for k, v in response.headers.items() if k.lower() not in _HOP_HEADERS},
-        background=BackgroundTask(response.aclose),
-    )
+    url = f"http://127.0.0.1:{port}/{path}"
+    return await forward(client, request, url, launched.token, unreachable="The run is not reachable")
 
 
 _PLACEHOLDER = """<!doctype html><html><head><meta charset="utf-8"><title>clabe daemon</title></head>

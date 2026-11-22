@@ -106,6 +106,8 @@ nav:
     - session: api/session.md
   - Steps:
     - steps: api/steps.md
+  - Agents:
+    - agents: api/agents/agents.md
   - Aind Apps:
     - aind_apps: api/aind_apps/aind_apps.md
     - waterlog: api/aind_apps/waterlog.md
@@ -124,6 +126,8 @@ nav:
     - robocopy: api/data_transfer/robocopy.md
   - Git Manager:
     - git_manager: api/git_manager/git_manager.md
+  - Hub:
+    - hub: api/hub/hub.md
   - Launcher:
     - launcher: api/launcher/launcher.md
   - Logging:
@@ -155,10 +159,12 @@ nav:
     - codecs: api/workflow/codecs.md
     - events: api/workflow/events.md
 - Articles:
+  - Agents: articles/agents.md
   - Configuration: articles/configuration.md
   - Daemon: articles/daemon.md
   - Data transfer: articles/data_transfer.md
   - Frontends: articles/frontends.md
+  - Hub: articles/hub.md
   - Logging: articles/logging.md
   - Remote execution: articles/remote_execution.md
   - Runnables: articles/runnables.md

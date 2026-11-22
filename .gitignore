@@ -90,3 +90,4 @@ docs/articles/service_settings.md
 src/clabe/server/static/
 ui-web/bin/
 ui-web/obj/
+docker/hub/hub.yml
