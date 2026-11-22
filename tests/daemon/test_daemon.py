@@ -129,6 +129,12 @@ def test_an_unknown_repository_is_404(daemon):
     assert _get(base, "/api/daemon/repositories/nope/experiments").status_code == 404
 
 
+@pytest.fixture(autouse=True)
+def _not_from_uv_cache(monkeypatch):
+    """The tests may run from uv's cache (``uv run --with ...``); installs here are not about that."""
+    monkeypatch.setattr(_install, "_in_uv_cache", lambda: False)
+
+
 class TestInstall:
     def test_the_task_starts_at_logon_and_restarts_on_failure(self):
         xml = _install.task_xml(["C:/tools/clabe.exe", "daemon", "run"], user="lab\\rig-3")
@@ -232,7 +238,7 @@ class TestDeployment:
         assert calls == ["/Create", "/Run"] and (tmp_path / "clabe").is_dir() and "Registered" in message
 
     def test_installing_from_uvx_without_a_spec_is_refused(self, monkeypatch):
-        monkeypatch.setattr(_install, "_in_uv_cache", lambda: True)
+        monkeypatch.setattr(_install, "_in_uv_cache", lambda: True)  # after the autouse stub: wins
         with pytest.raises(OSError, match="--uvx"):
             _install.daemon_command()
 
