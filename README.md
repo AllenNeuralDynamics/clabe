@@ -70,15 +70,16 @@ uv run clabe shortcut                 # or a desktop icon that does it
 
 ## Try it
 
-From a checkout, with [uv](https://docs.astral.sh/uv/) and Docker:
+From a checkout, with [uv](https://docs.astral.sh/uv/):
 
 ```powershell
-powershell -ExecutionPolicy ByPass -File scripts/demo.ps1
+powershell -ExecutionPolicy ByPass -File scripts/demo-local.ps1   # clabe alone: nothing else to install or run
+powershell -ExecutionPolicy ByPass -File scripts/demo.ps1         # the same, followed by a hub (needs Docker)
 ```
 
-A one-minute session ([examples/demo/main.py](examples/demo/main.py)) in this terminal and in your browser at once,
-followed by the hub in another tab: a form, a review, checks, a step that fails and is retried, a conditional step,
-two things running at once, a figure and a report.
+A one-minute session ([examples/demo/main.py](examples/demo/main.py)) in this terminal and in your browser at once:
+a form, a review, checks, a step that fails and is retried, a conditional step, two things running at once, a
+figure and a report. `demo.ps1` also starts a daemon and the hub, and shows the run in the hub in another tab.
 
 ## Install
 

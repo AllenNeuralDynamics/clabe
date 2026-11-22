@@ -1,6 +1,7 @@
 """A one-minute tour of clabe: a session declared as steps, answered from the terminal or the browser.
 
-Run it with ``scripts/demo.ps1`` (with the hub), or ``uv run clabe run examples/demo/main.py --allow-dirty``.
+Run it with ``scripts/demo-local.ps1`` (on its own), ``scripts/demo.ps1`` (with the hub), or
+``uv run clabe run examples/demo/main.py --allow-dirty``.
 """
 
 import asyncio

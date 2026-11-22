@@ -83,10 +83,11 @@ uv run clabe run                           # main.py: the TUI here, the web UI a
 
 ## Try it
 
-From a checkout, with uv and Docker: a one-minute session in the terminal and the browser, followed by the hub.
+From a checkout, with uv: a one-minute session in the terminal and the browser.
 
 ```powershell
-powershell -ExecutionPolicy ByPass -File scripts/demo.ps1
+powershell -ExecutionPolicy ByPass -File scripts/demo-local.ps1   # clabe alone: no daemon, no hub
+powershell -ExecutionPolicy ByPass -File scripts/demo.ps1         # followed by the hub (needs Docker)
 ```
 
 ## Install
