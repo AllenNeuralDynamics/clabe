@@ -8,6 +8,8 @@ from pathlib import Path
 from types import ModuleType
 from typing import TYPE_CHECKING, Any
 
+from pydantic import BaseModel
+
 from .. import ui
 from ._workflow import Workflow
 
@@ -136,3 +138,56 @@ def select_workflow(path: Path, *, name: str | None = None) -> Workflow:
         selected = by_name[choice]
     logger.info("Selected experiment: %s", selected.name)
     return selected
+
+
+class StepInfo(BaseModel):
+    """A step as listed by :func:`list_experiments`."""
+
+    name: str
+    title: str
+    barrier: bool
+    optional: str | None
+
+
+class ExperimentInfo(BaseModel):
+    """A workflow offered by an experiment file, as listed by :func:`list_experiments`."""
+
+    file: str
+    name: str
+    steps: list[StepInfo]
+
+
+class ListingError(BaseModel):
+    """An experiment file that could not be imported."""
+
+    file: str
+    error: str
+
+
+class ExperimentListing(BaseModel):
+    """What an experiment file or directory offers (see ``clabe list``)."""
+
+    experiments: list[ExperimentInfo]
+    errors: list[ListingError]
+
+
+def list_experiments(path: str | Path) -> ExperimentListing:
+    """Lists the workflows offered by a file, or by every ``*.py`` file in a directory (not recursively).
+
+    Files that fail to import are reported in ``errors``; nothing runs except the files' imports.
+    """
+    path = Path(path)
+    files = sorted(p for p in path.glob("*.py") if p.name != "__init__.py") if path.is_dir() else [path]
+    experiments, errors = [], []
+    for file in files:
+        try:
+            module = load_module(file)
+        except Exception as exc:  # noqa: BLE001 -- any import failure is reported, not raised
+            errors.append(ListingError(file=str(file), error=f"{type(exc).__name__}: {exc}"))
+            continue
+        for workflow in collect_workflows(module):
+            steps = [
+                StepInfo(name=s.name, title=s.title, barrier=s.barrier, optional=s.optional) for s in workflow.steps
+            ]
+            experiments.append(ExperimentInfo(file=str(file), name=workflow.name, steps=steps))
+    return ExperimentListing(experiments=experiments, errors=errors)

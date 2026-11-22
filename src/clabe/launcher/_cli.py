@@ -20,9 +20,10 @@ class LauncherCliArgs(ServiceSettings, cli_prog_name="clabe", cli_kebab_case=Tru
         default=None, description="The repository root directory. If None will be auto-detected."
     )
     debug_mode: CliImplicitFlag[bool] = Field(default=False, description="Whether to run in debug mode")
-    frontend: Literal["auto", "tui", "console"] = Field(
+    frontend: Literal["auto", "tui", "console", "headless"] = Field(
         default="auto",
-        description="Frontend for prompts and output: auto (TUI on a terminal, else console), tui, or console",
+        description="Frontend for prompts and output: auto (TUI on a terminal, else console), tui, console, or "
+        "headless (no screen: answer from the web UI; needs --serve)",
     )
     verbose: CliImplicitFlag[bool] = Field(
         default=False,
@@ -59,6 +60,13 @@ class LauncherCliArgs(ServiceSettings, cli_prog_name="clabe", cli_kebab_case=Tru
         description="Path to a clabe.yml file to load in addition to the known config files. "
         "It ranks right after ./local/clabe.yml and is applied to all service settings created after parsing.",
     )
+
+    @model_validator(mode="after")
+    def _headless_needs_serving(self) -> "LauncherCliArgs":
+        """A headless run can only be answered through the run server."""
+        if self.frontend == "headless" and not self.serve:
+            raise ValueError("--frontend headless needs --serve: nothing else could answer its prompts.")
+        return self
 
     @model_validator(mode="after")
     def _install_clabe_yml(self) -> "LauncherCliArgs":

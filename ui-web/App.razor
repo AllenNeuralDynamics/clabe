@@ -1,1 +1,28 @@
-<RunView />
+@* The page is either a run's (served by the run, or by a daemon under /run/) or a daemon's home page. *@
+@inject RunApi Api
+@inject DaemonApi Daemon
+@inject NavigationManager Navigation
+
+@switch (_mode)
+{
+    case "daemon":
+        <DaemonView />
+        break;
+    case "run":
+        <RunView />
+        break;
+    default:
+        <p class="loading">Loading clabe…</p>
+        break;
+}
+
+@code {
+    private string? _mode;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var token = System.Web.HttpUtility.ParseQueryString(new Uri(Navigation.Uri).Query)["token"];
+        Api.UseToken(token);
+        _mode = await Daemon.IsDaemonAsync() ? "daemon" : "run";
+    }
+}

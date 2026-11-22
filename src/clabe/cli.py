@@ -6,6 +6,7 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, CliApp, CliImplicitFlag, CliPositionalArg, CliSubCommand
 
 from .cache_manager import _CacheManagerCli
+from .daemon._cli import DaemonCli
 from .git_manager import GitRepository
 from .launcher import Launcher, LauncherCliArgs
 from .workflow import select_workflow
@@ -88,6 +89,28 @@ class _CheckCli(BaseSettings):
             raise SystemExit(1)
 
 
+class _ListCli(BaseSettings):
+    """List the workflows of an experiment file or directory (as JSON with --json)."""
+
+    path: CliPositionalArg[Path] = Field(description="Experiment file, or a directory of experiment files")
+    json_output: CliImplicitFlag[bool] = Field(default=False, alias="json", description="Print JSON")
+
+    def cli_cmd(self):
+        """Print the workflows found; exit with status 1 if a file failed to import."""
+        from .workflow import list_experiments
+
+        listing = list_experiments(self.path)
+        if self.json_output:
+            print(listing.model_dump_json(indent=2))
+        else:
+            for experiment in listing.experiments:
+                print(f"{experiment.name}  ({experiment.file}): {', '.join(s.name for s in experiment.steps)}")
+            for error in listing.errors:
+                print(f"error: {error.file}: {error.error}", file=sys.stderr)
+        if listing.errors:
+            raise SystemExit(1)
+
+
 class CliAppSettings(BaseSettings, cli_prog_name="clabe", cli_kebab_case=True):
     """CLI application settings."""
 
@@ -96,6 +119,8 @@ class CliAppSettings(BaseSettings, cli_prog_name="clabe", cli_kebab_case=True):
     run: CliSubCommand[_RunCli]
     repository_state: CliSubCommand[_RepositoryStateCli]
     check: CliSubCommand[_CheckCli]
+    list: CliSubCommand[_ListCli]
+    daemon: CliSubCommand[DaemonCli]
 
     def cli_cmd(self):
         """Run the selected subcommand."""

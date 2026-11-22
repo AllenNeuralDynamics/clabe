@@ -449,6 +449,8 @@ class Launcher:
         logger.debug("Exiting with code %s", code)
         if logger is not None:
             clabe_logging.shutdown_logger(logger)
+        if not getattr(self.client, "interactive", True):
+            _force = True  # nobody is at the screen to dismiss an exit prompt
         if not _force and timeout != 0:
             label = "Press Enter to exit..."
             if timeout is not None:

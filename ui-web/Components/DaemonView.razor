@@ -1,0 +1,195 @@
+@* A machine's home page (served by its daemon): what it is running, and the experiments it can start. *@
+@inject DaemonApi Daemon
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@implements IDisposable
+
+<div class="shell">
+    <header class="bar">
+        <span class="brand">clabe</span>
+        @if (_info is { } info)
+        {
+            <span>@info.Hostname</span>
+            <span class="muted">v@(info.ClabeVersion)</span>
+            <span class="spacer"></span>
+            <span class="status @(info.Status == "busy" ? "running" : "completed")">@info.Status</span>
+        }
+    </header>
+    <main class="daemon">
+        @if (_error is not null)
+        {
+            <p class="notice error">@_error <button type="button" class="link" @onclick="() => _error = null">✕</button></p>
+        }
+        @if (_run is { } run)
+        {
+            <section class="prompt run-card">
+                <h2>
+                    @(run.Status == "exited" ? "Last run" : "Running"): @(run.Experiment ?? run.File)
+                    <small class="muted">@run.Repository · started @run.StartedAt.ToLocalTime().ToString("HH:mm:ss")</small>
+                </h2>
+                @switch (run.Status)
+                {
+                    case "starting":
+                        <p class="muted"><span class="spinner"></span> Starting (the first run of a repository may install its environment)…</p>
+                        break;
+                    case "running":
+                        <div class="actions">
+                            <a class="button" href="@Daemon.RunPageUrl">Open the run</a>
+                            <button type="button" class="danger" @onclick="Stop">Stop</button>
+                        </div>
+                        break;
+                    default:
+                        <p class="@(run.ExitCode == 0 ? "muted" : "error")">Exited with code @run.ExitCode.</p>
+                        break;
+                }
+                @if (run.LogTail.Count > 0)
+                {
+                    <details class="log" open="@(run.Status != "running")">
+                        <summary>Output</summary>
+                        <pre>@string.Join("\n", run.LogTail)</pre>
+                    </details>
+                }
+            </section>
+        }
+        <h2 class="section">Experiments</h2>
+        @if (_repositories is null)
+        {
+            <p class="muted">Loading…</p>
+        }
+        else if (_repositories.Count == 0)
+        {
+            <p class="muted">No repositories are configured. Add them under <code>daemon: repositories:</code> in clabe.yml.</p>
+        }
+        @foreach (var repository in _repositories ?? [])
+        {
+            var name = repository.Name;
+            <section class="prompt repository">
+                <h3>@name <small class="muted">@repository.Path</small></h3>
+                @if (!repository.Exists)
+                {
+                    <p class="error">This folder does not exist.</p>
+                }
+                else if (!_listings.TryGetValue(name, out var listing))
+                {
+                    <button type="button" class="secondary" disabled="@_loading.Contains(name)" @onclick="() => List(name)">
+                        @(_loading.Contains(name) ? "Listing…" : "Show experiments")
+                    </button>
+                }
+                else
+                {
+                    <ul class="experiments">
+                        @foreach (var experiment in listing.Experiments)
+                        {
+                            <li>
+                                <div>
+                                    <strong>@experiment.Name</strong> <small class="muted">@experiment.File</small>
+                                    <small class="steps">@string.Join(" → ", experiment.Steps.Select(s => s.Title))</small>
+                                </div>
+                                <button type="button" disabled="@Busy" @onclick="() => Launch(name, experiment)">Start</button>
+                            </li>
+                        }
+                    </ul>
+                    @foreach (var error in listing.Errors)
+                    {
+                        <p class="error">@error.File: @error.Error</p>
+                    }
+                }
+            </section>
+        }
+    </main>
+</div>
+
+@code {
+    private HostInfo? _info;
+    private DaemonRunInfo? _run;
+    private List<RepositoryInfo>? _repositories;
+    private readonly Dictionary<string, ExperimentListing> _listings = [];
+    private readonly HashSet<string> _loading = [];
+    private string? _error;
+    private Timer? _timer;
+    private bool _openWhenRunning;
+
+    private bool Busy => _run is { Status: "starting" or "running" };
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _repositories = await Daemon.RepositoriesAsync();
+            await Refresh();
+        }
+        catch (Exception exc) when (exc is HttpRequestException or InvalidOperationException)
+        {
+            _error = exc.Message.Contains("401") ? "This machine requires a token: open the link clabe printed." : exc.Message;
+        }
+        _timer = new Timer(_ => InvokeAsync(async () => { await Refresh(); StateHasChanged(); }), null, 2000, 2000);
+    }
+
+    private async Task Refresh()
+    {
+        try
+        {
+            _info = await Daemon.InfoAsync();
+            _run = await Daemon.CurrentAsync();
+        }
+        catch (HttpRequestException)
+        {
+            return; // the daemon may be restarting; try again on the next tick
+        }
+        if (_openWhenRunning && _run?.Status == "running")
+        {
+            _openWhenRunning = false;
+            Navigation.NavigateTo(Daemon.RunPageUrl, forceLoad: true);
+        }
+    }
+
+    private async Task List(string repository)
+    {
+        _loading.Add(repository);
+        try
+        {
+            _listings[repository] = await Daemon.ExperimentsAsync(repository);
+        }
+        catch (InvalidOperationException exc)
+        {
+            _error = exc.Message;
+        }
+        finally
+        {
+            _loading.Remove(repository);
+        }
+    }
+
+    private async Task Launch(string repository, ExperimentInfo experiment)
+    {
+        try
+        {
+            await Daemon.LaunchAsync(repository, experiment.File, experiment.Name);
+            _openWhenRunning = true;
+            await Refresh();
+        }
+        catch (InvalidOperationException exc)
+        {
+            _error = exc.Message;
+        }
+    }
+
+    private async Task Stop()
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", "Stop the run's process? (Aborting it from its page lets it clean up.)"))
+        {
+            return;
+        }
+        try
+        {
+            await Daemon.StopAsync();
+            await Refresh();
+        }
+        catch (InvalidOperationException exc)
+        {
+            _error = exc.Message;
+        }
+    }
+
+    public void Dispose() => _timer?.Dispose();
+}

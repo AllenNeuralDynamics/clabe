@@ -1,9 +1,12 @@
 """Running the run API on a background thread."""
 
+import json
 import logging
+import os
 import socket
 import threading
 import time
+from pathlib import Path
 
 import uvicorn
 
@@ -11,6 +14,10 @@ from ..workflow import Run
 from ._app import create_app
 
 logger = logging.getLogger(__name__)
+
+#: When set, a started server writes where it listens (JSON: ``port``, ``pid``) to this file, so the process that
+#: launched the run (e.g. the daemon) finds it even after a fallback to another port.
+ANNOUNCE_ENV = "CLABE_SERVER_ANNOUNCE"
 
 
 def free_port(host: str, start: int, attempts: int = 50) -> int:
@@ -69,6 +76,8 @@ class RunServer:
                 raise RuntimeError(f"The run server did not start on {self.host}:{self.port}.")
             time.sleep(0.02)
         logger.info("Serving run %s at %s", self.run.id, self.url)
+        if announce := os.environ.get(ANNOUNCE_ENV):
+            Path(announce).write_text(json.dumps({"port": self.port, "pid": os.getpid()}), encoding="utf-8")
         return self.url
 
     def stop(self, timeout: float = 5.0) -> None:

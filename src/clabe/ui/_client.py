@@ -93,11 +93,50 @@ class ClientSession:
         self._client.header(text)
 
 
+class HeadlessClient:
+    """A client with no screen: prompts wait until answered elsewhere (e.g. the web UI), messages go to the log.
+
+    For runs started without a terminal (by the daemon, a scheduler or a service) and served over HTTP.
+    """
+
+    #: There is nobody at this client to ask: the launcher skips its exit prompt.
+    interactive = False
+
+    def __init__(self) -> None:
+        import threading
+
+        self._cancelled = threading.Event()
+
+    def ask(self, request: Request) -> Any:
+        """Waits until the prompt is answered by another client (which cancels this one)."""
+        from ._session import PromptCancelledError
+
+        self._cancelled.wait()
+        self._cancelled.clear()
+        raise PromptCancelledError()
+
+    def cancel(self) -> None:
+        """Releases the waiting prompt."""
+        self._cancelled.set()
+
+    def notify(self, message: str, level: MessageLevel = MessageLevel.INFO) -> None:
+        """Logs the message."""
+        logger.log(MessageLevel(level).logging_level, "%s", message)
+
+    def header(self, text: str) -> None:
+        """Logs the header."""
+        logger.info("%s", text)
+
+    def close(self) -> None:
+        """Nothing to tear down."""
+
+
 def make_client(backend: str = "auto") -> Client:
     """Builds a client for the requested backend.
 
     Args:
-        backend: ``"auto"`` (TUI on a terminal, else console), ``"tui"`` or ``"console"``.
+        backend: ``"auto"`` (TUI on a terminal, else console), ``"tui"``, ``"console"`` or ``"headless"`` (no
+            screen: prompts are answered from the web UI).
 
     Raises:
         ValueError: ``backend`` is not a recognized option.
@@ -113,4 +152,6 @@ def make_client(backend: str = "auto") -> Client:
         return TextualClient()
     if choice == "console":
         return ConsoleClient()
+    if choice == "headless":
+        return HeadlessClient()
     raise ValueError(f"Unknown UI backend: {backend!r}")

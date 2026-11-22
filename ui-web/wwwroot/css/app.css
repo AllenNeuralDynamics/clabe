@@ -178,3 +178,21 @@ time { color: var(--muted); font-variant-numeric: tabular-nums; font-size: .8rem
 .media img { max-width: 100%; max-height: 65vh; object-fit: contain; align-self: flex-start; border-radius: 6px; }
 .media iframe { width: 100%; height: 60vh; border: 1px solid var(--border); border-radius: 6px; background: #fff; }
 .media figcaption { color: var(--muted); font-size: .9rem; }
+
+main.daemon { max-width: 64rem; }
+main.daemon .section { font-size: 1rem; margin: 1.5rem 0 .6rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+.repository { margin-bottom: .8rem; }
+.repository h3 { margin: 0 0 .6rem; font-size: 1.05rem; }
+.repository h3 small, .run-card h2 small { font-weight: 400; margin-left: .5rem; font-size: .8rem; }
+.experiments { list-style: none; margin: 0; padding: 0; }
+.experiments li {
+    display: flex; justify-content: space-between; align-items: center; gap: 1rem;
+    padding: .55rem 0; border-top: 1px solid var(--border);
+}
+.experiments .steps { display: block; color: var(--muted); margin-top: .2rem; }
+.run-card { margin-bottom: 1rem; }
+.run-card pre { font-size: .8rem; max-height: 18rem; overflow: auto; background: var(--bg); padding: .6rem; border-radius: 6px; }
+a.button {
+    display: inline-block; text-decoration: none; border-radius: 6px; padding: .45rem 1rem;
+    background: var(--accent); color: var(--accent-text); border: 1px solid var(--accent);
+}

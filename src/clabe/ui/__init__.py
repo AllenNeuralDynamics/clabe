@@ -1,7 +1,7 @@
 """How clabe talks to the user: requests that describe and validate themselves, a session API to ask them
 (``ui.ask``, ``ui.confirm``, ``ui.group``, ...), and clients (console, TUI) that render and collect answers."""
 
-from ._client import Client, ClientSession, make_client
+from ._client import Client, ClientSession, HeadlessClient, make_client
 from ._console import ConsoleClient
 from ._messages import MessageLevel
 from ._requests import (
@@ -64,6 +64,7 @@ __all__ = [
     "FieldRequest",
     "FormRequest",
     "GroupRequest",
+    "HeadlessClient",
     "MarkdownRequest",
     "MediaKind",
     "MediaRequest",
