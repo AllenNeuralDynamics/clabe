@@ -2,7 +2,8 @@ import functools
 
 import pytest
 
-from clabe.workflow import Workflow, WorkflowDefinitionError
+from clabe.workflow import LocalClient, Run, Workflow, WorkflowDefinitionError
+from tests.conftest import MockClient
 
 
 def _demo() -> Workflow:
@@ -194,3 +195,49 @@ def test_failed_insert_or_replace_leaves_the_variant_unchanged():
         variant.replace("nope", my_qc)
     assert [s.name for s in variant.steps] == ["session", "rig", "qc"]
     assert variant.get("qc").func is not my_qc
+
+
+def _handoff() -> Workflow:
+    """A shared block: it takes only its own outputs and the built-in launcher."""
+    handoff = Workflow("handoff")
+
+    @handoff.step(title="Copy to the server")
+    def transfer(launcher) -> str:
+        return f"copied by {launcher}"
+
+    @handoff.step(optional="Show the report?")
+    def report(transfer: str) -> str:
+        return transfer.upper()
+
+    return handoff
+
+
+def test_concatenate_appends_a_complete_workflow_and_leaves_both_unchanged():
+    vr, handoff = _vr(), _handoff()
+    experiment = vr.concatenate(handoff)
+
+    assert [s.name for s in experiment.steps] == ["session", "rig", "qc", "transfer", "report"]
+    assert experiment.get("transfer").title == "Copy to the server" and experiment.get("report").optional
+    assert (experiment.name, experiment.exit_prompt_timeout, experiment.order) == ("vr", 60, 3)
+    assert vr.concatenate(handoff, name="vr-handoff").name == "vr-handoff"
+    assert [s.name for s in vr.steps] == ["session", "rig", "qc"]
+    assert [s.name for s in handoff.steps] == ["transfer", "report"]
+
+
+def test_a_concatenated_workflow_runs_as_one_and_shares_the_launcher():
+    first = Workflow("first")
+
+    @first.step
+    def subject() -> str:
+        return "mouse-7"
+
+    run = Run(first.concatenate(_handoff()), launcher="the launcher")
+    LocalClient(run, MockClient()).drive()  # the report's question is answered yes
+    assert run.output("transfer") == "copied by the launcher" and run.output("report") == "COPIED BY THE LAUNCHER"
+
+
+def test_concatenate_refuses_a_step_name_in_both():
+    other = Workflow("other")
+    other.step(lambda: None, name="rig")
+    with pytest.raises(WorkflowDefinitionError, match="both have step"):
+        _vr().concatenate(other)

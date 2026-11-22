@@ -264,6 +264,29 @@ class Workflow:
         copy._steps = self._steps
         return copy
 
+    def concatenate(self, other: "Workflow", *, name: str | None = None) -> "Workflow":
+        """Returns a new workflow: this one's steps, then ``other``'s (both stay unchanged).
+
+        ``other`` is a complete workflow, so its steps only take its own outputs and the built-ins (``launcher``,
+        ``run``): nothing passes from this workflow's steps to ``other``'s. Use it for blocks every experiment shares,
+        e.g. a data hand-off at the end. The new workflow keeps this one's ``order`` and ``exit_prompt_timeout``.
+
+        Args:
+            other: The workflow whose steps come after this one's.
+            name: The new workflow's name; this one's by default.
+
+        Raises:
+            WorkflowDefinitionError: A step name is in both workflows.
+        """
+        shared = sorted({s.name for s in self._steps} & {s.name for s in other.steps})
+        if shared:
+            raise WorkflowDefinitionError(
+                f"Cannot concatenate {other.name!r} after {self.name!r}: both have step(s) {', '.join(map(repr, shared))}."
+            )
+        combined = Workflow(name or self.name, order=self.order, exit_prompt_timeout=self.exit_prompt_timeout)
+        combined._set_steps([*self._steps, *other.steps])
+        return combined
+
     def insert_before(self, anchor: str, func: Callable[..., Any], /, **options: Any) -> Self:
         """Inserts a new step right before ``anchor``. See `Step` for the options."""
         steps = list(self._steps)

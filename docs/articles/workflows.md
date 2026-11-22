@@ -145,5 +145,29 @@ From Python: `Launcher(settings=...).run_experiment(wf)`.
 fip = wf.variant("vr-foraging-fip").insert_after("rig", fip_rig).replace("qc", my_qc)
 ```
 
+## 9. Concatenate a shared block
+
+A block every experiment ends with (or starts with), such as the data hand-off, can be its own workflow in a shared
+package. `concatenate` appends its steps:
+
+```python
+# aind_lab/handoff.py
+handoff = Workflow("handoff")
+
+
+@handoff.step(title="Copy to the server")
+def transfer(launcher: Launcher) -> None:
+    WatchdogDataTransferService(source=launcher.session_directory, settings=..., session=launcher.session).transfer()
+
+
+# main.py
+experiment = wf.concatenate(handoff)  # wf's steps, then transfer
+```
+
+- The two workflows share only the built-ins (`launcher`, `run`). The block's steps cannot take the experiment's
+  outputs: read what they need from the launcher (`launcher.session`, `launcher.session_directory`).
+- Both workflows stay unchanged, so every experiment can concatenate the same block.
+- A step name in both workflows is an error.
+
 See [examples/behavior_launcher.py](https://github.com/AllenNeuralDynamics/clabe/blob/main/examples/behavior_launcher.py)
 for a complete workflow.
