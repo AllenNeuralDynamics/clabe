@@ -8,20 +8,24 @@ reproduce.
 
 ## The pieces
 
-```text
-experiment repository              rig PC
-─────────────────────              ─────────────────────────────────────────────
-Workflow (steps) ─── clabe run ──► Launcher ──► Run ──► records on disk
-                                                 │      (events, outputs, run.json)
-                                                 │ prompts, events
-                                  ┌──────────────┴───────────────┐
-                                  ▼                              ▼
-                            TUI / console               run server (HTTP)
-                                                                 ▲
-                                               daemon: /run/, worker role
-                                                                 ▲
-                          ┌──────────────────────────────────────┼─────────┐
-                    web browser                           hub (Docker)    agents
+```mermaid
+flowchart LR
+  subgraph repo["Experiment repository"]
+    wf["Workflow<br/>(steps)"]
+  end
+  subgraph rig["Rig PC"]
+    launcher[Launcher] --> run[Run]
+    run --> records[("Records on disk<br/>events, outputs, run.json")]
+    run -- "prompts, events" --> tui["TUI / console"]
+    run -- "prompts, events" --> server["Run server<br/>(HTTP)"]
+    daemon["Daemon<br/>host + worker"] -- "/run/" --> server
+  end
+  wf -- "clabe run" --> launcher
+  browser["Web browser"] --> daemon
+  hub["Hub<br/>(Docker)"] --> daemon
+  agents["Agents<br/>(MCP, AG-UI)"] --> daemon
+  browser -.-> hub
+  agents -.-> hub
 ```
 
 - A **[workflow](workflows.md)** declares the experiment: an ordered list of **steps**, each a plain Python

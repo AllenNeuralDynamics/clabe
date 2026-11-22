@@ -13,6 +13,20 @@ when the run completed.
 Each step is `pending`, `running`, `done`, `skipped` (optional and declined) or `failed`, and **locked** once a later
 barrier has run.
 
+```mermaid
+stateDiagram-v2
+  direction LR
+  [*] --> pending
+  pending --> running
+  running --> done
+  running --> skipped: optional, declined
+  running --> failed: raised
+  failed --> running: Retry
+  done --> pending: going back to it,<br/>or to a step it depends on
+  done --> locked: a later barrier ran
+  skipped --> pending: going back
+```
+
 ## Attempts
 
 Steps can run more than once — after going back, or when retried — and each execution is an **attempt** (1, 2, ...).
@@ -25,6 +39,18 @@ Going back to step X (clicking it, `raise GoBack("x")` from a step, `run.go_back
 X and every step that depends on it, directly or transitively, in order. Steps that do not depend on X keep their
 outputs: going back to `rig` does not ask for the session again. Going back cancels the open prompt; a busy step is
 only interrupted if it is async and `cancellable`.
+
+```mermaid
+flowchart LR
+  session --> store --> trainer_state --> review
+  rig["rig (go back here)"] --> review --> register
+  session --> register
+  rig --> register
+  classDef rerun fill:#cceb05,stroke:#141d28,color:#000
+  class rig,review,register rerun
+```
+
+Going back to `rig` re-runs the highlighted steps; `session`, `store` and `trainer_state` keep their outputs.
 
 This is the main reason to declare steps with their inputs: the run knows the dependency graph, so "go back" means
 "change this answer" rather than "start over".

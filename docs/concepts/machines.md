@@ -51,6 +51,21 @@ Each server checks one shared token (`Authorization: Bearer ...` or `?token=`). 
 private token only the daemon knows; the daemon checks its own and forwards. The hub holds the rigs' tokens and checks
 its own. Connections always go from the observer to the rig: rig → nothing, hub → rigs, browser → rig or hub.
 
+```mermaid
+flowchart LR
+  browser["Browser"] --> hub
+  agent["Agent<br/>(clabe mcp)"] --> hub
+  browser --> a
+  hub["Hub"] --> a & b
+  subgraph pcA["Rig PC A"]
+    a["Daemon<br/>host"] -- "/run/" --> run["Run server<br/>(the session)"]
+  end
+  subgraph pcB["Rig PC B"]
+    b["Daemon<br/>worker"] --> ephys["Open Ephys"]
+  end
+  run -- "lease, jobs<br/>(RemoteRepository)" --> b
+```
+
 ## Where things run
 
 | Process | Machine | Started by |

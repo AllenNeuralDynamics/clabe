@@ -38,6 +38,25 @@ A run has any number of clients. All of them see every prompt; the **first valid
 the prompt close with who answered it. This is what lets an experimenter start a session on the rig and answer from
 the corridor, or an agent fill in what it knows while a person watches.
 
+```mermaid
+sequenceDiagram
+  participant S as Step
+  participant R as Run
+  participant T as TUI (rig)
+  participant W as Web UI (corridor)
+  participant A as Agent
+  S->>R: ui.number("Trials")
+  R-->>T: prompt
+  R-->>W: prompt
+  R-->>A: prompt
+  A->>R: "abc"
+  R-->>A: rejected: not a number
+  W->>R: 300
+  R->>S: 300
+  R-->>T: closed (answered from the web UI)
+  R-->>A: closed (answered from the web UI)
+```
+
 ## Showing things
 
 `ui.notify(message, level)` informs; `ui.header(...)` titles; `ui.activity(...)` shows that something long is going
