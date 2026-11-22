@@ -14,7 +14,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, Field, ValidationError
 
 from ..server import free_port
 from ..server._server import ANNOUNCE_ENV
@@ -85,6 +85,7 @@ class HostInfo(BaseModel):
     status: Literal["idle", "busy", "leased"]
     run: RunInfo | None
     leased_by: str | None = None
+    reports_waiting: int = Field(default=0, description="Issue reports on this machine, not collected by the hub yet")
 
 
 class _Launched:

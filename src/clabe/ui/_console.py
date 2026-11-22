@@ -120,6 +120,15 @@ _LEVEL_PREFIXES = {
 }
 
 
+def _dynamic_options(request: AutoCompleteRequest, typed: str) -> list[str]:
+    """The options a function returns for ``typed``; none (logged) when it fails."""
+    try:
+        return request.suggestions(typed)
+    except Exception as exc:  # noqa: BLE001 -- a failing search leaves the user typing freely
+        logger.warning("The options of %r could not be listed: %s", request.label, exc)
+        return []
+
+
 class ConsoleClient:
     """
     A [`Client`][clabe.ui.Client] using `rich` for styled, line-based prompts.
@@ -322,14 +331,15 @@ class ConsoleClient:
         Tab/→ completes the query to the highlighted suggestion without
         submitting.
         """
-        suggestions = request.suggestions()
+        suggestions = [] if request.dynamic else request.suggestions()
         query = request.default or ""
         index = 0
 
         result = query
         with Live(console=self._console, transient=True) as live:
             while True:
-                filtered = self._filter(suggestions, query)
+                # A function of the typed text already narrows its options: called on every key press.
+                filtered = _dynamic_options(request, query) if request.dynamic else self._filter(suggestions, query)
                 index = max(0, min(index, len(filtered) - 1))
                 live.update(self._render_autocomplete(request.label, query, filtered, index))
                 key = self._read_key()
@@ -534,7 +544,7 @@ class ConsoleClient:
         so the suggestions are shown up front and any typed value is returned
         (strictness and validators are enforced by whoever drives the client).
         """
-        suggestions = request.suggestions()
+        suggestions = _dynamic_options(request, "") if request.dynamic else request.suggestions()
         if suggestions:
             self._console.print(Text("Suggestions: ", style="dim").append(", ".join(suggestions), style="cyan"))
         return Prompt.ask(

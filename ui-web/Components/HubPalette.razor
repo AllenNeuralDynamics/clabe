@@ -1,0 +1,139 @@
+@* Ctrl+K: jump to a rig (or its run) by typing part of its name, host or experiment. ↑/↓ choose, Enter opens,
+   Esc closes. *@
+@inject HubApi Hub
+@inject NavigationManager Navigation
+
+<div class="backdrop" @onclick="Close">
+    <div class="palette" role="dialog" aria-modal="true" aria-label="Go to a rig" @onclick:stopPropagation="true">
+        <div class="input-row">
+            <HubIcon Name="search" Size="16" />
+            <input @ref="_input" type="text" placeholder="Go to a rig, a run, or the reports…" aria-label="Go to"
+                   role="combobox" aria-expanded="true" aria-controls="palette-list" aria-activedescendant="@($"palette-{_active}")"
+                   value="@_text" @oninput="OnInput" @onkeydown="OnKey" spellcheck="false" autocomplete="off" />
+            <kbd>Esc</kbd>
+        </div>
+        <ul id="palette-list" role="listbox" class="items">
+            @if (_items.Count == 0)
+            {
+                <li class="none subtle">Nothing matches “@_text”.</li>
+            }
+            @for (var i = 0; i < _items.Count; i++)
+            {
+                var index = i;
+                var item = _items[index];
+                <li id="palette-@index" role="option" aria-selected="@(index == _active)" class="item @(index == _active ? "active" : "")"
+                    @onclick="() => Go(item)" @onmousemove="() => _active = index">
+                    <span class="ic"><HubIcon Name="@item.Icon" Size="15" /></span>
+                    <span class="main">
+                        <span class="name">@item.Title</span>
+                        <span class="sub subtle">@item.Detail</span>
+                    </span>
+                    @if (item.Chip is { } chip)
+                    {
+                        <span class="chip @chip.Css">@chip.Text</span>
+                    }
+                    @if (index == _active)
+                    {
+                        <kbd>↵</kbd>
+                    }
+                </li>
+            }
+        </ul>
+    </div>
+</div>
+
+@code {
+    [Parameter] public List<RigStatus> Rigs { get; set; } = [];
+    [Parameter] public EventCallback OnClose { get; set; }
+    /// <summary>Called for "Reports" (the hub switches tab).</summary>
+    [Parameter] public EventCallback<string> OnTab { get; set; }
+
+    private sealed record Item(string Title, string Detail, string Icon, (string Text, string Css)? Chip, string? Url, string? Tab, string Search);
+
+    private ElementReference _input;
+    private string _text = "";
+    private List<Item> _items = [];
+    private int _active;
+
+    protected override void OnParametersSet() => Filter();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await _input.FocusAsync();
+        }
+    }
+
+    private IEnumerable<Item> All()
+    {
+        foreach (var rig in Rigs.OrderBy(r => r.Waiting is null).ThenBy(r => r.Id, StringComparer.OrdinalIgnoreCase))
+        {
+            var chip = HubRigCard.StatusChip(rig);
+            var detail = string.Join(" · ", new[] { rig.Hostname, rig.Experiment, rig.CurrentStepTitle ?? rig.CurrentStep }.Where(s => !string.IsNullOrEmpty(s)));
+            var search = $"{rig.Id} {rig.Hostname} {rig.Experiment} {rig.CurrentStepTitle}";
+            if (rig.Waiting is not null)
+            {
+                yield return new Item($"Answer {rig.Id}", rig.Waiting.Label, "message", ("waiting", "waiting"), Hub.RigUrl(rig.Id, runPage: true), null, search + " answer run");
+            }
+            else if (rig.Reachable && rig.Status == "busy")
+            {
+                yield return new Item($"{rig.Id} — its run", detail, "play", null, Hub.RigUrl(rig.Id, runPage: true), null, search + " run");
+            }
+            yield return new Item(rig.Id, detail.Length > 0 ? detail : rig.Url, "server", chip, rig.Reachable ? Hub.RigUrl(rig.Id) : null, null, search);
+        }
+        yield return new Item("Reports", "The issue reports collected from the rigs", "inbox", null, null, "reports", "reports issues");
+        yield return new Item("Rigs", "The fleet", "server", null, null, "rigs", "rigs fleet");
+    }
+
+    private void Filter()
+    {
+        var words = _text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        _items = All().Where(i => words.All(w => i.Search.Contains(w, StringComparison.OrdinalIgnoreCase) || i.Title.Contains(w, StringComparison.OrdinalIgnoreCase))).ToList();
+        _active = Math.Clamp(_active, 0, Math.Max(0, _items.Count - 1));
+    }
+
+    private void OnInput(ChangeEventArgs e)
+    {
+        _text = e.Value?.ToString() ?? "";
+        _active = 0;
+        Filter();
+    }
+
+    private async Task OnKey(KeyboardEventArgs e)
+    {
+        switch (e.Key)
+        {
+            case "ArrowDown":
+                _active = _items.Count == 0 ? 0 : (_active + 1) % _items.Count;
+                break;
+            case "ArrowUp":
+                _active = _items.Count == 0 ? 0 : (_active - 1 + _items.Count) % _items.Count;
+                break;
+            case "Enter":
+                if (_items.Count > 0)
+                {
+                    await Go(_items[_active]);
+                }
+                break;
+            case "Escape":
+                await Close();
+                break;
+        }
+    }
+
+    private async Task Go(Item item)
+    {
+        if (item.Tab is not null)
+        {
+            await OnTab.InvokeAsync(item.Tab);
+            await Close();
+        }
+        else if (item.Url is not null)
+        {
+            Navigation.NavigateTo(item.Url, forceLoad: true);
+        }
+    }
+
+    private Task Close() => OnClose.InvokeAsync();
+}

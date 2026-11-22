@@ -170,6 +170,12 @@ def no_runnable_timing():
 
 
 @pytest.fixture(autouse=True)
+def isolated_reports(tmp_path, monkeypatch):
+    """Issue reports go to a temporary folder, never this machine's real one (a running hub would collect them)."""
+    monkeypatch.setattr("clabe.reports.reports_dir", lambda: tmp_path / "reports")
+
+
+@pytest.fixture(autouse=True)
 def isolated_cache_manager(tmp_path, monkeypatch):
     """Isolate the CacheManager singleton from the real on-disk cache.
 

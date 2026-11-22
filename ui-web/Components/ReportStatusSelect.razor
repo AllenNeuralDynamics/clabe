@@ -1,0 +1,45 @@
+@* A report's triage status (new / looking / closed), changed in place. *@
+@inject HubApi Hub
+
+<span class="status-select s-@_status @(Large ? "lg" : "")">
+    <select aria-label="Status of the report" value="@_status" @onchange="Change" @onclick:stopPropagation="true" disabled="@_saving">
+        <option value="new">New</option>
+        <option value="looking">Looking</option>
+        <option value="closed">Closed</option>
+    </select>
+    <HubIcon Name="down" Size="12" />
+</span>
+
+@code {
+    [Parameter, EditorRequired] public StoredReport Report { get; set; } = default!;
+    [Parameter] public EventCallback<StoredReport> OnChanged { get; set; }
+    [Parameter] public EventCallback<string> OnError { get; set; }
+    [Parameter] public bool Large { get; set; }
+
+    private string _status = "new";
+    private bool _saving;
+
+    protected override void OnParametersSet() => _status = Report.Status;
+
+    private async Task Change(ChangeEventArgs e)
+    {
+        var status = e.Value?.ToString() ?? "new";
+        var previous = _status;
+        _status = status;
+        _saving = true;
+        try
+        {
+            var saved = await Hub.SetStatusAsync(Report.ReportId, status);
+            await OnChanged.InvokeAsync(saved);
+        }
+        catch (HttpRequestException exc)
+        {
+            _status = previous;
+            await OnError.InvokeAsync(exc.Message);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}

@@ -1,13 +1,16 @@
 """The daemon's HTTP app: its own API under /api/daemon, the run it hosts proxied under /run/, and the web UI."""
 
 from pathlib import Path
+from typing import Annotated
 
 import httpx
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, Response
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import Path as FastApiPath
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from .. import __version__
+from ..reports import REPORT_ID_PATTERN, ReportInfo, count_reports, delete_report, list_reports, report_path
 from ..server._app import STATIC_DIR
 from ..server._proxy import forward, token_check
 from ..workflow import ExperimentListing
@@ -39,6 +42,38 @@ def _attach_routes(api: APIRouter, host: Host) -> None:
         host.detach(pid)
 
 
+def _report_routes(api: APIRouter, directory: Path) -> None:
+    """The routes through which the hub collects this machine's issue reports (list, download, then delete)."""
+    report_id_param = FastApiPath(pattern=REPORT_ID_PATTERN, description="The report's id (32 hex digits)")
+
+    def existing(report_id: str) -> Path:
+        """The zip of report ``report_id``; 404 if there is none."""
+        path = report_path(report_id, directory)
+        if not path.is_file():
+            raise HTTPException(status_code=404, detail=f"No report {report_id}.")
+        return path
+
+    @api.get("/reports", response_model=list[ReportInfo])
+    def reports() -> list[ReportInfo]:
+        """The issue reports waiting on this machine for the hub, oldest first."""
+        return list_reports(directory)
+
+    @api.get(
+        "/reports/{report_id}",
+        response_class=FileResponse,
+        responses={200: {"content": {"application/zip": {}}, "description": "The report's zip"}},
+    )
+    def report(report_id: Annotated[str, report_id_param]) -> FileResponse:
+        """A report's zip (its ``report.json`` and the run's records)."""
+        return FileResponse(existing(report_id), media_type="application/zip", filename=f"{report_id}.zip")
+
+    @api.delete("/reports/{report_id}", status_code=204)
+    def delete(report_id: Annotated[str, report_id_param]) -> None:
+        """Deletes a report from this machine (the hub does once it has stored it)."""
+        if not delete_report(report_id, directory):
+            raise HTTPException(status_code=404, detail=f"No report {report_id}.")
+
+
 def create_daemon_app(
     host: Host, *, token: str | None = None, static_dir: Path | None = STATIC_DIR, worker: Worker | None = None
 ) -> FastAPI:
@@ -59,10 +94,12 @@ def create_daemon_app(
     check = token_check(token)
     api = APIRouter(prefix="/api/daemon", dependencies=[Depends(check)])
 
+    reports_directory = host.settings.reports_path()
+
     @api.get("/info", response_model=HostInfo)
     def info() -> HostInfo:
-        """The machine, its clabe version, and whether it is running an experiment."""
-        return host.info()
+        """The machine, its clabe version, whether it is running an experiment, and its reports waiting."""
+        return host.info().model_copy(update={"reports_waiting": count_reports(reports_directory)})
 
     @api.get("/repositories", response_model=list[RepositoryInfo])
     def repositories() -> list[RepositoryInfo]:
@@ -80,6 +117,7 @@ def create_daemon_app(
         return _guarded(lambda: host.launch(body))
 
     _attach_routes(api, host)
+    _report_routes(api, reports_directory)
 
     @api.get("/runs/current", response_model=RunInfo | None)
     def current() -> RunInfo | None:

@@ -34,6 +34,12 @@ public sealed class RunEvent
     public string? Outcome { get; set; }
     [JsonPropertyName("answered_by")] public string? AnsweredBy { get; set; }
     public JsonNode? Answer { get; set; }
+    /// <summary>A prompt's earlier answer (see <see cref="CanForward"/>): prefilled, and what Forward re-submits.</summary>
+    [JsonPropertyName("previous_answer")] public JsonNode? PreviousAnswer { get; set; }
+    [JsonPropertyName("can_forward")] public bool CanForward { get; set; }
+    // closing screen
+    public DateTimeOffset? Deadline { get; set; }
+    [JsonPropertyName("closed_by")] public string? ClosedBy { get; set; }
     // messages and activities
     public string? Message { get; set; }
     public string? Level { get; set; }

@@ -1,0 +1,5 @@
+.dialog { width: min(440px, calc(100vw - 32px)); }
+.dialog h2 { font-size: var(--text-lg); }
+.dialog p { margin: 0; font-size: var(--text-md); }
+.danger-solid { background: var(--err); border-color: var(--err); color: #fff; }
+.danger-solid:hover:not(:disabled) { background: color-mix(in srgb, var(--err) 85%, #000); border-color: transparent; }

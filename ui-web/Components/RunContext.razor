@@ -1,0 +1,98 @@
+@* The context panel: the session (who, which animal), where it runs, what is running now and the run's messages. *@
+
+<aside class="context" aria-label="Session">
+    <section class="ctx-block">
+        <h3 class="ctx-title">Session</h3>
+        <dl class="ctx-list">
+            @if (Subject is { } subject)
+            {
+                <div><dt>Subject</dt><dd>@subject</dd></div>
+            }
+            @if (Experimenter is { } experimenter)
+            {
+                <div><dt>Experimenter</dt><dd>@experimenter</dd></div>
+            }
+            @if (SessionName is { } session)
+            {
+                <div><dt>Session</dt><dd class="mono" title="@session">@session</dd></div>
+            }
+            <div><dt>Run</dt><dd class="mono">@State.RunId</dd></div>
+            <div><dt>Rig</dt><dd>@(RigName ?? Connection.Info?.Hostname)</dd></div>
+            @if (RigName is not null && Connection.Info?.Hostname is { } host)
+            {
+                <div><dt>Host</dt><dd>@host</dd></div>
+            }
+            <div><dt>Elapsed</dt><dd class="tabular">@Elapsed</dd></div>
+        </dl>
+    </section>
+
+    @if (Connection.Activities.Any())
+    {
+        <section class="ctx-block">
+            <h3 class="ctx-title">Running now</h3>
+            <ul class="activities">
+                @foreach (var activity in Connection.Activities)
+                {
+                    <li>
+                        <span class="spinner"></span>
+                        <div class="activity-body">
+                            <span>@activity.Description</span>
+                            @if (activity.Machine is { } machine)
+                            {
+                                <span class="tag">@machine</span>
+                            }
+                            @if (Connection.OutputOf(activity.ActivityId!) is { Count: > 0 } output)
+                            {
+                                <details class="output">
+                                    <summary class="mono">@output[^1]</summary>
+                                    <pre class="code">@string.Join('\n', output)</pre>
+                                </details>
+                            }
+                        </div>
+                    </li>
+                }
+            </ul>
+        </section>
+    }
+
+    <section class="ctx-block">
+        <h3 class="ctx-title">Messages @if (Connection.Messages.Count > 0) { <span class="count">@Connection.Messages.Count</span> }</h3>
+        @if (Connection.Messages.Count == 0)
+        {
+            <p class="subtle small">Nothing yet.</p>
+        }
+        else
+        {
+            <ol class="timeline">
+                @foreach (var message in Connection.Messages.TakeLast(30).Reverse())
+                {
+                    <li class="message @message.Level">
+                        <span class="dot"></span>
+                        <time>@message.Ts.ToLocalTime().ToString("HH:mm:ss")</time>
+                        <p>@message.Message</p>
+                    </li>
+                }
+            </ol>
+        }
+    </section>
+</aside>
+
+@code {
+    [Parameter, EditorRequired] public RunConnection Connection { get; set; } = default!;
+    [Parameter, EditorRequired] public RunState State { get; set; } = default!;
+    [Parameter] public string Elapsed { get; set; } = "";
+
+    /// <summary>The step that made the session (a pydantic Session), when there is one.</summary>
+    private StepState? SessionStep => State.Steps.FirstOrDefault(s => s.Summary is { } summary && RunText.Field(summary, "subject") is not null);
+
+    private string? Subject => SessionStep is { } step ? RunText.Field(step.Summary, "subject")
+        : Connection.AnswerOf("session", "subject")?.ToString();
+
+    private string? Experimenter => RunText.Experimenter(SessionStep?.Name ?? "session", Connection.AnswerOf);
+
+    private string? SessionName => RunText.Field(SessionStep?.Summary, "session_name");
+
+    private string? RigName => State.Steps.FirstOrDefault(s => s.Name == "rig")?.Summary is { } summary
+        ? RunText.Field(summary, "name") ?? RunText.Field(summary, "rig_name")
+        : null;
+}

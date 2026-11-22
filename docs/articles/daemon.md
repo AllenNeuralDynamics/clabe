@@ -42,6 +42,7 @@ setx DAEMON_CLABE_OTEL_ENDPOINT "collector:4317"               :: send its logs 
 | `DAEMON_CLABE_HOST` | `0.0.0.0` | Interface to bind (`127.0.0.1`: this PC only) |
 | `DAEMON_CLABE_COMMAND` | `uv;run;--directory;{repository};clabe` | How clabe is called in a repository |
 | `DAEMON_CLABE_RUNS_DIRECTORY` | `%TEMP%\clabe-daemon` | Logs of the runs it starts |
+| `DAEMON_CLABE_REPORTS_DIRECTORY` | `%LOCALAPPDATA%\clabe\reports` | Issue reports waiting for the hub |
 | `DAEMON_CLABE_MAX_JOBS` | `4` | Worker: commands run at once for a remote run |
 | `DAEMON_CLABE_MAX_FILE_SIZE` | 50 MB | Worker: largest file a remote run uploads |
 | `DAEMON_CLABE_FILE_TRANSFER_DIR` | `%TEMP%\clabe-worker` | Worker: where uploaded files go |
@@ -54,7 +55,7 @@ setx DAEMON_CLABE_OTEL_ENDPOINT "collector:4317"               :: send its logs 
 | `clabe daemon run [--open-browser]` | Run in the foreground, e.g. to try it |
 | `clabe daemon install` | Register the `clabe-daemon` logon task (restarts on failure) and start it |
 | `clabe daemon restart [--force] [--timeout 60]` | Restart from the task and wait; refused during a session unless `--force` |
-| `clabe daemon status` | The task, and whether the daemon answers |
+| `clabe daemon status` | The task, whether the daemon answers, and the reports waiting |
 | `clabe daemon upgrade` | Upgrade the uv tool install; restart afterwards |
 | `clabe daemon uninstall` | Stop it and remove the task |
 
@@ -82,6 +83,13 @@ uv run --directory <repository> clabe run main.py --experiment-name <name> --fro
 - No daemon, or a busy one: the run goes on, just unseen. It never waits more than a second.
 - It can't be stopped from the daemon's page; abort it from the run.
 
+## Issue reports
+
+"Report an issue" saves a zip (`report.json` and the run's records) in `DAEMON_CLABE_REPORTS_DIRECTORY`.
+
+- The [hub](hub.md) collects it, then deletes it here; without a hub, it stays.
+- `GET /api/daemon/info` counts them (`reports_waiting`).
+
 ## Desktop shortcuts
 
 In a repository, put an icon on the desktop that runs one of its experiments in a terminal:
@@ -102,4 +110,7 @@ uv run clabe shortcut --experiment-name vr-foraging --name "VR Foraging"
 | `POST /api/daemon/runs/current/stop` | Stop it (only runs the daemon started) |
 | `POST /api/daemon/runs/attached` | A run started from a terminal announces itself |
 | `DELETE /api/daemon/runs/attached/{pid}` | It has ended |
+| `GET /api/daemon/reports` | The issue reports waiting here |
+| `GET /api/daemon/reports/{id}` | One, as a zip |
+| `DELETE /api/daemon/reports/{id}` | Delete it (the hub, once stored) |
 | `/run/api/...` | The run's own API (see [Frontends](frontends.md)) |

@@ -341,6 +341,49 @@
         "title": "ClientBody",
         "type": "object"
       },
+      "ClosingState": {
+        "description": "The closing screen of a finished run (see [`Run.begin_closing`][clabe.workflow.Run.begin_closing]).",
+        "properties": {
+          "closed": {
+            "default": false,
+            "title": "Closed",
+            "type": "boolean"
+          },
+          "closed_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed By"
+          },
+          "deadline": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deadline"
+          },
+          "since": {
+            "format": "date-time",
+            "title": "Since",
+            "type": "string"
+          }
+        },
+        "required": [
+          "since"
+        ],
+        "title": "ClosingState",
+        "type": "object"
+      },
       "CommandFinished": {
         "description": "A command an app ran (Bonsai, Open Ephys, a script) ended: what exactly ran, for provenance.\n\n``files`` maps each existing file the command named (its arguments, its inputs, ``Bonsai.config`` next to the\nprogram) to its SHA-256 (``None`` when too large to hash). Files of a remote command are hashed here, where the\nrun is (the remote checkout is the same commit when ``RemoteRepository.verify()`` passed).",
         "properties": {
@@ -736,16 +779,24 @@
         "type": "object"
       },
       "PromptOpened": {
-        "description": "A step is waiting for an answer. ``answer_schema`` is the JSON Schema of a valid answer.",
+        "description": "A step is waiting for an answer. ``answer_schema`` is the JSON Schema of a valid answer.\n\nWhen the same prompt was answered before (an earlier attempt of its step asked it; see\n[`Run.forward`][clabe.workflow.Run.forward]), ``can_forward`` is set and ``previous_answer`` is that answer, in\nits JSON form: clients prefill it and offer Forward. Secret answers are never remembered.",
         "properties": {
           "answer_schema": {
             "additionalProperties": true,
             "title": "Answer Schema",
             "type": "object"
           },
+          "can_forward": {
+            "default": false,
+            "title": "Can Forward",
+            "type": "boolean"
+          },
           "kind": {
             "title": "Kind",
             "type": "string"
+          },
+          "previous_answer": {
+            "title": "Previous Answer"
           },
           "prompt_id": {
             "title": "Prompt Id",
@@ -888,6 +939,161 @@
         "title": "RecordResolved",
         "type": "object"
       },
+      "ReportBody": {
+        "description": "Reports an issue with the run (saved on this machine for the hub to collect).",
+        "properties": {
+          "client": {
+            "default": "remote",
+            "description": "Who reports; recorded as the report's ``reported_from``.",
+            "title": "Client",
+            "type": "string"
+          },
+          "comment": {
+            "default": "",
+            "description": "What went wrong, in the user's words.",
+            "title": "Comment",
+            "type": "string"
+          }
+        },
+        "title": "ReportBody",
+        "type": "object"
+      },
+      "ReportInfo": {
+        "description": "What a report is about: who, where, when, and the user's comment. Stored as ``report.json`` in its zip.",
+        "properties": {
+          "clabe_version": {
+            "title": "Clabe Version",
+            "type": "string"
+          },
+          "comment": {
+            "default": "",
+            "description": "What the user wrote",
+            "title": "Comment",
+            "type": "string"
+          },
+          "commit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commit"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "experiment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Experiment"
+          },
+          "experimenter": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Experimenter",
+            "type": "array"
+          },
+          "hostname": {
+            "title": "Hostname",
+            "type": "string"
+          },
+          "report_id": {
+            "description": "Unique id of the report",
+            "title": "Report Id",
+            "type": "string"
+          },
+          "reported_from": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The client the report was made from",
+            "title": "Reported From"
+          },
+          "repository": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The experiment repository's name",
+            "title": "Repository"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The session's name, once registered",
+            "title": "Session Id"
+          },
+          "step": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The step the run was on",
+            "title": "Step"
+          },
+          "subject": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject"
+          }
+        },
+        "required": [
+          "report_id",
+          "created_at",
+          "hostname",
+          "clabe_version"
+        ],
+        "title": "ReportInfo",
+        "type": "object"
+      },
       "RunAgentInput": {
         "additionalProperties": true,
         "description": "What an AG-UI client sends (only the fields clabe uses are read).",
@@ -915,6 +1121,85 @@
           }
         },
         "title": "RunAgentInput",
+        "type": "object"
+      },
+      "RunClosed": {
+        "description": "The session was closed: by a client (``closed_by``), by the deadline (``\"timeout\"``) or by the launcher.\n\nThe last event of a run whose session was kept open (see [`Run.keep_open`][clabe.workflow.Run.keep_open]).",
+        "properties": {
+          "closed_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed By"
+          },
+          "run_id": {
+            "default": "",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "seq": {
+            "default": 0,
+            "title": "Seq",
+            "type": "integer"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "type": {
+            "const": "run_closed",
+            "default": "run_closed",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "title": "RunClosed",
+        "type": "object"
+      },
+      "RunClosing": {
+        "description": "The run has finished and the launcher shows its closing screen, waiting for a client to close the session.\n\n``deadline`` is when it closes on its own (``None``: it waits for a client). See\n[`Run.close`][clabe.workflow.Run.close].",
+        "properties": {
+          "deadline": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deadline"
+          },
+          "run_id": {
+            "default": "",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "seq": {
+            "default": 0,
+            "title": "Seq",
+            "type": "integer"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "type": {
+            "const": "run_closing",
+            "default": "run_closing",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "title": "RunClosing",
         "type": "object"
       },
       "RunFinished": {
@@ -1012,8 +1297,29 @@
         "type": "object"
       },
       "RunState": {
-        "description": "Snapshot of a run, for clients attaching mid-run. Follow events after ``last_seq``.",
+        "description": "Snapshot of a run, for clients attaching mid-run. Follow events after ``last_seq``.\n\n``back_target`` is the step [`Run.back`][clabe.workflow.Run.back] would go back to (``None``: Back is not\navailable). ``closing`` is set once the finished run shows its closing screen.",
         "properties": {
+          "back_target": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Back Target"
+          },
+          "closing": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ClosingState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "current_step": {
             "anyOf": [
               {
@@ -1639,6 +1945,166 @@
         "summary": "Agui"
       }
     },
+    "/api/back": {
+      "post": {
+        "description": "Goes back to the previous step (the state's ``back_target``).",
+        "operationId": "back_previous_api_back_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Token"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ClientBody"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Back Previous"
+      }
+    },
+    "/api/close": {
+      "post": {
+        "description": "Closes the finished run's session (its closing screen): the launcher exits.",
+        "operationId": "close_api_close_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Token"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ClientBody"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Close"
+      }
+    },
     "/api/events": {
       "get": {
         "description": "The run's events as Server-Sent Events, from ``after`` (or ``Last-Event-ID``); ends after the run ends.",
@@ -1734,6 +2200,8 @@
                             "prompt_closed": "#/components/schemas/PromptClosed",
                             "prompt_opened": "#/components/schemas/PromptOpened",
                             "record_resolved": "#/components/schemas/RecordResolved",
+                            "run_closed": "#/components/schemas/RunClosed",
+                            "run_closing": "#/components/schemas/RunClosing",
                             "run_finished": "#/components/schemas/RunFinished",
                             "run_started": "#/components/schemas/RunStarted",
                             "step_failed": "#/components/schemas/StepFailed",
@@ -1750,6 +2218,12 @@
                           },
                           {
                             "$ref": "#/components/schemas/RunFinished"
+                          },
+                          {
+                            "$ref": "#/components/schemas/RunClosing"
+                          },
+                          {
+                            "$ref": "#/components/schemas/RunClosed"
                           },
                           {
                             "$ref": "#/components/schemas/StepStarted"
@@ -1839,6 +2313,145 @@
           }
         },
         "summary": "Events"
+      }
+    },
+    "/api/export": {
+      "get": {
+        "description": "The run's logs and records so far as a zip (see ``clabe.reports.make_bundle``), also while closing.",
+        "operationId": "export_api_export_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Token"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/zip": {}
+            },
+            "description": "The bundle (a zip)."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export"
+      }
+    },
+    "/api/forward": {
+      "post": {
+        "description": "Answers the open prompt with its earlier answer (the prompt's ``previous_answer``).",
+        "operationId": "forward_api_forward_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Token"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ClientBody"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Forward"
       }
     },
     "/api/fs/list": {
@@ -2122,6 +2735,192 @@
           }
         },
         "summary": "Media"
+      }
+    },
+    "/api/prompts/{prompt_id}/options": {
+      "get": {
+        "description": "The options of the open autocomplete prompt for the text typed so far (its options function's result).",
+        "operationId": "options_api_prompts__prompt_id__options_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "prompt_id",
+            "required": true,
+            "schema": {
+              "title": "Prompt Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The text typed so far.",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "default": "",
+              "description": "The text typed so far.",
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The group item, when the prompt is a group.",
+            "in": "query",
+            "name": "item",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The group item, when the prompt is a group.",
+              "title": "Item"
+            }
+          },
+          {
+            "in": "query",
+            "name": "token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Token"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "title": "Response Options Api Prompts  Prompt Id  Options Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Options"
+      }
+    },
+    "/api/report": {
+      "post": {
+        "description": "Files an issue report (the bundle and the comment), saved on this machine for the hub to collect.",
+        "operationId": "report_api_report_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Token"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ReportBody"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportInfo"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Report"
       }
     },
     "/api/state": {

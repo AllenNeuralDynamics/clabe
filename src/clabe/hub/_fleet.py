@@ -3,13 +3,22 @@
 import asyncio
 import datetime
 import logging
-from typing import Annotated, ClassVar, Literal
+import math
+import re
+import sqlite3
+import time
+from pathlib import Path
+from typing import TYPE_CHECKING, Annotated, ClassVar, Literal
 
 import httpx
 from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import NoDecode, SettingsConfigDict
 
+from ..reports import REPORT_ID_PATTERN, read_report_info
 from ..services import EnvSettings, split_list
+
+if TYPE_CHECKING:
+    from ._reports import ReportStore
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +53,13 @@ class HubSettings(EnvSettings):
     rig_token: SecretStr | None = Field(default=None, description="The rigs' daemon token, unless a rig has its own")
     rigs: Annotated[list[RigConfig], NoDecode] = Field(default_factory=list, description="The rigs to follow")
     poll_interval: float = Field(default=2.0, description="Seconds between polls of each rig")
+    data_dir: Path = Field(
+        default=Path("hub-data"), description="Where the hub keeps collected issue reports (hub.db and reports/)"
+    )
+    report_interval: float = Field(default=5.0, description="Seconds between collections of a rig's issue reports")
+    report_retention_days: int | None = Field(
+        default=None, description="Collected reports older than this many days are deleted; kept forever if unset"
+    )
 
     @model_validator(mode="after")
     def _shared_rig_token(self) -> "HubSettings":
@@ -100,6 +116,8 @@ class RigStatus(BaseModel):
     header: str | None = None
     waiting: Waiting | None = None
     seen_at: datetime.datetime | None = None
+    reports_waiting: int = Field(default=0, description="Issue reports on the rig, not collected yet")
+    reports_stored: int = Field(default=0, description="Issue reports from this rig stored in the hub")
 
 
 def rig_token(rig: RigConfig) -> str | None:
@@ -108,27 +126,56 @@ def rig_token(rig: RigConfig) -> str | None:
 
 
 class Fleet:
-    """Polls every rig's daemon (and, when it runs an experiment, the run) and keeps what it saw."""
+    """Polls every rig's daemon (and, when it runs an experiment, the run) and keeps what it saw.
 
-    def __init__(self, settings: HubSettings, client: httpx.AsyncClient | None = None) -> None:
+    With a report store, it also collects each rig's issue reports (every ``report_interval`` seconds, when the rig
+    has some): downloads each, stores it, and only then deletes it on the rig.
+    """
+
+    def __init__(
+        self, settings: HubSettings, client: httpx.AsyncClient | None = None, reports: "ReportStore | None" = None
+    ) -> None:
         self.settings = settings
         self.rigs = {rig.id: rig for rig in settings.rigs}
         self.status = {rig.id: RigStatus(id=rig.id, url=rig.url) for rig in settings.rigs}
+        self.reports = reports
         self._client = client or httpx.AsyncClient(timeout=5.0)
         self._task: asyncio.Task | None = None
+        self._collected_at: dict[str, float] = {}
+        self._purged_at: float | None = None
+        self._refused: set[str] = set()
 
     def rig(self, rig_id: str) -> RigConfig | None:
         """The rig called ``rig_id``."""
         return self.rigs.get(rig_id)
+
+    def statuses(self, statuses: list[RigStatus] | None = None) -> list[RigStatus]:
+        """Every rig as last polled (or those given), with how many of its reports the hub stores."""
+        statuses = list(self.status.values()) if statuses is None else statuses
+        counts = self.reports.counts_by_rig() if self.reports is not None else {}
+        return [s.model_copy(update={"reports_stored": counts.get(s.id, 0)}) for s in statuses]
 
     def inbox(self) -> list[RigStatus]:
         """The rigs waiting for an answer, longest-waiting first."""
         waiting = [s for s in self.status.values() if s.waiting is not None]
         return sorted(waiting, key=lambda s: s.waiting.since)  # type: ignore[union-attr]
 
-    async def poll_once(self) -> None:
-        """Refreshes every rig's status."""
-        await asyncio.gather(*(self._poll(rig) for rig in self.rigs.values()))
+    async def poll_once(self, *, collect: bool = False) -> None:
+        """Refreshes every rig's status, and collects reports where due (or everywhere, with ``collect``)."""
+        await self._purge()
+        await asyncio.gather(*(self._poll(rig, collect) for rig in self.rigs.values()))
+
+    async def _purge(self) -> None:
+        """Deletes the reports older than ``report_retention_days``, at most once an hour."""
+        days = self.settings.report_retention_days
+        now = time.monotonic()
+        if self.reports is None or days is None or (self._purged_at is not None and now - self._purged_at < 3600):
+            return
+        self._purged_at = now
+        try:
+            await asyncio.to_thread(self.reports.purge, days)
+        except Exception:
+            logger.exception("Could not delete old reports")
 
     async def run(self) -> None:
         """Polls forever."""
@@ -147,22 +194,28 @@ class Fleet:
             self._task.cancel()
             self._task = None
 
-    async def _get(self, rig: RigConfig, path: str) -> httpx.Response:
+    async def _get(self, rig: RigConfig, path: str, timeout: float | None = None) -> httpx.Response:
         """GETs ``path`` of a rig's daemon, with its token; raises on an error status."""
+        return await self._request(rig, "GET", path, timeout)
+
+    async def _request(self, rig: RigConfig, method: str, path: str, timeout: float | None = None) -> httpx.Response:
+        """Sends ``method path`` to a rig's daemon, with its token; raises on an error status."""
         token = rig_token(rig)
         headers = {"Authorization": f"Bearer {token}"} if token else {}
-        response = await self._client.get(f"{rig.url.rstrip('/')}{path}", headers=headers)
+        extra = {"timeout": timeout} if timeout is not None else {}
+        response = await self._client.request(method, f"{rig.url.rstrip('/')}{path}", headers=headers, **extra)
         response.raise_for_status()
         return response
 
-    async def _poll(self, rig: RigConfig) -> None:
-        """Refreshes one rig's status; an unreachable rig is marked offline."""
+    async def _poll(self, rig: RigConfig, collect: bool = False) -> None:
+        """Refreshes one rig's status (an unreachable rig is marked offline), then collects its reports if due."""
         status = RigStatus(id=rig.id, url=rig.url, seen_at=datetime.datetime.now(datetime.UTC))
         try:
             info = (await self._get(rig, "/api/daemon/info")).json()
             status.reachable = True
             status.hostname, status.clabe_version = info["hostname"], info["clabe_version"]
             status.status, status.leased_by = info["status"], info.get("leased_by")
+            status.reports_waiting = int(info.get("reports_waiting") or 0)
             run = info.get("run") or {}
             if status.status == "busy":
                 status.experiment, status.repository = run.get("experiment") or run.get("file"), run.get("repository")
@@ -174,6 +227,56 @@ class Fleet:
             if previous is not None and previous.reachable:
                 logger.warning("Lost %s: %s", rig.id, status.error)
         self.status[rig.id] = status
+        now = time.monotonic()
+        due = collect or now - self._collected_at.get(rig.id, -math.inf) >= self.settings.report_interval
+        if self.reports is not None and status.reachable and status.reports_waiting and due:
+            self._collected_at[rig.id] = now
+            await self.collect(rig)
+
+    async def collect(self, rig: RigConfig) -> int:
+        """Collects a rig's issue reports: downloads each one not stored yet, stores it, then deletes it on the rig
+        (one already stored is just deleted there). Failures are logged and retried next time.
+
+        Returns:
+            How many reports were stored.
+        """
+        if self.reports is None:
+            return 0
+        try:
+            listed = (await self._get(rig, "/api/daemon/reports")).json()
+        except (httpx.HTTPError, ValueError) as exc:
+            logger.warning("Could not list the reports of %s: %s", rig.id, exc)
+            return 0
+        stored = 0
+        for item in listed:
+            report_id = str(item.get("report_id", "")) if isinstance(item, dict) else ""
+            if not re.fullmatch(REPORT_ID_PATTERN, report_id) or report_id in self._refused:
+                continue
+            try:
+                stored += await self._collect_one(rig, report_id)
+            except (httpx.HTTPError, OSError, sqlite3.Error, ValueError) as exc:  # retried next time
+                logger.warning("Could not collect report %s of %s: %s", report_id, rig.id, exc)
+        return stored
+
+    async def _collect_one(self, rig: RigConfig, report_id: str) -> bool:
+        """Stores report ``report_id`` of a rig (unless stored already), then deletes it there."""
+        assert self.reports is not None
+        added = None
+        if not await asyncio.to_thread(self.reports.has, report_id):
+            response = await self._get(rig, f"/api/daemon/reports/{report_id}", timeout=120.0)
+            try:
+                info = read_report_info(response.content)
+                if info.report_id != report_id:
+                    raise ValueError(f"its report.json is report {info.report_id}")
+            except ValueError as exc:
+                self._refused.add(report_id)
+                logger.warning("Report %s of %s is not a valid report (%s); left on the rig.", report_id, rig.id, exc)
+                return False
+            added = await asyncio.to_thread(self.reports.add, rig.id, response.content)
+            if added is not None:
+                logger.info("Collected report %s from %s", report_id, rig.id)
+        await self._request(rig, "DELETE", f"/api/daemon/reports/{report_id}")
+        return added is not None
 
     async def _poll_run(self, rig: RigConfig, status: RigStatus) -> None:
         """Adds the run's step, header and open prompt."""

@@ -391,6 +391,10 @@ class TextRequest(Request):
         return _text(self, value)
 
 
+#: Options computed from what the user typed so far (see `AutoCompleteRequest`).
+OptionsFunction = Callable[[str], Sequence[str]]
+
+
 @dataclasses.dataclass
 class AutoCompleteRequest(Request):
     """
@@ -401,11 +405,16 @@ class AutoCompleteRequest(Request):
     keys. Unlike `PickRequest`, the answer is not constrained to the
     provided options unless ``strict`` is set.
 
+    ``options`` may be a function of the text typed so far returning the options (e.g. a database search): clients
+    call it as the user types (the run server through ``GET /api/prompts/{id}/options?q=``) and its spec says
+    ``dynamic_options: true``, with ``options`` holding its result for ``""``.
+
     Attributes:
         label: The prompt shown to the user.
-        options: The suggestions to complete against.
+        options: The suggestions to complete against, or a function ``(typed) -> options``.
         default: Value returned when the user submits an empty answer.
-        strict: When set, only a value present in ``options`` is accepted.
+        strict: When set, only a value present in ``options`` is accepted (for a function: a value it returns
+            when called with that value).
         validators: Validators applied to the answer; the frontend re-prompts
             and surfaces the returned error until they all pass.
         field: Logical field name used in the persisted transcript.
@@ -413,7 +422,7 @@ class AutoCompleteRequest(Request):
     """
 
     label: str
-    options: Sequence[str]
+    options: Sequence[str] | OptionsFunction
     default: str | None = None
     strict: bool = False
     validators: list[Validator] = dataclasses.field(default_factory=list)
@@ -422,13 +431,44 @@ class AutoCompleteRequest(Request):
 
     prompt_kind: ClassVar[str] = "autocomplete"
 
-    def suggestions(self) -> list[str]:
-        """Return ``options`` normalized to a list of strings."""
-        return [str(option) for option in self.options]
+    @property
+    def dynamic(self) -> bool:
+        """Whether the options come from a function of the typed text."""
+        return callable(self.options)
+
+    def suggestions(self, typed: str = "") -> list[str]:
+        """The options as strings: a function's result for ``typed``; a list as it is (clients filter it).
+
+        Raises:
+            Exception: Whatever the options function raised.
+        """
+        options = self.options(typed) if callable(self.options) else self.options
+        return [str(option) for option in options]
+
+    def _spec_fields(self) -> dict[str, Any]:
+        """The fields, with ``options`` as a list (a function's result for ``""``) and ``dynamic_options``."""
+        spec = super()._spec_fields()
+        try:
+            spec["options"] = self.suggestions("")
+        except Exception as exc:  # noqa: BLE001 -- a failing search must not stop the prompt from opening
+            logger.warning("The options of %r could not be listed: %s", self.label, exc)
+            spec["options"] = []
+        spec["dynamic_options"] = self.dynamic
+        return spec
 
     def answer_schema(self) -> dict[str, Any]:
-        """A string; one of the suggestions when the request is strict."""
-        return {"type": "string", "enum": self.suggestions()} if self.strict else {"type": "string"}
+        """A string; one of the suggestions when the request is strict (and its options are a list)."""
+        return (
+            {"type": "string", "enum": self.suggestions()} if self.strict and not self.dynamic else {"type": "string"}
+        )
+
+    def accepts(self, value: str) -> bool:
+        """Whether ``value`` is one of the options (for a function: one it returns for ``value``)."""
+        try:
+            return value in self.suggestions(value)
+        except Exception as exc:  # noqa: BLE001 -- an options function that fails accepts nothing
+            logger.warning("The options of %r could not be listed: %s", self.label, exc)
+            return False
 
     def validate_answer(self, value: Any) -> str:
         """Like a text answer, but a strict request only accepts one of its suggestions (checked first)."""
@@ -436,7 +476,7 @@ class AutoCompleteRequest(Request):
             raise AnswerRejected("Expected text.")
         if value == "" and self.default is not None:
             value = self.default
-        if self.strict and value not in self.suggestions():
+        if self.strict and not self.accepts(value):
             raise AnswerRejected("Please choose one of the offered options.")
         return _text(self, value)
 
@@ -903,8 +943,11 @@ def _group_field(item: Request) -> tuple[Any, Any]:
         if item.allow_none:
             return Literal[values] | None, Field(default=item.default, title=title)
         return Literal[values], _with_default(item.default, title=title)
-    if isinstance(item, AutoCompleteRequest) and item.strict:
+    if isinstance(item, AutoCompleteRequest) and item.strict and not item.dynamic:
         return Literal[tuple(item.suggestions())], _with_default(item.default, title=title)
+    if isinstance(item, AutoCompleteRequest) and item.strict:
+        checks = [*item.validators, lambda value: None if item.accepts(value) else "Choose one of the offered options."]
+        return Annotated[str, _validators_check(checks)], _with_default(item.default, title=title)
     if isinstance(item, (TextRequest, AutoCompleteRequest)):
         annotation = Annotated[str, _validators_check(item.validators)] if item.validators else str
         return annotation, Field(default=item.default if item.default is not None else "", title=title)

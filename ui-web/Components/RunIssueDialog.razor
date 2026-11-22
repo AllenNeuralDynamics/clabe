@@ -1,0 +1,87 @@
+@* Session → Report an issue (Ctrl+Shift+R): a comment, saved with the run's logs on this machine; the hub collects it. *@
+@inject IJSRuntime JS
+
+<div class="backdrop" data-escape @onclick="Cancel">
+    <div class="dialog issue-dialog" role="dialog" aria-modal="true" aria-labelledby="issue-title" @onclick:stopPropagation="true">
+        <header class="dialog-head">
+            <h2 id="issue-title">Report an issue</h2>
+            <button type="button" class="ghost icon" aria-label="Close" @onclick="Cancel"><RunIcon Name="x" /></button>
+        </header>
+        <p class="muted small">
+            What went wrong? The run's logs, events and records are attached; the hub collects the report from this
+            machine.
+        </p>
+        <div class="field">
+            <label for="issue-comment">Comment</label>
+            <textarea id="issue-comment" rows="5" placeholder="e.g. The valve calibration failed twice although the tubing was fine."
+                      value="@_comment" @oninput="e => _comment = e.Value?.ToString() ?? string.Empty" @onkeydown="OnKey"></textarea>
+        </div>
+        @if (_error is not null)
+        {
+            <div class="alert error small" role="alert">@_error</div>
+        }
+        <div class="actions">
+            <button type="button" @onclick="Cancel">Cancel</button>
+            <button type="button" class="primary" disabled="@_busy" @onclick="Send">
+                @if (_busy)
+                {
+                    <span class="spinner"></span>
+                }
+                Send report <kbd>Ctrl</kbd><kbd>↵</kbd>
+            </button>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public RunApi Api { get; set; } = default!;
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    /// <summary>The saved report.</summary>
+    [Parameter] public EventCallback<Clabe.Web.Api.Run.ReportInfo> OnSent { get; set; }
+
+    private string _comment = "";
+    private string? _error;
+    private bool _busy;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var ui = await JS.InvokeAsync<IJSObjectReference>("import", "./js/ui.js");
+            await ui.InvokeVoidAsync("focus", "#issue-comment");
+        }
+    }
+
+    private async Task OnKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && (e.CtrlKey || e.MetaKey))
+        {
+            await Send();
+        }
+        else if (e.Key == "Escape")
+        {
+            await Cancel();
+        }
+    }
+
+    public async Task Send()
+    {
+        if (_busy)
+        {
+            return;
+        }
+        _busy = true;
+        _error = null;
+        var (report, error) = await Api.ReportAsync(_comment);
+        _busy = false;
+        if (report is null)
+        {
+            _error = error ?? "The report could not be saved.";
+            return;
+        }
+        await OnSent.InvokeAsync(report);
+    }
+
+    private Task Cancel() => OnClose.InvokeAsync();
+}

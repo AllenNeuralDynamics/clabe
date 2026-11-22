@@ -105,11 +105,20 @@ class _RestartCli(DaemonSettings, cli_kebab_case=True):
 
 
 class _StatusCli(DaemonSettings, cli_kebab_case=True):
-    """Show the daemon's scheduled task, and whether the daemon answers."""
+    """Show the daemon's scheduled task, whether the daemon answers, and the issue reports waiting for the hub."""
 
     def cli_cmd(self):
-        """Print the task's state and the daemon's."""
+        """Print the task's state, the daemon's, and how many reports wait."""
         print(_install.status(self.port, _token(self)))
+        print(reports_waiting(self.reports_path()))
+
+
+def reports_waiting(directory: Path) -> str:
+    """How many issue reports wait in ``directory`` for the hub to collect them, as a sentence."""
+    from ..reports import count_reports
+
+    count = count_reports(directory)
+    return f"{count} issue report{'' if count == 1 else 's'} waiting for the hub in {directory}."
 
 
 class _UninstallCli(BaseSettings):

@@ -1,0 +1,99 @@
+@* A repository on the machine and its experiments, listed at once, each with Start. *@
+@inject DaemonApi Daemon
+
+<section class="repo card flush" aria-labelledby="@HeadingId">
+    <header>
+        <span class="ic"><HubIcon Name="folder" Size="15" /></span>
+        <div class="names">
+            <h3 id="@HeadingId">@Repository.Name</h3>
+            <span class="repo-path mono subtle truncate" title="@Repository.Path">@Repository.Path</span>
+        </div>
+        @if (_listing is { } listing)
+        {
+            <span class="hits subtle small">@listing.Experiments.Count experiment@(listing.Experiments.Count == 1 ? "" : "s")</span>
+            <button type="button" class="ghost icon sm" aria-label="List the experiments of @Repository.Name again" title="List again" @onclick="Load"><HubIcon Name="refresh" Size="14" /></button>
+        }
+    </header>
+
+    @if (!Repository.Exists)
+    {
+        <div class="state"><div class="alert error">This folder does not exist on the machine.</div></div>
+    }
+    else if (_error is not null)
+    {
+        <div class="state">
+            <div class="alert error"><span>@_error</span></div>
+            <button type="button" class="sm retry" @onclick="Load">Try again</button>
+        </div>
+    }
+    else if (_listing is null)
+    {
+        <div class="state subtle small"><span class="spinner"></span> Listing the experiments (the first time may install the repository's environment)…</div>
+    }
+    else
+    {
+        @if (_listing.Experiments.Count == 0)
+        {
+            <div class="state subtle small">No experiments found in this repository.</div>
+        }
+        <ul class="experiments">
+            @foreach (var experiment in _listing.Experiments)
+            {
+                <li>
+                    <div class="exp">
+                        <div class="exp-title">
+                            <strong>@experiment.Name</strong>
+                            <span class="file mono subtle">@experiment.File</span>
+                        </div>
+                        <div class="step-list subtle small truncate" title="@string.Join(" → ", experiment.Steps.Select(s => s.Title))">
+                            <span class="n">@experiment.Steps.Count step@(experiment.Steps.Count == 1 ? "" : "s")</span>
+                            @string.Join(" → ", experiment.Steps.Select(s => s.Title))
+                        </div>
+                    </div>
+                    <button type="button" class="primary sm start" disabled="@Busy" aria-label="Start @experiment.Name"
+                            title="@(Busy ? "A run is going on this machine" : $"Start {experiment.Name}")"
+                            @onclick="() => OnStart.InvokeAsync(experiment)">
+                        <HubIcon Name="play" Size="12" /> Start
+                    </button>
+                </li>
+            }
+        </ul>
+        @foreach (var error in _listing.Errors)
+        {
+            <div class="state"><div class="alert error"><span><code>@error.File</code>: @error.Error</span></div></div>
+        }
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired] public RepositoryInfo Repository { get; set; } = default!;
+    [Parameter] public bool Busy { get; set; }
+    [Parameter] public EventCallback<ExperimentInfo> OnStart { get; set; }
+
+    private ExperimentListing? _listing;
+    private string? _error;
+
+    private string HeadingId => "repo-" + Convert.ToHexString(System.Text.Encoding.UTF8.GetBytes(Repository.Name));
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Repository.Exists)
+        {
+            await Load();
+        }
+    }
+
+    private async Task Load()
+    {
+        _error = null;
+        _listing = null;
+        try
+        {
+            _listing = await Daemon.ExperimentsAsync(Repository.Name);
+        }
+        catch (Exception exc) when (exc is InvalidOperationException or HttpRequestException)
+        {
+            _error = exc.Message;
+        }
+    }
+}

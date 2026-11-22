@@ -1,3 +1,4 @@
+import asyncio
 import contextlib
 import datetime
 import logging
@@ -33,7 +34,7 @@ from ._requests import (
     Request,
     TextRequest,
 )
-from ._session import PromptCancelledError
+from ._session import NavigationRequested, PromptCancelledError
 from ._textual_form import _AcknowledgeScreen, _FormScreen, _ReadOnlyTableScreen, push_path_picker
 
 logger = logging.getLogger(__name__)
@@ -44,6 +45,13 @@ _CANCELLED = object()
 _PROMPT_CANCELLED = object()
 #: Sentinel representing the "none" option in a pick list.
 _NONE = object()
+#: Sentinels pushed back to the caller when the user asks to go back (Alt+Left) or forward (Alt+Right).
+_BACK = object()
+_FORWARD = object()
+#: What `_LauncherApp._choice_for_key` returns for a key that picks nothing.
+_NO_CHOICE = object()
+#: Seconds the TUI waits after a key press before asking an options function again.
+_OPTIONS_DEBOUNCE = 0.2
 
 _SPINNER_FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
 
@@ -187,6 +195,8 @@ class _LauncherApp(App):
     BINDINGS: ClassVar[list[Binding]] = [
         Binding("ctrl+c", "cancel", "Exit", priority=True),
         Binding("f2", "toggle_logs", "Toggle Logs"),
+        Binding("alt+left", "back", "Back", priority=True),
+        Binding("alt+right", "forward", "Forward", priority=True),
     ]
 
     def __init__(self, show_logs: bool = True) -> None:
@@ -200,7 +210,11 @@ class _LauncherApp(App):
         self._pending: queue.Queue | None = None
         self._kind: str | None = None
         self._pick_values: list[object] = []
+        self._pick_retry = False  # the pick is a failed step's Retry / Go back / Abort question
         self._auto_all: list[str] = []
+        self._auto_request: AutoCompleteRequest | None = None  # set when its options come from a function
+        self._auto_query = ""
+        self._auto_timer: Any = None
         self._activity_count: int = 0
 
     def compose(self) -> ComposeResult:
@@ -278,7 +292,13 @@ class _LauncherApp(App):
     async def ask_autocomplete(self, request: AutoCompleteRequest, reply: "queue.Queue") -> None:
         """Mount a filtering input and suggestion list; deliver the answer via reply."""
         self._pending, self._kind = reply, "auto"
-        self._auto_all = request.suggestions()
+        self._auto_request = request if request.dynamic else None
+        # An options function may be slow (e.g. a database search): called off the app's thread.
+        self._auto_all = (
+            await asyncio.to_thread(_options_for, request, "") if request.dynamic else request.suggestions()
+        )
+        if self._pending is not reply:
+            return  # cancelled while the options were listed
         await self._mount(
             Label(request.label),
             Input(value=request.default or "", id="clabe-input"),
@@ -297,6 +317,9 @@ class _LauncherApp(App):
         for choice in request.choices():
             labels.append(choice.display)
             self._pick_values.append(choice.value)
+        self._pick_retry = bool(request.field and request.field.endswith(".failed")) and "retry" in self._pick_values
+        # Options 1-9 are picked with their number key.
+        labels = [f"{index}. {label}" if index <= 9 else label for index, label in enumerate(labels, start=1)]
         await self._mount(Label(request.label), OptionList(*labels, id="clabe-options"))
         option_list = self.query_one("#clabe-options", OptionList)
         if request.default is not None and request.default in self._pick_values:
@@ -334,7 +357,7 @@ class _LauncherApp(App):
     async def ask_confirm(self, request: ConfirmRequest, reply: "queue.Queue") -> None:
         """Mount a Yes/No list; deliver the answer via reply."""
         self._pending, self._kind = reply, "confirm"
-        await self._mount(Label(request.label), OptionList("Yes", "No", id="clabe-options"))
+        await self._mount(Label(request.label), OptionList("Yes (y)", "No (n)", id="clabe-options"))
         option_list = self.query_one("#clabe-options", OptionList)
         option_list.highlighted = 0 if request.default else 1
         option_list.focus()
@@ -402,13 +425,32 @@ class _LauncherApp(App):
             await self._finish(event.value)
 
     def on_input_changed(self, event: Input.Changed) -> None:
-        """Filter the autocomplete suggestion list as the user types."""
+        """Filter the autocomplete suggestion list as the user types (asking an options function, debounced)."""
         if self._kind != "auto":
             return
+        if self._auto_request is not None:
+            self._auto_query = event.value
+            if self._auto_timer is not None:
+                self._auto_timer.stop()
+            self._auto_timer = self.set_timer(_OPTIONS_DEBOUNCE, self._refresh_options)
+            return
+        text = event.value.lower()
+        self._show_options([opt for opt in self._auto_all if text in opt.lower()] if text else self._auto_all)
+
+    async def _refresh_options(self) -> None:
+        """Asks the options function for the typed text (off the app's thread) and shows its options."""
+        request, reply, query = self._auto_request, self._pending, self._auto_query
+        if request is None or self._kind != "auto":
+            return
+        options = await asyncio.to_thread(_options_for, request, query)
+        if self._pending is reply and self._kind == "auto" and self._auto_query == query:
+            self._show_options(options)
+
+    def _show_options(self, options: list[str]) -> None:
+        """Replaces the autocomplete suggestion list."""
         option_list = self.query_one("#clabe-options", OptionList)
         option_list.clear_options()
-        text = event.value.lower()
-        option_list.add_options([opt for opt in self._auto_all if text in opt.lower()] if text else self._auto_all)
+        option_list.add_options(options)
 
     async def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         """Resolve pick, confirm, and autocomplete prompts on selection."""
@@ -420,8 +462,15 @@ class _LauncherApp(App):
         elif self._kind == "auto":
             await self._finish(str(event.option.prompt))
 
-    def on_key(self, event) -> None:
-        """Shuttle focus between the autocomplete input and suggestion list with arrow keys."""
+    async def on_key(self, event) -> None:
+        """Choice keys outside text inputs (1-9 pick an option, y/n confirm, r retries a failed step); arrow keys
+        shuttle focus between the autocomplete input and its suggestion list."""
+        if self._kind in ("pick", "confirm") and not isinstance(self.focused, Input):
+            value = self._choice_for_key(event.key)
+            if value is not _NO_CHOICE:
+                event.stop()
+                await self._finish(value)
+            return
         if self._kind != "auto":
             return
         if event.key == "down" and isinstance(self.focused, Input):
@@ -435,6 +484,18 @@ class _LauncherApp(App):
             if option_list.highlighted == 0:
                 self.query_one("#clabe-input", Input).focus()
                 event.stop()
+
+    def _choice_for_key(self, key: str) -> object:
+        """The answer ``key`` gives the open pick/confirm prompt, or ``_NO_CHOICE`` when it gives none."""
+        if self._kind == "confirm" and key in ("y", "n", "1", "2"):
+            return key in ("y", "1")
+        if self._kind == "pick":
+            if key == "r" and self._pick_retry:
+                return "retry"
+            if len(key) == 1 and key.isdigit() and 1 <= int(key) <= min(9, len(self._pick_values)):
+                value = self._pick_values[int(key) - 1]
+                return None if value is _NONE else value
+        return _NO_CHOICE
 
     async def _release_pending(self, value: object) -> None:
         """Tear down the waiting prompt (inline or modal) and hand ``value`` to its caller."""
@@ -464,6 +525,16 @@ class _LauncherApp(App):
             import _thread
 
             _thread.interrupt_main()
+
+    async def action_back(self) -> None:
+        """Go back to the previous step (Alt+Left): releases the waiting prompt; the run decides."""
+        if self._pending is not None:
+            await self._release_pending(_BACK)
+
+    async def action_forward(self) -> None:
+        """Go forward (Alt+Right): answers the waiting prompt with its earlier answer; the run decides."""
+        if self._pending is not None:
+            await self._release_pending(_FORWARD)
 
     def action_toggle_logs(self) -> None:
         """Show or hide the Logs pane to reclaim vertical space."""
@@ -508,12 +579,25 @@ class _TuiLogHandler(logging.Handler):
         self._client._write_log(_linkify(message, _log_style(record.levelno)))
 
 
+def _options_for(request: AutoCompleteRequest, typed: str) -> list[str]:
+    """The options a function returns for ``typed``; none (logged) when it fails."""
+    try:
+        return request.suggestions(typed)
+    except Exception as exc:  # noqa: BLE001 -- a failing search leaves the user typing freely
+        logger.warning("The options of %r could not be listed: %s", request.label, exc)
+        return []
+
+
 def _unwrap(value: object) -> object:
-    """Translate the cancellation sentinel into KeyboardInterrupt."""
+    """Translate the cancellation and navigation sentinels into their exceptions."""
     if value is _CANCELLED:
         raise KeyboardInterrupt("Cancelled by user.")
     if value is _PROMPT_CANCELLED:
         raise PromptCancelledError("Prompt cancelled.")
+    if value is _BACK:
+        raise NavigationRequested("back")
+    if value is _FORWARD:
+        raise NavigationRequested("forward")
     return value
 
 

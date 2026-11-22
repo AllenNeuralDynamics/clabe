@@ -1,19 +1,71 @@
 """Driving a run from an in-process client (console or Textual TUI)."""
 
+import dataclasses
+import logging
 import queue
 import threading
 import time
+from pathlib import Path
+from typing import Any
 
-from ..ui import Client, MessageLevel, PromptCancelledError
+from ..ui import (
+    AutoCompleteRequest,
+    Client,
+    ConfirmRequest,
+    FormRequest,
+    GroupRequest,
+    MessageLevel,
+    NavigationRequested,
+    NumberRequest,
+    PathRequest,
+    PickRequest,
+    PromptCancelledError,
+    Request,
+    TextRequest,
+)
 from ._events import Event, Header, Notify, PromptClosed, PromptOpened, RunFinished
-from ._run import Ack, Run
+from ._run import Ack, Rejected, Run
+
+logger = logging.getLogger(__name__)
+
+
+def prefill(request: Request, value: Any) -> Request:
+    """A copy of ``request`` whose default (or a form's initial value) is ``value``, its earlier answer.
+
+    Clients show the default, so a prompt answered before opens with that answer; the run still validates with the
+    original request. Requests with nothing to prefill, and values that do not fit, give ``request`` unchanged.
+    """
+    try:
+        if isinstance(request, TextRequest | AutoCompleteRequest) and isinstance(value, str):
+            return dataclasses.replace(request, default=value)
+        if isinstance(request, NumberRequest) and isinstance(value, int | float) and not isinstance(value, bool):
+            return dataclasses.replace(request, default=float(value))
+        if isinstance(request, ConfirmRequest) and isinstance(value, bool):
+            return dataclasses.replace(request, default=value)
+        if isinstance(request, PickRequest) and (value is None or any(c.value == value for c in request.choices())):
+            return dataclasses.replace(request, default=value)
+        if isinstance(request, PathRequest) and isinstance(value, str | Path):
+            return dataclasses.replace(request, default=str(value))
+        if isinstance(request, FormRequest) and value is not None:
+            initial = value if isinstance(value, request.model) else request.model.model_validate(value)
+            return dataclasses.replace(request, initial=initial)
+        if isinstance(request, GroupRequest) and isinstance(value, dict):
+            items = {
+                name: prefill(item, value[name]) if name in value else item for name, item in request.items.items()
+            }
+            return dataclasses.replace(request, items=items)
+    except Exception:  # prefilling is a convenience: an earlier answer that does not fit is ignored
+        logger.debug("Could not prefill %s prompt with %r", request.prompt_kind, value, exc_info=True)
+    return request
 
 
 class LocalClient:
     """Answers a run's prompts with a local [`Client`][clabe.ui.Client] and renders its messages.
 
     The client only collects raw answers: the run validates them, and a rejected answer is shown to the user (with
-    the reason) and asked again.
+    the reason) and asked again. A prompt answered before is shown prefilled with that answer (see `prefill`), and
+    a client may raise [`NavigationRequested`][clabe.ui.NavigationRequested] to go back
+    ([`Run.back`][clabe.workflow.Run.back]) or forward ([`Run.forward`][clabe.workflow.Run.forward]).
 
     `drive` must run on the main thread (it is where Ctrl+C lands). The first Ctrl+C aborts the run;
     a second one propagates as ``KeyboardInterrupt``.
@@ -119,6 +171,9 @@ class LocalClient:
         request = self._run.prompt_request(opened.prompt_id)
         if request is None:
             return
+        answered_before, previous = self._run.previous_answer(opened.prompt_id)
+        if answered_before:
+            request = prefill(request, previous)
         with self._lock:
             self._asking = opened.prompt_id
         try:
@@ -127,6 +182,11 @@ class LocalClient:
                     value = self._client.ask(request)
                 except PromptCancelledError:
                     continue  # closed elsewhere (the loop ends) or a stray cancel of an earlier prompt: ask again
+                except NavigationRequested as request_:
+                    outcome = self._navigate(request_.action)
+                    if isinstance(outcome, Rejected):
+                        self._client.notify(outcome.reason, MessageLevel.WARNING)
+                    continue  # accepted: the prompt closed (the loop ends); refused: ask again
                 result = self._run.answer(opened.prompt_id, value, client=self._name)
                 if isinstance(result, Ack):
                     return
@@ -137,3 +197,11 @@ class LocalClient:
         finally:
             with self._lock:
                 self._asking = None
+
+    def _navigate(self, action: str) -> Ack | Rejected:
+        """Goes back or forward, as the client asked."""
+        if action == "back":
+            return self._run.back()
+        if action == "forward":
+            return self._run.forward(client=self._name)
+        return Rejected(f"Unknown navigation: {action!r}.")

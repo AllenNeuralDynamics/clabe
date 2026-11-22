@@ -1,0 +1,491 @@
+@* The hub's Reports tab: the collected issue reports as a table (search, filters, sort, pages, triage status,
+   delete one or many), a report's view, and "Open an export…" to look at a zip without storing it. *@
+@inject HubApi Hub
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+@if (_open is not null || _inspected is not null)
+{
+    <ReportView Report="_open" Inspected="_inspected" OnBack="CloseView" OnChanged="Changed" OnDeleted="Deleted" />
+}
+<div class="browser" hidden="@(_open is not null || _inspected is not null)">
+    <div class="toolbar">
+        <ReportSearchBox Value="@_query.Q" ValueChanged="Search" Placeholder="Search reports…" Wide="true"
+                         Count="@(_page is null || string.IsNullOrEmpty(_query.Q) ? null : (int)_page.Total)" Unit="reports" @ref="_search" />
+        <select class="filter" aria-label="Rig" value="@(_query.Rig ?? "")" @onchange="e => Filter(rig: e.Value?.ToString())">
+            <option value="">All rigs</option>
+            @foreach (var rig in RigIds())
+            {
+                <option value="@rig">@rig</option>
+            }
+        </select>
+        <select class="filter" aria-label="Experiment" value="@(_query.Experiment ?? "")" @onchange="e => Filter(experiment: e.Value?.ToString())">
+            <option value="">All experiments</option>
+            @foreach (var experiment in _experiments.Order())
+            {
+                <option value="@experiment">@experiment</option>
+            }
+        </select>
+        <select class="filter" aria-label="Status" value="@(_query.Status ?? "")" @onchange="e => Filter(status: e.Value?.ToString())">
+            <option value="">Any status</option>
+            <option value="new">New</option>
+            <option value="looking">Looking</option>
+            <option value="closed">Closed</option>
+        </select>
+        <span class="grow"></span>
+        @if (_selected.Count > 0)
+        {
+            <span class="selection small muted">@_selected.Count selected</span>
+            <button type="button" class="danger sm" @onclick="() => _confirm = Confirmation.Bulk"><HubIcon Name="trash" Size="14" /> Delete</button>
+        }
+        <button type="button" class="sm" @onclick="PickExport" disabled="@_uploading" title="Look at an exported zip without storing it">
+            @if (_uploading)
+            {
+                <span class="spinner"></span>
+            }
+            else
+            {
+                <HubIcon Name="upload" Size="14" />
+            }
+            Open an export…
+        </button>
+        <InputFile OnChange="OpenExport" accept=".zip,application/zip" class="sr-only" tabindex="-1" aria-hidden="true" @ref="_file" />
+        <button type="button" class="ghost icon sm" aria-label="Refresh" title="Refresh" @onclick="Load"><HubIcon Name="refresh" Size="15" /></button>
+    </div>
+
+    @if (_error is not null)
+    {
+        <div class="alert error" role="alert"><span>@_error</span><span class="grow"></span><button type="button" class="ghost sm" @onclick="() => _error = null">Dismiss</button></div>
+    }
+
+    <div class="reports-card">
+        @if (_page is null)
+        {
+            <div class="state subtle"><span class="spinner"></span> Loading reports…</div>
+        }
+        else if (_page.Items.Count == 0)
+        {
+            <div class="state empty">
+                <div class="empty-icon"><HubIcon Name="inbox" Size="22" /></div>
+                @if (Filtered)
+                {
+                    <h3>No report matches</h3>
+                    <p class="muted">Try other words or filters.</p>
+                    <button type="button" class="sm" @onclick="ClearFilters">Clear filters</button>
+                }
+                else
+                {
+                    <h3>No reports yet</h3>
+                    <p class="muted">When someone reports an issue from a run (Session ▸ Report an issue…), the hub collects it from the rig and lists it here.</p>
+                    <button type="button" class="sm" @onclick="PickExport"><HubIcon Name="upload" Size="14" /> Open an export…</button>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="scroll">
+                <table class="table reports" aria-label="Reports" aria-busy="@_loading">
+                    <thead>
+                        <tr>
+                            <th class="c-check">
+                                <input type="checkbox" aria-label="Select all on this page" checked="@AllSelected"
+                                       @onchange="SelectAll" />
+                            </th>
+                            @foreach (var column in Columns)
+                            {
+                                var sorted = _query.Sort == column.Sort;
+                                <th class="@column.Css" aria-sort="@(sorted ? (_query.Descending ? "descending" : "ascending") : "none")">
+                                    <button type="button" class="sort @(sorted ? "on" : "")" @onclick="() => Sort(column.Sort)">
+                                        @column.Label
+                                        <span class="arrow"><HubIcon Name="@(sorted && !_query.Descending ? "up" : "down")" Size="12" /></span>
+                                    </button>
+                                </th>
+                            }
+                            <th class="c-act"><span class="sr-only">Actions</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var report in _page.Items)
+                        {
+                            var id = report.ReportId;
+                            var selected = _selected.Contains(id);
+                            <tr class="@(selected ? "selected" : "") @(report.Status == "closed" ? "closed" : "")" @key="id"
+                                tabindex="0" @onclick="() => Open(report)" @onkeydown="e => OnRowKey(e, report)" aria-label="Open the report from @report.RigId, @ReportTime.Ago(report.CreatedAt)">
+                                <td class="c-check" @onclick:stopPropagation="true">
+                                    <input type="checkbox" aria-label="Select" checked="@selected" @onchange="e => Select(id, e.Value is true)" />
+                                </td>
+                                <td class="c-when" title="@ReportTime.Exact(report.CreatedAt)">@ReportTime.Ago(report.CreatedAt)</td>
+                                <td class="c-rig"><span class="rig">@report.RigId</span></td>
+                                <td class="c-notes truncate" title="@report.Comment">@report.Comment</td>
+                                <td class="c-status" @onclick:stopPropagation="true">
+                                    <ReportStatusSelect Report="report" OnChanged="Changed" OnError="e => _error = e" />
+                                </td>
+                                <td class="c-exp truncate">@report.Experiment</td>
+                                <td class="c-step truncate">@report.Step</td>
+                                <td class="c-subject truncate">@report.Subject</td>
+                                <td class="c-person truncate" title="@People(report)">@People(report)</td>
+                                <td class="c-session truncate mono" title="@report.SessionId">@report.SessionId</td>
+                                <td class="c-repo truncate" title="@Repository(report)">
+                                    @report.Repository
+                                    @if (report.Commit is { Length: > 0 } commit)
+                                    {
+                                        <span class="commit mono">@("@" + commit[..Math.Min(7, commit.Length)])</span>
+                                    }
+                                </td>
+                                <td class="c-host truncate" title="@report.Hostname">@report.Hostname</td>
+                                <td class="c-ver mono">@report.ClabeVersion</td>
+                                <td class="c-from">@report.ReportedFrom</td>
+                                <td class="c-act" @onclick:stopPropagation="true">
+                                    <button type="button" class="ghost icon sm row-delete" aria-label="Delete this report" title="Delete"
+                                            @onclick="() => { _deleteOne = report; _confirm = Confirmation.One; }">
+                                        <HubIcon Name="trash" Size="14" />
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <footer class="pager">
+                <span class="small muted">
+                    @(_query.Offset + 1)–@(_query.Offset + _page.Items.Count) of @_page.Total.ToString("N0")
+                    @if (_loading)
+                    {
+                        <span class="spinner small-spinner"></span>
+                    }
+                </span>
+                <span class="grow"></span>
+                <select class="page-size" aria-label="Reports per page" value="@_query.Limit" @onchange="PageSize">
+                    <option value="25">25 per page</option>
+                    <option value="50">50 per page</option>
+                    <option value="100">100 per page</option>
+                </select>
+                <button type="button" class="sm" disabled="@(_query.Offset == 0)" @onclick="() => Page(-1)" aria-label="Previous page"><HubIcon Name="left" Size="14" /> Previous</button>
+                <button type="button" class="sm" disabled="@(_query.Offset + _page.Items.Count >= _page.Total)" @onclick="() => Page(1)" aria-label="Next page">Next <HubIcon Name="right" Size="14" /></button>
+            </footer>
+        }
+    </div>
+</div>
+
+@if (_confirm == Confirmation.One && _deleteOne is { } doomed)
+{
+    <ReportConfirm Title="Delete this report?" Danger="true" ConfirmText="Delete"
+                   Message="@($"The report from {doomed.RigId} ({ReportTime.Ago(doomed.CreatedAt)}) and its files are deleted from the hub. This cannot be undone.")"
+                   OnConfirm="DeleteOne" OnCancel="() => _confirm = Confirmation.None" />
+}
+else if (_confirm == Confirmation.Bulk)
+{
+    <ReportConfirm Title="@($"Delete {_selected.Count} report{(_selected.Count == 1 ? "" : "s")}?")" Danger="true" ConfirmText="Delete"
+                   Message="The selected reports and their files are deleted from the hub. This cannot be undone."
+                   OnConfirm="DeleteSelected" OnCancel="() => _confirm = Confirmation.None" />
+}
+
+@code {
+    /// <summary>The fleet's rigs, offered in the rig filter.</summary>
+    [Parameter] public List<RigStatus>? Rigs { get; set; }
+    /// <summary>Called when reports change (deleted, triaged), e.g. to refresh counts.</summary>
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    private enum Confirmation { None, One, Bulk }
+    private sealed record Column(string Label, string Sort, string Css);
+
+    private static readonly Column[] Columns =
+    [
+        new("When", "created_at", "c-when"),
+        new("Rig", "rig_id", "c-rig"),
+        new("Notes", "comment", "c-notes"),
+        new("Status", "status", "c-status"),
+        new("Experiment", "experiment", "c-exp"),
+        new("Step", "step", "c-step"),
+        new("Subject", "subject", "c-subject"),
+        new("Experimenter", "experimenter", "c-person"),
+        new("Session", "session_id", "c-session"),
+        new("Repository", "repository", "c-repo"),
+        new("Hostname", "hostname", "c-host"),
+        new("clabe", "clabe_version", "c-ver"),
+        new("From", "reported_from", "c-from"),
+    ];
+
+    private ReportQuery _query = new();
+    private ReportPage? _page;
+    private readonly HashSet<string> _selected = [];
+    private readonly HashSet<string> _experiments = [];
+    private readonly HashSet<string> _rigsSeen = [];
+    private bool _loading;
+    private string? _error;
+    private Confirmation _confirm;
+    private StoredReport? _deleteOne;
+    private StoredReport? _open;
+    private InspectResult? _inspected;
+    private bool _uploading;
+    private InputFile? _file;
+    private ReportSearchBox? _search;
+    private IJSObjectReference? _module;
+    private Timer? _timer;
+    private int _version;
+
+    private bool Filtered => !string.IsNullOrEmpty(_query.Q) || _query.Rig is not null || _query.Experiment is not null || _query.Status is not null;
+    private bool AllSelected => _page is { Items.Count: > 0 } && _page.Items.All(r => _selected.Contains(r.ReportId));
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Load();
+        // new reports arrive as the hub collects them: refresh quietly while the table is on screen
+        _timer = new Timer(_ => InvokeAsync(async () =>
+        {
+            if (_open is null && _inspected is null && _confirm == Confirmation.None && !_loading)
+            {
+                await Reload(quiet: true);
+                StateHasChanged();
+            }
+        }), null, 15000, 15000);
+    }
+
+    public ValueTask FocusSearchAsync() => _search?.FocusAsync() ?? ValueTask.CompletedTask;
+
+    private IEnumerable<string> RigIds() =>
+        (Rigs ?? []).Select(r => r.Id).Concat(_rigsSeen).Distinct().Order(StringComparer.OrdinalIgnoreCase);
+
+    private async Task Load() => await Reload(quiet: false);
+
+    private async Task Reload(bool quiet)
+    {
+        var version = ++_version;
+        _loading = true;
+        try
+        {
+            var page = await Hub.ReportsAsync(_query);
+            if (version != _version)
+            {
+                return;
+            }
+            if (page.Items.Count == 0 && _query.Offset > 0 && page.Total > 0)
+            {
+                _query = _query with { Offset = Math.Max(0, (int)((page.Total - 1) / _query.Limit) * _query.Limit) };
+                page = await Hub.ReportsAsync(_query);
+            }
+            _page = page;
+            foreach (var report in page.Items)
+            {
+                if (!string.IsNullOrEmpty(report.Experiment))
+                {
+                    _experiments.Add(report.Experiment);
+                }
+                _rigsSeen.Add(report.RigId);
+            }
+            _selected.IntersectWith(page.Items.Select(r => r.ReportId));
+            if (!quiet)
+            {
+                _error = null;
+            }
+        }
+        catch (HttpRequestException exc)
+        {
+            if (!quiet)
+            {
+                _error = exc.Message;
+                _page ??= new ReportPage(0, []);
+            }
+        }
+        finally
+        {
+            if (version == _version)
+            {
+                _loading = false;
+            }
+        }
+    }
+
+    private async Task Search(string q)
+    {
+        _query = _query with { Q = q, Offset = 0 };
+        await Load();
+    }
+
+    private async Task Filter(string? rig = null, string? experiment = null, string? status = null)
+    {
+        static string? Value(string? value, string? current) => value is null ? current : value.Length == 0 ? null : value;
+        _query = _query with
+        {
+            Rig = Value(rig, _query.Rig),
+            Experiment = Value(experiment, _query.Experiment),
+            Status = Value(status, _query.Status),
+            Offset = 0,
+        };
+        await Load();
+    }
+
+    private async Task ClearFilters()
+    {
+        _query = new ReportQuery { Sort = _query.Sort, Descending = _query.Descending, Limit = _query.Limit };
+        await Load();
+    }
+
+    private async Task Sort(string column)
+    {
+        _query = _query.Sort == column
+            ? _query with { Descending = !_query.Descending, Offset = 0 }
+            : _query with { Sort = column, Descending = column is "created_at" or "received_at" or "size", Offset = 0 };
+        await Load();
+    }
+
+    private async Task Page(int step)
+    {
+        _query = _query with { Offset = Math.Max(0, _query.Offset + step * _query.Limit) };
+        _selected.Clear();
+        await Load();
+    }
+
+    private async Task PageSize(ChangeEventArgs e)
+    {
+        _query = _query with { Limit = int.TryParse(e.Value?.ToString(), out var limit) ? limit : 50, Offset = 0 };
+        await Load();
+    }
+
+    private void Select(string id, bool on)
+    {
+        if (on)
+        {
+            _selected.Add(id);
+        }
+        else
+        {
+            _selected.Remove(id);
+        }
+    }
+
+    private void SelectAll(ChangeEventArgs e)
+    {
+        if (e.Value is true)
+        {
+            _selected.UnionWith(_page!.Items.Select(r => r.ReportId));
+        }
+        else
+        {
+            _selected.Clear();
+        }
+    }
+
+    private void Open(StoredReport report)
+    {
+        _inspected = null;
+        _open = report;
+    }
+
+    private void OnRowKey(KeyboardEventArgs e, StoredReport report)
+    {
+        if (e.Key == "Enter")
+        {
+            Open(report);
+        }
+    }
+
+    private async Task CloseView()
+    {
+        _open = null;
+        _inspected = null;
+        await Reload(quiet: true);
+    }
+
+    private async Task Changed(StoredReport report)
+    {
+        if (_page is not null)
+        {
+            var items = _page.Items.Select(r => r.ReportId == report.ReportId ? report : r).ToList();
+            _page = _page with { Items = items };
+        }
+        if (_open?.ReportId == report.ReportId)
+        {
+            _open = report;
+        }
+        await OnChanged.InvokeAsync();
+    }
+
+    private async Task Deleted(string id)
+    {
+        _open = null;
+        _selected.Remove(id);
+        await Load();
+        await OnChanged.InvokeAsync();
+    }
+
+    private async Task DeleteOne()
+    {
+        try
+        {
+            await Hub.DeleteAsync(_deleteOne!.ReportId);
+            _selected.Remove(_deleteOne.ReportId);
+        }
+        catch (HttpRequestException exc)
+        {
+            _error = exc.Message;
+        }
+        _confirm = Confirmation.None;
+        _deleteOne = null;
+        await Load();
+        await OnChanged.InvokeAsync();
+    }
+
+    private async Task DeleteSelected()
+    {
+        try
+        {
+            await Hub.DeleteManyAsync(_selected);
+            _selected.Clear();
+        }
+        catch (HttpRequestException exc)
+        {
+            _error = exc.Message;
+        }
+        _confirm = Confirmation.None;
+        await Load();
+        await OnChanged.InvokeAsync();
+    }
+
+    private async Task PickExport()
+    {
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/report.js");
+        await _module.InvokeVoidAsync("pick", _file?.Element);
+    }
+
+    private async Task OpenExport(InputFileChangeEventArgs e)
+    {
+        _uploading = true;
+        _error = null;
+        StateHasChanged();
+        try
+        {
+            await using var stream = e.File.OpenReadStream(maxAllowedSize: 500L * 1024 * 1024);
+            _inspected = await Hub.InspectAsync(stream);
+            _open = null;
+        }
+        catch (Exception exc) when (exc is HttpRequestException or IOException)
+        {
+            _error = $"Could not open {e.File.Name}: {exc.Message}";
+        }
+        finally
+        {
+            _uploading = false;
+        }
+    }
+
+    private static string People(StoredReport report) => string.Join(", ", report.Experimenter ?? []);
+
+    private static string Repository(StoredReport report) =>
+        report.Commit is { Length: > 0 } commit ? $"{report.Repository} @ {commit}" : report.Repository ?? "";
+
+    public async ValueTask DisposeAsync()
+    {
+        _timer?.Dispose();
+        if (_module is not null)
+        {
+            try
+            {
+                await _module.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+    }
+}

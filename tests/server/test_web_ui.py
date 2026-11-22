@@ -97,7 +97,7 @@ def test_the_web_ui_drives_a_run(page, tmp_path):
         page.get_by_label("Rig").fill("rig-3")
         page.get_by_label("Gain").fill("0.3")  # a range input
         page.get_by_role("button", name="Browse…").click()  # the remote file browser, starting at the item's start
-        page.get_by_role("button", name="📁 session_1").click()
+        page.get_by_role("button", name="session_1").click()
         page.get_by_role("button", name="Use this folder").click()
         page.get_by_role("button", name="Submit").click()
 
@@ -134,6 +134,78 @@ def test_the_web_ui_drives_a_run(page, tmp_path):
     assert run.output("settings") == Settings(trials=120, arena=Arena.LINEAR)
     closed = [e for e in run.events.since(0) if isinstance(e, PromptClosed) and e.outcome == "answered"]
     assert all(e.answered_by.startswith("web-") for e in closed)
+
+
+def test_back_prefills_and_forward_keeps_the_earlier_answer(page):
+    wf = Workflow("forward-demo")
+
+    @wf.step
+    def subject():
+        return ui.text("Subject")
+
+    @wf.step
+    def notes(subject):
+        return ui.text("Notes")
+
+    run = Run(wf)
+    server = RunServer(run, port=18297)
+    url = server.start()
+    try:
+        run.start()
+        page.goto(url)
+        page.get_by_label("Subject").fill("mouse-7")
+        page.keyboard.press("Enter")  # the last (only) field submits
+
+        page.get_by_label("Notes").wait_for()
+        page.keyboard.press("Alt+ArrowLeft")  # Back: to the subject, prefilled with the earlier answer
+        page.get_by_label("Subject").wait_for()
+        assert page.get_by_label("Subject").input_value() == "mouse-7"
+        page.get_by_role("button", name="Forward").click()  # keeps it
+
+        page.get_by_label("Notes").fill("all good")
+        page.get_by_role("button", name="Submit").click()
+        assert run.wait(15)
+    finally:
+        if not run.wait(0):
+            run.abort("test teardown")
+        server.stop()
+    assert run.status is RunStatus.COMPLETED
+    assert run.output("subject") == "mouse-7" and run.output("notes") == "all good"
+
+
+def test_the_closing_screen_closes_the_session(page):
+    import datetime
+
+    wf = Workflow("closing-demo")
+
+    @wf.step
+    def hello():
+        ui.markdown("Hello", title="Hello")
+
+    run = Run(wf)
+    run.keep_open()  # as a launcher serving its run does: the session stays open after the run
+    server = RunServer(run, port=18298)
+    url = server.start()
+    try:
+        run.start()
+        page.goto(url)
+        page.get_by_role("heading", name="Hello").wait_for()
+        page.keyboard.press("Enter")
+        assert run.wait(15)
+        run.begin_closing(datetime.datetime.now(datetime.UTC) + datetime.timedelta(seconds=60))
+
+        page.get_by_role("heading", name="Run completed").wait_for()
+        page.get_by_text("Closing in").wait_for()
+        page.get_by_role("button", name="Close session").click()
+        assert run.wait_closed(10)
+        page.get_by_text("Session closed — you can close this tab.").wait_for()
+    finally:
+        if not run.wait(0):
+            run.abort("test teardown")
+        run.close(client="teardown")
+        server.stop()
+    closed = [e for e in run.events.since(0) if e.type == "run_closed"]
+    assert len(closed) == 1 and closed[0].closed_by.startswith("web-")
 
 
 _PNG = bytes.fromhex(  # 1x1 pixel

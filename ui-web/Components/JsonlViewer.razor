@@ -1,0 +1,260 @@
+@* JSON Lines as a table, one row per line: events (time, type, step, summary) with a type filter, outputs (step,
+   attempt, summary), or plain records. Search filters the rows and marks the matches; a row opens to its record,
+   pretty-printed. Virtualized: thousands of lines scroll smoothly. *@
+@using System.Globalization
+@using Microsoft.AspNetCore.Components.Web.Virtualization
+
+<div class="jx">
+    <div class="jx-bar">
+        <ReportSearchBox Value="@_query" ValueChanged="Search" Placeholder="Search all lines" Count="_rows.Count" Unit="rows" />
+        @if (_types.Count > 1)
+        {
+            <div class="types" role="group" aria-label="Filter by type">
+                @foreach (var (type, count) in _types)
+                {
+                    var on = _shownTypes.Contains(type);
+                    <button type="button" class="type @(on ? "on" : "") @TypeTone(type)" aria-pressed="@on" @onclick="() => ToggleType(type)">
+                        @type <span class="n">@count</span>
+                    </button>
+                }
+                @if (_shownTypes.Count > 0)
+                {
+                    <button type="button" class="ghost sm clear" @onclick="ClearTypes">Clear</button>
+                }
+            </div>
+        }
+    </div>
+    <div class="jx-body">
+        <div class="grid @_mode" role="table" aria-label="Lines">
+            <div class="head" role="row">
+                <span role="columnheader" class="c-n">#</span>
+                @switch (_mode)
+                {
+                    case "events":
+                        <span role="columnheader">Time</span>
+                        <span role="columnheader">Type</span>
+                        <span role="columnheader">Step</span>
+                        <span role="columnheader">Summary</span>
+                        break;
+                    case "outputs":
+                        <span role="columnheader">Step</span>
+                        <span role="columnheader">Attempt</span>
+                        <span role="columnheader">Summary</span>
+                        break;
+                    default:
+                        <span role="columnheader">Record</span>
+                        break;
+                }
+            </div>
+            <Virtualize Items="_rows" ItemSize="33" OverscanCount="12" Context="row">
+                <div class="rowwrap @(_open.Contains(row.Index) ? "open" : "")" @key="row.Index">
+                    <div class="row" role="row" tabindex="0" aria-expanded="@_open.Contains(row.Index)"
+                         @onclick="() => Toggle(row.Index)" @onkeydown="e => OnRowKey(e, row.Index)">
+                        <span role="cell" class="c-n">
+                            <HubIcon Name="@(_open.Contains(row.Index) ? "down" : "right")" Size="12" />
+                            @(row.Index + 1)
+                        </span>
+                        @switch (_mode)
+                        {
+                            case "events":
+                                <span role="cell" class="c-time" title="@row.Time">@ShortTime(row.Time)</span>
+                                <span role="cell"><span class="type-tag @TypeTone(row.Type)">@ReportSearch.Marked(row.Type ?? "", null, _query)</span></span>
+                                <span role="cell" class="c-step truncate">@ReportSearch.Marked(row.Step ?? "", null, _query)</span>
+                                <span role="cell" class="c-sum truncate">@ReportSearch.Marked(row.Summary, null, _query)</span>
+                                break;
+                            case "outputs":
+                                <span role="cell" class="c-step truncate">@ReportSearch.Marked(row.Step ?? "", null, _query)</span>
+                                <span role="cell" class="c-num">@row.Attempt</span>
+                                <span role="cell" class="c-sum truncate">@ReportSearch.Marked(row.Summary, null, _query)</span>
+                                break;
+                            default:
+                                <span role="cell" class="c-sum truncate mono">@ReportSearch.Marked(row.Summary, null, _query)</span>
+                                break;
+                        }
+                    </div>
+                    @if (_open.Contains(row.Index))
+                    {
+                        <div class="detail">
+                            <JsonViewer Text="@row.Raw" Toolbar="false" Numbers="false" Query="@_query" />
+                        </div>
+                    }
+                </div>
+            </Virtualize>
+        </div>
+        @if (_rows.Count == 0)
+        {
+            <p class="empty subtle">@(_all.Count == 0 ? "This file is empty." : "No line matches.")</p>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Text { get; set; } = "";
+
+    /// <summary>A line of the file, and what its columns show.</summary>
+    private sealed record Row(int Index, string Raw, string? Time, string? Type, string? Step, string? Attempt, string Summary);
+
+    private static readonly string[] SummaryFields =
+    [
+        "label", "message", "text", "summary", "description", "error", "outcome", "status", "reason", "workflow",
+        "path", "kind", "branch", "machine", "name", "value",
+    ];
+    private static readonly HashSet<string> ColumnFields = ["ts", "time", "timestamp", "type", "step", "attempt", "seq"];
+
+    private string? _text;
+    private List<Row> _all = [];
+    private List<Row> _rows = [];
+    private string _mode = "records";
+    private List<(string Type, int Count)> _types = [];
+    private readonly HashSet<string> _shownTypes = [];
+    private readonly HashSet<int> _open = [];
+    private string? _query;
+
+    protected override void OnParametersSet()
+    {
+        if (Text == _text)
+        {
+            return;
+        }
+        _text = Text;
+        _open.Clear();
+        _shownTypes.Clear();
+        _all = Parse(Text);
+        var withType = _all.Count(r => r.Type is not null);
+        var withAttempt = _all.Count(r => r.Step is not null && r.Attempt is not null);
+        _mode = _all.Count > 0 && withType * 2 >= _all.Count ? "events"
+            : _all.Count > 0 && withAttempt * 2 >= _all.Count ? "outputs"
+            : "records";
+        _types = _mode == "events"
+            ? _all.Where(r => r.Type is not null).GroupBy(r => r.Type!).Select(g => (g.Key, g.Count())).OrderByDescending(t => t.Item2).ToList()
+            : [];
+        Filter();
+    }
+
+    private static List<Row> Parse(string text)
+    {
+        var rows = new List<Row>();
+        var lines = text.Replace("\r\n", "\n").Split('\n');
+        for (var i = 0; i < lines.Length; i++)
+        {
+            var raw = lines[i];
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                continue;
+            }
+            try
+            {
+                using var document = JsonDocument.Parse(raw);
+                var root = document.RootElement;
+                string? Field(string name) =>
+                    root.ValueKind == JsonValueKind.Object && root.TryGetProperty(name, out var value) && value.ValueKind != JsonValueKind.Null
+                        ? value.ValueKind == JsonValueKind.String ? value.GetString() : value.GetRawText()
+                        : null;
+                var time = Field("ts") ?? Field("time") ?? Field("timestamp");
+                rows.Add(new Row(i, raw, time, Field("type"), Field("step"), Field("attempt"), Summarize(root)));
+            }
+            catch (JsonException)
+            {
+                rows.Add(new Row(i, raw, null, null, null, null, raw));
+            }
+        }
+        return rows;
+    }
+
+    /// <summary>What a record says, in a line: its telling fields first, then the others compactly.</summary>
+    private static string Summarize(JsonElement root)
+    {
+        if (root.ValueKind != JsonValueKind.Object)
+        {
+            return root.GetRawText();
+        }
+        var parts = new List<string>();
+        foreach (var name in SummaryFields)
+        {
+            if (root.TryGetProperty(name, out var value) && value.ValueKind is not (JsonValueKind.Null or JsonValueKind.Object or JsonValueKind.Array))
+            {
+                var text = value.ValueKind == JsonValueKind.String ? value.GetString()! : value.GetRawText();
+                if (text.Length > 0)
+                {
+                    parts.Add(parts.Count == 0 && name is "label" or "message" or "text" or "summary" ? Flat(text) : $"{name}: {Flat(text)}");
+                }
+            }
+            if (parts.Count >= 3)
+            {
+                break;
+            }
+        }
+        if (parts.Count > 0)
+        {
+            return string.Join("  ·  ", parts);
+        }
+        var rest = root.EnumerateObject().Where(p => !ColumnFields.Contains(p.Name)).Take(6)
+            .Select(p => $"{p.Name}: {Flat(p.Value.ValueKind == JsonValueKind.String ? p.Value.GetString()! : p.Value.GetRawText())}");
+        return string.Join("  ·  ", rest);
+    }
+
+    private static string Flat(string text)
+    {
+        var flat = text.ReplaceLineEndings(" ⏎ ");
+        return flat.Length > 300 ? flat[..300] + "…" : flat;
+    }
+
+    private void Filter()
+    {
+        _rows = _all.Where(r => (_shownTypes.Count == 0 || (r.Type is not null && _shownTypes.Contains(r.Type)))
+                                && ReportSearch.Contains(r.Raw, _query)).ToList();
+    }
+
+    private void Search(string query)
+    {
+        _query = query;
+        Filter();
+    }
+
+    private void ToggleType(string type)
+    {
+        if (!_shownTypes.Remove(type))
+        {
+            _shownTypes.Add(type);
+        }
+        Filter();
+    }
+
+    private void ClearTypes()
+    {
+        _shownTypes.Clear();
+        Filter();
+    }
+
+    private void Toggle(int index)
+    {
+        if (!_open.Remove(index))
+        {
+            _open.Add(index);
+        }
+    }
+
+    private void OnRowKey(KeyboardEventArgs e, int index)
+    {
+        if (e.Key is "Enter" or " ")
+        {
+            Toggle(index);
+        }
+    }
+
+    private static string ShortTime(string? time) =>
+        time is not null && DateTimeOffset.TryParse(time, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var parsed)
+            ? ReportTime.Local(parsed).ToString("HH:mm:ss.fff")
+            : time ?? "";
+
+    /// <summary>A tone for an event type: failures red, prompts accent, completions green.</summary>
+    private static string TypeTone(string? type) => type switch
+    {
+        null => "",
+        _ when type.Contains("fail") || type.Contains("error") || type.Contains("abort") => "t-err",
+        _ when type.Contains("prompt") || type.Contains("answer") => "t-accent",
+        _ when type.Contains("complete") || type.Contains("finish") || type.Contains("succe") => "t-ok",
+        _ when type.Contains("warn") || type.Contains("retry") || type.Contains("skip") => "t-warn",
+        _ => "",
+    };
+}

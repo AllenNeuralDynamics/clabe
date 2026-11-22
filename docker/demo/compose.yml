@@ -13,3 +13,7 @@ services:
       RIG_TOKEN: "${DEMO_TOKEN}"
       POLL_INTERVAL: "1"
     extra_hosts: ["host.docker.internal:host-gateway"]
+    volumes: ["hub-data:/data"]   # collected issue reports; `docker compose down -v` deletes them
+
+volumes:
+  hub-data:

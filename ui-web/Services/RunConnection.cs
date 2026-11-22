@@ -1,6 +1,5 @@
 using System.Text.Json;
-using Clabe.Web.Api.Daemon;
-using Clabe.Web.Api.Hub;
+using System.Text.Json.Nodes;
 using Clabe.Web.Api.Run;
 using Clabe.Web.Models;
 using Microsoft.AspNetCore.Components;
@@ -10,20 +9,23 @@ namespace Clabe.Web.Services;
 
 /// <summary>
 /// The page's view of one run: a snapshot (re-read whenever an event changes it) plus what only the events carry —
-/// messages, activities, failures and the full log.
+/// messages, activities, failures, step timings, answers and the full log.
 /// </summary>
 public sealed class RunConnection(RunApi api, IJSRuntime js, NavigationManager navigation) : IAsyncDisposable
 {
     private static readonly HashSet<string> StateChanging =
     [
-        "run_started", "run_finished", "step_started", "step_finished", "step_failed", "step_skipped",
-        "steps_invalidated", "prompt_opened", "prompt_closed",
+        "run_started", "run_finished", "run_closing", "run_closed", "step_started", "step_finished", "step_failed",
+        "step_skipped", "steps_invalidated", "prompt_opened", "prompt_closed",
     ];
 
     private readonly Dictionary<string, RunEvent> _activities = [];
     private readonly Dictionary<string, List<string>> _outputs = [];
     private readonly Dictionary<string, RunEvent> _failures = [];
     private readonly Dictionary<string, List<BranchView>> _branches = [];
+    private readonly Dictionary<string, StepTiming> _timings = [];
+    private readonly Dictionary<string, RunEvent> _opened = [];
+    private readonly Dictionary<string, JsonNode?> _answers = [];
     private DotNetObjectReference<RunConnection>? _self;
     private IJSObjectReference? _module;
     private IJSObjectReference? _stream;
@@ -43,6 +45,15 @@ public sealed class RunConnection(RunApi api, IJSRuntime js, NavigationManager n
     public List<RunEvent> Messages { get; } = [];
     public IEnumerable<RunEvent> Activities => _activities.Values;
 
+    /// <summary>When the run started (its first event), once known.</summary>
+    public DateTimeOffset? StartedAt { get; private set; }
+
+    /// <summary>The run's <c>run_finished</c> event, once it finished.</summary>
+    public RunEvent? FinishedEvent { get; private set; }
+
+    /// <summary>The run's <c>run_closed</c> event, once its session was closed.</summary>
+    public RunEvent? ClosedEvent { get; private set; }
+
     /// <summary>The last lines an activity printed (remote jobs), newest last.</summary>
     public IReadOnlyList<string> OutputOf(string activityId) => _outputs.GetValueOrDefault(activityId) ?? [];
 
@@ -51,6 +62,9 @@ public sealed class RunConnection(RunApi api, IJSRuntime js, NavigationManager n
 
     public bool Finished => State?.Status is "completed" or "aborted" or "failed";
 
+    /// <summary>Whether the session is over: closed by a client, or the server is gone after the run.</summary>
+    public bool SessionOver => ClosedEvent is not null || State?.Closing?.Closed == true || (Finished && Status == "ended");
+
     public event Action? Changed;
 
     /// <summary>The branches of <paramref name="step"/>'s current attempt, in the order they started.</summary>
@@ -58,6 +72,12 @@ public sealed class RunConnection(RunApi api, IJSRuntime js, NavigationManager n
 
     /// <summary>The failure of <paramref name="step"/> in its current attempt, if any.</summary>
     public RunEvent? FailureOf(string step) => _failures.GetValueOrDefault(step);
+
+    /// <summary>When <paramref name="step"/>'s latest attempt started and ended (null while it runs).</summary>
+    public StepTiming? TimingOf(string step) => _timings.TryGetValue(step, out var timing) ? timing : null;
+
+    /// <summary>The latest accepted answer to the prompt of <paramref name="step"/> asking <paramref name="field"/>.</summary>
+    public JsonNode? AnswerOf(string step, string field) => _answers.GetValueOrDefault($"{step}\u0000{field}");
 
     public async Task StartAsync()
     {
@@ -91,6 +111,22 @@ public sealed class RunConnection(RunApi api, IJSRuntime js, NavigationManager n
         }
         Status = status;
         Changed?.Invoke();
+    }
+
+    /// <summary>The stream broke after the run finished: keep following only while a closing screen waits.</summary>
+    [JSInvokable]
+    public async Task<bool> OnStreamLost()
+    {
+        try
+        {
+            State = await api.StateAsync();
+            Changed?.Invoke();
+            return State.Closing is { Closed: false };
+        }
+        catch (HttpRequestException)
+        {
+            return false; // the server is gone: the session is over
+        }
     }
 
     [JSInvokable]
@@ -133,6 +169,7 @@ public sealed class RunConnection(RunApi api, IJSRuntime js, NavigationManager n
 
     private void Apply(RunEvent e)
     {
+        StartedAt ??= e.Ts;
         switch (e.Type)
         {
             case "notify":
@@ -158,6 +195,7 @@ public sealed class RunConnection(RunApi api, IJSRuntime js, NavigationManager n
                 break;
             case "step_failed":
                 _failures[e.Step!] = e;
+                End(e.Step!, e.Ts);
                 if (e.WarnOnly)
                 {
                     Messages.Add(new RunEvent
@@ -168,27 +206,58 @@ public sealed class RunConnection(RunApi api, IJSRuntime js, NavigationManager n
                 break;
             case "step_started":
                 _branches.Remove(e.Step!);
+                _failures.Remove(e.Step!);
+                _timings[e.Step!] = new StepTiming(e.Ts, null);
                 break;
             case "branch_started":
             case "branch_ended":
                 SetBranch(e);
                 break;
             case "step_finished":
+                _failures.Remove(e.Step!);
+                End(e.Step!, e.Ts);
+                break;
             case "step_skipped":
                 _failures.Remove(e.Step!);
+                _timings.Remove(e.Step!);
+                break;
+            case "steps_invalidated":
+                foreach (var step in e.Steps ?? [])
+                {
+                    _timings.Remove(step);
+                    _failures.Remove(step);
+                }
                 break;
             case "prompt_closed":
+                if (e.Outcome == "answered" && _opened.Remove(e.PromptId!, out var opened) && opened.Field is { } field)
+                {
+                    _answers[$"{opened.Step}\u0000{field}"] = e.Answer?.DeepClone();
+                }
                 if (e.Outcome == "answered" && e.AnsweredBy != api.ClientName && State?.Prompt?.PromptId == e.PromptId)
                 {
                     ClosedElsewhere = $"Answered on {e.AnsweredBy}";
                 }
                 break;
             case "prompt_opened":
+                _opened[e.PromptId!] = e;
                 ClosedElsewhere = null;
                 break;
             case "run_finished":
+                FinishedEvent = e;
+                ClosedElsewhere = null;
                 _activities.Clear();
                 break;
+            case "run_closed":
+                ClosedEvent = e;
+                break;
+        }
+    }
+
+    private void End(string step, DateTimeOffset ts)
+    {
+        if (_timings.TryGetValue(step, out var timing))
+        {
+            _timings[step] = timing with { End = ts };
         }
     }
 
@@ -231,8 +300,8 @@ public sealed class RunConnection(RunApi api, IJSRuntime js, NavigationManager n
                 }
                 catch (HttpRequestException)
                 {
-                    // The server stops once the run ends; the events have told the rest of the story.
-                    if (State is not null && Log.LastOrDefault(e => e.Type == "run_finished") is { } finished)
+                    // The server stops once the session ends; the events have told the rest of the story.
+                    if (State is not null && FinishedEvent is { } finished)
                     {
                         State = State with { Status = finished.Status!, Prompt = null, CurrentStep = null };
                     }
@@ -260,3 +329,6 @@ public sealed class RunConnection(RunApi api, IJSRuntime js, NavigationManager n
         _self?.Dispose();
     }
 }
+
+/// <summary>When a step's latest attempt started, and ended (null while it runs).</summary>
+public readonly record struct StepTiming(DateTimeOffset Start, DateTimeOffset? End);

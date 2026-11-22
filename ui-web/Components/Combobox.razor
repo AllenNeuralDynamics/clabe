@@ -1,0 +1,265 @@
+@* A searchable choice: type to filter (fuzzy: "m7" finds "mouse-7"), ↑/↓ to move, Enter to pick, Esc to close.
+   Free (autocomplete: the typed text is the value, options are suggestions) or Strict (pick: the value is one of the
+   options). With Fetch, options come from the run (GET /api/prompts/{id}/options?q=), debounced. *@
+@inject IJSRuntime JS
+@implements IDisposable
+
+<div class="combobox @(_open && Shown.Count > 0 ? "open" : null)">
+    <div class="combobox-field">
+        <RunIcon Name="search" Size="15" Class="combobox-icon" />
+        <input id="@Id" role="combobox" autocomplete="off" spellcheck="false"
+               aria-expanded="@(_open && Shown.Count > 0 ? "true" : "false")" aria-controls="@($"{Id}-list")"
+               aria-autocomplete="list" aria-activedescendant="@(_active >= 0 ? $"{Id}-opt-{_active}" : null)"
+               aria-invalid="@(Invalid ? "true" : null)"
+               placeholder="@(Placeholder ?? (Strict ? SelectedLabel() ?? "Type to search…" : "Type, or pick below…"))"
+               onfocusin="@(Strict ? null : "this.select()")" value="@_text" @oninput="OnInput" @onkeydown="OnKey" @onfocus="OnFocus" @onblur="OnBlur"
+               @onclick="() => Open()" />
+        @if (_loading)
+        {
+            <span class="spinner combobox-loading" aria-hidden="true"></span>
+        }
+        else
+        {
+            <button type="button" class="ghost icon combobox-toggle" tabindex="-1" aria-label="Show the options"
+                    @onmousedown:preventDefault="true" @onclick="Toggle">
+                <RunIcon Name="chevron-down" Size="15" />
+            </button>
+        }
+    </div>
+    @if (_open && Shown.Count > 0)
+    {
+        <ul class="options" role="listbox" id="@($"{Id}-list")">
+            @for (var i = 0; i < Shown.Count; i++)
+            {
+                var index = i;
+                var (option, positions) = Shown[i];
+                <li id="@($"{Id}-opt-{index}")" role="option" aria-selected="@(index == _active ? "true" : "false")"
+                    class="option @(index == _active ? "active" : null) @(IsSelected(option) ? "selected" : null)"
+                    @onmousedown:preventDefault="true" @onmousemove="() => Hover(index)" @onclick="() => Pick(option)">
+                    <span class="option-label">@ComboboxMatch.Highlight(option.Label, positions)</span>
+                    @if (option.Hint is { } hint)
+                    {
+                        <span class="option-hint">@hint</span>
+                    }
+                    else if (IsSelected(option))
+                    {
+                        <RunIcon Name="check" Size="14" Class="option-check" />
+                    }
+                </li>
+            }
+        </ul>
+    }
+</div>
+
+@code {
+    /// <summary>One choice: its label (what is shown and matched), its value, and an optional hint ("last time").</summary>
+    public sealed record Option(string Label, JsonNode? Value, string? Hint = null);
+
+    [Parameter] public string Id { get; set; } = $"c{Guid.NewGuid():N}";
+    [Parameter, EditorRequired] public IReadOnlyList<Option> Options { get; set; } = [];
+
+    /// <summary>The value: free text (not strict), else one option's value.</summary>
+    [Parameter] public JsonNode? Value { get; set; }
+    [Parameter] public EventCallback<JsonNode?> ValueChanged { get; set; }
+
+    /// <summary>Only an option's value is a valid value (a pick); otherwise any text is (an autocomplete).</summary>
+    [Parameter] public bool Strict { get; set; }
+
+    /// <summary>Options computed by the run from the typed text (dynamic options).</summary>
+    [Parameter] public Func<string, Task<List<string>>>? Fetch { get; set; }
+    [Parameter] public string? Placeholder { get; set; }
+    [Parameter] public bool Invalid { get; set; }
+
+    private string _text = "";
+    private bool _open;
+    private int _active = -1;
+    private bool _loading;
+    private List<Option>? _fetched;
+    private CancellationTokenSource? _debounce;
+    private JsonNode? _shown;
+    private bool _reveal;
+
+    private List<(Option Option, int[] Positions)> Shown
+    {
+        get
+        {
+            var source = _fetched ?? Options.ToList();
+            var query = _text;
+            if (_fetched is not null)
+            {
+                return source.Select(o => (o, ComboboxMatch.Match(o.Label, query)?.Positions ?? [])).ToList();
+            }
+            return ComboboxMatch.Filter(source, o => o.Label, query);
+        }
+    }
+
+    protected override void OnParametersSet()
+    {
+        // a value changed from outside (prefill, a new prompt) replaces the text; our own echoes do not
+        if (!JsonNode.DeepEquals(_shown, Value))
+        {
+            _shown = Value?.DeepClone();
+            _text = Strict ? SelectedLabel() ?? "" : Value?.ToString() ?? "";
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_reveal && _active >= 0)
+        {
+            _reveal = false;
+            _ui ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/ui.js");
+            await _ui.InvokeVoidAsync("reveal", $"#{Id}-opt-{_active}");
+        }
+    }
+
+    private IJSObjectReference? _ui;
+
+    private string? SelectedLabel() =>
+        Options.FirstOrDefault(o => JsonNode.DeepEquals(o.Value, Value))?.Label;
+
+    private bool IsSelected(Option option) => Value is not null && JsonNode.DeepEquals(option.Value, Value);
+
+    private void Open()
+    {
+        _open = true;
+        if (_active < 0)
+        {
+            _active = Shown.FindIndex(s => IsSelected(s.Option));
+        }
+    }
+
+    private void Toggle()
+    {
+        if (_open)
+        {
+            _open = false;
+        }
+        else
+        {
+            Open();
+        }
+    }
+
+    private void OnFocus()
+    {
+        if (Strict)
+        {
+            _text = ""; // typing searches; the choice shows as the placeholder until another is picked
+            Open();
+        }
+        else if (_text == "")
+        {
+            Open();
+        }
+    }
+
+    private void OnBlur()
+    {
+        _open = false;
+        _active = -1;
+        if (Strict)
+        {
+            _text = SelectedLabel() ?? ""; // a pick shows its choice, never half-typed text
+        }
+    }
+
+    private async Task OnInput(ChangeEventArgs e)
+    {
+        _text = e.Value?.ToString() ?? "";
+        _open = true;
+        _active = _text.Trim() == "" ? -1 : 0;
+        if (!Strict)
+        {
+            _shown = JsonValue.Create(_text);
+            await ValueChanged.InvokeAsync(_shown);
+        }
+        if (Fetch is not null)
+        {
+            await FetchSoon(_text);
+        }
+    }
+
+    private async Task FetchSoon(string typed)
+    {
+        _debounce?.Cancel();
+        _debounce = new CancellationTokenSource();
+        var token = _debounce.Token;
+        try
+        {
+            await Task.Delay(200, token);
+            _loading = true;
+            StateHasChanged();
+            var found = await Fetch!(typed);
+            if (token.IsCancellationRequested)
+            {
+                return;
+            }
+            _fetched = found.Select(f => new Option(f, JsonValue.Create(f))).ToList();
+            _active = _text.Trim() == "" || _fetched.Count == 0 ? -1 : 0;
+        }
+        catch (TaskCanceledException)
+        {
+            return;
+        }
+        catch (HttpRequestException)
+        {
+            _fetched = null; // keep the options the prompt opened with
+        }
+        _loading = false;
+        StateHasChanged();
+    }
+
+    private void Hover(int index) => _active = index;
+
+    private async Task OnKey(KeyboardEventArgs e)
+    {
+        var shown = Shown;
+        switch (e.Key)
+        {
+            case "ArrowDown":
+                if (!_open)
+                {
+                    Open();
+                    return;
+                }
+                _active = shown.Count == 0 ? -1 : (_active + 1) % shown.Count;
+                _reveal = true;
+                break;
+            case "ArrowUp":
+                if (!_open)
+                {
+                    Open();
+                    return;
+                }
+                _active = shown.Count == 0 ? -1 : (_active <= 0 ? shown.Count - 1 : _active - 1);
+                _reveal = true;
+                break;
+            case "Enter" when _open && shown.Count > 0:
+                if (_active >= 0 && _active < shown.Count)
+                {
+                    await Pick(shown[_active].Option);
+                }
+                else
+                {
+                    _open = false;
+                }
+                break;
+            case "Escape":
+            case "Tab":
+                _open = false;
+                break;
+        }
+    }
+
+    private async Task Pick(Option option)
+    {
+        _text = option.Label;
+        _open = false;
+        _active = -1;
+        _shown = option.Value?.DeepClone();
+        await ValueChanged.InvokeAsync(_shown);
+    }
+
+    public void Dispose() => _debounce?.Cancel();
+}

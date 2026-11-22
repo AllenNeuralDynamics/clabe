@@ -25,6 +25,7 @@ from ._requests import (
     MarkdownRequest,
     MediaRequest,
     NumberRequest,
+    OptionsFunction,
     PathRequest,
     PickRequest,
     ReadOnlyTable,
@@ -39,6 +40,21 @@ logger = logging.getLogger("clabe.ui")
 
 class PromptCancelledError(Exception):
     """Raised by a prompt that was cancelled before it was answered (e.g. the run went back or aborted)."""
+
+
+class NavigationRequested(Exception):
+    """Raised by a client's ``ask`` when the user asks to navigate instead of answering (e.g. Alt+← in the TUI).
+
+    Whoever drives the client handles it: during a run, [`LocalClient`][clabe.workflow.LocalClient] goes back
+    (``"back"``) or forward (``"forward"``) and asks again if the run refuses; outside a run it is ignored.
+
+    Args:
+        action: ``"back"`` or ``"forward"``.
+    """
+
+    def __init__(self, action: Literal["back", "forward"]) -> None:
+        super().__init__(action)
+        self.action = action
 
 
 class NoSessionError(RuntimeError):
@@ -226,7 +242,7 @@ def pick(
 
 def autocomplete(
     label: str,
-    options: Sequence[str],
+    options: Sequence[str] | OptionsFunction,
     *,
     default: str | None = None,
     strict: bool = False,
@@ -234,7 +250,8 @@ def autocomplete(
     field: str | None = None,
     help: str | None = None,
 ) -> str:
-    """Asks for text completed against ``options`` (see [`AutoCompleteRequest`][clabe.ui.AutoCompleteRequest])."""
+    """Asks for text completed against ``options``, a list or a function of the typed text returning the options (see
+    [`AutoCompleteRequest`][clabe.ui.AutoCompleteRequest])."""
     return ask(
         AutoCompleteRequest(
             label=label,

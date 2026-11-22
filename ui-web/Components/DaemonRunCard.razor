@@ -1,0 +1,79 @@
+@* The machine's current (or last) run: what, since when, a way to it, and Stop for runs the daemon started. *@
+@inject DaemonApi Daemon
+
+<section class="run card @Run.Status" aria-labelledby="run-title">
+    <div class="top">
+        <div class="ic"><HubIcon Name="@(Run.Status == "running" ? "play" : Run.Status == "starting" ? "clock" : "flask")" Size="16" /></div>
+        <div class="what">
+            <div class="kicker">@(Run.Status switch { "running" => "Running now", "starting" => "Starting", _ => "Last run" })</div>
+            <h2 id="run-title">@(Run.Experiment ?? Run.File)</h2>
+            <div class="meta small muted">
+                <span>@Run.Repository</span>
+                <span>·</span>
+                <span title="@ReportTime.Exact(Run.StartedAt)">started @ReportTime.Local(Run.StartedAt).ToString("HH:mm")</span>
+                @if (Run.Status is "running" or "starting")
+                {
+                    <span>·</span>
+                    <span>@ReportTime.Duration(DateTimeOffset.UtcNow - Run.StartedAt)</span>
+                }
+                @if (Run.Origin == "terminal")
+                {
+                    <span class="chip plain">from a terminal</span>
+                }
+            </div>
+        </div>
+        <div class="run-state">
+            @switch (Run.Status)
+            {
+                case "running":
+                    <span class="chip running">running</span>
+                    break;
+                case "starting":
+                    <span class="chip running">starting</span>
+                    break;
+                default:
+                    @if (Run.Origin == "terminal" || Run.ExitCode == 0)
+                    {
+                        <span class="chip completed">ended</span>
+                    }
+                    else
+                    {
+                        <span class="chip failed">exit code @Run.ExitCode</span>
+                    }
+                    break;
+            }
+        </div>
+    </div>
+
+    @if (Run.Status == "starting")
+    {
+        <p class="note muted small"><span class="spinner"></span> Starting — the first run of a repository may install its environment first. The run opens when it is ready.</p>
+    }
+    else if (Run.Status == "running")
+    {
+        <div class="actions">
+            <a class="btn primary" href="@Daemon.RunPageUrl">Open the run <HubIcon Name="right" Size="14" /></a>
+            @if (Run.Origin != "terminal")
+            {
+                <button type="button" @onclick="() => OnStop.InvokeAsync()"><HubIcon Name="stop" Size="13" /> Stop</button>
+            }
+            else
+            {
+                <span class="subtle small">Started from a terminal: abort it from its page.</span>
+            }
+        </div>
+    }
+
+    @if (Run.LogTail is { Count: > 0 })
+    {
+        <details class="output" open="@(Run.Status != "running")">
+            <summary>Output <span class="subtle">(last @Run.LogTail.Count lines)</span></summary>
+            <pre class="code">@string.Join("\n", Run.LogTail)</pre>
+        </details>
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired] public RunInfo Run { get; set; } = default!;
+    [Parameter] public EventCallback OnStop { get; set; }
+}

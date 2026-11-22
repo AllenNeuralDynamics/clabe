@@ -1,49 +1,54 @@
 @* Browses the file system of the machine running the run (through /api/fs/list) to pick a file or a folder. *@
 @inject RunApi Api
 
-<div class="modal-backdrop" @onclick="() => OnClosed.InvokeAsync()">
-    <div class="modal picker" @onclick:stopPropagation="true">
-        <header>
-            <strong>@(Kind == "dir" ? "Choose a folder" : "Choose a file")</strong>
-            <button type="button" class="link" @onclick="() => OnClosed.InvokeAsync()">✕</button>
+<div class="backdrop" data-escape @onclick="() => OnClosed.InvokeAsync()">
+    <div class="dialog picker" role="dialog" aria-modal="true" aria-label="@Heading" @onclick:stopPropagation="true"
+         @onkeydown="@(e => e.Key == "Escape" ? OnClosed.InvokeAsync() : Task.CompletedTask)">
+        <header class="dialog-head">
+            <h2>@Heading</h2>
+            <button type="button" class="ghost icon" aria-label="Close" @onclick="() => OnClosed.InvokeAsync()"><RunIcon Name="x" /></button>
         </header>
-        <div class="path">
-            <input value="@_typed" @oninput="e => _typed = e.Value?.ToString() ?? string.Empty"
+        <div class="picker-path">
+            <input value="@_typed" spellcheck="false" aria-label="Folder" @oninput="e => _typed = e.Value?.ToString() ?? string.Empty"
                    @onkeydown="@(e => e.Key == "Enter" ? Load(_typed) : Task.CompletedTask)" />
-            <button type="button" class="secondary" @onclick="() => Load(_typed)">Go</button>
+            <button type="button" @onclick="() => Load(_typed)">Go</button>
         </div>
         @if (_error is not null)
         {
-            <p class="error">@_error</p>
+            <div class="alert error small" role="alert">@_error</div>
         }
         @if (_listing is not null)
         {
             <ul class="entries">
                 @if (_listing.Parent is { } parent)
                 {
-                    <li><button type="button" class="link" @onclick="() => Load(parent)">📁 ..</button></li>
+                    <li><button type="button" class="entry" @onclick="() => Load(parent)"><RunIcon Name="folder-up" Size="15" /> ..</button></li>
                 }
                 @foreach (var entry in _listing.Entries)
                 {
                     <li>
                         @if (entry.IsDir)
                         {
-                            <button type="button" class="link" @onclick="() => Load(entry.Path)">📁 @entry.Name</button>
+                            <button type="button" class="entry" @onclick="() => Load(entry.Path)"><RunIcon Name="folder" Size="15" /> @entry.Name</button>
                         }
                         else
                         {
-                            <button type="button" class="link" @onclick="() => OnPicked.InvokeAsync(entry.Path)">📄 @entry.Name</button>
+                            <button type="button" class="entry file" @onclick="() => OnPicked.InvokeAsync(entry.Path)"><RunIcon Name="file" Size="15" /> @entry.Name</button>
                         }
                     </li>
                 }
+                @if (_listing.Entries.Count == 0)
+                {
+                    <li class="subtle small empty">Nothing here.</li>
+                }
             </ul>
         }
-        <footer>
+        <footer class="actions">
+            <button type="button" @onclick="() => OnClosed.InvokeAsync()">Cancel</button>
             @if (Kind != "file" && _listing is not null)
             {
-                <button type="button" @onclick="() => OnPicked.InvokeAsync(_listing.Path)">Use this folder</button>
+                <button type="button" class="primary" @onclick="() => OnPicked.InvokeAsync(_listing.Path)">Use this folder</button>
             }
-            <button type="button" class="secondary" @onclick="() => OnClosed.InvokeAsync()">Cancel</button>
         </footer>
     </div>
 </div>
@@ -58,6 +63,8 @@
     private DirListing? _listing;
     private string? _error;
     private string _typed = string.Empty;
+
+    private string Heading => Kind == "dir" ? "Choose a folder" : "Choose a file";
 
     protected override async Task OnInitializedAsync()
     {

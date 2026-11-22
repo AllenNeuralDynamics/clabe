@@ -102,6 +102,16 @@ class DaemonSettings(EnvSettings):
     runs_directory: Path | None = Field(
         default=None, description="Where launched runs' output is logged; defaults to a temporary directory"
     )
+    reports_directory: Path | None = Field(
+        default=None,
+        description="Where issue reports wait for the hub to collect them; defaults to %LOCALAPPDATA%\\clabe\\reports",
+    )
+
+    def reports_path(self) -> Path:
+        """Where this machine's issue reports wait for the hub (``reports_directory``, else `reports_dir`)."""
+        from ..reports import reports_dir
+
+        return self.reports_directory or reports_dir()
 
     @field_validator("repository_roots", "command", "run_arguments", mode="before")
     @classmethod

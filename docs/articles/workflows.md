@@ -15,7 +15,8 @@ wf = Workflow("vr-foraging", exit_prompt_timeout=60)
 wf.step(steps.session())  # a `session` step: who is running, on which animal
 ```
 
-- `exit_prompt_timeout`: `None` waits for Enter at the end, `0` exits at once, `N` waits `N` seconds.
+- `exit_prompt_timeout`: `None` waits for a client to close the session, `0` exits at once, `N` counts down `N`
+  seconds.
 
 ## 2. Add your own steps
 

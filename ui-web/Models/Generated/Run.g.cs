@@ -20,6 +20,13 @@ public sealed record AnswerBody(
 public sealed record ClientBody(
     [property: JsonPropertyName("client")] string Client = "remote");
 
+/// <summary>The closing screen of a finished run (see [`Run.begin_closing`][clabe.workflow.Run.begin_closing]).</summary>
+public sealed record ClosingState(
+    [property: JsonPropertyName("since")] DateTimeOffset Since,
+    [property: JsonPropertyName("deadline")] DateTimeOffset? Deadline = null,
+    [property: JsonPropertyName("closed")] bool Closed = false,
+    [property: JsonPropertyName("closed_by")] string? ClosedBy = null);
+
 /// <summary>Outcome of an answer or a command: accepted, or rejected with a reason to show the user.</summary>
 public sealed record CommandResult(
     [property: JsonPropertyName("ok")] bool Ok,
@@ -46,6 +53,28 @@ public sealed record ListDirBody(
     [property: JsonPropertyName("kind")] string Kind = "any",
     [property: JsonPropertyName("extensions")] List<string>? Extensions = null);
 
+/// <summary>Reports an issue with the run (saved on this machine for the hub to collect).</summary>
+public sealed record ReportBody(
+    [property: JsonPropertyName("comment")] string Comment = "",
+    [property: JsonPropertyName("client")] string Client = "remote");
+
+/// <summary>What a report is about: who, where, when, and the user's comment. Stored as ``report.json`` in its zip.</summary>
+public sealed record ReportInfo(
+    [property: JsonPropertyName("report_id")] string ReportId,
+    [property: JsonPropertyName("created_at")] DateTimeOffset CreatedAt,
+    [property: JsonPropertyName("hostname")] string Hostname,
+    [property: JsonPropertyName("clabe_version")] string ClabeVersion,
+    [property: JsonPropertyName("comment")] string Comment = "",
+    [property: JsonPropertyName("reported_from")] string? ReportedFrom = null,
+    [property: JsonPropertyName("run_id")] string? RunId = null,
+    [property: JsonPropertyName("experiment")] string? Experiment = null,
+    [property: JsonPropertyName("step")] string? Step = null,
+    [property: JsonPropertyName("session_id")] string? SessionId = null,
+    [property: JsonPropertyName("subject")] string? Subject = null,
+    [property: JsonPropertyName("experimenter")] List<string>? Experimenter = null,
+    [property: JsonPropertyName("repository")] string? Repository = null,
+    [property: JsonPropertyName("commit")] string? Commit = null);
+
 /// <summary>What an AG-UI client sends (only the fields clabe uses are read).</summary>
 public sealed record RunAgentInput(
     [property: JsonPropertyName("threadId")] string? ThreadId = null,
@@ -61,7 +90,9 @@ public sealed record RunState(
     [property: JsonPropertyName("current_step")] string? CurrentStep,
     [property: JsonPropertyName("steps")] List<StepState> Steps,
     [property: JsonPropertyName("prompt")] Clabe.Web.Models.RunEvent? Prompt,
-    [property: JsonPropertyName("last_seq")] long LastSeq);
+    [property: JsonPropertyName("last_seq")] long LastSeq,
+    [property: JsonPropertyName("back_target")] string? BackTarget = null,
+    [property: JsonPropertyName("closing")] ClosingState? Closing = null);
 
 /// <summary>Identity of the server and the run it serves.</summary>
 public sealed record ServerInfo(

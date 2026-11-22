@@ -7,4 +7,8 @@ services:
     image: clabe-hub
     ports: ["8080:8080"]
     env_file: .env               # copy .env.example: the hub's token, the rigs' token and the rigs
+    volumes: ["hub-data:/data"]  # collected issue reports; `docker compose down -v` deletes them
     restart: unless-stopped
+
+volumes:
+  hub-data:

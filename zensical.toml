@@ -72,6 +72,7 @@ nav = [
       { "clabe.hub" = "api/hub.md" },
       { "clabe.agents" = "api/agents.md" },
       { "clabe.server" = "api/server.md" },
+      { "clabe.reports" = "api/reports.md" },
     ] },
     { "Configuration and stores" = [
       { "clabe.stores" = "api/stores.md" },

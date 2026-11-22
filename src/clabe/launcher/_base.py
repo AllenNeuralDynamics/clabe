@@ -1,4 +1,5 @@
 import contextlib
+import datetime
 import hashlib
 import logging
 import os
@@ -6,6 +7,7 @@ import random
 import shutil
 import socket
 import threading
+import time
 from collections.abc import Callable, Generator
 from pathlib import Path
 from typing import Self, TypeVar
@@ -116,6 +118,8 @@ class Launcher:
         self._manifest: RunManifest | None = None
         self._manifest_lock = threading.Lock()
         self._has_run = False
+        self._serving = contextlib.ExitStack()  # the run server, kept up until the launcher exits (see _exit)
+        self._served_run: Run | None = None
 
     @property
     def client(self) -> Client:
@@ -268,20 +272,28 @@ class Launcher:
                     ui.notify(f"Failed to copy logs from {self.temp_dir}: {ve}", MessageLevel.ERROR)
                     _code = -1
                     self._record_exit_code(_code)
-        self._exit(_code, timeout=workflow.exit_prompt_timeout)
+        try:
+            self._exit(_code, timeout=workflow.exit_prompt_timeout)
+        finally:
+            self._stop_serving()
 
     def _run_workflow(self, workflow: Workflow) -> Run:
         """Executes ``workflow`` (with the preflight step) with this launcher, driven by its client."""
         run = Run(self._with_preflight(workflow), launcher=self, record_dir=self.temp_dir)
         self._manifest = collect_manifest(self, run.workflow, run_id=run.id, directory=self.temp_dir)
         self._write_manifest()
-        with self._served(run):
-            LocalClient(run, self.client).drive()
+        # The server stays up after the run, for its closing screen, until the launcher exits (see _exit).
+        self._serving.enter_context(self._served(run))
+        LocalClient(run, self.client).drive()
         return run
 
     @contextlib.contextmanager
     def _served(self, run: Run) -> Generator[None, None, None]:
-        """Serves ``run`` over HTTP while the block executes, when the settings ask for it."""
+        """Serves ``run`` over HTTP while the block executes, when the settings ask for it.
+
+        A served run keeps its session open after it finishes (see [`Run.keep_open`][clabe.workflow.Run.keep_open]):
+        browsers show its closing screen until `_exit` closes it.
+        """
         if not self.settings.serve:
             yield
             return
@@ -296,6 +308,8 @@ class Launcher:
             ui.notify(f"Could not serve the run over HTTP: {exc}", MessageLevel.WARNING)
             yield
             return
+        run.keep_open()
+        self._served_run = run
         ui.notify(f"Run served at {url}", MessageLevel.INFO)
         if self.settings.open_browser:
             import webbrowser
@@ -312,9 +326,19 @@ class Launcher:
         try:
             yield
         finally:
+            self._served_run = None
+            if run.wait(0):
+                run.close(client="launcher")  # ends the event streams of browsers still open; no-op if closed
             if withdraw is not None:
                 withdraw()
             server.stop()
+
+    def _stop_serving(self) -> None:
+        """Stops serving the run (closing its session first); idempotent."""
+        try:
+            self._serving.close()
+        except Exception:
+            logger.exception("Could not stop serving the run")
 
     def _with_preflight(self, workflow: Workflow) -> Workflow:
         """``workflow`` with `validate` as its first step, ``clabe_preflight`` (none in debug mode)."""
@@ -468,6 +492,11 @@ class Launcher:
         Performs cleanup operations and exits the application, optionally
         prompting the user before exit.
 
+        When the run is served, its closing screen is shown to every client while the launcher waits: the local
+        exit prompt and a browser's Close (``POST /api/close``) race and the first one wins. A headless launcher
+        (no one at its screen) waits ``timeout`` seconds for a browser to close the session, and exits at once when
+        ``timeout`` is ``None`` or ``0`` (so daemon runs never hang). The run server stops after the wait.
+
         Args:
             code: The exit code to use. Defaults to 0
             _force: Whether to force exit without user prompt. Defaults to False
@@ -478,38 +507,62 @@ class Launcher:
         logger.debug("Exiting with code %s", code)
         if logger is not None:
             clabe_logging.shutdown_logger(logger)
-        if not getattr(self.client, "interactive", True):
+        run = self._served_run
+        interactive = getattr(self.client, "interactive", True)
+        if not interactive:
             _force = True  # nobody is at the screen to dismiss an exit prompt
-        if not _force and timeout != 0:
+        if run is not None and not interactive and timeout:
+            self._wait_for_close(run, timeout)  # headless: give browsers a chance to close the session
+        elif not _force and timeout != 0:
             label = "Press Enter to exit..."
             if timeout is not None:
                 label = f"Press Enter to exit (closing automatically in {timeout:g} s)..."
-            with self._cancel_prompt_after(timeout):
+            if run is not None:
+                run.begin_closing(_deadline(timeout))
+            closed_by = "local"
+            with self._cancel_prompt_after(timeout, run=run):
                 try:
                     ui.text(label, field="exit")
                 except KeyboardInterrupt:
                     pass  # a second Ctrl+C at the exit prompt should just exit
                 except PromptCancelledError:
-                    logger.debug("Exit prompt timed out after %s s", timeout)
+                    closed_by = "timeout"
+                    logger.debug("Exit prompt closed: timed out after %s s, or closed by a remote client", timeout)
+            if run is not None:
+                run.close(client=closed_by)  # no-op when a remote client closed it first
+        self._stop_serving()
         # Tear down the client (e.g. leave the persistent TUI) and stop asking through it.
         self.client.close()
         self._ui_binding.__exit__(None, None, None)
 
+    @staticmethod
+    def _wait_for_close(run: Run, timeout: float) -> None:
+        """Shows the closing screen of the served ``run`` for up to ``timeout`` seconds, until a client closes it."""
+        run.begin_closing(_deadline(timeout))
+        if not run.wait_closed(timeout):
+            run.close(client="timeout")
+
     @contextlib.contextmanager
-    def _cancel_prompt_after(self, timeout: float | None) -> Generator[None]:
-        """Cancels the client prompt running inside this block once ``timeout`` seconds pass.
+    def _cancel_prompt_after(self, timeout: float | None, run: Run | None = None) -> Generator[None]:
+        """Cancels the client prompt running inside this block once ``timeout`` seconds pass, or once a remote
+        client closes ``run``'s session.
 
         Keeps cancelling until the block exits, so a cancellation that lands before
-        the prompt is on screen is not lost. ``None`` never cancels.
+        the prompt is on screen is not lost. ``None`` never times out.
         """
-        if timeout is None:
+        if timeout is None and run is None:
             yield
             return
         done = threading.Event()
+        deadline = time.monotonic() + timeout if timeout is not None else None
 
         def _cancel_when_due() -> None:
-            if done.wait(timeout):
-                return
+            while not done.is_set():
+                if deadline is not None and time.monotonic() >= deadline:
+                    break
+                if run is not None and run.closed:
+                    break
+                done.wait(0.05 if deadline is None else min(0.05, max(0.0, deadline - time.monotonic())))
             while not done.is_set():
                 self.client.cancel()
                 done.wait(0.1)
@@ -521,6 +574,26 @@ class Launcher:
         finally:
             done.set()
             timer.join()
+
+    def report_info(self) -> dict[str, object]:
+        """What this launcher knows about the session, as [`ReportInfo`][clabe.reports.ReportInfo] fields.
+
+        Session id, subject and experimenter once a session is registered; the repository's folder name and head
+        commit. Never raises: what cannot be read is left out.
+        """
+        info: dict[str, object] = {}
+        if self._session is not None:
+            info["session_id"] = self._session.session_name
+            info["subject"] = self._session.subject
+            info["experimenter"] = list(self._session.experimenter or [])
+        try:
+            info["repository"] = Path(self.repository.working_dir).name
+            commit = self.repository.head.commit.hexsha
+            if isinstance(commit, str):
+                info["commit"] = commit
+        except Exception:  # a report must be made even from a broken checkout
+            logger.debug("Could not read the repository for a report", exc_info=True)
+        return info
 
     def _generate_diagnostic_info(self) -> str:
         """
@@ -683,3 +756,10 @@ class Launcher:
         with open(fpath, "w+", encoding="utf-8") as f:
             f.write(model.model_dump_json(indent=2))
         return Path(fpath)
+
+
+def _deadline(timeout: float | None) -> datetime.datetime | None:
+    """When a wait of ``timeout`` seconds started now ends (``None``: it never does)."""
+    if timeout is None:
+        return None
+    return datetime.datetime.now(datetime.UTC) + datetime.timedelta(seconds=timeout)

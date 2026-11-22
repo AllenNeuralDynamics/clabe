@@ -1,0 +1,112 @@
+@* The command palette (Ctrl+K): go to a step (go back to it) or run any menu command, by typing a few letters. *@
+@inject IJSRuntime JS
+
+<div class="backdrop palette-backdrop" data-escape @onclick="Close">
+    <div class="dialog palette" role="dialog" aria-modal="true" aria-label="Command palette" @onclick:stopPropagation="true">
+        <div class="palette-input">
+            <RunIcon Name="search" Size="16" />
+            <input id="palette-input" role="combobox" aria-expanded="true" aria-controls="palette-list" autocomplete="off"
+                   spellcheck="false" placeholder="Go to a step, or run a command…" value="@_query"
+                   aria-activedescendant="@(_active >= 0 ? $"palette-{_active}" : null)"
+                   @oninput="e => { _query = e.Value?.ToString() ?? string.Empty; _active = 0; }" @onkeydown="OnKey" />
+            <kbd>Esc</kbd>
+        </div>
+        <ul class="palette-list" id="palette-list" role="listbox">
+            @{
+                var shown = Shown;
+                string? group = null;
+            }
+            @for (var i = 0; i < shown.Count; i++)
+            {
+                var index = i;
+                var (entry, positions) = shown[i];
+                @if (entry.Group != group && string.IsNullOrWhiteSpace(_query))
+                {
+                    group = entry.Group;
+                    <li class="palette-group" role="presentation">@group</li>
+                }
+                <li id="palette-@index" role="option" aria-selected="@(index == _active ? "true" : "false")" aria-disabled="@(!entry.Enabled ? "true" : null)"
+                    class="palette-item @(index == _active ? "active" : null) @(entry.Enabled ? null : "disabled")"
+                    @onmousemove="() => _active = index" @onclick="() => Run(entry)">
+                    <span class="palette-icon">@if (entry.Icon is { } icon) { <RunIcon Name="@icon" Size="15" /> }</span>
+                    <span class="palette-label">@ComboboxMatch.Highlight(entry.Label, positions)</span>
+                    @if (entry.Detail is { } detail)
+                    {
+                        <span class="palette-detail">@detail</span>
+                    }
+                    @if (entry.Shortcut is { } shortcut)
+                    {
+                        <span class="shortcut">@shortcut</span>
+                    }
+                </li>
+            }
+            @if (shown.Count == 0)
+            {
+                <li class="palette-empty">Nothing matches “@_query”.</li>
+            }
+        </ul>
+    </div>
+</div>
+
+@code {
+    /// <summary>One command: what it says, its group (Steps, Run, View…), and what it does.</summary>
+    public sealed record Entry(string Label, string Group, Func<Task> Action, bool Enabled = true, string? Shortcut = null,
+        string? Icon = null, string? Detail = null);
+
+    [Parameter, EditorRequired] public IReadOnlyList<Entry> Entries { get; set; } = [];
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private string _query = "";
+    private int _active;
+    private IJSObjectReference? _ui;
+
+    private List<(Entry Entry, int[] Positions)> Shown =>
+        ComboboxMatch.Filter(Entries, e => e.Label, _query)
+            .OrderBy(e => e.Item.Enabled ? 0 : 1) // stable: keeps groups and match order
+            .ToList();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        _ui ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/ui.js");
+        if (firstRender)
+        {
+            await _ui.InvokeVoidAsync("focus", "#palette-input");
+        }
+        else if (_active >= 0)
+        {
+            await _ui.InvokeVoidAsync("reveal", $"#palette-{_active}");
+        }
+    }
+
+    private async Task OnKey(KeyboardEventArgs e)
+    {
+        var shown = Shown;
+        switch (e.Key)
+        {
+            case "ArrowDown":
+                _active = shown.Count == 0 ? -1 : (_active + 1) % shown.Count;
+                break;
+            case "ArrowUp":
+                _active = shown.Count == 0 ? -1 : (_active - 1 + shown.Count) % shown.Count;
+                break;
+            case "Enter" when _active >= 0 && _active < shown.Count:
+                await Run(shown[_active].Entry);
+                break;
+            case "Escape":
+                await Close();
+                break;
+        }
+    }
+
+    private async Task Run(Entry entry)
+    {
+        if (!entry.Enabled)
+        {
+            return;
+        }
+        await Close();
+        await entry.Action();
+    }
+
+    private Task Close() => OnClose.InvokeAsync();
+}

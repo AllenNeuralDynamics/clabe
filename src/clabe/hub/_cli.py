@@ -14,10 +14,14 @@ class _RunHubCli(HubSettings, cli_kebab_case=True):
 
         from ._app import create_hub_app
         from ._fleet import Fleet
+        from ._reports import ReportStore
 
         token = (self.token.get_secret_value() if self.token else None) or None
+        reports = ReportStore(self.data_dir)
         print(f"clabe hub on port {self.port}, following {len(self.rigs)} rig(s)", flush=True)
-        uvicorn.run(create_hub_app(Fleet(self), token=token), host=self.host, port=self.port, log_level="warning")
+        print(f"Issue reports are kept in {self.data_dir.resolve()}", flush=True)
+        app = create_hub_app(Fleet(self, reports=reports), token=token)
+        uvicorn.run(app, host=self.host, port=self.port, log_level="warning")
 
 
 class HubCli(BaseSettings, cli_kebab_case=True):

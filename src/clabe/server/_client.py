@@ -8,6 +8,7 @@ from typing import Any
 import requests
 from pydantic import TypeAdapter
 
+from ..reports import ReportInfo
 from ..workflow import RunState
 from ..workflow.events import Event
 from ._models import CommandResult, DirListing, ServerInfo
@@ -59,8 +60,10 @@ class RunClient:
         """Answers an open prompt."""
         return self._post(f"/prompts/{prompt_id}/answer", {"value": value, "client": self.name})
 
-    def back(self, step: str) -> CommandResult:
-        """Goes back to ``step``."""
+    def back(self, step: str | None = None) -> CommandResult:
+        """Goes back to ``step``; to the previous step (the state's ``back_target``) when omitted."""
+        if step is None:
+            return self._post("/back", {"client": self.name})
         return self._post(f"/steps/{step}/back", {"client": self.name})
 
     def retry(self, step: str) -> CommandResult:
@@ -70,6 +73,35 @@ class RunClient:
     def skip(self, step: str) -> CommandResult:
         """Skips an optional step."""
         return self._post(f"/steps/{step}/skip", {"client": self.name})
+
+    def forward(self) -> CommandResult:
+        """Answers the open prompt with its earlier answer."""
+        return self._post("/forward", {"client": self.name})
+
+    def close(self) -> CommandResult:
+        """Closes the finished run's session (its closing screen)."""
+        return self._post("/close", {"client": self.name})
+
+    def options(self, prompt_id: str, typed: str = "", *, item: str | None = None) -> list[str]:
+        """The options of an open autocomplete prompt for the text typed so far."""
+        params = {"q": typed} if item is None else {"q": typed, "item": item}
+        response = self._session.get(self._url(f"/prompts/{prompt_id}/options"), params=params, timeout=self.timeout)
+        response.raise_for_status()
+        return list(response.json())
+
+    def export(self) -> bytes:
+        """The run's logs and records so far, as a zip."""
+        response = self._session.get(self._url("/export"), timeout=self.timeout)
+        response.raise_for_status()
+        return response.content
+
+    def report(self, comment: str = "") -> ReportInfo:
+        """Files an issue report with ``comment``; returns what was saved."""
+        response = self._session.post(
+            self._url("/report"), json={"comment": comment, "client": self.name}, timeout=self.timeout
+        )
+        response.raise_for_status()
+        return ReportInfo.model_validate(response.json())
 
     def abort(self, reason: str = "Aborted by user.") -> CommandResult:
         """Aborts the run."""

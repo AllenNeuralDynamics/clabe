@@ -74,8 +74,14 @@ class ClientSession:
         convert = None
         if isinstance(request, FieldRequest):
             request, convert = request.resolve()
+        from ._session import NavigationRequested
+
         while True:
-            raw = self._client.ask(request)
+            try:
+                raw = self._client.ask(request)
+            except NavigationRequested:
+                self._client.notify("Going back or forward is only possible during a run.", MessageLevel.WARNING)
+                continue
             try:
                 value = request.validate_answer(raw)
             except AnswerRejected as exc:

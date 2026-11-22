@@ -6,6 +6,7 @@ import contextlib
 import contextvars
 import ctypes
 import dataclasses
+import datetime
 import enum
 import inspect
 import json
@@ -44,6 +45,8 @@ from ._events import (
     Notify,
     PromptClosed,
     PromptOpened,
+    RunClosed,
+    RunClosing,
     RunFinished,
     RunStarted,
     SkipReason,
@@ -108,8 +111,21 @@ class StepState(BaseModel):
     skip_reason: SkipReason | None = None
 
 
+class ClosingState(BaseModel):
+    """The closing screen of a finished run (see [`Run.begin_closing`][clabe.workflow.Run.begin_closing])."""
+
+    since: datetime.datetime
+    deadline: datetime.datetime | None = None
+    closed: bool = False
+    closed_by: str | None = None
+
+
 class RunState(BaseModel):
-    """Snapshot of a run, for clients attaching mid-run. Follow events after ``last_seq``."""
+    """Snapshot of a run, for clients attaching mid-run. Follow events after ``last_seq``.
+
+    ``back_target`` is the step [`Run.back`][clabe.workflow.Run.back] would go back to (``None``: Back is not
+    available). ``closing`` is set once the finished run shows its closing screen.
+    """
 
     run_id: str
     workflow: str
@@ -118,6 +134,8 @@ class RunState(BaseModel):
     steps: list[StepState]
     prompt: PromptOpened | None
     last_seq: int
+    back_target: str | None = None
+    closing: ClosingState | None = None
 
 
 class _Stop(Exception):
@@ -137,6 +155,8 @@ class _OpenPrompt:
     request: Request
     opened: PromptOpened
     convert: Callable[[Any], Any] | None = None  # maps the validated answer to what the asker gets (resolved fields)
+    identity: "_PromptKey | None" = None  # remembered answers are keyed by it; None: never remembered
+    previous: Any = None  # the earlier accepted answer of the same prompt (validated value), when opened.can_forward
     done: threading.Event = dataclasses.field(default_factory=threading.Event)
     answer: Any = None
     cancelled: bool = False
@@ -145,6 +165,21 @@ class _OpenPrompt:
     def id(self) -> str:
         """The prompt's identifier."""
         return self.opened.prompt_id
+
+
+#: Identity of a prompt across attempts of its step: (owning step, request field, else label/title, else kind).
+_PromptKey = tuple[str | None, str]
+
+
+def _prompt_key(step: str | None, request: Request) -> _PromptKey | None:
+    """The identity under which ``request``'s answer is remembered; ``None`` for prompts never forwarded.
+
+    A failed step's Retry / Go back / Abort question is never remembered: repeating it is not a choice to replay.
+    """
+    name = getattr(request, "field", None) or getattr(request, "label", None) or getattr(request, "title", None)
+    if step is not None and name == f"{step}.failed":
+        return None
+    return (step, str(name) if name else request.prompt_kind)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -321,6 +356,10 @@ class Run:
         self._task: asyncio.Future[Any] | None = None
         self._in_sync_call = False
         self._session_scope = contextlib.ExitStack()  # the run's binding as the process' session (see start())
+        self._answers: dict[_PromptKey, tuple[Any, Any]] = {}  # identity -> (validated answer, its JSON form)
+        self._kept_open = False
+        self._closing: ClosingState | None = None
+        self._closed = threading.Event()
 
     # --- lifecycle --------------------------------------------------------
     def start(self) -> None:
@@ -769,14 +808,24 @@ class Run:
                 if self._pending is not None:
                     raise PromptCancelledError("The run is changing course.")
                 owner = step or self._current
+                identity = _prompt_key(owner.name if owner else None, request)
+                remembered = self._answers.get(identity) if identity is not None else None
                 opened = PromptOpened(
                     prompt_id=prompt_id,
                     step=owner.name if owner else None,
                     kind=kind,
                     spec=spec,
                     answer_schema=schema,
+                    previous_answer=remembered[1] if remembered is not None else None,
+                    can_forward=remembered is not None,
                 )
-                prompt = _OpenPrompt(request=request, opened=opened, convert=convert)
+                prompt = _OpenPrompt(
+                    request=request,
+                    opened=opened,
+                    convert=convert,
+                    identity=identity,
+                    previous=remembered[0] if remembered is not None else None,
+                )
                 # Visible before it is published, so a subscriber that answers on this thread (which the event log
                 # forbids, but which is tolerated) finds it open.
                 self._prompt = prompt
@@ -815,17 +864,58 @@ class Run:
             logger.debug("Answer %r to prompt %s broke its validator", value, prompt_id, exc_info=True)
             return Rejected(f"Invalid answer: {exc}")
         # The primitive answer is recorded (it replays the prompt), except a secret: then only its mask is.
-        recorded = _jsonable(result if _contains_secret(result) else coerced)  # outside the lock: may be slow
+        secret = _contains_secret(result)
+        recorded = _jsonable(result if secret else coerced)  # outside the lock: may be slow
         with self._lock:
             if self._prompt is not prompt:
                 return Rejected("This prompt is no longer open.")
             prompt.answer = result
             self._prompt = None
+            if prompt.identity is not None:
+                if secret:  # never prefilled nor forwarded
+                    self._answers.pop(prompt.identity, None)
+                else:
+                    self._answers[prompt.identity] = (coerced, recorded)
             self.events.append(
                 PromptClosed(prompt_id=prompt_id, outcome="answered", answered_by=client, answer=recorded)
             )
             prompt.done.set()
         return Ack()
+
+    def forward(self, *, client: str = "local") -> Ack | Rejected:
+        """Answers the open prompt with the answer it got last time (Forward), through the normal validation.
+
+        A prompt's earlier answer is remembered per prompt identity: the step that asks it and the request's
+        ``field`` (else its label or title, else its kind), so it is stable across attempts of the step. Secret
+        answers and a failed step's Retry / Go back / Abort question are never remembered. The open prompt's
+        ``can_forward`` and ``previous_answer`` (see [`PromptOpened`][clabe.workflow.events.PromptOpened]) say whether
+        and what Forward answers.
+
+        Args:
+            client: Who forwards; recorded in the ``PromptClosed`` event.
+
+        Returns:
+            `Ack` if the earlier answer closed the prompt, otherwise `Rejected` with the reason (no prompt is open,
+            it has no earlier answer, or the answer is no longer valid).
+        """
+        with self._lock:
+            prompt = self._prompt
+        if prompt is None:
+            return Rejected("No prompt is open.")
+        if not prompt.opened.can_forward:
+            return Rejected("This prompt has no earlier answer to repeat.")
+        return self.answer(prompt.id, prompt.previous, client=client)
+
+    def previous_answer(self, prompt_id: str) -> tuple[bool, Any]:
+        """Whether the open prompt ``prompt_id`` was answered before, and that answer (the validated value).
+
+        For in-process clients that prefill the prompt (see `forward`); ``(False, None)`` once it closed.
+        """
+        with self._lock:
+            prompt = self._prompt
+            if prompt is None or prompt.id != prompt_id or not prompt.opened.can_forward:
+                return False, None
+            return True, prompt.previous
 
     def cancel_prompt(self) -> None:
         """Cancels the open prompt, if any; the waiting step gets [`PromptCancelledError`][clabe.ui.PromptCancelledError]."""
@@ -881,6 +971,31 @@ class Run:
             self._pending = _Command("back", target=target)
             self._interrupt_locked(allow_sync=False)
         return Ack()
+
+    def back(self) -> Ack | Rejected:
+        """Goes back to the previous step (Back): the nearest earlier step that has run and is not locked.
+
+        The previous step of the step asking the open prompt, else of the running step; see `back_target`.
+
+        Returns:
+            `Ack` if the command was accepted, otherwise `Rejected` with the reason.
+        """
+        target = self.back_target()
+        if target is None:
+            return Rejected("There is no earlier step to go back to.")
+        return self.go_back(target)
+
+    def back_target(self) -> str | None:
+        """The step `back` would go back to now, or ``None`` when Back is not available."""
+        with self._lock:
+            if self._finished.is_set() or self._finishing:
+                return None
+            name = self._prompt.opened.step if self._prompt is not None else None
+            if name is None and self._current is not None:
+                name = self._current.name
+            if name is None or name not in self._steps:
+                return None
+            return self._default_back_target(self.workflow.get(name))
 
     def retry(self, step: str, *, client: str = "local") -> Ack | Rejected:
         """Retries ``step`` after it failed: answers its open Retry / Go back / Abort prompt with "retry"."""
@@ -1092,6 +1207,71 @@ class Run:
             self._skip_reasons[step.name] = reason
             self.events.append(StepSkipped(step=step.name, reason=reason))
 
+    # --- closing screen ---------------------------------------------------
+    def keep_open(self) -> None:
+        """Keeps the run's session open after it finishes, until `close` (or the launcher) ends it.
+
+        Called before the run starts by whoever shows a closing screen (the launcher, when the run is served). Event
+        streams of a run kept open end with ``RunClosed`` instead of ``RunFinished``.
+        """
+        with self._lock:
+            self._kept_open = True
+
+    @property
+    def kept_open(self) -> bool:
+        """Whether the session stays open after the run finishes (see `keep_open`)."""
+        with self._lock:
+            return self._kept_open
+
+    def begin_closing(self, deadline: datetime.datetime | None = None) -> None:
+        """Shows the closing screen: records ``RunClosing`` and exposes it in `state` (``closing``).
+
+        Does nothing if the screen is already shown, or if a client closed the session first.
+
+        Args:
+            deadline: When the session closes on its own; ``None`` waits for a client.
+        """
+        with self._lock:
+            if self._closing is not None:
+                return
+            self._closing = ClosingState(since=datetime.datetime.now(datetime.UTC), deadline=deadline)
+            self.events.append(RunClosing(deadline=deadline))
+
+    def close(self, *, client: str = "local") -> Ack | Rejected:
+        """Closes the finished run's session (the closing screen's Close button). The first close wins.
+
+        Accepted once the run has finished, if its session is kept open (see `keep_open`) or shows a closing screen.
+
+        Args:
+            client: Who closed; recorded in the ``RunClosed`` event (``"timeout"`` when the deadline passed).
+
+        Returns:
+            `Ack` once the session is closed by this call, otherwise `Rejected` (the run has not finished, its
+            session is not kept open, or it is already closed).
+        """
+        with self._lock:
+            if not self._finished.is_set():
+                return Rejected("The run has not finished.")
+            if not self._kept_open and self._closing is None:
+                return Rejected("This run has no closing screen.")
+            if self._closed.is_set():
+                return Rejected("The session is already closed.")
+            if self._closing is None:
+                self._closing = ClosingState(since=datetime.datetime.now(datetime.UTC))
+            self._closing.closed, self._closing.closed_by = True, client
+            self.events.append(RunClosed(closed_by=client))
+            self._closed.set()
+        return Ack()
+
+    def wait_closed(self, timeout: float | None = None) -> bool:
+        """Blocks until the session is closed (see `close`); returns ``False`` if ``timeout`` elapsed first."""
+        return self._closed.wait(timeout)
+
+    @property
+    def closed(self) -> bool:
+        """Whether the finished run's session was closed (see `close`)."""
+        return self._closed.is_set()
+
     # --- messages ---------------------------------------------------------
     def notify(self, message: str, level: MessageLevel = MessageLevel.INFO) -> None:
         """Records a message for the user.
@@ -1176,4 +1356,6 @@ class Run:
                 steps=steps,
                 prompt=self._prompt.opened if self._prompt is not None else None,
                 last_seq=self.events.last_seq,
+                back_target=self.back_target(),
+                closing=self._closing.model_copy() if self._closing is not None else None,
             )

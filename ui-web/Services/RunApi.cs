@@ -1,8 +1,6 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json.Nodes;
-using Clabe.Web.Api.Daemon;
-using Clabe.Web.Api.Hub;
 using Clabe.Web.Api.Run;
 using Clabe.Web.Models;
 
@@ -23,16 +21,19 @@ public sealed class RunApi(HttpClient http)
         http.DefaultRequestHeaders.Authorization = Token is null ? null : new AuthenticationHeaderValue("Bearer", Token);
     }
 
-    /// <summary>The event stream's URL; EventSource cannot send headers, so the token goes in the query.</summary>
-    public string EventsUrl =>
-        new Uri(http.BaseAddress!, Token is null ? "api/events" : $"api/events?token={Uri.EscapeDataString(Token)}").ToString();
+    /// <summary>An API URL the browser loads itself (EventSource, img, iframe, a download cannot send headers): the
+    /// token goes in the query.</summary>
+    private string BrowserUrl(string path) =>
+        new Uri(http.BaseAddress!, Token is null ? path : $"{path}?token={Uri.EscapeDataString(Token)}").ToString();
 
-    /// <summary>Where the browser loads a media prompt's local file (an img or iframe cannot send headers either).</summary>
-    public string MediaUrl(string promptId)
-    {
-        var path = $"api/prompts/{Uri.EscapeDataString(promptId)}/media";
-        return new Uri(http.BaseAddress!, Token is null ? path : $"{path}?token={Uri.EscapeDataString(Token)}").ToString();
-    }
+    /// <summary>The event stream's URL.</summary>
+    public string EventsUrl => BrowserUrl("api/events");
+
+    /// <summary>Where the browser loads a media prompt's local file.</summary>
+    public string MediaUrl(string promptId) => BrowserUrl($"api/prompts/{Uri.EscapeDataString(promptId)}/media");
+
+    /// <summary>The run's logs and records as a zip (Session → Export logs).</summary>
+    public string ExportUrl => BrowserUrl("api/export");
 
     public async Task<ServerInfo> InfoAsync() =>
         (await http.GetFromJsonAsync<ServerInfo>("api/info", Json.Options))!;
@@ -47,10 +48,57 @@ public sealed class RunApi(HttpClient http)
             ["client"] = ClientName,
         });
 
+    /// <summary>The options of an autocomplete prompt (or of its group <paramref name="item"/>) for the typed text.</summary>
+    public async Task<List<string>> OptionsAsync(string promptId, string typed, string? item = null)
+    {
+        var path = $"api/prompts/{Uri.EscapeDataString(promptId)}/options?q={Uri.EscapeDataString(typed)}";
+        if (item is not null)
+        {
+            path += $"&item={Uri.EscapeDataString(item)}";
+        }
+        return await http.GetFromJsonAsync<List<string>>(path, Json.Options) ?? [];
+    }
+
+    /// <summary>Goes back to step <paramref name="step"/> (the rail, Go to step…).</summary>
     public Task<CommandResult> BackAsync(string step) => StepCommandAsync(step, "back");
+
+    /// <summary>Goes back to the previous step (the state's <c>back_target</c>).</summary>
+    public Task<CommandResult> BackAsync() => ClientCommandAsync("api/back");
+
+    /// <summary>Answers the open prompt with its earlier answer.</summary>
+    public Task<CommandResult> ForwardAsync() => ClientCommandAsync("api/forward");
+
+    public Task<CommandResult> RetryAsync(string step) => StepCommandAsync(step, "retry");
+
+    public Task<CommandResult> SkipAsync(string step) => StepCommandAsync(step, "skip");
+
+    /// <summary>Closes the finished run's session (the closing screen's Close session).</summary>
+    public Task<CommandResult> CloseAsync() => ClientCommandAsync("api/close");
 
     public Task<CommandResult> AbortAsync(string reason) =>
         PostAsync("api/abort", new JsonObject { ["reason"] = reason });
+
+    /// <summary>Files an issue report; the hub collects it from this machine.</summary>
+    public async Task<(Clabe.Web.Api.Run.ReportInfo? Report, string? Error)> ReportAsync(string comment)
+    {
+        try
+        {
+            var response = await http.PostAsJsonAsync("api/report", new JsonObject
+            {
+                ["comment"] = comment,
+                ["client"] = ClientName,
+            }, Json.Options);
+            if (!response.IsSuccessStatusCode)
+            {
+                return (null, $"{(int)response.StatusCode}: {await response.Content.ReadAsStringAsync()}");
+            }
+            return (await response.Content.ReadFromJsonAsync<Clabe.Web.Api.Run.ReportInfo>(Json.Options), null);
+        }
+        catch (HttpRequestException exc)
+        {
+            return (null, $"The run is not reachable: {exc.Message}");
+        }
+    }
 
     public async Task<DirListing> ListDirAsync(string? path, string kind, IEnumerable<string>? extensions)
     {
@@ -69,7 +117,10 @@ public sealed class RunApi(HttpClient http)
     }
 
     private Task<CommandResult> StepCommandAsync(string step, string command) =>
-        PostAsync($"api/steps/{Uri.EscapeDataString(step)}/{command}", new JsonObject { ["client"] = ClientName });
+        ClientCommandAsync($"api/steps/{Uri.EscapeDataString(step)}/{command}");
+
+    private Task<CommandResult> ClientCommandAsync(string path) =>
+        PostAsync(path, new JsonObject { ["client"] = ClientName });
 
     private async Task<CommandResult> PostAsync(string path, JsonObject body)
     {

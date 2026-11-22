@@ -1,0 +1,86 @@
+@* A rig in the fleet: its status, what it runs, its reports, and a way to its page. *@
+@inject HubApi Hub
+
+<article class="rig card @(Rig.Reachable ? "" : "offline") @(Rig.Waiting is not null ? "waiting" : "")" aria-label="@Rig.Id">
+    <header>
+        <div class="who">
+            <span class="ic"><HubIcon Name="server" Size="15" /></span>
+            <div class="names">
+                <h3 class="truncate">@Rig.Id</h3>
+                <span class="host subtle truncate">@(Rig.Hostname ?? Host(Rig.Url))@(Rig.ClabeVersion is { } v ? $" · v{v}" : "")</span>
+            </div>
+        </div>
+        @{ var chip = StatusChip(Rig); }
+        <span class="chip @chip.Css">@chip.Text</span>
+    </header>
+
+    <div class="rig-body">
+        @if (!Rig.Reachable)
+        {
+            <p class="line subtle small unreachable" title="@Rig.Error">Not reachable: @(Rig.Error ?? "no answer")</p>
+        }
+        else if (Rig.Status == "busy" || Rig.Experiment is not null)
+        {
+            <div class="line">
+                <span class="k">Experiment</span>
+                <span class="v truncate">@(Rig.Experiment ?? "—")</span>
+            </div>
+            <div class="line">
+                <span class="k">Step</span>
+                <span class="v truncate">@(Rig.CurrentStepTitle ?? Rig.CurrentStep ?? "—")</span>
+            </div>
+            @if (Rig.Waiting is { } waiting)
+            {
+                <div class="ask">
+                    <HubIcon Name="message" Size="13" />
+                    <span class="truncate">@waiting.Label</span>
+                    <span class="since">@ReportTime.Duration(DateTimeOffset.UtcNow - waiting.Since)</span>
+                </div>
+            }
+        }
+        else if (Rig.LeasedBy is { } owner)
+        {
+            <p class="line subtle small">In use by <strong>@owner</strong></p>
+        }
+        else
+        {
+            <p class="line subtle small">Ready to start an experiment</p>
+        }
+    </div>
+
+    <footer>
+        <span class="reports small @(Rig.ReportsStored > 0 ? "has" : "")" title="Issue reports collected from this rig">
+            <HubIcon Name="inbox" Size="13" /> @Rig.ReportsStored report@(Rig.ReportsStored == 1 ? "" : "s")
+            @if (Rig.ReportsWaiting > 0)
+            {
+                <span class="waiting-reports" title="Reports waiting on the rig to be collected">@Rig.ReportsWaiting waiting</span>
+            }
+        </span>
+        @if (Rig.Reachable)
+        {
+            <a class="btn sm open" href="@Hub.RigUrl(Rig.Id)" aria-label="Open @Rig.Id">Open <HubIcon Name="right" Size="13" /></a>
+        }
+        else
+        {
+            <span class="subtle tiny">@(Rig.SeenAt is { } seen ? $"seen {ReportTime.Ago(seen)}" : "never seen")</span>
+        }
+    </footer>
+</article>
+
+@code {
+    [Parameter, EditorRequired] public RigStatus Rig { get; set; } = default!;
+
+    /// <summary>A rig's status chip: its text and its class (waiting pulses).</summary>
+    public static (string Text, string Css) StatusChip(RigStatus rig) =>
+        !rig.Reachable ? ("offline", "offline")
+        : rig.Waiting is not null ? ("waiting", "waiting")
+        : rig.Status switch
+        {
+            "busy" => ("busy", "running"),
+            "leased" => ("leased", "accent"),
+            "idle" => ("idle", "idle"),
+            var other => (other, ""),
+        };
+
+    private static string Host(string url) => Uri.TryCreate(url, UriKind.Absolute, out var uri) ? uri.Authority : url;
+}

@@ -41,6 +41,27 @@ class RunFinished(_Event):
     reason: str | None = None
 
 
+class RunClosing(_Event):
+    """The run has finished and the launcher shows its closing screen, waiting for a client to close the session.
+
+    ``deadline`` is when it closes on its own (``None``: it waits for a client). See
+    [`Run.close`][clabe.workflow.Run.close].
+    """
+
+    type: Literal["run_closing"] = "run_closing"
+    deadline: datetime.datetime | None = None
+
+
+class RunClosed(_Event):
+    """The session was closed: by a client (``closed_by``), by the deadline (``"timeout"``) or by the launcher.
+
+    The last event of a run whose session was kept open (see [`Run.keep_open`][clabe.workflow.Run.keep_open]).
+    """
+
+    type: Literal["run_closed"] = "run_closed"
+    closed_by: str | None = None
+
+
 class StepStarted(_Event):
     """A step began running (``attempt`` counts runs of this step, from 1)."""
 
@@ -105,7 +126,12 @@ class StepsInvalidated(_Event):
 
 
 class PromptOpened(_Event):
-    """A step is waiting for an answer. ``answer_schema`` is the JSON Schema of a valid answer."""
+    """A step is waiting for an answer. ``answer_schema`` is the JSON Schema of a valid answer.
+
+    When the same prompt was answered before (an earlier attempt of its step asked it; see
+    [`Run.forward`][clabe.workflow.Run.forward]), ``can_forward`` is set and ``previous_answer`` is that answer, in
+    its JSON form: clients prefill it and offer Forward. Secret answers are never remembered.
+    """
 
     type: Literal["prompt_opened"] = "prompt_opened"
     prompt_id: str
@@ -113,6 +139,8 @@ class PromptOpened(_Event):
     kind: str
     spec: dict[str, Any]
     answer_schema: dict[str, Any]
+    previous_answer: Any = None
+    can_forward: bool = False
 
 
 class PromptClosed(_Event):
@@ -234,6 +262,8 @@ class BranchEnded(_Event):
 Event = Annotated[
     RunStarted
     | RunFinished
+    | RunClosing
+    | RunClosed
     | StepStarted
     | StepFinished
     | StepFailed

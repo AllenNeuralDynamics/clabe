@@ -1,171 +1,642 @@
-@* The page: a header with the run's identity and Abort, the stepper, the open prompt (or what is running), recent
-   messages and the full event log. *@
+@* The run page: a header (identity, status, elapsed, back/forward, Abort), a menu bar, the step rail, the prompt (or
+   what is running, or the end of the run) and the context panel; dialogs, the log and toasts over it. Keys arrive
+   through ui.js (listenShortcuts) in OnShortcut. *@
 @inject RunConnection Connection
 @inject IJSRuntime JS
-@implements IDisposable
+@implements IAsyncDisposable
 
-<div class="shell">
-    <header class="bar">
-        <span class="brand">clabe</span>
-        @if (Connection.Info is { } info)
+<div class="run-shell @(_drawerOpen ? "drawer-open" : null)">
+    <header class="run-header">
+        <div class="brand run-brand">
+            <img src="logo.svg" alt="clabe" />
+            <span class="run-name truncate" title="@Workflow">@Workflow</span>
+        </div>
+        @if (Connection.Info is not null)
         {
-            <span>@info.Workflow</span>
-            <span class="muted">@info.Hostname</span>
+            <span class="run-host truncate" title="Where the run runs"><RunIcon Name="server" Size="14" /> @Where</span>
         }
-        @if (Connection.Header is { } header)
+        @if (Connection.State is not null)
         {
-            <span class="header-text">@header</span>
+            <span class="chip @StatusClass">@StatusText</span>
+            <span class="run-elapsed tabular" title="Elapsed"><RunIcon Name="clock" Size="14" /> @ElapsedText</span>
+        }
+        @if (Connection.Status == "reconnecting")
+        {
+            <span class="chip waiting">Reconnecting…</span>
         }
         <span class="spacer"></span>
-        @if (Connection.State is { } s)
-        {
-            <span class="status @s.Status">@s.Status</span>
-        }
-        <span class="connection @Connection.Status" title="Event stream">● @Connection.Status</span>
         @if (Connection.State is not null && !Connection.Finished)
         {
-            <button type="button" class="danger" @onclick="Abort">Abort</button>
+            <div class="nav-buttons" role="group" aria-label="Navigation">
+                <button type="button" class="icon nav-back" aria-label="Back" disabled="@(!CanBack)" title="@BackTooltip" @onclick="Back">
+                    <RunIcon Name="left" />
+                </button>
+                <button type="button" class="icon nav-forward" aria-label="Forward" disabled="@(!CanForward)" title="@ForwardTooltip" @onclick="Forward">
+                    <RunIcon Name="right" />
+                </button>
+            </div>
+            <button type="button" class="abort" @onclick="Abort">Abort</button>
         }
     </header>
 
+    <MenuBar @ref="_menu" Menus="Menus" OnToggled="StateHasChanged">
+        <span class="menubar-hint"><kbd>Ctrl</kbd><kbd>K</kbd> commands <span class="sep">·</span> <kbd>?</kbd> shortcuts</span>
+    </MenuBar>
+
     @if (Connection.Error is { } error)
     {
-        <main class="center"><p class="error">@error</p></main>
+        <main class="run-message">
+            <div class="alert error" role="alert"><RunIcon Name="alert" Size="18" Class="alert-icon" /><span>@error</span></div>
+        </main>
     }
     else if (Connection.State is not { } state)
     {
-        <main class="center"><p class="muted">Connecting to the run…</p></main>
+        <main class="run-message"><p class="subtle"><span class="spinner"></span> Connecting to the run…</p></main>
     }
     else
     {
-        <div class="body">
-            <Stepper State="state" Finished="Connection.Finished" OnGoBack="GoBack" Branches="Connection.BranchesOf" />
-            <main>
-                @if (_notice is not null)
-                {
-                    <p class="notice @(_noticeIsError ? "error" : null)">@_notice <button type="button" class="link" @onclick="() => _notice = null">✕</button></p>
-                }
+        <div class="run-body">
+            <button type="button" class="run-strip" aria-expanded="@(_drawerOpen ? "true" : "false")" @onclick="() => _drawerOpen = !_drawerOpen">
+                <span class="strip-progress"><span style="width: @StripPercent(state)%"></span></span>
+                <span class="strip-text">
+                    <strong>@StripTitle(state)</strong>
+                    <span class="subtle">Step @StepNumber(state) of @state.Steps.Count</span>
+                </span>
+                <RunIcon Name="chevron-down" Size="16" />
+            </button>
+            @if (_drawerOpen)
+            {
+                <div class="drawer-scrim" @onclick="() => _drawerOpen = false"></div>
+            }
+            <Stepper State="state" Connection="Connection" Finished="Connection.Finished" Now="_now" OnGoBack="GoBack"
+                     Branches="Connection.BranchesOf" />
+            <main class="run-main" id="run-main">
                 @if (Connection.ClosedElsewhere is { } elsewhere)
                 {
-                    <p class="notice">@elsewhere <button type="button" class="link" @onclick="Connection.DismissClosedElsewhere">✕</button></p>
+                    <div class="notice" role="status">
+                        <RunIcon Name="info" Size="16" /> <span>@elsewhere</span>
+                        <button type="button" class="ghost icon sm" aria-label="Dismiss" @onclick="Connection.DismissClosedElsewhere"><RunIcon Name="x" Size="14" /></button>
+                    </div>
                 }
                 @if (state.Prompt is { } prompt)
                 {
-                    <PromptPanel Prompt="prompt" Connection="Connection" />
+                    <PromptPanel @ref="_prompt" Prompt="prompt" Connection="Connection" Eyebrow="@EyebrowOf(state, prompt)" Confirm="Ask" />
                 }
                 else if (Connection.Finished)
                 {
-                    <section class="prompt done">
-                        <h2>Run @state.Status</h2>
-                        @if (Connection.Log.LastOrDefault(e => e.Type == "run_finished")?.Reason is { } reason)
-                        {
-                            <p>@reason</p>
-                        }
-                    </section>
+                    <RunClosing @ref="_closing" Connection="Connection" State="state" Now="_now" OnExport="Export" OnReport="OpenReport" />
                 }
                 else
                 {
                     <section class="prompt idle">
-                        <p class="muted">@(CurrentTitle(state) is { } title ? $"Running {title}…" : "Waiting…")</p>
+                        <div class="prompt-eyebrow"><span>@(CurrentTitle(state) ?? "Starting")</span></div>
+                        <h2 class="prompt-title"><span class="spinner lg-spinner"></span> @(CurrentTitle(state) is { } title ? $"Running {title}…" : "Starting…")</h2>
+                        @if (Connection.Activities.Any())
+                        {
+                            <ul class="idle-activities">
+                                @foreach (var activity in Connection.Activities)
+                                {
+                                    <li><span class="spinner"></span> @activity.Description</li>
+                                }
+                            </ul>
+                        }
+                        else
+                        {
+                            <p class="muted">Nothing to answer right now; the next question appears here.</p>
+                        }
                     </section>
                 }
-                @if (Connection.Activities.Any())
-                {
-                    <ul class="activities">
-                        @foreach (var activity in Connection.Activities)
-                        {
-                            <li>
-                                <span class="spinner"></span> @activity.Description
-                                @if (activity.Machine is { } machine)
-                                {
-                                    <span class="tag">@machine</span>
-                                }
-                                @if (Connection.OutputOf(activity.ActivityId!) is { Count: > 0 } output)
-                                {
-                                    <details class="output">
-                                        <summary>@output[^1]</summary>
-                                        <pre>@string.Join('\n', output)</pre>
-                                    </details>
-                                }
-                            </li>
-                        }
-                    </ul>
-                }
-                <section class="messages">
-                    @foreach (var message in Connection.Messages.TakeLast(6).Reverse())
-                    {
-                        <p class="message @message.Level"><time>@message.Ts.ToLocalTime().ToString("HH:mm:ss")</time> @message.Message</p>
-                    }
-                </section>
-                <details class="log">
-                    <summary>Log (@Connection.Log.Count events)</summary>
-                    <ol>
-                        @foreach (var e in Enumerable.Reverse(Connection.Log).Take(300))
-                        {
-                            <li><time>@e.Ts.ToLocalTime().ToString("HH:mm:ss")</time> <code>@e.Type</code> @Describe(e)</li>
-                        }
-                    </ol>
-                </details>
             </main>
+            <RunContext Connection="Connection" State="state" Elapsed="@ElapsedText" />
+        </div>
+    }
+
+    @if (_logOpen)
+    {
+        <RunLog Connection="Connection" OnClose="() => _logOpen = false" />
+    }
+
+    @switch (_dialog)
+    {
+        case "shortcuts":
+            <ShortcutsDialog OnClose="CloseDialog" />
+            break;
+        case "palette":
+            <RunPalette Entries="PaletteEntries" OnClose="CloseDialog" />
+            break;
+        case "report":
+            <RunIssueDialog Api="Connection.Api" OnClose="CloseDialog" OnSent="ReportSent" />
+            break;
+        case "about":
+            <div class="backdrop" data-escape @onclick="CloseDialog">
+                <div class="dialog about-dialog" role="dialog" aria-modal="true" aria-labelledby="about-title" @onclick:stopPropagation="true">
+                    <header class="dialog-head">
+                        <div class="brand"><img src="logo.svg" alt="" /><h2 id="about-title">About clabe</h2></div>
+                        <button type="button" class="ghost icon" aria-label="Close" @onclick="CloseDialog"><RunIcon Name="x" /></button>
+                    </header>
+                    <dl class="ctx-list about-list">
+                        <div><dt>clabe</dt><dd class="mono">@Connection.Info?.ClabeVersion</dd></div>
+                        <div><dt>Experiment</dt><dd>@Workflow</dd></div>
+                        <div><dt>Run</dt><dd class="mono">@Connection.State?.RunId</dd></div>
+                        <div><dt>Rig</dt><dd>@Where</dd></div>
+                        <div><dt>This browser</dt><dd class="mono">@Connection.Api.ClientName</dd></div>
+                    </dl>
+                    <div class="actions"><button type="button" class="primary" @onclick="CloseDialog">Close</button></div>
+                </div>
+            </div>
+            break;
+    }
+
+    @if (_confirm is { } confirm)
+    {
+        <div class="backdrop" data-escape @onclick="() => Answer(false)">
+            <div class="dialog confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" @onclick:stopPropagation="true">
+                <h2 id="confirm-title">@confirm.Title</h2>
+                <p class="muted">@confirm.Message</p>
+                <div class="actions">
+                    <button type="button" @onclick="() => Answer(false)">Cancel</button>
+                    <button type="button" class="danger-solid" id="confirm-yes" @onclick="() => Answer(true)">@confirm.Label</button>
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (_toasts.Count > 0)
+    {
+        <div class="toast-stack" role="status" aria-live="polite">
+            @foreach (var toast in _toasts)
+            {
+                <div class="toast @toast.Kind">
+                    <RunIcon Name="@(toast.Kind == "error" ? "alert" : "check-circle")" Size="16" Class="toast-icon" />
+                    <div class="toast-body">
+                        <strong>@toast.Title</strong>
+                        @if (toast.Detail is { } detail)
+                        {
+                            <span class="toast-detail">@detail</span>
+                        }
+                    </div>
+                    <button type="button" class="ghost icon sm" aria-label="Dismiss" @onclick="() => _toasts.Remove(toast)"><RunIcon Name="x" Size="14" /></button>
+                </div>
+            }
         </div>
     }
 </div>
 
 @code {
-    private string? _notice;
-    private bool _noticeIsError;
+    private const string DocsUrl = "https://allenneuraldynamics.github.io/clabe/";
+
+    private sealed record Toast(string Title, string? Detail, string Kind);
+    private sealed record Confirmation(string Title, string Message, string Label, TaskCompletionSource<bool> Result);
+
+    private MenuBar? _menu;
+    private PromptPanel? _prompt;
+    private RunClosing? _closing;
+    private IJSObjectReference? _ui;
+    private IJSObjectReference? _shortcuts;
+    private DotNetObjectReference<RunView>? _self;
+    private Timer? _timer;
+    private DateTimeOffset _now = DateTimeOffset.UtcNow;
+    private string? _dialog;
+    private Confirmation? _confirm;
+    private bool _logOpen;
+    private bool _focusConfirm;
+    private bool _drawerOpen;
+    private string _theme = "system";
+    private readonly List<Toast> _toasts = [];
+    private (string Title, int Waiting)? _attention;
+
+    private string Workflow => Connection.Info?.Workflow ?? Connection.State?.Workflow ?? "clabe";
+    private RunState? State => Connection.State;
+    private RunEvent? OpenPrompt => State?.Prompt;
+    private bool IsFailurePrompt => OpenPrompt?.Field is { } asked && asked.EndsWith(".failed");
+
+    private string? RigName => State?.Steps.FirstOrDefault(s => s.Name == "rig")?.Summary is { } summary
+        ? RunText.Field(summary, "name")
+        : null;
+
+    private string Where => RigName is { } rig && Connection.Info?.Hostname is { } host && rig != host
+        ? $"{rig} · {host}"
+        : Connection.Info?.Hostname ?? "";
+
+    private bool CanBack => State?.BackTarget is not null && !Connection.Finished;
+    private bool CanForward => OpenPrompt?.CanForward == true && !Connection.Finished;
+
+    private string BackTooltip => State?.BackTarget is { } target && State.Steps.FirstOrDefault(s => s.Name == target) is { } step
+        ? $"Back to {RunText.Title(step)} (Alt+←)"
+        : "Back (Alt+←): no earlier step to go back to";
+
+    private string ForwardTooltip => CanForward ? "Forward: keep your earlier answer (Alt+→)" : "Forward (Alt+→): this question was not answered before";
+
+    private string StatusText => State?.Status switch
+    {
+        "completed" => "Completed",
+        "aborted" => "Aborted",
+        "failed" => "Failed",
+        _ when IsFailurePrompt => "Failed",
+        _ when OpenPrompt is not null => "Waiting for you",
+        _ => "Running",
+    };
+
+    private string StatusClass => State?.Status switch
+    {
+        "completed" => "completed",
+        "aborted" => "aborted",
+        "failed" => "failed",
+        _ when IsFailurePrompt => "failed",
+        _ when OpenPrompt is not null => "waiting",
+        _ => "running",
+    };
+
+    private TimeSpan Elapsed => Connection.StartedAt is { } start ? (Connection.FinishedEvent?.Ts ?? _now) - start : TimeSpan.Zero;
+    private string ElapsedText => RunText.Clock(Elapsed);
+
+    private static string? CurrentTitle(RunState state) =>
+        state.Steps.FirstOrDefault(s => s.Name == state.CurrentStep) is { } step ? RunText.Title(step) : null;
+
+    private static string? EyebrowOf(RunState state, RunEvent prompt)
+    {
+        var index = prompt.Step is { } name ? state.Steps.FindIndex(s => s.Name == name) : -1;
+        if (index < 0)
+        {
+            return null;
+        }
+        return $"{RunText.Title(state.Steps[index])} · step {index + 1} of {state.Steps.Count}";
+    }
+
+    private static int StepNumber(RunState state)
+    {
+        var current = state.CurrentStep ?? state.Prompt?.Step;
+        var index = state.Steps.FindIndex(s => s.Name == current);
+        return index >= 0 ? index + 1 : state.Steps.Count(s => s.Status is "done" or "skipped");
+    }
+
+    private static string StripTitle(RunState state)
+    {
+        var current = state.CurrentStep ?? state.Prompt?.Step;
+        return state.Steps.FirstOrDefault(s => s.Name == current) is { } step ? RunText.Title(step) : state.Status switch
+        {
+            "completed" => "Completed",
+            "aborted" => "Aborted",
+            "failed" => "Failed",
+            _ => "Running",
+        };
+    }
+
+    private static int StripPercent(RunState state) => state.Steps.Count == 0
+        ? 0
+        : (int)Math.Round(100.0 * state.Steps.Count(s => s.Status is "done" or "skipped") / state.Steps.Count);
+
+    // ---------- lifecycle ----------
 
     protected override async Task OnInitializedAsync()
     {
         Connection.Changed += Changed;
+        _timer = new Timer(_ => InvokeAsync(() =>
+        {
+            _now = DateTimeOffset.UtcNow;
+            StateHasChanged();
+        }), null, 1000, 1000);
         await Connection.StartAsync();
     }
 
-    private void Changed() => InvokeAsync(StateHasChanged);
-
-    private static string? CurrentTitle(RunState state) =>
-        state.Steps.FirstOrDefault(s => s.Name == state.CurrentStep)?.Title;
-
-    private static string Describe(RunEvent e) => e.Type switch
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        "step_started" or "step_skipped" => e.Step ?? "",
-        "step_finished" => e.Summary is null ? e.Step ?? "" : $"{e.Step}: {e.Summary}",
-        "step_failed" => $"{e.Step}: {e.Error}",
-        "steps_invalidated" => string.Join(", ", e.Steps ?? []),
-        "prompt_opened" => $"{e.Kind} {e.Spec?["label"] ?? e.Spec?["title"]}",
-        "prompt_closed" => e.Outcome == "answered" ? $"by {e.AnsweredBy}: {e.Answer?.ToJsonString() ?? "null"}" : "cancelled",
-        "notify" => $"[{e.Level}] {e.Message}",
-        "header" => e.Text ?? "",
-        "activity_started" => e.Description ?? "",
-        "artifact_exported" => e.Path ?? "",
-        "command_finished" => $"{string.Join(' ', e.Command ?? [])} → exit {e.ExitCode}",
-        "record_resolved" => $"{e.Kind} from {e.Label}",
-        "run_started" => e.Workflow ?? "",
-        "run_finished" => $"{e.Status} {e.Reason}",
-        _ => "",
-    };
+        if (firstRender)
+        {
+            _ui = await JS.InvokeAsync<IJSObjectReference>("import", "./js/ui.js");
+            _self = DotNetObjectReference.Create(this);
+            _shortcuts = await _ui.InvokeAsync<IJSObjectReference>("listenShortcuts", _self);
+            _theme = await _ui.InvokeAsync<string>("applyTheme", (string?)null);
+        }
+        if (_ui is null)
+        {
+            return;
+        }
+        var waiting = OpenPrompt is not null || (Connection.Finished && State?.Closing is { Closed: false } && Connection.ClosedEvent is null) ? 1 : 0;
+        var attention = ($"{Workflow} · clabe", waiting);
+        if (_attention != attention)
+        {
+            _attention = attention;
+            await _ui.InvokeVoidAsync("setAttention", attention.Item1, attention.waiting);
+        }
+        if (_focusConfirm && _confirm is not null)
+        {
+            _focusConfirm = false;
+            await _ui.InvokeVoidAsync("focus", "#confirm-yes");
+        }
+    }
+
+    private void Changed()
+    {
+        _now = DateTimeOffset.UtcNow;
+        InvokeAsync(StateHasChanged);
+    }
+
+    // ---------- keys ----------
+
+    /// <summary>A key from ui.js; true when the page used it.</summary>
+    [JSInvokable]
+    public async Task<bool> OnShortcut(string name, bool inField)
+    {
+        var handled = await Handle(name, inField);
+        if (handled)
+        {
+            StateHasChanged();
+        }
+        return handled;
+    }
+
+    private async Task<bool> Handle(string name, bool inField)
+    {
+        if (_confirm is not null)
+        {
+            if (name == "Escape")
+            {
+                Answer(false);
+                return true;
+            }
+            return false;
+        }
+        if (_dialog is not null)
+        {
+            if (name == "Escape")
+            {
+                CloseDialog();
+                return true;
+            }
+            return false;
+        }
+        if (_menu?.IsOpen == true)
+        {
+            return await _menu.HandleKey(name);
+        }
+        switch (name)
+        {
+            case "Escape" when _logOpen:
+                _logOpen = false;
+                return true;
+            case "Escape" when _drawerOpen:
+                _drawerOpen = false;
+                return true;
+            case "Alt":
+                _menu?.ToggleFromKeyboard();
+                return true;
+            case "Alt+ArrowLeft":
+                await Back();
+                return true;
+            case "Alt+ArrowRight":
+                await Forward();
+                return true;
+            case "Ctrl+K":
+                OpenPalette();
+                return true;
+            case "?":
+                _dialog = "shortcuts";
+                return true;
+            case "F2":
+                _logOpen = !_logOpen;
+                return true;
+            case "Ctrl+S":
+                await Export();
+                return true;
+            case "Ctrl+Shift+R":
+                OpenReport();
+                return true;
+        }
+        if (_logOpen && !inField && name is "Enter")
+        {
+            return false;
+        }
+        if (OpenPrompt is not null && _prompt is not null)
+        {
+            return await _prompt.HandleShortcut(name, inField);
+        }
+        if (Connection.Finished && _closing is not null && name is "Enter" or "Ctrl+Enter" or "F5")
+        {
+            await _closing.Close();
+            return true;
+        }
+        return false;
+    }
+
+    // ---------- commands ----------
+
+    private IReadOnlyList<Menu> Menus
+    {
+        get
+        {
+            var prompt = OpenPrompt;
+            var failedStep = IsFailurePrompt && prompt?.Step is { } s && prompt.Field == $"{s}.failed" ? s : null;
+            var optionalStep = prompt?.Step is { } o && prompt.Field == $"{o}.optional" ? o : null;
+            var running = State is not null && !Connection.Finished;
+            return
+            [
+                new Menu("Run",
+                [
+                    new MenuItem("Back", "Alt+←", Back, CanBack, "left"),
+                    new MenuItem("Forward", "Alt+→", Forward, CanForward, "right"),
+                    MenuItem.Separator,
+                    new MenuItem("Retry step", "r", () => Command(Connection.Api.RetryAsync(failedStep!), "Cannot retry"), failedStep is not null, "retry"),
+                    new MenuItem("Skip step", null, () => Command(Connection.Api.SkipAsync(optionalStep!), "Cannot skip"), optionalStep is not null, "skip"),
+                    new MenuItem("Go to step…", "Ctrl+K", () => { OpenPalette(); return Task.CompletedTask; }, running, "list"),
+                    MenuItem.Separator,
+                    new MenuItem("Abort…", null, Abort, running, "stop"),
+                ]),
+                new Menu("View",
+                [
+                    new MenuItem("Log", "F2", () => { _logOpen = !_logOpen; return Task.CompletedTask; }, Icon: "terminal", Checked: _logOpen),
+                    new MenuItem("Theme", Icon: "sun", Children:
+                    [
+                        new MenuItem("Light", Action: () => SetTheme("light"), Icon: "sun", Checked: _theme == "light"),
+                        new MenuItem("Dark", Action: () => SetTheme("dark"), Icon: "moon", Checked: _theme == "dark"),
+                        new MenuItem("System", Action: () => SetTheme("system"), Icon: "monitor", Checked: _theme == "system"),
+                    ]),
+                    new MenuItem("Full screen", "F11", FullScreen, Icon: "expand"),
+                ]),
+                new Menu("Session",
+                [
+                    new MenuItem("Export logs…", "Ctrl+S", Export, State is not null, "download"),
+                    new MenuItem("Report an issue…", "Ctrl+Shift+R", () => { OpenReport(); return Task.CompletedTask; }, State is not null, "flag"),
+                ]),
+                new Menu("Help",
+                [
+                    new MenuItem("Keyboard shortcuts", "?", () => { _dialog = "shortcuts"; return Task.CompletedTask; }, Icon: "keyboard"),
+                    new MenuItem("Documentation", null, () => _ui!.InvokeVoidAsync("openTab", DocsUrl).AsTask(), Icon: "book"),
+                    MenuItem.Separator,
+                    new MenuItem("About clabe", null, () => { _dialog = "about"; return Task.CompletedTask; }, Icon: "info"),
+                ]),
+            ];
+        }
+    }
+
+    private IReadOnlyList<RunPalette.Entry> PaletteEntries
+    {
+        get
+        {
+            var entries = new List<RunPalette.Entry>();
+            if (State is { } state)
+            {
+                var current = state.CurrentStep ?? state.Prompt?.Step;
+                foreach (var step in state.Steps)
+                {
+                    var name = step.Name;
+                    var canGo = !Connection.Finished && !step.Locked && name != current && step.Status is "done" or "skipped" or "failed";
+                    if (canGo)
+                    {
+                        entries.Add(new RunPalette.Entry($"Go to {RunText.Title(step)}", "Steps", () => GoBack(name),
+                            Icon: "undo", Detail: RunText.Short(step, Connection.AnswerOf)));
+                    }
+                }
+            }
+            foreach (var menu in Menus)
+            {
+                foreach (var item in menu.Items.Where(i => !i.IsSeparator && i.Label != "Go to step…"))
+                {
+                    if (item.Children is { } children)
+                    {
+                        entries.AddRange(children.Select(c => new RunPalette.Entry($"{item.Label}: {c.Label}", menu.Label,
+                            c.Action ?? (() => Task.CompletedTask), c.Enabled, c.Shortcut, c.Icon)));
+                    }
+                    else if (item.Action is { } action)
+                    {
+                        entries.Add(new RunPalette.Entry(item.Label.TrimEnd('…'), menu.Label, action, item.Enabled, item.Shortcut, item.Icon));
+                    }
+                }
+            }
+            return entries;
+        }
+    }
+
+    private void OpenPalette()
+    {
+        _menu?.Close();
+        _dialog = "palette";
+        StateHasChanged();
+    }
+
+    private void OpenReport()
+    {
+        _dialog = "report";
+        StateHasChanged();
+    }
+
+    private void CloseDialog()
+    {
+        _dialog = null;
+        StateHasChanged();
+    }
+
+    private async Task Back()
+    {
+        if (!CanBack)
+        {
+            return;
+        }
+        await Command(Connection.Api.BackAsync(), "Cannot go back");
+    }
+
+    private async Task Forward()
+    {
+        if (!CanForward)
+        {
+            return;
+        }
+        await Command(Connection.Api.ForwardAsync(), "Cannot go forward");
+    }
 
     private async Task GoBack(string step)
     {
-        var result = await Connection.Api.BackAsync(step);
-        Notice(result.Ok ? null : result.Reason);
+        _drawerOpen = false;
+        await Command(Connection.Api.BackAsync(step), "Cannot go back");
     }
 
     private async Task Abort()
     {
-        if (!await JS.InvokeAsync<bool>("confirm", "Abort the run?"))
+        if (!await Ask("Abort the run?", "The run stops here. Its records so far are kept, and the session closes.", "Abort the run"))
         {
             return;
         }
-        var result = await Connection.Api.AbortAsync($"Aborted from the web UI ({Connection.Api.ClientName}).");
-        Notice(result.Ok ? null : result.Reason);
+        await Command(Connection.Api.AbortAsync($"Aborted from the web UI ({Connection.Api.ClientName})."), "Cannot abort");
     }
 
-    private void Notice(string? error)
+    private async Task Command(Task<CommandResult> command, string failure)
     {
-        _notice = error;
-        _noticeIsError = error is not null;
+        var result = await command;
+        if (!result.Ok)
+        {
+            ShowToast(failure, result.Reason, "error");
+        }
+        StateHasChanged();
     }
 
-    public void Dispose() => Connection.Changed -= Changed;
+    private async Task Export()
+    {
+        if (_ui is null)
+        {
+            return;
+        }
+        await _ui.InvokeVoidAsync("download", Connection.Api.ExportUrl);
+        ShowToast("Exporting the logs", "The zip downloads in a moment.", "ok");
+    }
+
+    private void ReportSent(Clabe.Web.Api.Run.ReportInfo report)
+    {
+        _dialog = null;
+        ShowToast("Report saved; the hub will collect it", $"Report {report.ReportId}", "ok");
+    }
+
+    private async Task SetTheme(string theme)
+    {
+        _theme = await _ui!.InvokeAsync<string>("applyTheme", theme);
+    }
+
+    private async Task FullScreen()
+    {
+        if (_ui is not null)
+        {
+            await _ui.InvokeVoidAsync("toggleFullScreen");
+        }
+    }
+
+    private void ShowToast(string title, string? detail, string kind)
+    {
+        var toast = new Toast(title, detail, kind);
+        _toasts.Add(toast);
+        StateHasChanged();
+        _ = Task.Delay(kind == "error" ? 9000 : 6000).ContinueWith(_ => InvokeAsync(() =>
+        {
+            _toasts.Remove(toast);
+            StateHasChanged();
+        }));
+    }
+
+    /// <summary>Asks to confirm a destructive command in a dialog (Esc or Cancel: no).</summary>
+    private Task<bool> Ask(string title, string message, string label)
+    {
+        _confirm?.Result.TrySetResult(false);
+        _confirm = new Confirmation(title, message, label, new TaskCompletionSource<bool>());
+        _focusConfirm = true;
+        StateHasChanged();
+        return _confirm.Result.Task;
+    }
+
+    private void Answer(bool yes)
+    {
+        var confirm = _confirm;
+        _confirm = null;
+        confirm?.Result.TrySetResult(yes);
+        StateHasChanged();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        Connection.Changed -= Changed;
+        _timer?.Dispose();
+        if (_shortcuts is not null)
+        {
+            await _shortcuts.InvokeVoidAsync("dispose");
+            await _shortcuts.DisposeAsync();
+        }
+        _self?.Dispose();
+    }
 }

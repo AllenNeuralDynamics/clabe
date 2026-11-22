@@ -35,7 +35,7 @@
             }
             else if (kind == "json")
             {
-                <textarea id="@_id" rows="3" class="@(_jsonInvalid ? "invalid" : null)"
+                <textarea id="@_id" rows="3" class="mono" aria-invalid="@(_jsonInvalid ? "true" : null)"
                           @oninput="e => SetJson(e.Value?.ToString())">@(Value?.ToJsonString())</textarea>
             }
             else
@@ -44,7 +44,7 @@
             }
             @if (schema["description"]?.ToString() is { } help)
             {
-                <small>@help</small>
+                <p class="help">@help</p>
             }
         </div>
     }

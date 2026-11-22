@@ -7,8 +7,44 @@ using System.Text.Json.Serialization;
 
 namespace Clabe.Web.Api.Hub;
 
+/// <summary>Reports to delete.</summary>
+public sealed record DeleteBody(
+    [property: JsonPropertyName("ids")] List<string> Ids);
+
+/// <summary>How many reports were deleted.</summary>
+public sealed record DeleteResult(
+    [property: JsonPropertyName("deleted")] long Deleted);
+
 public sealed record HTTPValidationError(
     [property: JsonPropertyName("detail")] List<ValidationError>? Detail = null);
+
+/// <summary>An export opened for a look (not stored): its id, its files, and its ``report.json`` if it has one.</summary>
+public sealed record InspectResult(
+    [property: JsonPropertyName("inspect_id")] string InspectId,
+    [property: JsonPropertyName("files")] List<ZipEntry> Files,
+    [property: JsonPropertyName("report")] ReportInfo? Report = null);
+
+/// <summary>What a report is about: who, where, when, and the user's comment. Stored as ``report.json`` in its zip.</summary>
+public sealed record ReportInfo(
+    [property: JsonPropertyName("report_id")] string ReportId,
+    [property: JsonPropertyName("created_at")] DateTimeOffset CreatedAt,
+    [property: JsonPropertyName("hostname")] string Hostname,
+    [property: JsonPropertyName("clabe_version")] string ClabeVersion,
+    [property: JsonPropertyName("comment")] string Comment = "",
+    [property: JsonPropertyName("reported_from")] string? ReportedFrom = null,
+    [property: JsonPropertyName("run_id")] string? RunId = null,
+    [property: JsonPropertyName("experiment")] string? Experiment = null,
+    [property: JsonPropertyName("step")] string? Step = null,
+    [property: JsonPropertyName("session_id")] string? SessionId = null,
+    [property: JsonPropertyName("subject")] string? Subject = null,
+    [property: JsonPropertyName("experimenter")] List<string>? Experimenter = null,
+    [property: JsonPropertyName("repository")] string? Repository = null,
+    [property: JsonPropertyName("commit")] string? Commit = null);
+
+/// <summary>A page of reports, and how many match in all.</summary>
+public sealed record ReportPage(
+    [property: JsonPropertyName("total")] long Total,
+    [property: JsonPropertyName("items")] List<StoredReport> Items);
 
 /// <summary>What the hub last saw of a rig.</summary>
 public sealed record RigStatus(
@@ -27,7 +63,34 @@ public sealed record RigStatus(
     [property: JsonPropertyName("current_step_title")] string? CurrentStepTitle = null,
     [property: JsonPropertyName("header")] string? Header = null,
     [property: JsonPropertyName("waiting")] Waiting? Waiting = null,
-    [property: JsonPropertyName("seen_at")] DateTimeOffset? SeenAt = null);
+    [property: JsonPropertyName("seen_at")] DateTimeOffset? SeenAt = null,
+    [property: JsonPropertyName("reports_waiting")] long ReportsWaiting = 0,
+    [property: JsonPropertyName("reports_stored")] long ReportsStored = 0);
+
+/// <summary>A report's new status.</summary>
+public sealed record StatusBody(
+    [property: JsonPropertyName("status")] string Status);
+
+/// <summary>A report the hub collected: its `ReportInfo`, the rig it came from, and where it is in its triage.</summary>
+public sealed record StoredReport(
+    [property: JsonPropertyName("report_id")] string ReportId,
+    [property: JsonPropertyName("created_at")] DateTimeOffset CreatedAt,
+    [property: JsonPropertyName("hostname")] string Hostname,
+    [property: JsonPropertyName("clabe_version")] string ClabeVersion,
+    [property: JsonPropertyName("rig_id")] string RigId,
+    [property: JsonPropertyName("received_at")] DateTimeOffset ReceivedAt,
+    [property: JsonPropertyName("size")] long Size,
+    [property: JsonPropertyName("comment")] string Comment = "",
+    [property: JsonPropertyName("reported_from")] string? ReportedFrom = null,
+    [property: JsonPropertyName("run_id")] string? RunId = null,
+    [property: JsonPropertyName("experiment")] string? Experiment = null,
+    [property: JsonPropertyName("step")] string? Step = null,
+    [property: JsonPropertyName("session_id")] string? SessionId = null,
+    [property: JsonPropertyName("subject")] string? Subject = null,
+    [property: JsonPropertyName("experimenter")] List<string>? Experimenter = null,
+    [property: JsonPropertyName("repository")] string? Repository = null,
+    [property: JsonPropertyName("commit")] string? Commit = null,
+    [property: JsonPropertyName("status")] string Status = "new");
 
 public sealed record ValidationError(
     [property: JsonPropertyName("loc")] List<System.Text.Json.Nodes.JsonNode> Loc,
@@ -43,3 +106,8 @@ public sealed record Waiting(
     [property: JsonPropertyName("label")] string Label,
     [property: JsonPropertyName("step")] string? Step,
     [property: JsonPropertyName("since")] DateTimeOffset Since);
+
+/// <summary>A file in a report's zip.</summary>
+public sealed record ZipEntry(
+    [property: JsonPropertyName("path")] string Path,
+    [property: JsonPropertyName("size")] long Size);

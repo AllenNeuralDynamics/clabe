@@ -19,6 +19,16 @@ if ui.confirm("Start the session?", default=True):
 - Answers come back validated and typed; `SecretStr` fields are masked in the records.
 - Each helper wraps `ui.ask(request)` (`ui.TextRequest`, `ui.PickRequest`, ...).
 - Also: `ui.text`, `ui.autocomplete`, `ui.path`, `ui.table`, `ui.acknowledge`, `ui.header`.
+- A prompt answered before (you went back) is prefilled with that answer; **Forward** re-submits it.
+
+### Options from a function
+
+```python
+subject = ui.autocomplete("Animal", options=lambda typed: subjects_service.search(typed))  # list[str]
+```
+
+- Called as the user types (debounced), by the run itself: the browser never calls your service.
+- `strict=True` accepts a value only if the function returns it.
 
 ### Several prompts as one
 
@@ -74,13 +84,25 @@ clabe run my_experiment.py --frontend headless  # no local screen: answer from t
 - Every prompt shows on every client; the first valid answer wins.
 - In code: `ui.make_client("auto" | "tui" | "console" | "headless")`, or `Launcher(client=...)`.
 
-### TUI shortcuts
+### Shortcuts
+
+The same keys in the browser and the terminal UI (letters and digits only outside text fields). In the browser,
+every action is also in the menu bar (Run, View, Session, Help), with its shortcut.
 
 | Key | Action |
 |---|---|
-| `Ctrl+C` | Abort the run (twice: force-quit) |
-| `Ctrl+S` | Save an SVG screenshot |
-| `F2` | Toggle the Logs pane |
+| `Enter` | Submit / continue (in a form: next field; the last submits) |
+| `Ctrl+Enter`, `F5` | Submit from anywhere |
+| `1`–`9`, `↑`/`↓` | Pick an option |
+| `y` / `n` | Yes / No |
+| `Alt+←` / `Alt+→` | Back to the previous step / Forward (re-submit your earlier answer) |
+| `r` | Retry the failed step |
+| `Esc` | Close a popup (never goes back or aborts) |
+| `F2` | Show or hide the log |
+| `Ctrl+K` | Browser: go to a step, run any command |
+| `Ctrl+S`, `Ctrl+Shift+R` | Browser: export logs, report an issue |
+| `?` | Browser: all shortcuts |
+| `Ctrl+C` | Terminal: abort the run (twice: force-quit) |
 
 ### Writing a client
 
@@ -95,7 +117,11 @@ class MyClient:
     def close(self): ...
 ```
 
-## The exit prompt
+## The end of a run
+
+When the run ends, every client shows a closing screen: outcome, duration, the session folder, **Close session**,
+**Export logs** and **Report an issue**. The first client to close wins (Enter in the terminal, the button in the
+browser); the run server stays up until then.
 
 ```python
 wf = Workflow("vr-foraging", exit_prompt_timeout=60)  # or @experiment(..., exit_prompt_timeout=60)
@@ -103,9 +129,19 @@ wf = Workflow("vr-foraging", exit_prompt_timeout=60)  # or @experiment(..., exit
 
 | Value | Result |
 |---|---|
-| `None` (default) | Wait for Enter |
+| `None` (default) | Wait for a client to close |
 | `0` | Exit at once |
-| `N` | Wait up to `N` seconds |
+| `N` | Count down `N` seconds (shown in every client), then exit |
+
+- A headless served run (started by the daemon) waits up to `N` seconds for a browser to close it; with `None` or
+  `0` it exits at once.
+
+## Export logs and report an issue
+
+- **Export logs** downloads one zip of the run so far: `run.json`, `events.jsonl`, `outputs.jsonl`,
+  `launcher.log`, the daemon log's tail and `rig.json`.
+- **Report an issue** saves the same zip with your comment and the session's details on the rig; the
+  [hub](hub.md#issue-reports) collects it, then deletes it from the rig.
 
 ## Serving a run over HTTP
 
@@ -118,7 +154,8 @@ clabe run my_experiment.py --host 0.0.0.0 --token "$CLABE_TOKEN" --open-browser
 - Binds localhost by default; for remote access use `ssh -L 8090:localhost:8090 <rig-host>` or bind `0.0.0.0` with
   a token.
 - `--token` (or `$CLABE_TOKEN`) requires `Authorization: Bearer <token>` (or `?token=`); the printed URL carries it.
-- The root page is the web UI: steps on the left (click one to go back), the open prompt on the right.
+- The root page is the web UI: steps on the left (click one to go back), the prompt in the middle, the session and
+  messages on the right; light and dark themes; works on a phone.
 - [`RunClient`][clabe.server.RunClient] is a Python client of the API.
 
 | Endpoint | Does |
@@ -127,6 +164,10 @@ clabe run my_experiment.py --host 0.0.0.0 --token "$CLABE_TOKEN" --open-browser
 | `GET /api/events` | Resumable Server-Sent Events stream |
 | `POST /api/prompts/{id}/answer` | Answer a prompt |
 | `POST /api/steps/{name}/back\|retry\|skip` | Step commands |
+| `POST /api/back`, `POST /api/forward` | Back to the previous step; re-submit the open prompt's earlier answer |
+| `GET /api/prompts/{id}/options?q=` | Options of an autocomplete backed by a function |
+| `POST /api/close` | Close the finished session |
+| `GET /api/export`, `POST /api/report` | Export logs (zip); report an issue (`{comment}`) |
 | `POST /api/abort` | Abort the run |
 | `POST /api/fs/list` | Directory listing for path pickers |
 | `/openapi.json`, `/docs` | The OpenAPI description |

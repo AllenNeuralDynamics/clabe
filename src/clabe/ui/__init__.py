@@ -17,6 +17,7 @@ from ._requests import (
     MediaKind,
     MediaRequest,
     NumberRequest,
+    OptionsFunction,
     PathRequest,
     PickRequest,
     ReadOnlyTable,
@@ -25,6 +26,7 @@ from ._requests import (
     Validator,
 )
 from ._session import (
+    NavigationRequested,
     NoSessionError,
     PromptCancelledError,
     Session,
@@ -69,8 +71,10 @@ __all__ = [
     "MediaKind",
     "MediaRequest",
     "MessageLevel",
+    "NavigationRequested",
     "NoSessionError",
     "NumberRequest",
+    "OptionsFunction",
     "PathRequest",
     "PickRequest",
     "PromptCancelledError",

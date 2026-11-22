@@ -24,6 +24,13 @@ class AbortBody(BaseModel):
     reason: str = Field(default="Aborted by user.", description="Recorded as the run's reason.")
 
 
+class ReportBody(BaseModel):
+    """Reports an issue with the run (saved on this machine for the hub to collect)."""
+
+    comment: str = Field(default="", description="What went wrong, in the user's words.")
+    client: str = Field(default="remote", description="Who reports; recorded as the report's ``reported_from``.")
+
+
 class CommandResult(BaseModel):
     """Outcome of an answer or a command: accepted, or rejected with a reason to show the user."""
 

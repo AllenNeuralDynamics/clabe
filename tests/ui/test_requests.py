@@ -279,3 +279,36 @@ def test_an_empty_answer_on_the_text_route_returns_the_real_default():
     secret = convert(request.validate_answer(""))
     assert isinstance(secret, SecretStr) and secret.get_secret_value() == "hidden"
     assert convert(request.validate_answer("new")).get_secret_value() == "new"
+
+
+class TestAutoCompleteOptionsFunction:
+    @staticmethod
+    def _search(typed: str) -> list[str]:
+        if typed == "boom":
+            raise RuntimeError("down")
+        return [name for name in ("mouse-7", "mouse-8", "rat-1") if typed in name]
+
+    def test_spec_lists_the_function_result_for_empty_text_and_says_it_is_dynamic(self):
+        spec = AutoCompleteRequest(label="Subject", options=self._search).spec()
+        assert spec["options"] == ["mouse-7", "mouse-8", "rat-1"] and spec["dynamic_options"] is True
+        assert AutoCompleteRequest(label="Subject", options=["a"]).spec()["dynamic_options"] is False
+
+    def test_suggestions_call_the_function_with_the_typed_text(self):
+        request = AutoCompleteRequest(label="Subject", options=self._search)
+        assert request.dynamic and request.suggestions("mouse") == ["mouse-7", "mouse-8"]
+        assert AutoCompleteRequest(label="Subject", options=["a", "b"]).suggestions("zzz") == ["a", "b"]
+
+    def test_strict_accepts_what_the_function_returns_for_the_value(self):
+        request = AutoCompleteRequest(label="Subject", options=self._search, strict=True)
+        assert request.answer_schema() == {"type": "string"}
+        assert request.validate_answer("rat-1") == "rat-1"
+        with pytest.raises(AnswerRejected):
+            request.validate_answer("dog")
+        with pytest.raises(AnswerRejected):
+            request.validate_answer("boom")  # a failing function accepts nothing
+
+    def test_a_failing_function_still_opens_the_prompt(self):
+        def broken(typed: str) -> list[str]:
+            raise RuntimeError("down")
+
+        assert AutoCompleteRequest(label="Subject", options=broken).spec()["options"] == []

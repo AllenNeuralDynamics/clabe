@@ -48,6 +48,7 @@ API_SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
             ("clabe.hub", "clabe.hub"),
             ("clabe.agents", "clabe.agents"),
             ("clabe.server", "clabe.server"),
+            ("clabe.reports", "clabe.reports"),
         ],
     ),
     (

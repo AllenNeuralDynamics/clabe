@@ -170,6 +170,12 @@
             ],
             "title": "Leased By"
           },
+          "reports_waiting": {
+            "default": 0,
+            "description": "Issue reports on this machine, not collected by the hub yet",
+            "title": "Reports Waiting",
+            "type": "integer"
+          },
           "run": {
             "anyOf": [
               {
@@ -552,6 +558,142 @@
         "title": "ListingError",
         "type": "object"
       },
+      "ReportInfo": {
+        "description": "What a report is about: who, where, when, and the user's comment. Stored as ``report.json`` in its zip.",
+        "properties": {
+          "clabe_version": {
+            "title": "Clabe Version",
+            "type": "string"
+          },
+          "comment": {
+            "default": "",
+            "description": "What the user wrote",
+            "title": "Comment",
+            "type": "string"
+          },
+          "commit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commit"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "experiment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Experiment"
+          },
+          "experimenter": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Experimenter",
+            "type": "array"
+          },
+          "hostname": {
+            "title": "Hostname",
+            "type": "string"
+          },
+          "report_id": {
+            "description": "Unique id of the report",
+            "title": "Report Id",
+            "type": "string"
+          },
+          "reported_from": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The client the report was made from",
+            "title": "Reported From"
+          },
+          "repository": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The experiment repository's name",
+            "title": "Repository"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The session's name, once registered",
+            "title": "Session Id"
+          },
+          "step": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The step the run was on",
+            "title": "Step"
+          },
+          "subject": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject"
+          }
+        },
+        "required": [
+          "report_id",
+          "created_at",
+          "hostname",
+          "clabe_version"
+        ],
+        "title": "ReportInfo",
+        "type": "object"
+      },
       "RepositoryInfo": {
         "description": "A configured repository.",
         "properties": {
@@ -821,7 +963,7 @@
   "paths": {
     "/api/daemon/info": {
       "get": {
-        "description": "The machine, its clabe version, and whether it is running an experiment.",
+        "description": "The machine, its clabe version, whether it is running an experiment, and its reports waiting.",
         "operationId": "info_api_daemon_info_get",
         "parameters": [
           {
@@ -880,6 +1022,210 @@
           }
         },
         "summary": "Info"
+      }
+    },
+    "/api/daemon/reports": {
+      "get": {
+        "description": "The issue reports waiting on this machine for the hub, oldest first.",
+        "operationId": "reports_api_daemon_reports_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Token"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ReportInfo"
+                  },
+                  "title": "Response Reports Api Daemon Reports Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reports"
+      }
+    },
+    "/api/daemon/reports/{report_id}": {
+      "delete": {
+        "description": "Deletes a report from this machine (the hub does once it has stored it).",
+        "operationId": "delete_api_daemon_reports__report_id__delete",
+        "parameters": [
+          {
+            "description": "The report's id (32 hex digits)",
+            "in": "path",
+            "name": "report_id",
+            "required": true,
+            "schema": {
+              "description": "The report's id (32 hex digits)",
+              "pattern": "^[0-9a-f]{32}$",
+              "title": "Report Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Token"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete"
+      },
+      "get": {
+        "description": "A report's zip (its ``report.json`` and the run's records).",
+        "operationId": "report_api_daemon_reports__report_id__get",
+        "parameters": [
+          {
+            "description": "The report's id (32 hex digits)",
+            "in": "path",
+            "name": "report_id",
+            "required": true,
+            "schema": {
+              "description": "The report's id (32 hex digits)",
+              "pattern": "^[0-9a-f]{32}$",
+              "title": "Report Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Token"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/zip": {}
+            },
+            "description": "The report's zip"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Report"
       }
     },
     "/api/daemon/repositories": {

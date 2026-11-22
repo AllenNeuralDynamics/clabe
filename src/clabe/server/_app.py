@@ -4,19 +4,22 @@ import asyncio
 import contextlib
 import logging
 import mimetypes
+import re
 import socket
 from collections.abc import AsyncIterable
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Query, Request
-from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingResponse
 from fastapi.sse import EventSourceResponse, ServerSentEvent
 from fastapi.staticfiles import StaticFiles
 
-from .. import __version__
+from .. import __version__, reports
+from ..reports import ReportInfo
+from ..ui import AutoCompleteRequest, GroupRequest
 from ..ui._requests import normalize_extensions
 from ..workflow import Ack, Rejected, Run, RunState
-from ..workflow.events import Event, PromptOpened, RunFinished
+from ..workflow.events import Event, PromptOpened, RunClosed, RunFinished
 from ._agui import RunAgentInput, agui_stream
 from ._models import (
     AbortBody,
@@ -26,6 +29,7 @@ from ._models import (
     DirEntry,
     DirListing,
     ListDirBody,
+    ReportBody,
     ServerInfo,
 )
 from ._proxy import token_check
@@ -120,6 +124,8 @@ def create_app(run: Run, *, token: str | None = None, static_dir: Path | None = 
         """Skips the optional step ``name``."""
         return _result(run.skip(name, client=(body or ClientBody()).client))
 
+    _add_navigation_and_session_routes(api, run)
+
     @api.post("/abort", response_model=CommandResult)
     def abort(body: AbortBody | None = None) -> CommandResult:
         """Aborts the run."""
@@ -140,6 +146,51 @@ def create_app(run: Run, *, token: str | None = None, static_dir: Path | None = 
     return app
 
 
+def _add_navigation_and_session_routes(api: APIRouter, run: Run) -> None:
+    """Adds the routes of the run page's menus: options of a prompt, back/forward, close, export and report."""
+
+    @api.get("/prompts/{prompt_id}/options", response_model=list[str])
+    def options(
+        prompt_id: str,
+        q: str = Query(default="", description="The text typed so far."),
+        item: str | None = Query(default=None, description="The group item, when the prompt is a group."),
+    ) -> list[str]:
+        """The options of the open autocomplete prompt for the text typed so far (its options function's result)."""
+        return _options(run, prompt_id, q, item)
+
+    @api.post("/back", response_model=CommandResult)
+    def back_previous(body: ClientBody | None = None) -> CommandResult:
+        """Goes back to the previous step (the state's ``back_target``)."""
+        return _result(run.back())
+
+    @api.post("/forward", response_model=CommandResult)
+    def forward(body: ClientBody | None = None) -> CommandResult:
+        """Answers the open prompt with its earlier answer (the prompt's ``previous_answer``)."""
+        return _result(run.forward(client=(body or ClientBody()).client))
+
+    @api.post("/close", response_model=CommandResult)
+    def close(body: ClientBody | None = None) -> CommandResult:
+        """Closes the finished run's session (its closing screen): the launcher exits."""
+        return _result(run.close(client=(body or ClientBody()).client))
+
+    @api.get(
+        "/export",
+        response_class=Response,
+        responses={200: {"content": {"application/zip": {}}, "description": "The bundle (a zip)."}},
+    )
+    def export() -> Response:
+        """The run's logs and records so far as a zip (see ``clabe.reports.make_bundle``), also while closing."""
+        data = reports.make_bundle(run.record_dir)
+        filename = f"{_safe_name(run.workflow.name)}-{run.id}.zip"
+        headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+        return Response(content=data, media_type="application/zip", headers=headers)
+
+    @api.post("/report", response_model=ReportInfo)
+    def report(body: ReportBody | None = None) -> ReportInfo:
+        """Files an issue report (the bundle and the comment), saved on this machine for the hub to collect."""
+        return reports.save_report(run.record_dir, _report_info(run, body or ReportBody()))
+
+
 def _mount_ui(app: FastAPI, static_dir: Path | None) -> None:
     """Serves the web UI at ``/`` (a placeholder page pointing at the API when it is not built)."""
     if static_dir is not None and (static_dir / "index.html").is_file():
@@ -152,8 +203,15 @@ def _mount_ui(app: FastAPI, static_dir: Path | None) -> None:
         return _PLACEHOLDER
 
 
+def _is_last(run: Run, event: Event) -> bool:
+    """Whether ``event`` ends the run's event stream: ``RunClosed``, or ``RunFinished`` when the session is not kept
+    open for a closing screen."""
+    return isinstance(event, RunClosed) or (isinstance(event, RunFinished) and not run.kept_open)
+
+
 async def _event_stream(run: Run, request: Request, start: int) -> AsyncIterable[Event]:
-    """The run's events after ``start``: the backlog, then live ones, until the run ends or the client leaves."""
+    """The run's events after ``start``: the backlog, then live ones, until the run ends (its session closes, when
+    kept open) or the client leaves."""
     loop = asyncio.get_running_loop()
     queue: asyncio.Queue[Event] = asyncio.Queue()
 
@@ -168,7 +226,7 @@ async def _event_stream(run: Run, request: Request, start: int) -> AsyncIterable
         for event in run.events.since(start):
             last = event.seq
             yield event
-            if isinstance(event, RunFinished):
+            if _is_last(run, event):
                 return
         while not await request.is_disconnected():
             try:
@@ -179,10 +237,53 @@ async def _event_stream(run: Run, request: Request, start: int) -> AsyncIterable
                 continue
             last = event.seq
             yield event
-            if isinstance(event, RunFinished):
+            if _is_last(run, event):
                 return
     finally:
         unsubscribe()
+
+
+def _options(run: Run, prompt_id: str, typed: str, item: str | None) -> list[str]:
+    """The options of the open autocomplete prompt ``prompt_id`` (or of its group ``item``) for ``typed``."""
+    request = run.prompt_request(prompt_id)
+    if request is None:
+        raise HTTPException(status_code=404, detail=f"Prompt {prompt_id!r} is not open.")
+    if item is not None:
+        if not isinstance(request, GroupRequest) or item not in request.items:
+            raise HTTPException(status_code=404, detail=f"Prompt {prompt_id!r} has no item {item!r}.")
+        request = request.items[item]
+    if not isinstance(request, AutoCompleteRequest):
+        raise HTTPException(status_code=400, detail=f"Prompt {prompt_id!r} has no options to complete.")
+    try:
+        return request.suggestions(typed)
+    except Exception as exc:  # the options function is user code (e.g. a database search)
+        logger.warning("The options of prompt %s could not be listed", prompt_id, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"Could not list the options: {exc}") from exc
+
+
+def _safe_name(text: str) -> str:
+    """``text`` usable in a file name."""
+    return re.sub(r"[^A-Za-z0-9._-]+", "_", text).strip("_") or "run"
+
+
+def _report_info(run: Run, body: ReportBody) -> dict[str, object]:
+    """The [`ReportInfo`][clabe.reports.ReportInfo] fields known about ``run`` (and its launcher, when it has one)."""
+    state = run.state()
+    step = state.current_step or (state.prompt.step if state.prompt is not None else None)
+    info: dict[str, object] = {
+        "comment": body.comment,
+        "reported_from": body.client,
+        "run_id": run.id,
+        "experiment": run.workflow.name,
+        "step": step,
+    }
+    describe = getattr(run.launcher, "report_info", None)
+    if callable(describe):
+        try:
+            info.update(describe())
+        except Exception:  # a report must be made even when the launcher cannot describe itself
+            logger.warning("Could not describe the launcher in a report", exc_info=True)
+    return info
 
 
 def _media_file(run: Run, prompt_id: str) -> Path:

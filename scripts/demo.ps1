@@ -15,12 +15,14 @@
        same run in another browser tab. Answer in either; the hub shows the run, its step and what it waits for.
 
     -HubPort picks the hub's port (the next free one is used if it is taken); -KeepHub leaves the hub running
-    afterwards; -NoBrowser opens nothing; -Frontend headless answers only in the browser (no terminal UI).
+    afterwards (-StopHub stops it later); -NoBrowser opens nothing; -Frontend headless answers only in the browser
+    (no terminal UI). The hub's issue reports are kept in a Docker volume between demos.
 #>
 param(
     [int]$HubPort = 24080,
     [int]$DaemonPort = 24070,
     [switch]$KeepHub,
+    [switch]$StopHub,
     [switch]$NoBrowser,
     [ValidateSet('auto', 'tui', 'console', 'headless')]
     [string]$Frontend = 'auto'
@@ -64,6 +66,12 @@ function Test-PortFree([int]$Port) {
 function Get-Listener([int]$Port) {
     Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue |
         Select-Object -ExpandProperty OwningProcess -Unique
+}
+
+if ($StopHub) {
+    $env:DEMO_TOKEN = 'stopping'  # the compose file requires one, even to stop
+    docker compose -f $compose down
+    return
 }
 
 foreach ($tool in 'uv', 'docker') {
@@ -128,7 +136,7 @@ try {
         Write-Host '==> Stopping the hub (-KeepHub keeps it)'
         docker compose -f $compose down *> $null
     } else {
-        Write-Host "==> The hub stays at http://localhost:$HubPort/?token=$token (docker compose -f docker/demo/compose.yml down)"
+        Write-Host "==> The hub stays at http://localhost:$HubPort/?token=$token (scripts/demo.ps1 -StopHub stops it)"
     }
     Pop-Location
 }

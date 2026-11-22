@@ -8,7 +8,18 @@
     <!-- relative: the UI works at the server's root and under a hub's per-rig prefix -->
     <base href="./" />
     <link rel="preload" id="webassembly" />
+    <link rel="icon" href="favicon.ico" />
+    <link rel="stylesheet" href="css/design.css" />
     <link rel="stylesheet" href="css/app.css" />
+    <link rel="stylesheet" href="Clabe.Web#[.{fingerprint}].styles.css" />
+    <script>
+        // the theme before Blazor starts: no flash of the wrong colors
+        (function () {
+            var t = localStorage.getItem("clabe.theme") || "system";
+            var dark = t === "dark" || (t === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
+            document.documentElement.dataset.theme = dark ? "dark" : "light";
+        })();
+    </script>
     <script type="importmap"></script>
 </head>
 

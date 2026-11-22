@@ -1,5 +1,6 @@
 """The hub's HTTP app: the fleet and its inbox under /api/hub, each rig's daemon under /rigs/<id>/, and the web UI."""
 
+import asyncio
 import contextlib
 from collections.abc import AsyncIterator
 from pathlib import Path
@@ -13,6 +14,8 @@ from .. import __version__
 from ..server._app import STATIC_DIR
 from ..server._proxy import forward, token_check
 from ._fleet import Fleet, RigStatus, rig_token
+from ._report_api import report_routes
+from ._reports import InspectCache
 
 
 def create_hub_app(
@@ -27,6 +30,8 @@ def create_hub_app(
         poll: Whether to poll the rigs in the background while the app runs.
     """
 
+    inspections = InspectCache()
+
     @contextlib.asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         """Polls the rigs while the app serves."""
@@ -34,6 +39,7 @@ def create_hub_app(
             fleet.start()
         yield
         await fleet.stop()
+        inspections.close()
 
     app = FastAPI(
         title="clabe hub API",
@@ -48,19 +54,20 @@ def create_hub_app(
     @api.get("/rigs", response_model=list[RigStatus])
     def rigs() -> list[RigStatus]:
         """Every rig, as last polled."""
-        return list(fleet.status.values())
+        return fleet.statuses()
 
     @api.get("/inbox", response_model=list[RigStatus])
     def inbox() -> list[RigStatus]:
         """The rigs whose run waits for an answer, longest-waiting first."""
-        return fleet.inbox()
+        return fleet.statuses(fleet.inbox())
 
     @api.post("/refresh", response_model=list[RigStatus])
     async def refresh() -> list[RigStatus]:
-        """Polls every rig now."""
-        await fleet.poll_once()
-        return list(fleet.status.values())
+        """Polls every rig now (and collects their reports)."""
+        await fleet.poll_once(collect=True)
+        return await asyncio.to_thread(fleet.statuses)
 
+    report_routes(api, fleet, inspections)
     app.include_router(api)
     client = httpx.AsyncClient(timeout=httpx.Timeout(30.0, read=None))
 

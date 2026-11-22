@@ -43,7 +43,8 @@ public sealed record HostInfo(
     [property: JsonPropertyName("clabe_version")] string ClabeVersion,
     [property: JsonPropertyName("status")] string Status,
     [property: JsonPropertyName("run")] RunInfo? Run,
-    [property: JsonPropertyName("leased_by")] string? LeasedBy = null);
+    [property: JsonPropertyName("leased_by")] string? LeasedBy = null,
+    [property: JsonPropertyName("reports_waiting")] long ReportsWaiting = 0);
 
 /// <summary>The worker's jobs.</summary>
 public sealed record JobList(
@@ -104,6 +105,23 @@ public sealed record LeaseRequest(
 public sealed record ListingError(
     [property: JsonPropertyName("file")] string File,
     [property: JsonPropertyName("error")] string Error);
+
+/// <summary>What a report is about: who, where, when, and the user's comment. Stored as ``report.json`` in its zip.</summary>
+public sealed record ReportInfo(
+    [property: JsonPropertyName("report_id")] string ReportId,
+    [property: JsonPropertyName("created_at")] DateTimeOffset CreatedAt,
+    [property: JsonPropertyName("hostname")] string Hostname,
+    [property: JsonPropertyName("clabe_version")] string ClabeVersion,
+    [property: JsonPropertyName("comment")] string Comment = "",
+    [property: JsonPropertyName("reported_from")] string? ReportedFrom = null,
+    [property: JsonPropertyName("run_id")] string? RunId = null,
+    [property: JsonPropertyName("experiment")] string? Experiment = null,
+    [property: JsonPropertyName("step")] string? Step = null,
+    [property: JsonPropertyName("session_id")] string? SessionId = null,
+    [property: JsonPropertyName("subject")] string? Subject = null,
+    [property: JsonPropertyName("experimenter")] List<string>? Experimenter = null,
+    [property: JsonPropertyName("repository")] string? Repository = null,
+    [property: JsonPropertyName("commit")] string? Commit = null);
 
 /// <summary>A configured repository.</summary>
 public sealed record RepositoryInfo(

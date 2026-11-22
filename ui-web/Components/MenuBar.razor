@@ -1,0 +1,313 @@
+@* A desktop-style menu bar: click a menu (or press Alt) to open it; ↑/↓ move, ←/→ switch menus and open submenus,
+   Enter runs, Esc closes; while one is open, hovering another switches to it. Disabled items stay listed. *@
+
+<nav class="menubar" role="menubar" aria-label="Menu">
+    @for (var m = 0; m < Menus.Count; m++)
+    {
+        var index = m;
+        var menu = Menus[m];
+        var open = _open == index;
+        <div class="menu-root @(open ? "open" : null)">
+            <button type="button" role="menuitem" aria-haspopup="menu" aria-expanded="@(open ? "true" : "false")"
+                    class="@(open || _focused == index ? "focused" : null)"
+                    @onmousedown:preventDefault="true" @onclick="() => Toggle(index)" @onmouseenter="() => Hover(index)">
+                @menu.Label
+            </button>
+            @if (open)
+            {
+                <div class="popover menu" role="menu" aria-label="@menu.Label" data-arrows data-escape>
+                    @for (var i = 0; i < menu.Items.Count; i++)
+                    {
+                        var itemIndex = i;
+                        var item = menu.Items[i];
+                        if (item.IsSeparator)
+                        {
+                            <div class="menu-separator" role="separator"></div>
+                            continue;
+                        }
+                        var subOpen = _sub && _active == itemIndex;
+                        <div class="menu-entry">
+                            <button type="button" role="menuitem" class="menu-item @(itemIndex == _active ? "active" : null)"
+                                    disabled="@(!item.Enabled)" aria-haspopup="@(item.Children is null ? null : "menu")"
+                                    @onmousedown:preventDefault="true" @onmouseenter="() => HoverItem(itemIndex)"
+                                    @onclick="() => Activate(item, itemIndex)">
+                                <span class="menu-lead">
+                                    @if (item.Checked == true)
+                                    {
+                                        <RunIcon Name="check" Size="14" />
+                                    }
+                                    else if (item.Icon is { } icon)
+                                    {
+                                        <RunIcon Name="@icon" Size="14" />
+                                    }
+                                </span>
+                                <span class="menu-label">@item.Label</span>
+                                @if (item.Children is not null)
+                                {
+                                    <RunIcon Name="chevron-right" Size="14" Class="menu-chevron" />
+                                }
+                                else if (item.Shortcut is { } shortcut)
+                                {
+                                    <span class="shortcut">@shortcut</span>
+                                }
+                            </button>
+                            @if (subOpen && item.Children is { } children)
+                            {
+                                <div class="popover menu submenu" role="menu" aria-label="@item.Label">
+                                    @for (var c = 0; c < children.Count; c++)
+                                    {
+                                        var childIndex = c;
+                                        var child = children[c];
+                                        <button type="button" role="menuitemradio" aria-checked="@(child.Checked == true ? "true" : "false")"
+                                                class="menu-item @(childIndex == _subActive ? "active" : null)" disabled="@(!child.Enabled)"
+                                                @onmousedown:preventDefault="true" @onmouseenter="() => _subActive = childIndex"
+                                                @onclick="() => Run(child)">
+                                            <span class="menu-lead">
+                                                @if (child.Checked == true)
+                                                {
+                                                    <RunIcon Name="check" Size="14" />
+                                                }
+                                            </span>
+                                            <span class="menu-label">@child.Label</span>
+                                            @if (child.Icon is { } childIcon)
+                                            {
+                                                <RunIcon Name="@childIcon" Size="14" Class="menu-chevron" />
+                                            }
+                                        </button>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    }
+    @ChildContent
+</nav>
+@if (_open >= 0)
+{
+    <div class="menu-scrim" @onclick="Close" @oncontextmenu="Close" @oncontextmenu:preventDefault="true"></div>
+}
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<Menu> Menus { get; set; } = [];
+
+    /// <summary>Shown at the bar's right end (e.g. a hint).</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Raised when a menu opens or closes (the page re-renders its key handling).</summary>
+    [Parameter] public EventCallback OnToggled { get; set; }
+
+    private int _open = -1;
+    private int _active = -1;
+    private bool _sub;
+    private int _subActive = -1;
+    private int _focused = -1;
+
+    public bool IsOpen => _open >= 0;
+
+    /// <summary>Opens the first menu (Alt), or closes the open one.</summary>
+    public void ToggleFromKeyboard()
+    {
+        if (_open >= 0)
+        {
+            Close();
+        }
+        else
+        {
+            OpenMenu(0, selectFirst: true);
+        }
+    }
+
+    public void Close()
+    {
+        _open = -1;
+        _active = -1;
+        _sub = false;
+        _subActive = -1;
+        _focused = -1;
+        StateHasChanged();
+        _ = OnToggled.InvokeAsync();
+    }
+
+    /// <summary>A key while a menu is open; true when the menu used it (every key is, while open).</summary>
+    public async Task<bool> HandleKey(string name)
+    {
+        if (_open < 0)
+        {
+            return false;
+        }
+        var items = Menus[_open].Items;
+        switch (name)
+        {
+            case "ArrowDown":
+                if (_sub)
+                {
+                    _subActive = Next(items[_active].Children!, _subActive, 1);
+                }
+                else
+                {
+                    _active = Next(items, _active, 1);
+                }
+                break;
+            case "ArrowUp":
+                if (_sub)
+                {
+                    _subActive = Next(items[_active].Children!, _subActive, -1);
+                }
+                else
+                {
+                    _active = Next(items, _active, -1);
+                }
+                break;
+            case "Home":
+                _active = Next(items, -1, 1);
+                _sub = false;
+                break;
+            case "End":
+                _active = Next(items, items.Count, -1);
+                _sub = false;
+                break;
+            case "ArrowRight":
+                if (!_sub && _active >= 0 && items[_active] is { Children: { } children, Enabled: true })
+                {
+                    _sub = true;
+                    _subActive = Math.Max(0, children.ToList().FindIndex(c => c.Checked == true));
+                }
+                else
+                {
+                    OpenMenu((_open + 1) % Menus.Count, selectFirst: true);
+                }
+                break;
+            case "ArrowLeft":
+                if (_sub)
+                {
+                    _sub = false;
+                }
+                else
+                {
+                    OpenMenu((_open - 1 + Menus.Count) % Menus.Count, selectFirst: true);
+                }
+                break;
+            case "Enter":
+            case " ":
+                if (_sub && _subActive >= 0)
+                {
+                    await Run(items[_active].Children![_subActive]);
+                }
+                else if (_active >= 0)
+                {
+                    await Activate(items[_active], _active);
+                }
+                return true;
+            case "Escape":
+                if (_sub)
+                {
+                    _sub = false;
+                }
+                else
+                {
+                    Close();
+                }
+                return true;
+            case "Alt":
+                Close();
+                return true;
+            default:
+                return name is "Tab" or "Shift+Tab";
+        }
+        StateHasChanged();
+        return true;
+    }
+
+    private static int Next(IReadOnlyList<MenuItem> items, int from, int step)
+    {
+        if (!items.Any(i => i.Selectable))
+        {
+            return -1;
+        }
+        var i = from;
+        for (var n = 0; n <= items.Count; n++)
+        {
+            i = ((i + step) % items.Count + items.Count) % items.Count;
+            if (items[i].Selectable)
+            {
+                return i;
+            }
+        }
+        return from;
+    }
+
+    private void OpenMenu(int index, bool selectFirst)
+    {
+        var wasOpen = _open >= 0;
+        _open = index;
+        _focused = index;
+        _sub = false;
+        _subActive = -1;
+        _active = selectFirst ? Next(Menus[index].Items, -1, 1) : -1;
+        StateHasChanged();
+        if (!wasOpen)
+        {
+            _ = OnToggled.InvokeAsync();
+        }
+    }
+
+    private void Toggle(int index)
+    {
+        if (_open == index)
+        {
+            Close();
+        }
+        else
+        {
+            OpenMenu(index, selectFirst: false);
+        }
+    }
+
+    private void Hover(int index)
+    {
+        if (_open >= 0 && _open != index)
+        {
+            OpenMenu(index, selectFirst: false);
+        }
+    }
+
+    private void HoverItem(int index)
+    {
+        _active = index;
+        var item = Menus[_open].Items[index];
+        _sub = item.Children is not null && item.Enabled;
+        _subActive = -1;
+    }
+
+    private async Task Activate(MenuItem item, int index)
+    {
+        if (!item.Enabled)
+        {
+            return;
+        }
+        if (item.Children is { } children)
+        {
+            _active = index;
+            _sub = true;
+            _subActive = Math.Max(0, children.ToList().FindIndex(c => c.Checked == true));
+            return;
+        }
+        await Run(item);
+    }
+
+    private async Task Run(MenuItem item)
+    {
+        if (!item.Enabled)
+        {
+            return;
+        }
+        Close();
+        if (item.Action is { } action)
+        {
+            await action();
+        }
+    }
+}
