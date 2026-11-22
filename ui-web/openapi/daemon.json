@@ -809,6 +809,27 @@
         "title": "RunInfo",
         "type": "object"
       },
+      "Share": {
+        "description": "A folder the worker's machine shares on the network.",
+        "properties": {
+          "name": {
+            "description": "The share's name, e.g. data: other machines reach it by the machine's name and it",
+            "title": "Name",
+            "type": "string"
+          },
+          "path": {
+            "description": "The shared folder, as that machine sees it, e.g. a data folder on its D: drive",
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "path"
+        ],
+        "title": "Share",
+        "type": "object"
+      },
       "StepInfo": {
         "description": "A step as listed by `list_experiments`.",
         "properties": {
@@ -2063,6 +2084,32 @@
           }
         },
         "summary": "Jobs Of",
+        "tags": [
+          "worker"
+        ]
+      }
+    },
+    "/api/worker/shares": {
+      "get": {
+        "description": "The folders this machine shares on the network (not the administrative ``C$``-style shares), so other\nmachines can reach its data by their network paths.",
+        "operationId": "shares_api_worker_shares_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Share"
+                  },
+                  "title": "Response Shares Api Worker Shares Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Shares",
         "tags": [
           "worker"
         ]

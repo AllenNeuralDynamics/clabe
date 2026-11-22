@@ -29,7 +29,7 @@ No configuration is needed. Connect by computer name:
 from clabe.remote import RemoteRepository
 from clabe.utils import is_this_computer
 
-remote = RemoteRepository.from_computer_name("rig-b", data_roots={r"D:\data": r"\\rig-b\data"})
+remote = RemoteRepository.from_computer_name("rig-b")
 remote.ensure_running()  # pings the daemon; starts its task if it is down
 remote.verify()  # checks the other checkout: same origin, commit and submodules, no uncommitted changes
 ```
@@ -39,7 +39,7 @@ remote.verify()  # checks the other checkout: same origin, commit and submodules
 | `path` | Repository path on that machine (default: the daemon's repository). |
 | `repository` | The daemon's name for the checkout (default: this repository's folder name). |
 | `local_path` | Local repository to compare with (default: `.`). |
-| `data_roots` | Maps data folders there to the share that exposes them. Others use the admin share (`\\rig-b\D$\...`). |
+| `data_roots` | Optional. Maps data folders there to the share that exposes them, overriding what the daemon reports (see [step 4](#4-give-it-a-session-folder)). |
 | `detach_on_abort` | Keep remote commands running when the run aborts ([`RemoteRepository`][clabe.remote.RemoteRepository] constructor only). |
 
 - `ensure_running()` needs admin rights on that PC to start its task (`schtasks /run /s <host>`).
@@ -88,8 +88,11 @@ remote.client.upload_model(session, "session.json")  # up to max_file_size
 ## 4. Give it a session folder
 
 ```python
-remote.register_session(session, r"D:\data")  # creates D:\data\<session name> on rig-b
+remote.register_session(session, ephys_rig.data_directory)  # e.g. D:\data on rig-b: creates D:\data\<session name>
 ```
+
+Take the data folder from the rig configuration of the app that runs there. The run records the folder (in
+`run.json`, under `workers`), so `launcher.session_directories` lists it (step 5).
 
 | Property | Example | Use on |
 | --- | --- | --- |
@@ -98,21 +101,26 @@ remote.register_session(session, r"D:\data")  # creates D:\data\<session name> o
 | `remote.data_directory` | `D:\data` | The root, as that PC sees it. |
 
 - These are `PureWindowsPath`s. Wrap them in `Path(...)` where needed.
-- `remote.to_unc(path)` translates any path. `clabe.remote.to_unc(path, data_roots, host=...)` does the same without
-  a daemon.
+- `remote.to_unc(path)` translates any path to its network path. It uses, in order: `data_roots` when given; the
+  folders rig-b shares (its daemon lists them: `D:\data` shared as `data` gives `\\rig-b\data`); otherwise the
+  drive's administrative share (`\\rig-b\D$\...`), which needs administrator rights on rig-b.
+- `clabe.remote.to_unc(path, data_roots, host=...)` translates without a daemon.
 - Run heavy processing on the PC that holds the data (`executor=remote`) instead of over the share.
 
 ## 5. Upload both machines' data
 
 ```python
 watchdog = WatchdogDataTransferService(
-    source=[launcher.session_directory, remote.session_directory_unc],
+    source=launcher.session_directories,  # this PC's session folder, then every other PC's over its share
     settings=WatchdogSettings(destination=..., project_name=...),
     session=session,
 )
 watchdog.transfer()
 ```
 
+- `launcher.session_directories` lists this PC's session folder, then every other PC whose session was registered
+  with `remote.register_session` in this run. A list written by hand works too: `None` entries are skipped, e.g. a
+  PC an optional step did not use.
 - One manifest covers both machines. Modality folders with the same name are merged.
 - Every source must be reachable. Otherwise `transfer()` fails and lists the unreachable sources.
 - The watchdog copies the data later, under its own account. That account needs access to the share, and the PC must

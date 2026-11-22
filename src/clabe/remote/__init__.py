@@ -3,7 +3,7 @@ through that machine's clabe daemon, which runs jobs and keeps files for the run
 
 from ._client import WorkerClient, WorkerClientSettings, WorkerError
 from ._executor import RemoteExecutor
-from ._models import FileInfo, JobResult, JobStatus, JobSummary, Lease, WorkerInfo
+from ._models import FileInfo, JobResult, JobStatus, JobSummary, Lease, Share, WorkerInfo
 from ._repository import RemoteRepository, RepositoryMismatchError, to_unc
 
 __all__ = [
@@ -15,6 +15,7 @@ __all__ = [
     "RemoteExecutor",
     "RemoteRepository",
     "RepositoryMismatchError",
+    "Share",
     "WorkerClient",
     "WorkerClientSettings",
     "WorkerError",

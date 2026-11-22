@@ -5,7 +5,7 @@ import logging
 import os
 import subprocess
 import warnings
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from os import PathLike
 from pathlib import Path, PurePosixPath
 from typing import ClassVar, Literal, Self
@@ -267,7 +267,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
 
     def __init__(
         self,
-        source: PathLike | list[PathLike],
+        source: PathLike | None | Sequence[PathLike | None],
         settings: WatchdogSettings,
         session: Session,
         *,
@@ -278,7 +278,9 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         Initializes the WatchdogDataTransferService.
 
         Args:
-            source: The session folder(s) to transfer. Folders on other machines are given through their share.
+            source: The session folder(s) to transfer, e.g. ``launcher.session_directories`` (this machine's and
+                every other machine's of the run). Folders on other machines are given through their share. ``None``
+                entries are skipped (e.g. a machine an optional step did not use).
             settings: Configuration for the watchdog service
             session: The session data from aind-behavior-services
             validate: Whether to validate the project name
@@ -287,7 +289,10 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
                 determined.
         """
         self._settings = settings
-        self._sources = source if isinstance(source, list) else [source]
+        given = list(source) if isinstance(source, Sequence) and not isinstance(source, (str, bytes)) else [source]
+        self._sources = [s for s in given if s is not None]
+        if not self._sources:
+            raise ValueError("No folder to transfer: every source is None.")
 
         self._session = session
 

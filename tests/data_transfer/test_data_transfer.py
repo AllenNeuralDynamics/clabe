@@ -826,3 +826,16 @@ class TestRobocopyService:
 
         # File should be overwritten with new content
         assert (dest_dir / "file1.txt").read_text() == "content1"
+
+
+def test_the_watchdog_skips_sources_that_are_none(settings, mock_session, monkeypatch):
+    monkeypatch.setenv("WATCHDOG_EXE", "watchdog.exe")
+    monkeypatch.setenv("WATCHDOG_CONFIG", str(TESTS_ASSETS / "watch_config.yml"))
+    here, there = Path("C:/data/s1"), Path("//rig-b/data/s1")
+    service = WatchdogDataTransferService([here, None, there], settings=settings, session=mock_session)
+    assert service._sources == [here, there]
+    assert WatchdogDataTransferService(here, settings=settings, session=mock_session)._sources == [here]
+    with pytest.raises(ValueError, match="every source is None"):
+        WatchdogDataTransferService([None], settings=settings, session=mock_session)
+    with pytest.raises(ValueError, match="every source is None"):
+        WatchdogDataTransferService(None, settings=settings, session=mock_session)

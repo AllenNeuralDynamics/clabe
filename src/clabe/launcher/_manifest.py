@@ -127,6 +127,12 @@ class WorkerRecord(BaseModel):
         default=None, description="The remote checkout, as RemoteRepository.verify() found it"
     )
     jobs: list[RemoteJobRecord] = Field(default_factory=list)
+    session_directory: str | None = Field(
+        default=None, description="Its session folder, as that machine sees it (RemoteRepository.register_session)"
+    )
+    session_directory_unc: str | None = Field(
+        default=None, description="Its session folder, as other machines reach it over the network"
+    )
 
 
 class RunManifest(BaseModel):

@@ -19,10 +19,8 @@ from clabe.remote import RemoteRepository
 from clabe.stores import LocalFileStore, Store
 from clabe.workflow import Workflow
 
-#: The other PC, its data folder, and the network share that exposes that folder to this PC.
+#: The other PC.
 OTHER_PC = "rig-b"
-REMOTE_DATA_DIRECTORY = r"D:\data"
-REMOTE_DATA_SHARE = r"\\rig-b\data"
 #: Where the Bonsai workflow is checked out on the other PC.
 BONSAI_ROOT = Path(r"C:\git\AllenNeuralDynamics\Aind.Behavior.VrForaging")
 
@@ -65,9 +63,7 @@ wf.step(steps.preflight(checks.free_space(1e9)))
 @wf.step
 def remote() -> RemoteRepository:
     """The other PC: its daemon is started if needed, and its checkout must match this one."""
-    remote = RemoteRepository.from_computer_name(
-        OTHER_PC, local_path=".", data_roots={REMOTE_DATA_DIRECTORY: REMOTE_DATA_SHARE}
-    )
+    remote = RemoteRepository.from_computer_name(OTHER_PC)
     remote.ensure_running()
     remote.verify(allow_dirty=True)
     return remote
@@ -77,10 +73,10 @@ wf.step(steps.register())
 
 
 @wf.step(title="Remote session folder")
-def remote_session(session: Session, remote: RemoteRepository, register: Path) -> Path:
-    """Creates the session folder on the other PC, named like this one's."""
-    remote.register_session(session, REMOTE_DATA_DIRECTORY)
-    return remote.session_directory_unc
+def remote_session(session: Session, rig: RigModel, remote: RemoteRepository, register: Path) -> None:
+    """Creates the session folder on the other PC, named like this one's, in the data folder of its rig
+    configuration. The run records it, so `launcher.session_directories` lists it."""
+    remote.register_session(session, rig.data_directory)
 
 
 @wf.step(title="Bonsai on the other PC", cancellable=True)
@@ -100,10 +96,10 @@ async def bonsai(
 
 
 @wf.step(title="Transfer")
-def transfer(launcher: Launcher, session: Session, remote_session: Path, bonsai: CommandResult) -> None:
+def transfer(launcher: Launcher, session: Session, remote_session: None, bonsai: CommandResult) -> None:
     """One watchdog manifest for both machines: this session folder, and the other PC's through its share."""
     WatchdogDataTransferService(
-        source=[launcher.session_directory, remote_session],
+        source=launcher.session_directories,
         settings=WatchdogSettings(destination=r"\\allen\aind\scratch\data-uploads", project_name="clabe"),
         session=session,
     ).transfer()

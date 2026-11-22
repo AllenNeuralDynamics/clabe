@@ -33,6 +33,13 @@ class WorkerInfo(BaseModel):
     os_name: str = Field(default="nt", description="The worker's ``os.name``: its paths are Windows ('nt') or POSIX")
 
 
+class Share(BaseModel):
+    """A folder the worker's machine shares on the network."""
+
+    name: str = Field(description="The share's name, e.g. data: other machines reach it by the machine's name and it")
+    path: str = Field(description="The shared folder, as that machine sees it, e.g. a data folder on its D: drive")
+
+
 class JobSubmission(BaseModel):
     """A command to run on the worker."""
 

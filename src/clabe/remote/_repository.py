@@ -129,8 +129,9 @@ class RemoteRepository:
                 When given, `verify` checks that it is the worker's repository.
             local_path: Path of the local repository the remote one is compared against.
             data_roots: Maps data directories on the remote machine to the network shares exposing them,
-                e.g. ``{r"D:\\data": r"\\\\rig-b\\data"}``. Used by `to_unc`; paths under none of them are
-                reached through the drive's administrative share.
+                e.g. ``{r"D:\\data": r"\\\\rig-b\\data"}``. Optional: by default `to_unc` uses the folders the
+                machine shares (its daemon lists them), then the drive's administrative share. Entries here take
+                precedence, e.g. for a share reached through another server name.
             detach_on_abort: Keep the commands running on the remote machine when the run does not complete (e.g.
                 a recording that must outlive the launcher). By default they are stopped with the run.
         """
@@ -140,6 +141,7 @@ class RemoteRepository:
         self.local_path = local_path
         self.data_roots = {PureWindowsPath(local): PureWindowsPath(unc) for local, unc in (data_roots or {}).items()}
         self._info: WorkerInfo | None = None
+        self._shares: dict[PureWindowsPath, PureWindowsPath] | None = None
         self._session: Session | None = None
         self._data_directory: PurePath | None = None
 
@@ -337,9 +339,21 @@ class RemoteRepository:
             ValueError: If the path is under none of the ``data_roots`` and has no drive letter.
         """
         try:
-            return to_unc(path, {str(local): str(unc) for local, unc in self.data_roots.items()}, host=self.host)
+            return to_unc(path, {str(local): str(unc) for local, unc in self._roots().items()}, host=self.host)
         except ValueError as e:
             raise ValueError(f"{e} (on {self.host})") from e
+
+    def _roots(self) -> dict[PureWindowsPath, PureWindowsPath]:
+        """The data roots `to_unc` uses: the ``data_roots`` given, then the folders the machine shares (asked of its
+        daemon once; none when it cannot tell)."""
+        if self._shares is None:
+            try:
+                listed = self.client.shares()
+            except Exception:
+                logger.debug("Could not list the shares of %s", self.host, exc_info=True)
+                listed = []
+            self._shares = {PureWindowsPath(s.path): PureWindowsPath(f"//{self.host}/{s.name}/") for s in listed}
+        return {**self._shares, **self.data_roots}
 
     def register_session(self, session: Session, data_directory: os.PathLike | str) -> Self:
         """Registers the session this machine records data for, and creates its session directory there.
@@ -358,6 +372,17 @@ class RemoteRepository:
         self._data_directory = self._remote_path(data_directory)
         self.mkdir(self.session_directory)
         logger.debug("Created session directory on %s at %s", self.host, self.session_directory)
+        try:
+            unc: str | None = str(self.session_directory_unc)
+        except ValueError:
+            unc = None
+        local = str(self.session_directory)
+
+        def note(record) -> None:
+            """Where this machine keeps the session's data, in the run's record of it (``run.json``)."""
+            record.session_directory, record.session_directory_unc = local, unc
+
+        record_worker(self.client, note)
         return self
 
     def mkdir(self, path: os.PathLike | str) -> None:

@@ -7,6 +7,7 @@ own. A lease not renewed within its time-to-live expires (e.g. the launcher cras
 
 import ctypes
 import datetime
+import json
 import logging
 import os
 import secrets
@@ -37,6 +38,7 @@ from ..remote._models import (
     JobSummary,
     Lease,
     LeaseRequest,
+    Share,
     WorkerInfo,
 )
 from ._settings import DaemonSettings, RepositoryConfig
@@ -355,6 +357,29 @@ def _file_info(path: Path) -> FileInfo:
     return FileInfo(name=path.name, size=stat.st_size, modified=stat.st_mtime, path=str(path.resolve()))
 
 
+def list_shares() -> list[Share]:
+    """The folders this Windows machine shares on the network (``Win32_Share`` of type 0: disk folders, without the
+    administrative ``C$`` and other hidden ``name$`` shares). Empty elsewhere, or if Windows cannot be asked."""
+    if sys.platform != "win32":
+        return []
+    query = "Get-CimInstance Win32_Share -Filter 'Type=0' | Select-Object Name, Path | ConvertTo-Json -Compress"
+    try:
+        done = subprocess.run(
+            ["powershell", "-NoProfile", "-NonInteractive", "-Command", query],
+            capture_output=True, text=True, timeout=20, check=True,
+        )  # fmt: skip
+        listed = json.loads(done.stdout) if done.stdout.strip() else []
+    except (OSError, subprocess.SubprocessError, ValueError):
+        logger.warning("Could not list this machine's network shares", exc_info=True)
+        return []
+    items = listed if isinstance(listed, list) else [listed]
+    return [
+        Share(name=i["Name"], path=i["Path"])
+        for i in items
+        if isinstance(i, dict) and i.get("Name") and i.get("Path") and not str(i["Name"]).endswith("$")  # hidden
+    ]
+
+
 def worker_router(worker: Worker, token_check) -> APIRouter:
     """The worker API (``/api/worker``), behind the daemon's token; jobs and files also need the lease, if any."""
     api = APIRouter(prefix="/api/worker", dependencies=[Depends(token_check)], tags=["worker"])
@@ -369,6 +394,12 @@ def worker_router(worker: Worker, token_check) -> APIRouter:
     def info(repository: str | None = Query(default=None)) -> WorkerInfo:
         """The worker, as seen for a repository (by default the first configured one)."""
         return worker.info(repository)
+
+    @api.get("/shares", response_model=list[Share])
+    def shares() -> list[Share]:
+        """The folders this machine shares on the network (not the administrative ``C$``-style shares), so other
+        machines can reach its data by their network paths."""
+        return list_shares()
 
     @api.post("/lease", response_model=Lease)
     def take(body: LeaseRequest) -> Lease:

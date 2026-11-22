@@ -24,6 +24,7 @@ from ._models import (
     JobSummary,
     Lease,
     LeaseRequest,
+    Share,
     WorkerInfo,
 )
 
@@ -102,6 +103,16 @@ class WorkerClient:
         """The worker, as seen for the configured repository."""
         params = {"repository": self.settings.repository} if self.settings.repository else None
         return WorkerInfo.model_validate_json(self._request("GET", "/info", params=params).content)
+
+    def shares(self) -> list[Share]:
+        """The folders the worker's machine shares on the network; empty when its daemon cannot tell (an older one)."""
+        try:
+            response = self._request("GET", "/shares")
+        except WorkerError as exc:
+            if exc.status == 404:
+                return []
+            raise
+        return [Share.model_validate(item) for item in response.json()]
 
     def ping(self) -> bool:
         """Whether the worker answers."""

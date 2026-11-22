@@ -142,6 +142,11 @@ public sealed record RunInfo(
     [property: JsonPropertyName("exit_code")] long? ExitCode = null,
     [property: JsonPropertyName("log_tail")] List<string>? LogTail = null);
 
+/// <summary>A folder the worker's machine shares on the network.</summary>
+public sealed record Share(
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("path")] string Path);
+
 /// <summary>A step as listed by `list_experiments`.</summary>
 public sealed record StepInfo(
     [property: JsonPropertyName("name")] string Name,

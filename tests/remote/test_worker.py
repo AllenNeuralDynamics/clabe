@@ -6,6 +6,7 @@ import sys
 import threading
 import time
 from pathlib import Path, PureWindowsPath
+from types import SimpleNamespace
 
 import pytest
 import requests
@@ -284,6 +285,10 @@ def test_the_run_manifest_lists_the_workers_and_their_jobs(worker_url, repositor
     def acquire(verify: None) -> str:
         return remote.run(Command(cmd=[sys.executable, "-c", "print('ok')"], output_parser=identity_parser)).stdout
 
+    @wf.step
+    def register(acquire: str) -> None:
+        remote.register_session(Session(subject="mouse-7", experiment="demo", session_name="s1"), repository.parent)
+
     launcher = _Launcher()
     run = Run(wf, launcher=launcher)
     run.start()
@@ -291,7 +296,16 @@ def test_the_run_manifest_lists_the_workers_and_their_jobs(worker_url, repositor
     (worker,) = launcher.manifest.workers
     assert worker.repository == "Aind.Experiment.Demo" and worker.url == remote.client.base_url
     assert worker.repository_state is not None and worker.repository_state.commit_sha
-    assert [(job.step, job.command[-1]) for job in worker.jobs] == [("verify", "."), ("acquire", "print('ok')")]
+    steps_and_commands = [(job.step, job.command[-1]) for job in worker.jobs]
+    assert steps_and_commands[:2] == [("verify", "."), ("acquire", "print('ok')")]
+    assert [step for step, _ in steps_and_commands[2:]] == ["register"]  # creating its session folder there
+    assert worker.session_directory == str(PureWindowsPath(repository.parent) / "s1")
+    assert worker.session_directory_unc == str(remote.session_directory_unc)
+
+    from clabe.launcher import Launcher
+
+    here = SimpleNamespace(session_directory=Path("C:/data/s1"), _manifest=launcher.manifest)
+    assert Launcher.session_directories.fget(here) == [Path("C:/data/s1"), remote.session_directory_unc]
 
 
 def test_a_restarted_launcher_reattaches_to_the_jobs_of_its_run(worker_url, repository):
@@ -317,3 +331,23 @@ def test_a_restarted_launcher_reattaches_to_the_jobs_of_its_run(worker_url, repo
     other = _client(worker_url)
     other.lease(owner="another session", run_id="run-2")  # free for others once the recovery gave it back
     other.release()
+
+
+def test_network_paths_use_the_folders_the_machine_shares(worker_url, repository, monkeypatch):
+    from clabe.daemon import _worker
+    from clabe.remote import Share
+
+    monkeypatch.setattr(_worker, "list_shares", lambda: [Share(name="data", path=str(repository.parent))])
+    remote = RemoteRepository(_client(worker_url, repository="Aind.Experiment.Demo"), local_path=repository)
+    assert remote.client.shares() == [Share(name="data", path=str(repository.parent))]
+    remote.register_session(Session(subject="mouse-7", experiment="demo", session_name="s1"), repository.parent)
+    assert remote.session_directory_unc == PureWindowsPath(r"\\127.0.0.1\data\s1")
+    # a folder no share covers: the drive's administrative share
+    assert remote.to_unc(r"E:\raw\s1") == PureWindowsPath(r"\\127.0.0.1\E$\raw\s1")
+    # data_roots, when given, take precedence
+    explicit = RemoteRepository(
+        _client(worker_url, repository="Aind.Experiment.Demo"),
+        local_path=repository,
+        data_roots={str(repository.parent): r"\\nas\rig-b"},
+    )
+    assert explicit.to_unc(PureWindowsPath(repository.parent) / "s1") == PureWindowsPath(r"\\nas\rig-b\s1")

@@ -9,7 +9,7 @@ import socket
 import threading
 import time
 from collections.abc import Callable, Generator
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Self, TypeVar
 
 import git.exc
@@ -156,6 +156,23 @@ class Launcher:
             raise ValueError("session.session_name is not set.")
         else:
             return Path(self.data_directory) / session.session_name
+
+    @property
+    def session_directories(self) -> list[Path | PureWindowsPath]:
+        """This machine's session folder, then every other machine's in this run, through its network share.
+
+        Another machine's folder is listed once it was registered with
+        [`RemoteRepository.register_session`][clabe.remote.RemoteRepository.register_session] in a step of this
+        run. Give it to the watchdog to upload the data of every machine:
+        ``WatchdogDataTransferService(source=launcher.session_directories, ...)``.
+
+        Raises:
+            ValueError: If session_name is not set in the session schema
+        """
+        directories: list[Path | PureWindowsPath] = [self.session_directory]
+        workers = self._manifest.workers if self._manifest is not None else []
+        directories += [PureWindowsPath(w.session_directory_unc) for w in workers if w.session_directory_unc]
+        return directories
 
     def register_session(self, session: Session, data_directory: os.PathLike) -> Self:
         """
