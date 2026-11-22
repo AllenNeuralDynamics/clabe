@@ -11,7 +11,7 @@ import pytest
 import requests
 
 from clabe import ui
-from clabe.launcher import Launcher, experiment
+from clabe.launcher import Launcher
 from clabe.launcher._cli import LauncherCliArgs
 from clabe.ui import ConfirmRequest, PromptCancelledError
 from clabe.workflow import Abort, Workflow
@@ -242,17 +242,16 @@ def test_exit_prompt_shown_by_default(mock_base_launcher):
 
 
 @pytest.mark.parametrize("timeout", [0, 60.0, None])
-def test_experiment_exit_prompt_timeout_is_forwarded(mock_base_launcher, timeout):
-    @experiment(exit_prompt_timeout=timeout)
-    def my_experiment(launcher):
-        pass
+def test_the_workflow_exit_prompt_timeout_is_forwarded(mock_base_launcher, timeout):
+    wf = Workflow("w", exit_prompt_timeout=timeout)
+    wf.step(lambda launcher: None, name="experiment")
 
-    assert _record_exit_call(mock_base_launcher, my_experiment)["timeout"] == timeout
+    assert _record_exit_call(mock_base_launcher, wf)["timeout"] == timeout
 
 
-def test_experiment_rejects_negative_exit_prompt_timeout():
+def test_a_workflow_rejects_a_negative_exit_prompt_timeout():
     with pytest.raises(ValueError, match="exit_prompt_timeout"):
-        experiment(exit_prompt_timeout=-1)
+        Workflow("w", exit_prompt_timeout=-1)
 
 
 def test_exit_prompt_timeout_is_not_a_launcher_setting():
@@ -373,7 +372,6 @@ def test_a_legacy_sync_experiment_can_call_asyncio_run(mock_base_launcher, mock_
     async def work():
         ran.append(True)
 
-    @experiment()
     def legacy(launcher):
         asyncio.run(work())
 

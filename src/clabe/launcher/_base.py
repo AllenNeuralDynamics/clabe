@@ -210,12 +210,12 @@ class Launcher:
         """
         Main entry point for the launcher execution.
 
-        Accepts a [`Workflow`][clabe.workflow.Workflow], an ``@experiment`` function or a plain ``(launcher)``
-        callable (sync or async), and executes it as a run driven by this launcher's client. Unless in debug mode,
+        Accepts a [`Workflow`][clabe.workflow.Workflow], or a ``(launcher)`` function (sync or async) run as a workflow of
+        one step, and executes it as a run driven by this launcher's client. Unless in debug mode,
         `validate` runs as the run's first step (``clabe_preflight``). The run's records are written to
         ``temp_dir``. Orchestrates the complete launcher workflow including validation, execution and cleanup.
 
-        Steps (including legacy experiments) run on a dedicated run thread, not the main thread; code that must
+        Steps (including a function's single step) run on a dedicated run thread, not the main thread; code that must
         run on the main thread (e.g. ``signal.signal``, some GUI toolkits) cannot be called from a step.
 
         A launcher runs a single experiment: create a new launcher for another run.

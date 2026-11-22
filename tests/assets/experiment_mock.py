@@ -1,6 +1,9 @@
-from clabe.launcher import Launcher, experiment
+from clabe.launcher import Launcher
+from clabe.workflow import Workflow
+
+simple_experiment = Workflow("simple_experiment")
 
 
-@experiment(name="simple_experiment")
-async def simple_experiment(launcher: Launcher) -> None:
+@simple_experiment.step(name="experiment")
+async def run(launcher: Launcher) -> None:
     launcher.logger.info("running simple_experiment")

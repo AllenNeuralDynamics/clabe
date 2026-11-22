@@ -31,7 +31,7 @@ class _RunCli(LauncherCliArgs):
     )
     experiment_name: str | None = Field(
         default=None,
-        description="Name of the @experiment to run when the file defines more than one. "
+        description="Name of the workflow to run when the file defines more than one. "
         "If omitted, prompts interactively (or runs the only one found).",
     )
 

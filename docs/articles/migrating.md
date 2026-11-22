@@ -3,9 +3,19 @@
 Move an experiment repository to workflows, clients and the daemon, one step at a time. Background:
 [Concepts](../concepts/index.md).
 
-## 1. Run it unchanged
+## 1. Run it as one step
 
-An `@experiment` function still works: it runs as a workflow of one step.
+The `@experiment` decorator is gone. Declare a workflow whose only step is the existing function: it receives the
+launcher, as before.
+
+```python
+from clabe.workflow import Workflow
+
+wf = Workflow("vr-foraging", exit_prompt_timeout=60)  # was @experiment(name="vr-foraging", exit_prompt_timeout=60)
+wf.step(vr_foraging, name="experiment")              # the old async def vr_foraging(launcher): ...
+```
+
+`clabe run`, `clabe list` and the daemon find the workflow. Split it into steps afterwards (step 3).
 
 ## 2. Replace the frontend calls
 
@@ -27,7 +37,6 @@ Ask through `clabe.ui`. Answers come back validated and typed. See [Frontends](f
 
 ```python
 # before
-@experiment(name="vr-foraging", exit_prompt_timeout=60)
 async def vr_foraging(launcher: Launcher) -> None:
     session = SessionBuilder(launcher).build()
     store = behavior_store(session)
@@ -115,6 +124,7 @@ The package was reorganized. AIND-specific modules are now under `clabe.aind`, a
 | `clabe.git_manager` | `clabe.repository` |
 | `clabe.cache_manager` | `clabe.cache` |
 | `clabe.services`, `clabe.constants` | `clabe.settings` |
+| `from clabe.launcher import experiment` (`@experiment`) | a `Workflow` (step 1) |
 | `clabe.logging_helper` | `clabe.logging` |
 | `clabe.resource_monitor` | `clabe.checks` and `steps.preflight` (see [Reusable steps and checks](reusable_steps.md)) |
 

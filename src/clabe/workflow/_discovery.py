@@ -18,68 +18,25 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-#: A legacy experiment: a function of the launcher, sync or async.
+#: A function of the launcher (sync or async), which `Launcher.run_experiment` also accepts: it runs as a workflow of
+#: one step.
 ExperimentCallable = Callable[["Launcher"], None | Awaitable[None]]
-
-_ATTRIBUTE = "__clabe_workflow__"
-
-
-def _one_step(func: ExperimentCallable, name: str, order: int, exit_prompt_timeout: float | None) -> Workflow:
-    """Wraps ``func`` in a workflow whose only step, ``experiment``, calls it with the launcher."""
-    workflow = Workflow(name, order=order, exit_prompt_timeout=exit_prompt_timeout)
-
-    def experiment_step(launcher: "Launcher") -> Any:
-        return func(launcher)
-
-    workflow.step(experiment_step, name="experiment", title=name)
-    # Set after declaring the step: inspect.signature follows __wrapped__, and the step's parameter is `launcher`.
-    experiment_step.__wrapped__ = func  # type: ignore[attr-defined]  # provenance points at the real function
-    return workflow
-
-
-def experiment(
-    *, name: str | None = None, order: int = 0, exit_prompt_timeout: float | None = None
-) -> Callable[[ExperimentCallable], ExperimentCallable]:
-    """Marks a ``(launcher) -> None`` function (sync or async) as a one-step workflow.
-
-    The function is returned unchanged; the workflow is attached to it (see `as_workflow`).
-
-    Args:
-        name: Name of the experiment. Defaults to the function's ``__name__``.
-        order: Sort key when a file offers several workflows (lower first).
-        exit_prompt_timeout: Seconds the launcher waits at its exit prompt; ``None`` waits, ``0`` skips it.
-
-    Raises:
-        ValueError: If ``exit_prompt_timeout`` is negative.
-
-    Example:
-        ```python
-        from clabe.launcher import Launcher, experiment
-
-
-        @experiment(name="super_duper_experiment", order=-1, exit_prompt_timeout=60)
-        async def vr_foraging_with_photometry(launcher: Launcher) -> None:
-            ...
-        ```
-    """
-    if exit_prompt_timeout is not None and exit_prompt_timeout < 0:
-        raise ValueError(f"exit_prompt_timeout must be None or >= 0, got {exit_prompt_timeout}.")
-
-    def decorator(func: ExperimentCallable) -> ExperimentCallable:
-        setattr(func, _ATTRIBUTE, _one_step(func, name or func.__name__, order, exit_prompt_timeout))
-        return func
-
-    return decorator
 
 
 def as_workflow(target: "Workflow | ExperimentCallable") -> Workflow:
-    """Returns ``target`` as a workflow: itself, the one attached by ``@experiment``, or a new one-step workflow."""
+    """Returns ``target`` as a workflow: itself, or, for a function of the launcher, a workflow whose only step
+    (``experiment``) calls it with the launcher."""
     if isinstance(target, Workflow):
         return target
-    attached = getattr(target, _ATTRIBUTE, None)
-    if isinstance(attached, Workflow):
-        return attached
-    return _one_step(target, getattr(target, "__name__", None) or "experiment", 0, None)
+    workflow = Workflow(getattr(target, "__name__", None) or "experiment")
+
+    def experiment_step(launcher: "Launcher") -> Any:
+        return target(launcher)
+
+    workflow.step(experiment_step, name="experiment", title=workflow.name)
+    # Set after declaring the step: inspect.signature follows __wrapped__, and the step's parameter is `launcher`.
+    experiment_step.__wrapped__ = target  # type: ignore[attr-defined]  # provenance points at the real function
+    return workflow
 
 
 def load_module(path: Path) -> ModuleType:
@@ -97,15 +54,14 @@ def load_module(path: Path) -> ModuleType:
 
 
 def collect_workflows(module: ModuleType) -> list[Workflow]:
-    """The workflows a module offers (``Workflow`` objects and ``@experiment`` functions), sorted by ``order``.
+    """The workflows a module offers (its ``Workflow`` objects), sorted by ``order``.
 
     Ties keep declaration order. A workflow bound to several names is listed once.
     """
     found: list[Workflow] = []
     for value in vars(module).values():
-        workflow = value if isinstance(value, Workflow) else getattr(value, _ATTRIBUTE, None)
-        if isinstance(workflow, Workflow) and not any(workflow is seen for seen in found):
-            found.append(workflow)
+        if isinstance(value, Workflow) and not any(value is seen for seen in found):
+            found.append(value)
     return sorted(found, key=lambda workflow: workflow.order)
 
 
@@ -124,7 +80,7 @@ def select_workflow(path: Path, *, name: str | None = None) -> Workflow:
     if len(by_name) != len(workflows):
         raise ValueError(f"Workflow names must be unique within {path}.")
     if not workflows:
-        raise SystemExit(f"No workflows or @experiment functions found in {path}")
+        raise SystemExit(f"No workflows found in {path}")
     if name is not None:
         if name not in by_name:
             raise SystemExit(f"No experiment named '{name}' in {path}. Available: {', '.join(by_name)}")

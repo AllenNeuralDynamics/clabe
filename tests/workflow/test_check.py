@@ -3,7 +3,7 @@ from typing import NewType
 import pytest
 from pydantic import BaseModel
 
-from clabe.workflow import Workflow, as_workflow, check_path, check_workflow, experiment
+from clabe.workflow import Workflow, as_workflow, check_path, check_workflow
 from tests import REPO_ROOT, TESTS_ASSETS
 
 
@@ -191,8 +191,7 @@ def test_new_types_compare_through_their_supertype():
     assert "expects str" in issue.message
 
 
-def test_experiment_functions_pass_even_in_strict_mode():
-    @experiment()
+def test_a_function_of_the_launcher_passes_even_in_strict_mode():
     async def legacy(launcher: "Launcher") -> None: ...  # noqa: F821 -- unresolvable on purpose
 
     assert check_workflow(as_workflow(legacy)) == []
@@ -214,7 +213,7 @@ def test_check_path_reports_definition_and_import_errors(tmp_path):
 def test_check_path_on_a_directory_skips_helpers_and_requires_a_workflow(tmp_path):
     (tmp_path / "_clabe_check_helpers.py").write_text("X = 1\n")
     (tmp_path / "_clabe_check_exp.py").write_text(
-        "from clabe.workflow import experiment\n@experiment()\ndef e(launcher): ...\n"
+        "from clabe.workflow import Workflow\nwf = Workflow('e')\nwf.step(lambda launcher: None, name='experiment')\n"
     )
     assert check_path(tmp_path) == []
 
@@ -232,11 +231,7 @@ def test_check_path_reports_a_missing_path(tmp_path):
 
 def test_check_path_reports_duplicate_workflow_names(tmp_path):
     dup = tmp_path / "_clabe_check_dup.py"
-    dup.write_text(
-        "from clabe.workflow import experiment\n"
-        "@experiment(name='x')\ndef a(launcher): ...\n"
-        "@experiment(name='x')\ndef b(launcher): ...\n"
-    )
+    dup.write_text("from clabe.workflow import Workflow\na = Workflow('x')\nb = Workflow('x')\n")
     [issue] = check_path(dup)
     assert "duplicate workflow name 'x'" in issue.message
 

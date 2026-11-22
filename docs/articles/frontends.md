@@ -130,7 +130,7 @@ unless you click **Keep it open**. The browser may not allow a tab you opened by
 to close itself. In that case the tab says so.
 
 ```python
-wf = Workflow("vr-foraging", exit_prompt_timeout=60)  # or @experiment(..., exit_prompt_timeout=60)
+wf = Workflow("vr-foraging", exit_prompt_timeout=60)
 ```
 
 | Value | Result |

@@ -11,7 +11,7 @@ from clabe.launcher import _manifest
 from clabe.launcher._cli import LauncherCliArgs
 from clabe.launcher._manifest import collect_manifest, describe_steps
 from clabe.repository import GitRepository
-from clabe.workflow import Workflow, as_workflow, experiment
+from clabe.workflow import Workflow, as_workflow
 
 
 def _git(path, *args):
@@ -45,7 +45,6 @@ def _one_step() -> Workflow:
 
 
 def test_describe_steps_points_at_the_real_function():
-    @experiment(name="legacy")
     def legacy(launcher): ...
 
     [step] = describe_steps(as_workflow(legacy))

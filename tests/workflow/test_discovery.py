@@ -4,18 +4,17 @@ from unittest.mock import Mock
 import pytest
 
 from clabe import ui
-from clabe.workflow import Run, Workflow, as_workflow, collect_workflows, experiment, load_module, select_workflow
+from clabe.workflow import Run, Workflow, as_workflow, collect_workflows, load_module, select_workflow
 from tests import TESTS_ASSETS
 
 
-def test_experiment_attaches_a_one_step_workflow():
-    @experiment(name="legacy", exit_prompt_timeout=30, order=2)
+def test_a_function_of_the_launcher_runs_as_a_one_step_workflow():
     async def legacy(launcher):
         return launcher
 
     wf = as_workflow(legacy)
 
-    assert (wf.name, wf.order, wf.exit_prompt_timeout) == ("legacy", 2, 30)
+    assert wf.name == "legacy"
     assert [s.name for s in wf.steps] == ["experiment"]
     assert wf.get("experiment").title == "legacy"
     sentinel = object()
@@ -34,19 +33,10 @@ def test_as_workflow_accepts_workflows_and_plain_callables():
     assert as_workflow(plain).name == "plain"
 
 
-def test_experiment_rejects_a_negative_exit_prompt_timeout():
-    with pytest.raises(ValueError, match="exit_prompt_timeout"):
-        experiment(exit_prompt_timeout=-1)
-
-
 def test_collect_workflows_keeps_declaration_order_within_the_same_order():
     declared = Workflow("declared")
-
-    @experiment(name="legacy")
-    def legacy(launcher): ...
-
-    @experiment(name="first", order=-1)
-    def first(launcher): ...
+    legacy = Workflow("legacy")
+    first = Workflow("first", order=-1)
 
     module = ModuleType("fake_module")
     module.legacy, module.declared, module.alias, module.first = legacy, declared, declared, first

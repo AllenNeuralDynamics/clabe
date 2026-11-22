@@ -240,5 +240,5 @@ def check_path(path: str | Path, *, strict: bool = False) -> list[Issue]:
         issues += file_issues
         found += count
     if found == 0 and not issues:
-        issues.append(Issue("error", "no workflows or @experiment functions found.", source=str(path)))
+        issues.append(Issue("error", "no workflows found.", source=str(path)))
     return issues
