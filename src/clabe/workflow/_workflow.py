@@ -30,6 +30,10 @@ class Step:
         on_error: ``"raise"`` pauses the run with Retry/Go back/Abort; ``"warn"`` notifies and continues
             with ``None`` as the step's output.
         optional: When set, the run asks this question first and skips the step on "no".
+        when: A condition on earlier outputs (taken by parameter name, like a step's inputs): the step runs only
+            when it returns something true, and is skipped otherwise. Going back to a step it reads evaluates it
+            again.
+        when_params: The condition's parameter names.
         undo: Called with the step's output when a completed step is invalidated by going back.
         cancellable: An async step that may be interrupted by going back while it is busy.
         codec: How the output is recorded in ``outputs.jsonl`` (see [`clabe.workflow.codecs`][clabe.workflow.codecs]); ``None`` uses
@@ -46,11 +50,13 @@ class Step:
     undo: Callable[[Any], Any] | None = None
     cancellable: bool = False
     codec: Codec | None = None
+    when: Callable[..., Any] | None = None
+    when_params: tuple[str, ...] = ()
 
     @property
     def deps(self) -> tuple[str, ...]:
-        """The parameters that must be produced by earlier steps."""
-        return tuple(p for p in self.params if p not in BUILTINS)
+        """What must be produced by earlier steps: the step's inputs, then its condition's (without repeats)."""
+        return tuple(dict.fromkeys(p for p in (*self.params, *self.when_params) if p not in BUILTINS))
 
     def options(self) -> dict[str, Any]:
         """The declaration options, as accepted by `Workflow.step`."""
@@ -62,6 +68,7 @@ class Step:
             "undo": self.undo,
             "cancellable": self.cancellable,
             "codec": self.codec,
+            "when": self.when,
         }
 
 
@@ -101,6 +108,7 @@ def _build_step(
     undo: Callable[[Any], Any] | None = None,
     cancellable: bool = False,
     codec: Codec | None = None,
+    when: Callable[..., Any] | None = None,
 ) -> Step:
     """Builds a `Step` from a function, checking the options that do not depend on other steps."""
     step_name = name if name is not None else getattr(func, "__name__", None)
@@ -109,15 +117,12 @@ def _build_step(
             f"Step name {step_name!r} is not a valid Python identifier; pass name=... "
             "(later steps receive this step's output through a parameter of that name)."
         )
-    params = []
-    for param in inspect.signature(func).parameters.values():
-        if param.kind in (param.VAR_POSITIONAL, param.VAR_KEYWORD):
-            raise WorkflowDefinitionError(f"Step {step_name!r}: *args/**kwargs are not supported; name each input.")
-        if param.kind is param.POSITIONAL_ONLY:
-            raise WorkflowDefinitionError(
-                f"Step {step_name!r}: parameter {param.name!r} is positional-only; steps are called by keyword."
-            )
-        params.append(param.name)
+    params = _param_names(func, f"Step {step_name!r}")
+    when_params: list[str] = []
+    if when is not None:
+        if not callable(when) or inspect.iscoroutinefunction(when):
+            raise WorkflowDefinitionError(f"Step {step_name!r}: when must be a plain (not async) function.")
+        when_params = _param_names(when, f"Step {step_name!r}: its condition")
     if barrier and undo is not None:
         raise WorkflowDefinitionError(f"Step {step_name!r} cannot be both a barrier and undoable.")
     if on_error not in ("raise", "warn"):
@@ -142,7 +147,23 @@ def _build_step(
         undo=undo,
         cancellable=cancellable,
         codec=codec,
+        when=when,
+        when_params=tuple(when_params),
     )
+
+
+def _param_names(func: Callable[..., Any], what: str) -> list[str]:
+    """The parameter names of ``func``, which is called by keyword with outputs of earlier steps."""
+    names = []
+    for param in inspect.signature(func).parameters.values():
+        if param.kind in (param.VAR_POSITIONAL, param.VAR_KEYWORD):
+            raise WorkflowDefinitionError(f"{what}: *args/**kwargs are not supported; name each input.")
+        if param.kind is param.POSITIONAL_ONLY:
+            raise WorkflowDefinitionError(
+                f"{what}: parameter {param.name!r} is positional-only; steps are called by keyword."
+            )
+        names.append(param.name)
+    return names
 
 
 def _check(steps: Iterable[Step]) -> None:

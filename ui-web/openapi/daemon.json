@@ -614,6 +614,11 @@
             "title": "Barrier",
             "type": "boolean"
           },
+          "conditional": {
+            "default": false,
+            "title": "Conditional",
+            "type": "boolean"
+          },
           "name": {
             "title": "Name",
             "type": "string"

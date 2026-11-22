@@ -154,25 +154,32 @@ def check_workflow(workflow: Workflow, *, strict: bool = False) -> list[Issue]:
         def report(severity: Severity, message: str, step_name: str = step.name) -> None:
             issues.append(Issue(severity, message, workflow=workflow.name, step=step_name))
 
-        hints, errors = _resolve(step.func, (*step.deps, "return"))
+        inputs = tuple(d for d in step.params if d in step.deps)
+        hints, errors = _resolve(step.func, (*inputs, "return"))
+        # The condition's inputs are checked when annotated; a lambda's are not, and need not be.
+        condition_inputs = tuple(d for d in step.when_params if d in step.deps and d not in inputs)
+        if step.when is not None:
+            condition_hints, condition_errors = _resolve(step.when, condition_inputs)
+            hints.update(condition_hints)
+            errors.update(condition_errors)
         for name, exc in errors.items():
             what = "return annotation" if name == "return" else f"annotation of {name!r}"
             report("error", f"{what} cannot be resolved ({type(exc).__name__}: {exc}).")
         if "return" in errors:
             unresolved_returns.add(step.name)
-        for dep in step.deps:
+        for dep in (*inputs, *condition_inputs):
             if dep in errors or dep in unresolved_returns:
                 continue
             expected, given = hints.get(dep, _UNKNOWN), produced.get(dep, _UNKNOWN)
             if expected is _UNKNOWN or given is _UNKNOWN:
-                if strict:
+                if strict and dep in inputs:
                     report("warning", f"cannot check {dep!r}: annotate this parameter and the return of step {dep!r}.")
                 continue
             verdict = _fits(given, expected)
             if verdict is False and _fits(declared[dep], expected) is not False:
                 report(
                     "error",
-                    f"step {dep!r} is optional or on_error='warn', so {dep!r} may be None; "
+                    f"step {dep!r} is optional, conditional or on_error='warn', so {dep!r} may be None; "
                     f"annotate it as {_name(expected)} | None.",
                 )
             elif verdict is False:
@@ -183,7 +190,7 @@ def check_workflow(workflow: Workflow, *, strict: bool = False) -> list[Issue]:
                 report("warning", f"cannot decide whether {_name(given)} fits {_name(expected)} for {dep!r}.")
         returned = hints.get("return", _UNKNOWN)
         declared[step.name] = returned
-        if returned is not _UNKNOWN and (step.optional is not None or step.on_error == "warn"):
+        if returned is not _UNKNOWN and (step.optional is not None or step.when is not None or step.on_error == "warn"):
             returned = typing.Optional[returned]  # noqa: UP045 -- a runtime value, not an annotation
         produced[step.name] = returned
     return issues

@@ -49,7 +49,7 @@ from clabe.utils import is_this_computer
 
 remote = RemoteRepository.from_computer_name("rig-b", data_roots={r"D:\data": r"\\rig-b\data"})
 remote.ensure_running()  # pings the daemon; starts its task if it is down
-remote.verify()          # same origin, commit, submodules, and no uncommitted changes there
+remote.verify()  # same origin, commit, submodules, and no uncommitted changes there
 ```
 
 | Argument | Meaning |
@@ -95,8 +95,8 @@ To run a command without an app, use the [`WorkerClient`][clabe.remote.WorkerCli
 
 ```python
 result = remote.client.run_command(["python", "--version"])  # waits
-job = remote.client.submit_command(["python", "slow.py"])     # poll with get_result(job.job_id)
-remote.client.upload_model(session, "session.json")           # up to max_file_size
+job = remote.client.submit_command(["python", "slow.py"])  # poll with get_result(job.job_id)
+remote.client.upload_model(session, "session.json")  # up to max_file_size
 ```
 
 ## 4. Give it a session folder

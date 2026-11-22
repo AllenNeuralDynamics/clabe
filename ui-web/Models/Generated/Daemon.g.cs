@@ -119,7 +119,8 @@ public sealed record StepInfo(
     [property: JsonPropertyName("name")] string Name,
     [property: JsonPropertyName("title")] string Title,
     [property: JsonPropertyName("barrier")] bool Barrier,
-    [property: JsonPropertyName("optional")] string? Optional);
+    [property: JsonPropertyName("optional")] string? Optional,
+    [property: JsonPropertyName("conditional")] bool Conditional = false);
 
 public sealed record ValidationError(
     [property: JsonPropertyName("loc")] List<System.Text.Json.Nodes.JsonNode> Loc,

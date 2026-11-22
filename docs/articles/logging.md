@@ -69,7 +69,7 @@ set_console_level(logging.DEBUG)
 from clabe.ui import MessageLevel, notify
 
 logger.info("Starting robocopy transfer service.")  # the record
-notify("Transferring data…", MessageLevel.INFO)      # what the user sees
+notify("Transferring data…", MessageLevel.INFO)  # what the user sees
 ```
 
 - Levels: `INFO`, `SUCCESS`, `WARNING`, `ERROR`; the screen shows those at or above the verbosity threshold.

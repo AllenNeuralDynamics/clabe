@@ -69,6 +69,7 @@ def qc(launcher: Launcher) -> QcReport: ...
 | `barrier=True` | Once run, neither it nor any step before it can run again |
 | `undo=` | Called with the output when going back invalidates the step (reversible side effects) |
 | `optional="question?"` | Asks first; a skipped step outputs `None` |
+| `when=lambda mode: mode == 1` | Runs only when the condition on earlier outputs holds; otherwise skipped, output `None` |
 | `on_error="warn"` | Warns and continues with `None` instead of pausing with Retry / Go back / Abort |
 | `cancellable=True` | Going back may interrupt the busy async step (abort always does) |
 | `codec=` | How the output is recorded (see [Run records](records.md#choosing-how-an-output-is-recorded)) |
@@ -76,7 +77,34 @@ def qc(launcher: Launcher) -> QcReport: ...
 
 Going back (web UI, `raise GoBack("session")`) reruns that step and everything depending on it.
 
-## 5. Run several things at once
+## 5. Run a step only in some cases
+
+```python
+@wf.step
+def mode() -> str:
+    return ui.pick("Calibration", ["measure", "reuse"], allow_none=False)
+
+
+@wf.step(when=lambda mode: mode == "measure")
+def calibrate(rig: MyRig) -> Calibration: ...
+
+
+@wf.step(when=lambda mode: mode == "reuse")
+def last_calibration(rig: MyRig) -> Calibration: ...
+
+
+@wf.step
+def acquire(calibrate: Calibration | None, last_calibration: Calibration | None) -> None:
+    calibration = calibrate or last_calibration
+```
+
+- `when` takes earlier outputs by name, like a step; it must be a plain (not async) function.
+- Skipped steps output `None`: annotate their consumers `T | None` (`clabe check` tells you).
+- Going back to `mode` evaluates the conditions again.
+- With `optional=` too, the question is only asked when the condition holds.
+- If the two cases are just code, one step with an `if` is simpler.
+
+## 6. Run several things at once
 
 ```python
 from clabe.workflow import concurrently
@@ -100,7 +128,7 @@ async def acquire(rig: MyRig) -> dict[str, Any]:
 - A failed branch offers **Retry**, **Continue without** (result `None`) or **Stop all**.
 - A cancelled branch gets 30 s for its `finally`.
 
-## 6. Run it
+## 7. Run it
 
 ```bash
 clabe run my_experiment.py                      # pass --experiment-name if the file declares several
@@ -109,7 +137,7 @@ clabe check my_experiments/ --strict            # CI: checks wiring and annotati
 
 From Python: `Launcher(settings=...).run_experiment(wf)`.
 
-## 7. Derive a variant
+## 8. Derive a variant
 
 ```python
 fip = wf.variant("vr-foraging-fip").insert_after("rig", fip_rig).replace("qc", my_qc)

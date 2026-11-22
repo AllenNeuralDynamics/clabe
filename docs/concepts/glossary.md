@@ -10,6 +10,7 @@
 | **Built-in** | A name any step can take without a step producing it: `launcher`, `run`. |
 | **Barrier** | A step after which neither it nor anything before it can run again. |
 | **Optional step** | A step the run asks about first; declining skips it. |
+| **Conditional step** | A step with `when=`: runs only when its condition on earlier outputs holds. |
 | **Branch** | One of several things a step runs at once (`concurrently`); fails and retries on its own. |
 | **Check** | A function that raises when something is wrong; `steps.preflight` runs several at once. |
 | **Codec** | How a step's output is recorded. |

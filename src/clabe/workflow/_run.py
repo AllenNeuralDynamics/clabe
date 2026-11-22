@@ -46,6 +46,7 @@ from ._events import (
     PromptOpened,
     RunFinished,
     RunStarted,
+    SkipReason,
     StepFailed,
     StepFinished,
     StepsInvalidated,
@@ -103,6 +104,8 @@ class StepState(BaseModel):
     optional: str | None
     locked: bool
     summary: str | None = None
+    conditional: bool = False
+    skip_reason: SkipReason | None = None
 
 
 class RunState(BaseModel):
@@ -304,6 +307,7 @@ class Run:
         self._outputs: dict[str, Any] = {}
         self._summaries: dict[str, str | None] = {}  # display renderings of _outputs, computed once per output
         self._attempts: dict[str, int] = {}
+        self._skip_reasons: dict[str, SkipReason] = {}
         self._produced_by: dict[str, int] = {}  # step -> attempt whose output is current (0: skipped)
         self._artifacts: dict[tuple[str, int], list[str]] = {}
         self._barrier = -1
@@ -433,7 +437,17 @@ class Run:
 
     # --- executing a step -------------------------------------------------
     def _run_step(self, step: Step) -> None:
-        """Executes ``step``: asks first if optional, handles go back and abort, and pauses on failures."""
+        """Executes ``step``: checks its condition, asks first if optional, handles go back and abort, and pauses on
+        failures."""
+        if step.when is not None:
+            try:
+                holds = step.when(**{name: self._resolve(name) for name in step.when_params})
+            except Exception as exc:  # noqa: BLE001 -- a failing condition pauses the run like a failing step
+                self._fail(step, RuntimeError(f"The condition of {step.title} failed: {exc}"))
+                return
+            if not holds:
+                self._skip(step, "condition")
+                return
         if step.optional is not None and not self._confirm_optional(step):
             return
         self._begin(step)
@@ -985,6 +999,7 @@ class Run:
                 self._outputs.pop(name, None)
                 self._summaries.pop(name, None)
                 self._produced_by.pop(name, None)
+                self._skip_reasons.pop(name, None)
                 invalidated.append(name)
             if invalidated:
                 self.events.append(StepsInvalidated(steps=invalidated))
@@ -1064,13 +1079,18 @@ class Run:
             run_it = False
         if run_it:
             return True
+        self._skip(step, "declined")
+        return False
+
+    def _skip(self, step: Step, reason: SkipReason) -> None:
+        """Records ``step`` as skipped (its output ``None``): declined, or its condition did not hold."""
         with self._lock:
             self._steps[step.name] = StepStatus.SKIPPED
             self._outputs[step.name] = None
             self._summaries[step.name] = None
             self._produced_by[step.name] = 0
-            self.events.append(StepSkipped(step=step.name))
-        return False
+            self._skip_reasons[step.name] = reason
+            self.events.append(StepSkipped(step=step.name, reason=reason))
 
     # --- messages ---------------------------------------------------------
     def notify(self, message: str, level: MessageLevel = MessageLevel.INFO) -> None:
@@ -1143,6 +1163,8 @@ class Run:
                     optional=step.optional,
                     locked=index <= self._barrier,
                     summary=self._summaries.get(step.name),
+                    conditional=step.when is not None,
+                    skip_reason=self._skip_reasons.get(step.name),
                 )
                 for index, step in enumerate(self.workflow.steps)
             ]

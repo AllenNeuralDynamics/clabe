@@ -15,7 +15,7 @@ wf.step(steps.register())
 | Step | Takes | Does | Defaults |
 |---|---|---|---|
 | `steps.session()` | `launcher` | Asks who is running and on which animal | |
-| `steps.review(*names, back_to=)` | the named outputs | Shows them; "Go back" goes back to `back_to` | |
+| `steps.review(*names, back_to=)` | the named outputs | Shows them in one table; "Looks good" continues, "Go back" re-runs `back_to` (default: the first name) and what depends on it | |
 | `steps.preflight(*checks)` | what the checks take | Runs every [check](#checks); fails once, listing each failure | |
 | `steps.free_space(bytes)` | `rig` | Fails when the data drive is short of space | |
 | `steps.register()` | `launcher`, `session`, `rig` | Creates the session's data directory | barrier |

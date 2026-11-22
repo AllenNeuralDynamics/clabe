@@ -79,7 +79,9 @@ public sealed record StepState(
     [property: JsonPropertyName("barrier")] bool Barrier,
     [property: JsonPropertyName("optional")] string? Optional,
     [property: JsonPropertyName("locked")] bool Locked,
-    [property: JsonPropertyName("summary")] string? Summary = null);
+    [property: JsonPropertyName("summary")] string? Summary = null,
+    [property: JsonPropertyName("conditional")] bool Conditional = false,
+    [property: JsonPropertyName("skip_reason")] string? SkipReason = null);
 
 public sealed record ValidationError(
     [property: JsonPropertyName("loc")] List<System.Text.Json.Nodes.JsonNode> Loc,

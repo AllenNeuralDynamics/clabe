@@ -64,8 +64,8 @@ uv run clabe run experiments/hello.py --allow-dirty
 from clabe import checks
 
 wf.step(steps.review("session", "rig", "task", back_to="task"))  # "Go back" re-asks the task
-wf.step(steps.preflight(checks.free_space(1e9)))                 # fails listing every problem
-wf.step(steps.register())                                        # creates the session folder; a barrier
+wf.step(steps.preflight(checks.free_space(1e9)))  # fails listing every problem
+wf.step(steps.register())  # creates the session folder; a barrier
 ```
 
 - **Go back** re-runs a step and only what depends on it.

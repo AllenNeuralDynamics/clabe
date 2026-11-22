@@ -34,6 +34,7 @@ stateDiagram-v2
   [*] --> pending
   pending --> running
   running --> done
+  pending --> skipped: condition false
   running --> skipped: optional, declined
   running --> failed: raised
   failed --> running: Retry

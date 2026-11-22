@@ -21,6 +21,10 @@
                 {
                     <span class="tag">optional</span>
                 }
+                @if (step.Conditional)
+                {
+                    <span class="tag" title="Runs only when its condition holds">conditional</span>
+                }
                 @if (step.Locked)
                 {
                     <span class="lock" title="Locked: a later barrier step has run">🔒</span>
@@ -73,6 +77,14 @@
         _ => current ? "●" : "○",
     };
 
-    private static string StepTooltip(StepState step, bool canGoBack) =>
-        canGoBack ? $"Go back to {step.Title}: it and the steps depending on it run again" : step.Name;
+    private static string StepTooltip(StepState step, bool canGoBack)
+    {
+        var skipped = step.SkipReason switch
+        {
+            "condition" => "Skipped: its condition did not hold. ",
+            "declined" => "Skipped: declined. ",
+            _ => "",
+        };
+        return skipped + (canGoBack ? $"Go back to {step.Title}: it and the steps depending on it run again" : step.Name);
+    }
 }

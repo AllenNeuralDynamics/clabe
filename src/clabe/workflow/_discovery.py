@@ -147,6 +147,7 @@ class StepInfo(BaseModel):
     title: str
     barrier: bool
     optional: str | None
+    conditional: bool = False
 
 
 class ExperimentInfo(BaseModel):
@@ -187,7 +188,14 @@ def list_experiments(path: str | Path) -> ExperimentListing:
             continue
         for workflow in collect_workflows(module):
             steps = [
-                StepInfo(name=s.name, title=s.title, barrier=s.barrier, optional=s.optional) for s in workflow.steps
+                StepInfo(
+                    name=s.name,
+                    title=s.title,
+                    barrier=s.barrier,
+                    optional=s.optional,
+                    conditional=s.when is not None,
+                )
+                for s in workflow.steps
             ]
             experiments.append(ExperimentInfo(file=str(file), name=workflow.name, steps=steps))
     return ExperimentListing(experiments=experiments, errors=errors)

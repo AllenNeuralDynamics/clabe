@@ -1236,8 +1236,17 @@
         "type": "object"
       },
       "StepSkipped": {
-        "description": "An optional step was declined.",
+        "description": "A step was skipped: an optional step declined, or a conditional step whose condition did not hold.",
         "properties": {
+          "reason": {
+            "default": "declined",
+            "enum": [
+              "declined",
+              "condition"
+            ],
+            "title": "Reason",
+            "type": "string"
+          },
           "run_id": {
             "default": "",
             "title": "Run Id",
@@ -1317,6 +1326,11 @@
             "title": "Barrier",
             "type": "boolean"
           },
+          "conditional": {
+            "default": false,
+            "title": "Conditional",
+            "type": "boolean"
+          },
           "locked": {
             "title": "Locked",
             "type": "boolean"
@@ -1335,6 +1349,21 @@
               }
             ],
             "title": "Optional"
+          },
+          "skip_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "declined",
+                  "condition"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skip Reason"
           },
           "status": {
             "$ref": "#/components/schemas/StepStatus"

@@ -85,11 +85,16 @@ class StepFailed(_Event):
     warn_only: bool = False
 
 
+#: Why a step was skipped: its optional question was declined, or its condition (``when=``) did not hold.
+SkipReason = Literal["declined", "condition"]
+
+
 class StepSkipped(_Event):
-    """An optional step was declined."""
+    """A step was skipped: an optional step declined, or a conditional step whose condition did not hold."""
 
     type: Literal["step_skipped"] = "step_skipped"
     step: str
+    reason: SkipReason = "declined"
 
 
 class StepsInvalidated(_Event):

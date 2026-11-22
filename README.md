@@ -44,17 +44,17 @@ from clabe.launcher import Launcher
 from clabe.workflow import Workflow, concurrently
 
 wf = Workflow("vr-foraging")
-wf.step(steps.session())                                  # who is running, on which animal
+wf.step(steps.session())  # who is running, on which animal
 
 
 @wf.step
 def trials() -> float:
-    return ui.number("Trials", minimum=1, maximum=500)   # validated wherever it is answered
+    return ui.number("Trials", minimum=1, maximum=500)  # validated wherever it is answered
 
 
 wf.step(steps.review("session", "trials", back_to="session"))
-wf.step(steps.preflight(checks.free_space(200e9)))       # every problem reported at once
-wf.step(steps.register())                                 # a barrier: the session folder exists now
+wf.step(steps.preflight(checks.free_space(200e9)))  # every problem reported at once
+wf.step(steps.register())  # a barrier: the session folder exists now
 
 
 @wf.step(title="Acquire", cancellable=True)

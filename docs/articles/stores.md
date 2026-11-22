@@ -13,7 +13,7 @@ session = SessionBuilder(launcher).build()
 store = LocalFileStore(root=r"\\allen\aind\scratch\AindBehavior.db\MyProject")
 store = store.scoped(subject=session.subject)
 
-rig = store.resolve(RIG)        # asks the user if there is more than one
+rig = store.resolve(RIG)  # asks the user if there is more than one
 store.write(TASK, task_logic)
 ```
 

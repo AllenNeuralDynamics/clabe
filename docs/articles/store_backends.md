@@ -30,9 +30,9 @@ store = CompositeStore(
     routes={"trainer_state": DataverseStore()},
 )
 
-rig = store.resolve(RIG)                    # LocalFileStore (default)
-trainer_state = store.resolve(SUGGESTION)   # DataverseStore (routed by kind name)
-store = store.scoped(subject="789012")      # narrows every backend
+rig = store.resolve(RIG)  # LocalFileStore (default)
+trainer_state = store.resolve(SUGGESTION)  # DataverseStore (routed by kind name)
+store = store.scoped(subject="789012")  # narrows every backend
 ```
 
 - Routes are keyed by kind name (`"rig"`, `"task"`, `"trainer_state"`, …).
@@ -95,8 +95,8 @@ MANIPULATOR = Kind(ManipulatorPosition)
 store = MemoryStore()
 store.write(MANIPULATOR, ManipulatorPosition(x=0, y=0, z=0), scope={"subject": "123"})
 
-store.list(MANIPULATOR)                         # [] (no subject in scope)
-store.scoped(subject="123").list(MANIPULATOR)   # [ManipulatorPosition(x=0, y=0, z=0)]
+store.list(MANIPULATOR)  # [] (no subject in scope)
+store.scoped(subject="123").list(MANIPULATOR)  # [ManipulatorPosition(x=0, y=0, z=0)]
 ```
 
 - A record written under a scope is only visible to reads with that scope; an unscoped record is visible everywhere.
