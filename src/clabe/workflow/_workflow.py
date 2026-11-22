@@ -3,6 +3,7 @@
 import inspect
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
+from types import EllipsisType
 from typing import Any, Literal, Self, TypeVar
 
 from .codecs import Codec
@@ -208,7 +209,8 @@ class Workflow:
     Args:
         name: Human-readable name of the workflow (what ``clabe run`` lists).
         order: Sort key when a module defines several workflows (lower first).
-        exit_prompt_timeout: Seconds the launcher waits at its exit prompt; ``None`` waits, ``0`` skips it.
+        exit_prompt_timeout: Seconds the launcher waits at its exit prompt; ``None`` waits, ``0`` skips it (after a
+            successful run only: after a failure or abort it waits).
     """
 
     def __init__(self, name: str, *, order: int = 0, exit_prompt_timeout: float | None = None) -> None:
@@ -263,9 +265,21 @@ class Workflow:
                 result.append(step.name)
         return result
 
-    def variant(self, name: str) -> "Workflow":
-        """Returns a copy named ``name`` with the same steps and settings, to customise further."""
-        copy = Workflow(name, order=self.order, exit_prompt_timeout=self.exit_prompt_timeout)
+    def variant(
+        self, name: str, *, order: int | None = None, exit_prompt_timeout: float | None | EllipsisType = ...
+    ) -> "Workflow":
+        """Returns a copy named ``name`` with the same steps, to customise further.
+
+        Args:
+            name: The copy's name.
+            order: The copy's ``order``; this workflow's by default.
+            exit_prompt_timeout: The copy's ``exit_prompt_timeout`` (``None`` included); this workflow's by default.
+        """
+        copy = Workflow(
+            name,
+            order=self.order if order is None else order,
+            exit_prompt_timeout=self.exit_prompt_timeout if exit_prompt_timeout is ... else exit_prompt_timeout,
+        )
         copy._steps = self._steps
         return copy
 
@@ -316,6 +330,21 @@ class Workflow:
         steps = list(self._steps)
         steps[position] = make_step(func, name=name, **{**steps[position].options(), **options})
         self._set_steps(steps)
+        return self
+
+    def remove(self, name: str) -> Self:
+        """Removes step ``name``.
+
+        Raises:
+            WorkflowDefinitionError: A later step takes its output (remove or replace that one first).
+        """
+        users = [step.name for step in self._steps if name in step.deps]
+        if users:
+            raise WorkflowDefinitionError(
+                f"Cannot remove step {name!r}: step(s) {', '.join(map(repr, users))} take its output."
+            )
+        position = self.index(name)
+        self._set_steps([*self._steps[:position], *self._steps[position + 1 :]])
         return self
 
     def _set_steps(self, steps: list[Step]) -> None:

@@ -528,9 +528,12 @@ class Launcher:
             _force: Whether to force exit without user prompt. Defaults to False
             timeout: Seconds to wait at the exit prompt before exiting anyway.
                 ``None`` waits until the user presses Enter; ``0`` skips the
-                prompt. Defaults to None
+                prompt after a successful run (after a failure or abort, it waits as ``None`` does, so the user sees
+                what went wrong). Defaults to None
         """
         logger.debug("Exiting with code %s", code)
+        if code != 0 and timeout == 0:
+            timeout = None
         if logger is not None:
             clabe_logging.shutdown_logger(logger)
         run = self._served_run

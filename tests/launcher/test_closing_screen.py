@@ -98,6 +98,15 @@ def test_the_local_exit_prompt_closes_first(mock_base_launcher, mock_frontend):
     assert isinstance(run.close(client="pc-2"), Rejected)  # the first close won
 
 
+def test_a_zero_timeout_skips_the_prompt_only_after_a_success(mock_base_launcher, mock_frontend):
+    with patch("clabe.launcher._base.ui.text") as exit_prompt:
+        mock_base_launcher._exit(0, timeout=0)
+        exit_prompt.assert_not_called()
+        mock_base_launcher._exit(-1, timeout=0)  # a failure or abort: the user should see what went wrong
+        exit_prompt.assert_called_once()
+        assert exit_prompt.call_args.args[0] == "Press Enter to exit..."
+
+
 def test_the_closing_screen_counts_down(mock_base_launcher):
     mock_base_launcher.client = _BlockingFrontend()
     run = _finished_run()

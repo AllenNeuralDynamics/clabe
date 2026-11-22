@@ -172,6 +172,23 @@ def test_variant_inserts_and_replaces_without_touching_the_original():
     assert [s.name for s in vr.steps] == ["session", "rig", "qc"]
 
 
+def test_a_variant_can_set_its_own_order_and_exit_prompt_timeout():
+    vr = _vr()
+    assert (vr.variant("a", order=7).order, vr.variant("a", order=7).exit_prompt_timeout) == (7, 60)
+    assert vr.variant("b", exit_prompt_timeout=None).exit_prompt_timeout is None
+    assert vr.variant("c", exit_prompt_timeout=0).order == 3
+
+
+def test_remove_drops_a_step_nothing_takes():
+    vr = _vr()
+    recovery = vr.variant("recovery").remove("qc")
+    assert [s.name for s in recovery.steps] == ["session", "rig"]
+    assert [s.name for s in vr.steps] == ["session", "rig", "qc"]
+    with pytest.raises(WorkflowDefinitionError, match="'rig' take its output"):
+        recovery.remove("session")
+    assert recovery.remove("rig").remove("session").steps == ()
+
+
 def test_replace_keeps_the_original_options_unless_overridden():
     fip = _vr().variant("x").replace("qc", my_qc)
     assert fip.get("qc").barrier and fip.get("qc").title == "Quality control"

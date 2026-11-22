@@ -16,7 +16,8 @@ wf.step(steps.session())  # a `session` step: who is running, on which animal
 ```
 
 - `exit_prompt_timeout`: with `None` the run waits for a client to close the session, with `0` it exits at once, and
-  with `N` it counts down `N` seconds.
+  with `N` it counts down `N` seconds. After a failure or abort, `0` waits as `None` does, so the error stays on
+  screen.
 
 ## 2. Add your own steps
 
@@ -145,7 +146,11 @@ From Python: `Launcher(settings=...).run_experiment(wf)`.
 
 ```python
 fip = wf.variant("vr-foraging-fip").insert_after("rig", fip_rig).replace("qc", my_qc)
+recovery = wf.variant("recovery", order=10).remove("qc")
 ```
+
+- `variant` keeps `order` and `exit_prompt_timeout` unless given.
+- `remove` refuses a step whose output a later step takes: remove or `replace` that one first.
 
 ## 9. Concatenate a shared block
 
