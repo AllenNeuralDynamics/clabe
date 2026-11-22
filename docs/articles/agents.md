@@ -4,7 +4,15 @@ Let an AI agent follow a run and answer its prompts, through MCP or AG-UI. The f
 
 ## MCP
 
-`clabe mcp` serves a run server, a rig's [daemon](daemon.md) or a [hub](hub.md) to an MCP client over stdio:
+The [hub](hub.md) serves MCP itself, for every rig, at one address (streamable HTTP):
+
+```json
+{"mcpServers": {"clabe": {"url": "http://hub:8080/mcp", "headers": {"Authorization": "Bearer <the hub's TOKEN>"}}}}
+```
+
+- Every tool takes the `rig` to act on (see `list_rigs`); leave the header out when the hub has no token.
+
+Without a hub, `clabe mcp` serves a run server, a rig's [daemon](daemon.md) (or a hub) over stdio:
 
 ```bash
 uv add "aind-clabe[agents]"

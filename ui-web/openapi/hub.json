@@ -415,6 +415,59 @@
         "title": "RigStatus",
         "type": "object"
       },
+      "SessionDeleteBody": {
+        "description": "Sessions to delete, by key (``rig_id/run_id``).",
+        "properties": {
+          "keys": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Keys",
+            "type": "array"
+          }
+        },
+        "required": [
+          "keys"
+        ],
+        "title": "SessionDeleteBody",
+        "type": "object"
+      },
+      "SessionDeleteResult": {
+        "description": "How many sessions were deleted.",
+        "properties": {
+          "deleted": {
+            "title": "Deleted",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "deleted"
+        ],
+        "title": "SessionDeleteResult",
+        "type": "object"
+      },
+      "SessionPage": {
+        "description": "A page of sessions, and how many match in all.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/StoredSession"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "items"
+        ],
+        "title": "SessionPage",
+        "type": "object"
+      },
       "StatusBody": {
         "description": "A report's new status.",
         "properties": {
@@ -599,6 +652,194 @@
         "title": "StoredReport",
         "type": "object"
       },
+      "StoredSession": {
+        "description": "A run the hub saw on a rig, as far as it knows.",
+        "properties": {
+          "clabe_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Clabe Version"
+          },
+          "commit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commit"
+          },
+          "current_step": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Step"
+          },
+          "experiment": {
+            "title": "Experiment",
+            "type": "string"
+          },
+          "experimenter": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Experimenter",
+            "type": "array"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "first_seen": {
+            "format": "date-time",
+            "title": "First Seen",
+            "type": "string"
+          },
+          "hostname": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hostname"
+          },
+          "key": {
+            "description": "rig_id/run_id: the row's id",
+            "title": "Key",
+            "type": "string"
+          },
+          "last_seen": {
+            "format": "date-time",
+            "title": "Last Seen",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "reports": {
+            "default": 0,
+            "description": "Issue reports the hub stores for this run",
+            "title": "Reports",
+            "type": "integer"
+          },
+          "repository": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repository"
+          },
+          "rig_id": {
+            "title": "Rig Id",
+            "type": "string"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Id"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "description": "running, completed, aborted, failed, or ended (seen no more before it finished)",
+            "title": "Status",
+            "type": "string"
+          },
+          "steps_done": {
+            "default": 0,
+            "title": "Steps Done",
+            "type": "integer"
+          },
+          "steps_total": {
+            "default": 0,
+            "title": "Steps Total",
+            "type": "integer"
+          },
+          "subject": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject"
+          },
+          "waiting": {
+            "default": false,
+            "title": "Waiting",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "key",
+          "rig_id",
+          "run_id",
+          "experiment",
+          "status",
+          "first_seen",
+          "last_seen"
+        ],
+        "title": "StoredSession",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -713,40 +954,6 @@
       "get": {
         "description": "The rigs whose run waits for an answer, longest-waiting first.",
         "operationId": "inbox_api_hub_inbox_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "content": {
@@ -761,16 +968,6 @@
               }
             },
             "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
           }
         },
         "summary": "Inbox"
@@ -780,40 +977,6 @@
       "post": {
         "description": "Opens an export (or a report's zip) for a look, without storing it; kept for an hour after last use.",
         "operationId": "inspect_api_hub_inspect_post",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
         "requestBody": {
           "content": {
             "application/zip": {
@@ -850,16 +1013,6 @@
               }
             },
             "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
           }
         },
         "summary": "Inspect"
@@ -889,38 +1042,6 @@
             "schema": {
               "title": "Path",
               "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
             }
           }
         ],
@@ -953,40 +1074,6 @@
       "post": {
         "description": "Polls every rig now (and collects their reports).",
         "operationId": "refresh_api_hub_refresh_post",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "content": {
@@ -1001,16 +1088,6 @@
               }
             },
             "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
           }
         },
         "summary": "Refresh"
@@ -1162,38 +1239,6 @@
               "title": "Offset",
               "type": "integer"
             }
-          },
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
           }
         ],
         "responses": {
@@ -1225,40 +1270,6 @@
       "post": {
         "description": "Deletes several reports; unknown ids are skipped.",
         "operationId": "delete_many_api_hub_reports_delete_post",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -1310,38 +1321,6 @@
               "title": "Report Id",
               "type": "string"
             }
-          },
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
           }
         ],
         "responses": {
@@ -1375,38 +1354,6 @@
               "pattern": "^[0-9a-f]{32}$",
               "title": "Report Id",
               "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
             }
           }
         ],
@@ -1448,38 +1395,6 @@
               "pattern": "^[0-9a-f]{32}$",
               "title": "Report Id",
               "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
             }
           }
         ],
@@ -1533,38 +1448,6 @@
               "pattern": "^[0-9a-f]{32}$",
               "title": "Report Id",
               "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
             }
           }
         ],
@@ -1622,38 +1505,6 @@
               "title": "Path",
               "type": "string"
             }
-          },
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
           }
         ],
         "responses": {
@@ -1697,38 +1548,6 @@
               "title": "Report Id",
               "type": "string"
             }
-          },
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
           }
         ],
         "responses": {
@@ -1756,40 +1575,6 @@
       "get": {
         "description": "Every rig, as last polled.",
         "operationId": "rigs_api_hub_rigs_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "content": {
@@ -1800,6 +1585,158 @@
                   },
                   "title": "Response Rigs Api Hub Rigs Get",
                   "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Rigs"
+      }
+    },
+    "/api/hub/sessions": {
+      "get": {
+        "description": "The sessions matching the filters, sorted (newest first by default), a page at a time.",
+        "operationId": "sessions_api_hub_sessions_get",
+        "parameters": [
+          {
+            "description": "Only on this rig",
+            "in": "query",
+            "name": "rig",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only on this rig",
+              "title": "Rig"
+            }
+          },
+          {
+            "description": "Only of this experiment",
+            "in": "query",
+            "name": "experiment",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only of this experiment",
+              "title": "Experiment"
+            }
+          },
+          {
+            "description": "Only in this status (running, completed, aborted, failed, ended; live: not finished)",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only in this status (running, completed, aborted, failed, ended; live: not finished)",
+              "title": "Status"
+            }
+          },
+          {
+            "description": "Text found (any case) in any field",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Text found (any case) in any field",
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "default": "started_at",
+              "enum": [
+                "started_at",
+                "finished_at",
+                "last_seen",
+                "rig_id",
+                "experiment",
+                "subject",
+                "session_id",
+                "experimenter",
+                "status",
+                "repository"
+              ],
+              "title": "Sort",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "order",
+            "required": false,
+            "schema": {
+              "default": "desc",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "title": "Order",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionPage"
                 }
               }
             },
@@ -1816,7 +1753,69 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Rigs"
+        "summary": "Sessions"
+      }
+    },
+    "/api/hub/sessions/delete": {
+      "post": {
+        "description": "Deletes sessions from the hub's list (by ``rig_id/run_id``); unknown keys are skipped.",
+        "operationId": "delete_api_hub_sessions_delete_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionDeleteBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionDeleteResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete"
+      }
+    },
+    "/api/hub/sessions/experiments": {
+      "get": {
+        "description": "The experiments the sessions are of (for a filter).",
+        "operationId": "experiments_api_hub_sessions_experiments_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "title": "Response Experiments Api Hub Sessions Experiments Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Experiments"
       }
     }
   }

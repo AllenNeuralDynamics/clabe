@@ -19,6 +19,7 @@ from ..services import EnvSettings, split_list
 
 if TYPE_CHECKING:
     from ._reports import ReportStore
+    from ._sessions import SessionStore
 
 logger = logging.getLogger(__name__)
 
@@ -129,16 +130,22 @@ class Fleet:
     """Polls every rig's daemon (and, when it runs an experiment, the run) and keeps what it saw.
 
     With a report store, it also collects each rig's issue reports (every ``report_interval`` seconds, when the rig
-    has some): downloads each, stores it, and only then deletes it on the rig.
+    has some): downloads each, stores it, and only then deletes it on the rig. With a session store, it records each
+    run it sees as a session, filled in as the run goes.
     """
 
     def __init__(
-        self, settings: HubSettings, client: httpx.AsyncClient | None = None, reports: "ReportStore | None" = None
+        self,
+        settings: HubSettings,
+        client: httpx.AsyncClient | None = None,
+        reports: "ReportStore | None" = None,
+        sessions: "SessionStore | None" = None,
     ) -> None:
         self.settings = settings
         self.rigs = {rig.id: rig for rig in settings.rigs}
         self.status = {rig.id: RigStatus(id=rig.id, url=rig.url) for rig in settings.rigs}
         self.reports = reports
+        self.sessions = sessions
         self._client = client or httpx.AsyncClient(timeout=5.0)
         self._task: asyncio.Task | None = None
         self._collected_at: dict[str, float] = {}
@@ -210,6 +217,7 @@ class Fleet:
     async def _poll(self, rig: RigConfig, collect: bool = False) -> None:
         """Refreshes one rig's status (an unreachable rig is marked offline), then collects its reports if due."""
         status = RigStatus(id=rig.id, url=rig.url, seen_at=datetime.datetime.now(datetime.UTC))
+        run_id: str | None = None
         try:
             info = (await self._get(rig, "/api/daemon/info")).json()
             status.reachable = True
@@ -221,6 +229,9 @@ class Fleet:
                 status.experiment, status.repository = run.get("experiment") or run.get("file"), run.get("repository")
                 if run.get("status") == "running":
                     await self._poll_run(rig, status)
+                    run_id = await self._record_session(rig)
+            if self.sessions is not None:
+                await asyncio.to_thread(self.sessions.end_others, rig.id, run_id)
         except (httpx.HTTPError, KeyError, ValueError) as exc:
             status.error = str(exc) or type(exc).__name__
             previous = self.status.get(rig.id)
@@ -277,6 +288,18 @@ class Fleet:
                 logger.info("Collected report %s from %s", report_id, rig.id)
         await self._request(rig, "DELETE", f"/api/daemon/reports/{report_id}")
         return added is not None
+
+    async def _record_session(self, rig: RigConfig) -> str | None:
+        """Records the rig's run as a session (from its ``/run/api/session``); returns its run id."""
+        if self.sessions is None:
+            return None
+        try:
+            info = (await self._get(rig, "/run/api/session")).json()
+            await asyncio.to_thread(self.sessions.record, rig.id, info)
+            return str(info["run_id"])
+        except (httpx.HTTPError, KeyError, ValueError, TypeError, sqlite3.Error) as exc:
+            logger.debug("No session from %s: %s", rig.id, exc)  # e.g. an older clabe on the rig
+            return None
 
     async def _poll_run(self, rig: RigConfig, status: RigStatus) -> None:
         """Adds the run's step, header and open prompt."""

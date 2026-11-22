@@ -5,6 +5,11 @@
 @inject NavigationManager Navigation
 @implements IAsyncDisposable
 
+@if (_needsToken)
+{
+    <TokenPrompt What="This hub" />
+    return;
+}
 <div class="hub">
     <HubTopBar Context="fleet" Home="@Navigation.Uri">
         <Chips>
@@ -33,6 +38,10 @@
         <button type="button" role="tab" id="tab-rigs" aria-selected="@(_tab == "rigs")" aria-controls="panel-rigs"
                 class="tab @(_tab == "rigs" ? "on" : "")" @onclick='() => Show("rigs")' @onkeydown="OnTabKey">
             <HubIcon Name="server" Size="15" /> Rigs <span class="n">@(_rigs?.Count ?? 0)</span>
+        </button>
+        <button type="button" role="tab" id="tab-sessions" aria-selected="@(_tab == "sessions")" aria-controls="panel-sessions"
+                class="tab @(_tab == "sessions" ? "on" : "")" @onclick='() => Show("sessions")' @onkeydown="OnTabKey">
+            <HubIcon Name="flask" Size="15" /> Sessions <span class="n">@Busy live</span>
         </button>
         <button type="button" role="tab" id="tab-reports" aria-selected="@(_tab == "reports")" aria-controls="panel-reports"
                 class="tab @(_tab == "reports" ? "on" : "")" @onclick='() => Show("reports")' @onkeydown="OnTabKey">
@@ -126,10 +135,16 @@
                 </section>
             </div>
         }
+        else if (_tab == "sessions")
+        {
+            <div id="panel-sessions" role="tabpanel" aria-labelledby="tab-sessions" class="reports-panel">
+                <SessionBrowser Rigs="_rigs" HubUnreachable="_unreachable" OnShowReports="ShowReportsOf" />
+            </div>
+        }
         else
         {
             <div id="panel-reports" role="tabpanel" aria-labelledby="tab-reports" class="reports-panel">
-                <ReportBrowser Rigs="_rigs" OnChanged="Refresh" HubUnreachable="_unreachable" />
+                <ReportBrowser Rigs="_rigs" OnChanged="Refresh" HubUnreachable="_unreachable" InitialSearch="@_reportSearch" @key="_reportSearch" />
             </div>
         }
     </main>
@@ -144,6 +159,7 @@
     private List<RigStatus>? _rigs;
     private string? _error;
     private bool _unreachable;
+    private bool _needsToken;
     private DateTimeOffset _lastSeen = DateTimeOffset.UtcNow;
     private Timer? _timer;
     private string _tab = "rigs";
@@ -169,7 +185,7 @@
     protected override async Task OnInitializedAsync()
     {
         var tab = System.Web.HttpUtility.ParseQueryString(new Uri(Navigation.Uri).Query)["tab"];
-        _tab = tab == "reports" ? "reports" : "rigs";
+        _tab = tab is "reports" or "sessions" ? tab : "rigs";
         ReportTime.Changed += TimeChanged;
         await Refresh();
         _timer = new Timer(_ => InvokeAsync(async () => { await Refresh(); StateHasChanged(); }), null, 2000, 2000);
@@ -177,15 +193,22 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender)
+        if (firstRender)
         {
-            return;
+            _ui = await JS.InvokeAsync<IJSObjectReference>("import", "./js/ui.js");
+            _self = DotNetObjectReference.Create(this);
+            _shortcuts = await _ui.InvokeAsync<IJSObjectReference>("listenShortcuts", _self);
+            StateHasChanged();
         }
-        _ui =await JS.InvokeAsync<IJSObjectReference>("import", "./js/ui.js");
-        _self = DotNetObjectReference.Create(this);
-        _shortcuts = await _ui.InvokeAsync<IJSObjectReference>("listenShortcuts", _self);
-        StateHasChanged();
+        // "(2) clabe fleet" and a dot on the icon while runs wait: seen from another tab
+        if (_ui is not null && Waiting.Count != _attention)
+        {
+            _attention = Waiting.Count;
+            await _ui.InvokeVoidAsync("setAttention", "clabe fleet", _attention);
+        }
     }
+
+    private int _attention = -1;
 
     [JSInvokable]
     public Task<bool> OnShortcut(string name, bool typing)
@@ -210,15 +233,28 @@
             _unreachable = false;
             _lastSeen = DateTimeOffset.UtcNow;
         }
+        catch (HttpRequestException exc) when (exc.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            _needsToken = true;
+        }
         catch (HttpRequestException exc) when (exc.StatusCode is not null)
         {
-            _error = exc.Message.Contains("401") ? "The hub requires a token: open the link with ?token=…" : exc.Message;
+            _error = exc.Message;
         }
         catch (HttpRequestException)
         {
             // no response at all ("TypeError: Failed to fetch"): the hub is down or the network is
             _unreachable = true;
         }
+    }
+
+    private string? _reportSearch;
+
+    /// <summary>The reports of one run (from the sessions table).</summary>
+    private void ShowReportsOf(string runId)
+    {
+        _reportSearch = runId;
+        Show("reports");
     }
 
     private void Show(string tab)
@@ -231,9 +267,9 @@
         // keep the tab in the address, so a reload or a shared link opens it
         var uri = new Uri(Navigation.Uri);
         var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
-        if (tab == "reports")
+        if (tab != "rigs")
         {
-            query["tab"] = "reports";
+            query["tab"] = tab;
         }
         else
         {
@@ -245,9 +281,11 @@
 
     private void OnTabKey(KeyboardEventArgs e)
     {
+        string[] tabs = ["rigs", "sessions", "reports"];
+        var at = Array.IndexOf(tabs, _tab);
         if (e.Key is "ArrowRight" or "ArrowLeft")
         {
-            Show(_tab == "rigs" ? "reports" : "rigs");
+            Show(tabs[(at + (e.Key == "ArrowRight" ? 1 : tabs.Length - 1)) % tabs.Length]);
         }
     }
 

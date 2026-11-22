@@ -6,6 +6,7 @@ Rigs never depend on it: the hub dials in as an ordinary client of their daemons
 from ._app import create_hub_app
 from ._fleet import Fleet, HubSettings, RigConfig, RigStatus, Waiting
 from ._reports import InspectCache, ReportPage, ReportStore, StoredReport, ZipEntry
+from ._sessions import SessionPage, SessionStore, StoredSession
 
 __all__ = [
     "Fleet",
@@ -15,7 +16,10 @@ __all__ = [
     "ReportStore",
     "RigConfig",
     "RigStatus",
+    "SessionPage",
+    "SessionStore",
     "StoredReport",
+    "StoredSession",
     "Waiting",
     "ZipEntry",
     "create_hub_app",

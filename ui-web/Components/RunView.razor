@@ -5,6 +5,11 @@
 @inject IJSRuntime JS
 @implements IAsyncDisposable
 
+@if (Connection.NeedsToken)
+{
+    <TokenPrompt What="This run" />
+    return;
+}
 <div class="run-shell @(_drawerOpen ? "drawer-open" : null)">
     <header class="run-header">
         <div class="brand run-brand">

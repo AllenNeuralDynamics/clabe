@@ -1422,6 +1422,156 @@
         "title": "ServerInfo",
         "type": "object"
       },
+      "SessionInfo": {
+        "description": "What a run is about, as far as known so far: the hub lists it as a session.",
+        "properties": {
+          "clabe_version": {
+            "title": "Clabe Version",
+            "type": "string"
+          },
+          "commit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commit"
+          },
+          "current_step": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Step"
+          },
+          "experiment": {
+            "title": "Experiment",
+            "type": "string"
+          },
+          "experimenter": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Experimenter",
+            "type": "array"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "hostname": {
+            "title": "Hostname",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why it ended, when it did not complete",
+            "title": "Reason"
+          },
+          "repository": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repository"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The session's name, once registered",
+            "title": "Session Id"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "description": "running, completed, aborted or failed",
+            "title": "Status",
+            "type": "string"
+          },
+          "steps_done": {
+            "default": 0,
+            "title": "Steps Done",
+            "type": "integer"
+          },
+          "steps_total": {
+            "default": 0,
+            "title": "Steps Total",
+            "type": "integer"
+          },
+          "subject": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject"
+          },
+          "waiting": {
+            "default": false,
+            "description": "Whether a prompt waits for an answer",
+            "title": "Waiting",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "run_id",
+          "experiment",
+          "status",
+          "hostname",
+          "clabe_version"
+        ],
+        "title": "SessionInfo",
+        "type": "object"
+      },
       "StepFailed": {
         "description": "A step raised. ``warn_only`` steps continue; others pause the run.",
         "properties": {
@@ -1803,40 +1953,6 @@
       "post": {
         "description": "Aborts the run.",
         "operationId": "abort_api_abort_post",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -1883,40 +1999,6 @@
       "post": {
         "description": "The run as an AG-UI agent: one turn follows the run until it needs the user (see ``clabe.server._agui``).",
         "operationId": "agui_api_agui_post",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -1949,40 +2031,6 @@
       "post": {
         "description": "Goes back to the previous step (the state's ``back_target``).",
         "operationId": "back_previous_api_back_post",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -2029,40 +2077,6 @@
       "post": {
         "description": "Closes the finished run's session (its closing screen): the launcher exits.",
         "operationId": "close_api_close_post",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -2129,22 +2143,6 @@
             }
           },
           {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
             "in": "header",
             "name": "last-event-id",
             "required": false,
@@ -2158,22 +2156,6 @@
                 }
               ],
               "title": "Last-Event-Id"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
             }
           }
         ],
@@ -2319,56 +2301,12 @@
       "get": {
         "description": "The run's logs and records so far as a zip (see ``clabe.reports.make_bundle``), also while closing.",
         "operationId": "export_api_export_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "content": {
               "application/zip": {}
             },
             "description": "The bundle (a zip)."
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
           }
         },
         "summary": "Export"
@@ -2378,40 +2316,6 @@
       "post": {
         "description": "Answers the open prompt with its earlier answer (the prompt's ``previous_answer``).",
         "operationId": "forward_api_forward_post",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -2458,40 +2362,6 @@
       "post": {
         "description": "Lists a directory of the machine running the run (for remote path pickers).",
         "operationId": "list_dir_api_fs_list_post",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -2531,40 +2401,6 @@
       "get": {
         "description": "Identity of the server and its run.",
         "operationId": "info_api_info_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "content": {
@@ -2575,16 +2411,6 @@
               }
             },
             "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
           }
         },
         "summary": "Info"
@@ -2602,38 +2428,6 @@
             "schema": {
               "title": "Prompt Id",
               "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
             }
           }
         ],
@@ -2684,38 +2478,6 @@
             "schema": {
               "title": "Prompt Id",
               "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
             }
           }
         ],
@@ -2780,38 +2542,6 @@
               "description": "The group item, when the prompt is a group.",
               "title": "Item"
             }
-          },
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
           }
         ],
         "responses": {
@@ -2847,40 +2577,6 @@
       "post": {
         "description": "Files an issue report (the bundle and the comment), saved on this machine for the hub to collect.",
         "operationId": "report_api_report_post",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -2923,44 +2619,29 @@
         "summary": "Report"
       }
     },
+    "/api/session": {
+      "get": {
+        "description": "What the run is about so far: session id, subject, experimenter, repository, progress, start and end.",
+        "operationId": "session_api_session_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionInfo"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Session"
+      }
+    },
     "/api/state": {
       "get": {
         "description": "A snapshot of the run; follow the events after its ``last_seq``.",
         "operationId": "state_api_state_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "content": {
@@ -2971,16 +2652,6 @@
               }
             },
             "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
           }
         },
         "summary": "State"
@@ -2998,38 +2669,6 @@
             "schema": {
               "title": "Name",
               "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
             }
           }
         ],
@@ -3088,38 +2727,6 @@
               "title": "Name",
               "type": "string"
             }
-          },
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
           }
         ],
         "requestBody": {
@@ -3176,38 +2783,6 @@
             "schema": {
               "title": "Name",
               "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
             }
           }
         ],

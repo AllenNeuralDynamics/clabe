@@ -965,40 +965,6 @@
       "get": {
         "description": "The machine, its clabe version, whether it is running an experiment, and its reports waiting.",
         "operationId": "info_api_daemon_info_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "content": {
@@ -1009,16 +975,6 @@
               }
             },
             "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
           }
         },
         "summary": "Info"
@@ -1028,40 +984,6 @@
       "get": {
         "description": "The issue reports waiting on this machine for the hub, oldest first.",
         "operationId": "reports_api_daemon_reports_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "content": {
@@ -1076,16 +998,6 @@
               }
             },
             "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
           }
         },
         "summary": "Reports"
@@ -1106,38 +1018,6 @@
               "pattern": "^[0-9a-f]{32}$",
               "title": "Report Id",
               "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
             }
           }
         ],
@@ -1173,38 +1053,6 @@
               "title": "Report Id",
               "type": "string"
             }
-          },
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
           }
         ],
         "responses": {
@@ -1232,40 +1080,6 @@
       "get": {
         "description": "The experiment repositories this machine offers.",
         "operationId": "repositories_api_daemon_repositories_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "content": {
@@ -1280,16 +1094,6 @@
               }
             },
             "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
           }
         },
         "summary": "Repositories"
@@ -1307,38 +1111,6 @@
             "schema": {
               "title": "Name",
               "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
             }
           }
         ],
@@ -1371,40 +1143,6 @@
       "post": {
         "description": "Starts an experiment; 409 while another one runs. Follow it under /run/.",
         "operationId": "launch_api_daemon_runs_post",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -1444,40 +1182,6 @@
       "post": {
         "description": "A run started on this machine outside the daemon (``clabe run`` in a terminal) announces itself: it is\nthen served under /run/ and seen by the hub. 409 while another run is going.",
         "operationId": "attach_api_daemon_runs_attached_post",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -1526,38 +1230,6 @@
               "title": "Pid",
               "type": "integer"
             }
-          },
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
           }
         ],
         "responses": {
@@ -1582,40 +1254,6 @@
       "get": {
         "description": "The run launched last (running or not), with the end of its output.",
         "operationId": "current_api_daemon_runs_current_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "content": {
@@ -1634,16 +1272,6 @@
               }
             },
             "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
           }
         },
         "summary": "Current"
@@ -1653,40 +1281,6 @@
       "post": {
         "description": "Stops the current run's process. Prefer aborting it (POST /run/api/abort): that lets it clean up.",
         "operationId": "stop_api_daemon_runs_current_stop_post",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "content": {
@@ -1697,16 +1291,6 @@
               }
             },
             "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
           }
         },
         "summary": "Stop"
@@ -1717,38 +1301,6 @@
         "description": "Deletes every file of the transfer directory.",
         "operationId": "delete_all_api_worker_files_delete",
         "parameters": [
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          },
           {
             "in": "header",
             "name": "X-Clabe-Lease",
@@ -1801,38 +1353,6 @@
         "description": "The files of the transfer directory.",
         "operationId": "files_api_worker_files_get",
         "parameters": [
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          },
           {
             "in": "header",
             "name": "X-Clabe-Lease",
@@ -1897,38 +1417,6 @@
             }
           },
           {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          },
-          {
             "in": "header",
             "name": "X-Clabe-Lease",
             "required": false,
@@ -1976,38 +1464,6 @@
             "schema": {
               "title": "Name",
               "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
             }
           },
           {
@@ -2068,38 +1524,6 @@
               "default": true,
               "title": "Overwrite",
               "type": "boolean"
-            }
-          },
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
             }
           },
           {
@@ -2167,38 +1591,6 @@
               ],
               "title": "Repository"
             }
-          },
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
           }
         ],
         "responses": {
@@ -2234,38 +1626,6 @@
         "description": "The jobs, running and finished.",
         "operationId": "jobs_api_worker_jobs_get",
         "parameters": [
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          },
           {
             "in": "header",
             "name": "X-Clabe-Lease",
@@ -2314,38 +1674,6 @@
         "description": "Starts a command in the background.",
         "operationId": "submit_api_worker_jobs_post",
         "parameters": [
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          },
           {
             "in": "header",
             "name": "X-Clabe-Lease",
@@ -2413,38 +1741,6 @@
             "schema": {
               "title": "Job Id",
               "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
             }
           },
           {
@@ -2518,38 +1814,6 @@
             }
           },
           {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          },
-          {
             "in": "header",
             "name": "X-Clabe-Lease",
             "required": false,
@@ -2609,38 +1873,6 @@
             }
           },
           {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          },
-          {
             "in": "header",
             "name": "X-Clabe-Lease",
             "required": false,
@@ -2689,40 +1921,6 @@
       "post": {
         "description": "Takes the worker for a run (or renews the lease); 423 while another run holds it.",
         "operationId": "take_api_worker_lease_post",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -2784,38 +1982,6 @@
               "title": "Stop Jobs",
               "type": "boolean"
             }
-          },
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
           }
         ],
         "responses": {
@@ -2851,38 +2017,6 @@
             "schema": {
               "title": "Run Id",
               "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
             }
           },
           {

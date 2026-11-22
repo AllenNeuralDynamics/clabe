@@ -1,7 +1,9 @@
-"""The hub's HTTP app: the fleet and its inbox under /api/hub, each rig's daemon under /rigs/<id>/, and the web UI."""
+"""The hub's HTTP app: the fleet and its inbox under /api/hub, each rig's daemon under /rigs/<id>/, an MCP server
+at /mcp, and the web UI."""
 
 import asyncio
 import contextlib
+import logging
 from collections.abc import AsyncIterator
 from pathlib import Path
 
@@ -12,14 +14,22 @@ from fastapi.staticfiles import StaticFiles
 
 from .. import __version__
 from ..server._app import STATIC_DIR
-from ..server._proxy import forward, token_check
+from ..server._proxy import RequireToken, TokenCookies, forward, token_check
 from ._fleet import Fleet, RigStatus, rig_token
 from ._report_api import report_routes
 from ._reports import InspectCache
+from ._session_api import session_routes
+
+logger = logging.getLogger(__name__)
 
 
 def create_hub_app(
-    fleet: Fleet, *, token: str | None = None, static_dir: Path | None = STATIC_DIR, poll: bool = True
+    fleet: Fleet,
+    *,
+    token: str | None = None,
+    static_dir: Path | None = STATIC_DIR,
+    poll: bool = True,
+    self_url: str | None = None,
 ) -> FastAPI:
     """Builds the hub's app.
 
@@ -28,16 +38,20 @@ def create_hub_app(
         token: When set, every API call (the hub's and each rig's) must carry it.
         static_dir: The web UI, served at ``/`` (the fleet) and under each ``/rigs/<id>/``.
         poll: Whether to poll the rigs in the background while the app runs.
+        self_url: Where the hub reaches itself (``http://127.0.0.1:8080``); with it (and the ``agents`` extra), an
+            MCP server is served at ``/mcp`` (streamable HTTP), acting on every rig through the hub.
     """
 
     inspections = InspectCache()
+    mcp = _mcp_server(self_url, token)
 
     @contextlib.asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-        """Polls the rigs while the app serves."""
+        """Polls the rigs (and runs the MCP sessions) while the app serves."""
         if poll:
             fleet.start()
-        yield
+        async with mcp.session_manager.run() if mcp is not None else contextlib.nullcontext():
+            yield
         await fleet.stop()
         inspections.close()
 
@@ -48,6 +62,8 @@ def create_hub_app(
         "under /rigs/<id>/.",
         lifespan=lifespan,
     )
+    app.add_middleware(TokenCookies, token=token)
+    app.add_middleware(RequireToken, token=token, prefix="/mcp")
     check = token_check(token)
     api = APIRouter(prefix="/api/hub", dependencies=[Depends(check)])
 
@@ -68,6 +84,7 @@ def create_hub_app(
         return await asyncio.to_thread(fleet.statuses)
 
     report_routes(api, fleet, inspections)
+    session_routes(api, fleet)
     app.include_router(api)
     client = httpx.AsyncClient(timeout=httpx.Timeout(30.0, read=None))
 
@@ -84,11 +101,14 @@ def create_hub_app(
         if rig is None:
             raise HTTPException(status_code=404, detail=f"No rig {rig_id!r}.")
         if "api/" in path:
-            await check(request.headers.get("authorization"), request.query_params.get("token"))
+            await check(request)
         token = rig_token(rig)
         return await forward(
             client, request, f"{rig.url.rstrip('/')}/{path}", token, unreachable=f"{rig_id} is not reachable"
         )
+
+    if mcp is not None:
+        app.router.routes.extend(mcp.streamable_http_app(streamable_http_path="/mcp", host="0.0.0.0").routes)
 
     if static_dir is not None and (static_dir / "index.html").is_file():
         app.mount("/", StaticFiles(directory=static_dir, html=True), name="ui")
@@ -100,3 +120,17 @@ def create_hub_app(
             return '<!doctype html><h1>clabe hub</h1><p>The API is at <a href="/docs">/docs</a>.</p>'
 
     return app
+
+
+def _mcp_server(self_url: str | None, token: str | None):
+    """The MCP server of the hub (its tools reach the rigs through the hub itself), or None without the ``agents``
+    extra or a ``self_url``."""
+    if self_url is None:
+        return None
+    try:
+        from ..agents import ClabeTarget, create_mcp_server
+
+        return create_mcp_server(ClabeTarget(self_url, token, kind="hub"))
+    except ImportError:
+        logger.info("No MCP server at /mcp: the hub was installed without the agents extra.")
+        return None

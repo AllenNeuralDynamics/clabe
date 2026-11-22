@@ -22,10 +22,10 @@ _ELICITABLE = {"text", "number", "confirm", "pick", "autocomplete"}
 class ClabeTarget:
     """Where the MCP server's tools act: one run (directly or through a daemon), or a hub's rigs."""
 
-    def __init__(self, url: str, token: str | None = None) -> None:
+    def __init__(self, url: str, token: str | None = None, kind: Literal["hub", "daemon", "run"] | None = None) -> None:
         self.url = url.rstrip("/")
         self.token = token
-        self.kind = self._detect()
+        self.kind = kind or self._detect()
 
     def _get(self, path: str) -> requests.Response:
         """GETs ``path`` of the target, with its token."""

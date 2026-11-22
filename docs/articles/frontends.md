@@ -155,6 +155,8 @@ clabe run my_experiment.py --host 0.0.0.0 --token "$CLABE_TOKEN" --open-browser
 - Binds localhost by default; for remote access use `ssh -L 8090:localhost:8090 <rig-host>` or bind `0.0.0.0` with
   a token.
 - `--token` (or `$CLABE_TOKEN`) requires `Authorization: Bearer <token>` (or `?token=`); the printed URL carries it.
+- In a browser, the page asks for the token (**Sign in**) and keeps it in a cookie for 30 days; a link with
+  `?token=` signs in and is replaced by the same address without it. The same holds for the daemon and the hub.
 - The root page is the web UI: steps on the left (click one to go back), the prompt in the middle, the session and
   messages on the right; light and dark themes; works on a phone.
 - [`RunClient`][clabe.server.RunClient] is a Python client of the API.

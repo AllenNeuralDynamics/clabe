@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from .. import __version__
 from ..reports import REPORT_ID_PATTERN, ReportInfo, count_reports, delete_report, list_reports, report_path
 from ..server._app import STATIC_DIR
-from ..server._proxy import forward, token_check
+from ..server._proxy import TokenCookies, forward, token_check
 from ..workflow import ExperimentListing
 from ._host import AttachBody, Host, HostError, HostInfo, LaunchBody, RepositoryInfo, RunInfo
 from ._settings import DaemonSettings
@@ -91,6 +91,7 @@ def create_daemon_app(
         description="Run experiments on this machine: list repositories and experiments, launch one, and reach the "
         "run's own API under /run/api.",
     )
+    app.add_middleware(TokenCookies, token=token)
     check = token_check(token)
     api = APIRouter(prefix="/api/daemon", dependencies=[Depends(check)])
 
@@ -145,7 +146,7 @@ def create_daemon_app(
     async def proxy(path: str, request: Request) -> Response:
         """The current run's server: its web UI and (with the daemon's token) its API."""
         if path.startswith("api/"):
-            await check(request.headers.get("authorization"), request.query_params.get("token"))
+            await check(request)
         return await _proxy(host, client, path, request)
 
     if static_dir is not None and (static_dir / "index.html").is_file():

@@ -18,6 +18,15 @@ public sealed record ReportQuery(
     int Limit = 50,
     int Offset = 0);
 
+/// <summary>What the sessions table asks for: filters and page (newest first).</summary>
+public sealed record SessionQuery(
+    string? Q = null,
+    string? Rig = null,
+    string? Experiment = null,
+    string? Status = null,
+    int Limit = 50,
+    int Offset = 0);
+
 /// <summary>Where a report's files come from: a stored report, or an export opened for a look.</summary>
 public sealed record ReportSource(string Id, bool Inspected)
 {
@@ -48,6 +57,30 @@ public sealed class HubApi(HttpClient http, RunApi run)
     /// <summary>A rig's page (or, with <paramref name="runPage"/>, its run's page), through the hub.</summary>
     public string RigUrl(string rig, bool runPage = false) =>
         WithToken(runPage ? $"rigs/{rig}/run/" : $"rigs/{rig}/");
+
+    // ---------- sessions ----------
+
+    public async Task<SessionPage> SessionsAsync(SessionQuery query)
+    {
+        var args = new List<string> { "sort=started_at", "order=desc", $"limit={query.Limit}", $"offset={query.Offset}" };
+        foreach (var (name, value) in new[] { ("q", query.Q), ("rig", query.Rig), ("experiment", query.Experiment), ("status", query.Status) })
+        {
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                args.Add($"{name}={Uri.EscapeDataString(value.Trim())}");
+            }
+        }
+        var response = await http.GetAsync($"api/hub/sessions?{string.Join('&', args)}");
+        await EnsureOk(response);
+        return (await response.Content.ReadFromJsonAsync<SessionPage>(Json.Options))!;
+    }
+
+    public async Task<List<string>> SessionExperimentsAsync()
+    {
+        var response = await http.GetAsync("api/hub/sessions/experiments");
+        await EnsureOk(response);
+        return (await response.Content.ReadFromJsonAsync<List<string>>(Json.Options))!;
+    }
 
     // ---------- reports ----------
 
@@ -143,7 +176,7 @@ public sealed class HubApi(HttpClient http, RunApi run)
         }
         if (response.StatusCode == HttpStatusCode.Unauthorized)
         {
-            throw new HttpRequestException("The hub requires a token: open the link with ?token=…", null, response.StatusCode);
+            throw new HttpRequestException("The hub requires a token: sign in again.", null, response.StatusCode);
         }
         var detail = await response.Content.ReadAsStringAsync();
         try

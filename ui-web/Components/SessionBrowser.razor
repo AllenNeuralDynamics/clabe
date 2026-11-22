@@ -1,0 +1,285 @@
+@* The hub's Sessions tab: every run the hub saw on its rigs, newest first, filled in as it goes (session id,
+   subject, experimenter once known; progress; outcome). A live one opens its run page; its reports are one click. *@
+@inject HubApi Hub
+@implements IDisposable
+
+<div class="browser">
+    <div class="toolbar">
+        <ReportSearchBox Value="@_query.Q" ValueChanged="Search" Placeholder="Search sessions…" Wide="true"
+                         Count="@(_page is null || string.IsNullOrEmpty(_query.Q) ? null : (int)_page.Total)" Unit="sessions" />
+        <select class="filter" aria-label="Rig" value="@(_query.Rig ?? "")" @onchange="e => Filter(rig: e.Value?.ToString())">
+            <option value="">All rigs</option>
+            @foreach (var rig in (Rigs ?? []).Select(r => r.Id).Order(StringComparer.OrdinalIgnoreCase))
+            {
+                <option value="@rig">@rig</option>
+            }
+        </select>
+        <select class="filter" aria-label="Experiment" value="@(_query.Experiment ?? "")" @onchange="e => Filter(experiment: e.Value?.ToString())">
+            <option value="">All experiments</option>
+            @foreach (var experiment in _experiments)
+            {
+                <option value="@experiment">@experiment</option>
+            }
+        </select>
+        <select class="filter" aria-label="Status" value="@(_query.Status ?? "")" @onchange="e => Filter(status: e.Value?.ToString())">
+            <option value="">Any status</option>
+            <option value="live">Live</option>
+            <option value="completed">Completed</option>
+            <option value="failed">Failed</option>
+            <option value="aborted">Aborted</option>
+            <option value="ended">Ended (unseen)</option>
+        </select>
+        <span class="grow"></span>
+        <span class="subtle small">refreshed every 3 s</span>
+    </div>
+
+    @if (_error is not null && !HubUnreachable)
+    {
+        <div class="alert error" role="alert"><span>@_error</span></div>
+    }
+
+    <div class="reports-card">
+        @if (_page is null)
+        {
+            <div class="state subtle">
+                @if (_failed || HubUnreachable)
+                {
+                    <span>The sessions could not be loaded.</span>
+                }
+                else
+                {
+                    <span class="spinner"></span>
+                    <span> Loading sessions…</span>
+                }
+            </div>
+        }
+        else if (_page.Items.Count == 0)
+        {
+            <div class="state empty">
+                <div class="empty-icon"><HubIcon Name="flask" Size="22" /></div>
+                @if (Filtered)
+                {
+                    <h3>No session matches</h3>
+                    <p class="muted">Try other words or filters.</p>
+                }
+                else
+                {
+                    <h3>No sessions yet</h3>
+                    <p class="muted">Every run the hub sees on a rig is listed here as it goes: who, which animal, the session id once registered, and how it ended.</p>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="scroll">
+                <table class="table sessions" aria-label="Sessions">
+                    <thead>
+                        <tr>
+                            <th class="c-start">Started · @(ReportTime.Utc ? "UTC" : "local")</th>
+                            <th class="c-rig">Rig</th>
+                            <th class="c-state">Status</th>
+                            <th class="c-exp">Experiment</th>
+                            <th class="c-subject">Subject</th>
+                            <th class="c-person">Experimenter</th>
+                            <th class="c-session">Session</th>
+                            <th class="c-progress">Progress</th>
+                            <th class="c-dur">Duration</th>
+                            <th class="c-repo">Repository</th>
+                            <th class="c-rep">Reports</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var session in _page.Items)
+                        {
+                            var live = Live(session);
+                            <tr @key="session.Key" class="@(live ? "live" : null)" tabindex="@(live ? 0 : -1)"
+                                title="@(live ? "Open the run" : null)" @onclick="() => Open(session)" @onkeydown="e => OnRowKey(e, session)">
+                                <td class="c-start" title="@(session.StartedAt is { } s ? ReportTime.Both(s) : null)">@Started(session)</td>
+                                <td class="c-rig"><span class="rig">@session.RigId</span></td>
+                                <td class="c-state">
+                                    <span class="chip @StatusClass(session)" title="@session.Reason">@StatusText(session)</span>
+                                </td>
+                                <td class="c-exp truncate" title="@session.Experiment">@session.Experiment</td>
+                                <td class="c-subject truncate">@(session.Subject ?? "—")</td>
+                                <td class="c-person truncate" title="@People(session)">@People(session)</td>
+                                <td class="c-session truncate mono" title="@session.SessionId">@(session.SessionId ?? "—")</td>
+                                <td class="c-progress">
+                                    <div class="prog" title="@session.CurrentStep">
+                                        <span class="bar"><span style="width: @Percent(session)%"></span></span>
+                                        <span class="tabular">@session.StepsDone / @session.StepsTotal</span>
+                                    </div>
+                                    @if (live && session.CurrentStep is { } step)
+                                    {
+                                        <div class="subtle tiny truncate">@step</div>
+                                    }
+                                </td>
+                                <td class="c-dur tabular">@Duration(session)</td>
+                                <td class="c-repo truncate" title="@session.Repository">
+                                    @session.Repository
+                                    @if (session.Commit is { Length: > 0 } commit)
+                                    {
+                                        <span class="commit mono">@("@" + commit[..Math.Min(7, commit.Length)])</span>
+                                    }
+                                </td>
+                                <td class="c-rep" @onclick:stopPropagation="true">
+                                    @if (session.Reports > 0)
+                                    {
+                                        <button type="button" class="ghost sm" title="Show its reports" @onclick="() => OnShowReports.InvokeAsync(session.RunId)">
+                                            <HubIcon Name="inbox" Size="13" /> @session.Reports
+                                        </button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <footer class="pager">
+                <span class="small muted">@(_query.Offset + 1)–@(_query.Offset + _page.Items.Count) of @_page.Total.ToString("N0")</span>
+                <span class="grow"></span>
+                <button type="button" class="sm" disabled="@(_query.Offset == 0)" @onclick="() => Page(-1)" aria-label="Previous page"><HubIcon Name="left" Size="14" /> Previous</button>
+                <button type="button" class="sm" disabled="@(_query.Offset + _page.Items.Count >= _page.Total)" @onclick="() => Page(1)" aria-label="Next page">Next <HubIcon Name="right" Size="14" /></button>
+            </footer>
+        }
+    </div>
+</div>
+
+@code {
+    /// <summary>The fleet's rigs (the rig filter; whether a session is still the rig's current run).</summary>
+    [Parameter] public List<RigStatus>? Rigs { get; set; }
+    /// <summary>Whether the hub stopped answering (the page shows one banner for it).</summary>
+    [Parameter] public bool HubUnreachable { get; set; }
+    /// <summary>Shows the reports of a run (its id).</summary>
+    [Parameter] public EventCallback<string> OnShowReports { get; set; }
+
+    private SessionQuery _query = new();
+    private SessionPage? _page;
+    private List<string> _experiments = [];
+    private string? _error;
+    private bool _failed;
+    private Timer? _timer;
+    private int _version;
+
+    private bool Filtered => !string.IsNullOrEmpty(_query.Q) || _query.Rig is not null || _query.Experiment is not null || _query.Status is not null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        ReportTime.Changed += Redraw;
+        await Load();
+        _timer = new Timer(_ => InvokeAsync(async () => { await Load(); StateHasChanged(); }), null, 3000, 3000);
+    }
+
+    private async Task Load()
+    {
+        var version = ++_version;
+        try
+        {
+            var page = await Hub.SessionsAsync(_query);
+            if (version != _version)
+            {
+                return;
+            }
+            _page = page;
+            _failed = false;
+            _error = null;
+            _experiments = await Hub.SessionExperimentsAsync();
+        }
+        catch (HttpRequestException exc)
+        {
+            _failed = _page is null;
+            _error = exc.StatusCode is null ? "The hub is not answering (stopped?)." : exc.Message;
+        }
+    }
+
+    private async Task Search(string q)
+    {
+        _query = _query with { Q = q, Offset = 0 };
+        await Load();
+    }
+
+    private async Task Filter(string? rig = null, string? experiment = null, string? status = null)
+    {
+        static string? Value(string? v) => string.IsNullOrEmpty(v) ? null : v;
+        _query = _query with
+        {
+            Rig = rig is null ? _query.Rig : Value(rig),
+            Experiment = experiment is null ? _query.Experiment : Value(experiment),
+            Status = status is null ? _query.Status : Value(status),
+            Offset = 0,
+        };
+        await Load();
+    }
+
+    private async Task Page(int step)
+    {
+        _query = _query with { Offset = Math.Max(0, _query.Offset + step * _query.Limit) };
+        await Load();
+    }
+
+    /// <summary>Whether the session is the rig's run right now (it can be opened).</summary>
+    private static bool Live(StoredSession session) =>
+        session.Status == "running" && DateTimeOffset.UtcNow - session.LastSeen < TimeSpan.FromSeconds(30);
+
+    private void Open(StoredSession session)
+    {
+        if (Live(session))
+        {
+            Nav.NavigateTo(Hub.RigUrl(session.RigId, runPage: true));
+        }
+    }
+
+    [Inject] private NavigationManager Nav { get; set; } = default!;
+
+    private void OnRowKey(KeyboardEventArgs e, StoredSession session)
+    {
+        if (e.Key == "Enter")
+        {
+            Open(session);
+        }
+    }
+
+    private static string StatusClass(StoredSession s) => s.Status switch
+    {
+        _ when s.Waiting && s.Status == "running" => "waiting",
+        "running" => "running",
+        "completed" => "completed",
+        "failed" or "aborted" => "failed",
+        _ => "plain",
+    };
+
+    private static string StatusText(StoredSession s) => s.Status switch
+    {
+        _ when s.Waiting && s.Status == "running" => "waiting",
+        "ended" => "ended (unseen)",
+        _ => s.Status,
+    };
+
+    private static string Started(StoredSession s)
+    {
+        if (s.StartedAt is not { } start)
+        {
+            return "—";
+        }
+        var local = ReportTime.Local(start);
+        var today = ReportTime.Local(DateTimeOffset.UtcNow).Date;
+        return local.Date == today ? $"Today {local:HH:mm}"
+            : local.Date == today.AddDays(-1) ? $"Yesterday {local:HH:mm}"
+            : local.ToString(local.Year == today.Year ? "MMM d HH:mm" : "yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    private static string Duration(StoredSession s) =>
+        s.StartedAt is { } start ? ReportTime.Duration((s.FinishedAt ?? (s.Status == "running" ? DateTimeOffset.UtcNow : s.LastSeen)) - start) : "—";
+
+    private static string Percent(StoredSession s) =>
+        (s.StepsTotal == 0 ? 0 : 100.0 * s.StepsDone / s.StepsTotal).ToString("0", System.Globalization.CultureInfo.InvariantCulture);
+
+    private static string People(StoredSession s) => s.Experimenter is { Count: > 0 } people ? string.Join(", ", people) : "—";
+
+    private void Redraw() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        ReportTime.Changed -= Redraw;
+        _timer?.Dispose();
+    }
+}

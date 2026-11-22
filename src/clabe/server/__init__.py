@@ -3,7 +3,17 @@ OpenAPI (``/openapi.json``); plus a thin Python client."""
 
 from ._app import create_app
 from ._client import RunClient
-from ._models import AbortBody, AnswerBody, ClientBody, CommandResult, DirEntry, DirListing, ListDirBody, ServerInfo
+from ._models import (
+    AbortBody,
+    AnswerBody,
+    ClientBody,
+    CommandResult,
+    DirEntry,
+    DirListing,
+    ListDirBody,
+    ServerInfo,
+    SessionInfo,
+)
 from ._server import RunServer, free_port
 
 __all__ = [
@@ -17,6 +27,7 @@ __all__ = [
     "RunClient",
     "RunServer",
     "ServerInfo",
+    "SessionInfo",
     "create_app",
     "free_port",
 ]

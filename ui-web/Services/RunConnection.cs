@@ -79,6 +79,9 @@ public sealed class RunConnection(RunApi api, IJSRuntime js, NavigationManager n
     /// <summary>The latest accepted answer to the prompt of <paramref name="step"/> asking <paramref name="field"/>.</summary>
     public JsonNode? AnswerOf(string step, string field) => _answers.GetValueOrDefault($"{step}\u0000{field}");
 
+    /// <summary>Whether the server asked for a token this page does not have (the page then asks for it).</summary>
+    public bool NeedsToken { get; private set; }
+
     public async Task StartAsync()
     {
         api.UseToken(QueryValue("token"));
@@ -90,9 +93,8 @@ public sealed class RunConnection(RunApi api, IJSRuntime js, NavigationManager n
         catch (Exception exc) when (exc is HttpRequestException or JsonException)
         {
             Status = "error";
-            Error = exc.Message.Contains("401")
-                ? "This run requires a token: open the link clabe printed (it ends with ?token=...)."
-                : $"The run is not reachable: {exc.Message}";
+            NeedsToken = exc is HttpRequestException { StatusCode: System.Net.HttpStatusCode.Unauthorized } || exc.Message.Contains("401");
+            Error = NeedsToken ? null : $"The run is not reachable: {exc.Message}";
             Changed?.Invoke();
             return;
         }

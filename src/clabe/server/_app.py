@@ -19,7 +19,7 @@ from ..reports import ReportInfo
 from ..ui import AutoCompleteRequest, GroupRequest
 from ..ui._requests import normalize_extensions
 from ..workflow import Ack, Rejected, Run, RunState
-from ..workflow.events import Event, PromptOpened, RunClosed, RunFinished
+from ..workflow.events import Event, PromptOpened, RunClosed, RunFinished, RunStarted
 from ._agui import RunAgentInput, agui_stream
 from ._models import (
     AbortBody,
@@ -31,8 +31,9 @@ from ._models import (
     ListDirBody,
     ReportBody,
     ServerInfo,
+    SessionInfo,
 )
-from ._proxy import token_check
+from ._proxy import TokenCookies, token_check
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +71,7 @@ def create_app(run: Run, *, token: str | None = None, static_dir: Path | None = 
         version=__version__,
         description="Observe and drive a clabe run: a snapshot, a resumable event stream, answers and commands.",
     )
+    app.add_middleware(TokenCookies, token=token)
     api = APIRouter(prefix="/api", dependencies=[Depends(token_check(token))])
 
     @api.get("/info", response_model=ServerInfo)
@@ -82,6 +84,11 @@ def create_app(run: Run, *, token: str | None = None, static_dir: Path | None = 
             workflow=run.workflow.name,
             status=run.status.value,
         )
+
+    @api.get("/session", response_model=SessionInfo)
+    def session() -> SessionInfo:
+        """What the run is about so far: session id, subject, experimenter, repository, progress, start and end."""
+        return _session_info(run)
 
     @api.get("/state", response_model=RunState)
     def state() -> RunState:
@@ -266,6 +273,46 @@ def _safe_name(text: str) -> str:
     return re.sub(r"[^A-Za-z0-9._-]+", "_", text).strip("_") or "run"
 
 
+def _launcher_info(run: Run) -> dict[str, object]:
+    """Session id, subject, experimenter, repository and commit, from the run's launcher (when it has one)."""
+    describe = getattr(run.launcher, "report_info", None)
+    if not callable(describe):
+        return {}
+    try:
+        return dict(describe())
+    except Exception:  # never fail a request because the launcher cannot describe itself
+        logger.warning("Could not describe the launcher", exc_info=True)
+        return {}
+
+
+def _session_info(run: Run) -> SessionInfo:
+    """The run as a session (see ``GET /api/session``)."""
+    state = run.state()
+    started = finished = None
+    reason = None
+    for event in run.events.since(0):
+        if isinstance(event, RunStarted) and started is None:
+            started = event.ts
+        elif isinstance(event, RunFinished):
+            finished, reason = event.ts, event.reason
+    facts = {k: v for k, v in _launcher_info(run).items() if k in SessionInfo.model_fields}
+    return SessionInfo(
+        run_id=run.id,
+        experiment=run.workflow.name,
+        status=state.status.value,
+        current_step=state.current_step,
+        waiting=state.prompt is not None,
+        steps_done=sum(1 for s in state.steps if s.status.value in ("done", "skipped")),
+        steps_total=len(state.steps),
+        started_at=started,
+        finished_at=finished,
+        reason=reason,
+        hostname=socket.gethostname(),
+        clabe_version=__version__,
+        **facts,
+    )
+
+
 def _report_info(run: Run, body: ReportBody) -> dict[str, object]:
     """The [`ReportInfo`][clabe.reports.ReportInfo] fields known about ``run`` (and its launcher, when it has one)."""
     state = run.state()
@@ -277,12 +324,7 @@ def _report_info(run: Run, body: ReportBody) -> dict[str, object]:
         "experiment": run.workflow.name,
         "step": step,
     }
-    describe = getattr(run.launcher, "report_info", None)
-    if callable(describe):
-        try:
-            info.update(describe())
-        except Exception:  # a report must be made even when the launcher cannot describe itself
-            logger.warning("Could not describe the launcher in a report", exc_info=True)
+    info.update(_launcher_info(run))
     return info
 
 

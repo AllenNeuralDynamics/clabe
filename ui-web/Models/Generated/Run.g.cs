@@ -102,6 +102,26 @@ public sealed record ServerInfo(
     [property: JsonPropertyName("workflow")] string Workflow,
     [property: JsonPropertyName("status")] string Status);
 
+/// <summary>What a run is about, as far as known so far: the hub lists it as a session.</summary>
+public sealed record SessionInfo(
+    [property: JsonPropertyName("run_id")] string RunId,
+    [property: JsonPropertyName("experiment")] string Experiment,
+    [property: JsonPropertyName("status")] string Status,
+    [property: JsonPropertyName("hostname")] string Hostname,
+    [property: JsonPropertyName("clabe_version")] string ClabeVersion,
+    [property: JsonPropertyName("current_step")] string? CurrentStep = null,
+    [property: JsonPropertyName("waiting")] bool Waiting = false,
+    [property: JsonPropertyName("steps_done")] long StepsDone = 0,
+    [property: JsonPropertyName("steps_total")] long StepsTotal = 0,
+    [property: JsonPropertyName("started_at")] DateTimeOffset? StartedAt = null,
+    [property: JsonPropertyName("finished_at")] DateTimeOffset? FinishedAt = null,
+    [property: JsonPropertyName("reason")] string? Reason = null,
+    [property: JsonPropertyName("session_id")] string? SessionId = null,
+    [property: JsonPropertyName("subject")] string? Subject = null,
+    [property: JsonPropertyName("experimenter")] List<string>? Experimenter = null,
+    [property: JsonPropertyName("repository")] string? Repository = null,
+    [property: JsonPropertyName("commit")] string? Commit = null);
+
 /// <summary>Snapshot of one step, for clients.</summary>
 public sealed record StepState(
     [property: JsonPropertyName("name")] string Name,

@@ -1,5 +1,6 @@
 """Request and response bodies of the run API (the single source of truth for the OpenAPI document)."""
 
+import datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
@@ -46,6 +47,28 @@ class ServerInfo(BaseModel):
     run_id: str
     workflow: str
     status: str
+
+
+class SessionInfo(BaseModel):
+    """What a run is about, as far as known so far: the hub lists it as a session."""
+
+    run_id: str
+    experiment: str
+    status: str = Field(description="running, completed, aborted or failed")
+    current_step: str | None = None
+    waiting: bool = Field(default=False, description="Whether a prompt waits for an answer")
+    steps_done: int = 0
+    steps_total: int = 0
+    started_at: datetime.datetime | None = None
+    finished_at: datetime.datetime | None = None
+    reason: str | None = Field(default=None, description="Why it ended, when it did not complete")
+    hostname: str
+    clabe_version: str
+    session_id: str | None = Field(default=None, description="The session's name, once registered")
+    subject: str | None = None
+    experimenter: list[str] = Field(default_factory=list)
+    repository: str | None = None
+    commit: str | None = None
 
 
 class ListDirBody(BaseModel):

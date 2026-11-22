@@ -4,6 +4,11 @@
 @implements IAsyncDisposable
 @inject IJSRuntime JS
 
+@if (_needsToken)
+{
+    <TokenPrompt What="This machine" />
+    return;
+}
 <div class="daemon">
     <HubTopBar Context="@(_info?.Hostname ?? "machine")" Home="@Navigation.Uri">
         <Chips>
@@ -83,6 +88,7 @@
     private RunInfo? _run;
     private List<RepositoryInfo>? _repositories;
     private string? _error;
+    private bool _needsToken;
     private Timer? _timer;
     private bool _openWhenRunning;
     private bool _confirmStop;
@@ -98,7 +104,8 @@
         }
         catch (Exception exc) when (exc is HttpRequestException or InvalidOperationException)
         {
-            _error = exc.Message.Contains("401") ? "This machine requires a token: open the link clabe printed." : exc.Message;
+            _needsToken = exc is HttpRequestException { StatusCode: System.Net.HttpStatusCode.Unauthorized } || exc.Message.Contains("401");
+            _error = _needsToken ? null : exc.Message;
         }
         _timer = new Timer(_ => InvokeAsync(async () => { await Refresh(); StateHasChanged(); }), null, 2000, 2000);
     }
