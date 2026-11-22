@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 400" width="820" height="400" role="img"
+     aria-label="clabe's architecture: each rig PC runs experiments and a daemon; the hub follows every daemon; people and agents use the hub">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#141d28"/>
+    </marker>
+    <style>
+      text { font-family: "Segoe UI", system-ui, -apple-system, Helvetica, Arial, sans-serif; fill: #141d28; }
+      .h { font-size: 14px; font-weight: 700; fill: #ffffff; }
+      .b { font-size: 13px; font-weight: 600; }
+      .s { font-size: 11.5px; fill: #3f3f46; }
+      .l { font-size: 11px; fill: #52525b; font-style: italic; }
+      .line { stroke: #141d28; stroke-width: 1.6; fill: none; }
+    </style>
+  </defs>
+
+  <rect x="1" y="1" width="818" height="398" rx="14" fill="#ffffff" stroke="#e4e4e7"/>
+
+  <!-- rig-3 -->
+  <rect x="24" y="28" width="300" height="168" rx="10" fill="#f6f9e1" stroke="#141d28"/>
+  <path d="M24 38a10 10 0 0 1 10-10h280a10 10 0 0 1 10 10v18H24z" fill="#141d28"/>
+  <text x="38" y="47" class="h">Rig PC · rig-3</text>
+  <rect x="38" y="70" width="128" height="112" rx="8" fill="#ffffff" stroke="#a1a1aa"/>
+  <text x="50" y="91" class="b">Experiment run</text>
+  <text x="50" y="110" class="s">clabe run main.py</text>
+  <text x="50" y="127" class="s">terminal UI here,</text>
+  <text x="50" y="143" class="s">browser page at</text>
+  <text x="50" y="159" class="s">localhost:8090</text>
+  <rect x="184" y="70" width="126" height="112" rx="8" fill="#cceb05" stroke="#141d28"/>
+  <text x="196" y="91" class="b">Daemon :24070</text>
+  <text x="196" y="110" class="s">lists and starts</text>
+  <text x="196" y="126" class="s">experiments</text>
+  <text x="196" y="143" class="s">serves the run</text>
+  <text x="196" y="159" class="s">keeps issue reports</text>
+
+  <!-- rig-4 -->
+  <rect x="24" y="214" width="300" height="70" rx="10" fill="#f6f9e1" stroke="#141d28"/>
+  <path d="M24 224a10 10 0 0 1 10-10h280a10 10 0 0 1 10 10v18H24z" fill="#141d28"/>
+  <text x="38" y="233" class="h">Rig PC · rig-4</text>
+  <rect x="184" y="250" width="126" height="26" rx="6" fill="#cceb05" stroke="#141d28"/>
+  <text x="196" y="268" class="b">Daemon :24070</text>
+  <text x="38" y="268" class="s">experiment runs</text>
+  <text x="24" y="312" class="l">… one daemon on every rig PC</text>
+  <text x="24" y="330" class="l">(a second PC of the same rig too:</text>
+  <text x="24" y="346" class="l">a run can start apps there through it)</text>
+
+  <!-- hub -->
+  <rect x="408" y="70" width="190" height="230" rx="10" fill="#f3eefc" stroke="#8146e1" stroke-width="1.6"/>
+  <path d="M408 80a10 10 0 0 1 10-10h170a10 10 0 0 1 10 10v20H408z" fill="#8146e1"/>
+  <text x="422" y="91" class="h">Hub · Docker :8080</text>
+  <text x="422" y="124" class="s">• every rig's status</text>
+  <text x="422" y="146" class="s">• live sessions</text>
+  <text x="422" y="168" class="s">• runs waiting for an</text>
+  <text x="432" y="184" class="s">answer</text>
+  <text x="422" y="206" class="s">• issue reports, kept</text>
+  <text x="432" y="222" class="s">in SQLite</text>
+  <text x="422" y="244" class="s">• each rig at /rigs/&lt;id&gt;/</text>
+  <text x="422" y="266" class="s">• MCP at /mcp</text>
+  <text x="422" y="288" class="l">optional</text>
+
+  <!-- hub -> daemons -->
+  <path d="M408 140L312 118" class="line" marker-end="url(#arrow)"/>
+  <path d="M408 250L312 262" class="line" marker-end="url(#arrow)"/>
+  <text x="332" y="194" class="l">polls every 2 s,</text>
+  <text x="332" y="210" class="l">proxies the run</text>
+
+  <!-- people and agents -->
+  <rect x="648" y="70" width="148" height="78" rx="10" fill="#ffffff" stroke="#141d28"/>
+  <text x="662" y="94" class="b">Browser</text>
+  <text x="662" y="113" class="s">anywhere: a desk,</text>
+  <text x="662" y="129" class="s">a phone in the corridor</text>
+  <rect x="648" y="222" width="148" height="78" rx="10" fill="#ffffff" stroke="#141d28"/>
+  <text x="662" y="246" class="b">AI agent</text>
+  <text x="662" y="265" class="s">follows and answers</text>
+  <text x="662" y="281" class="s">runs over MCP</text>
+  <path d="M648 110L600 150" class="line" marker-end="url(#arrow)"/>
+  <path d="M648 260L600 236" class="line" marker-end="url(#arrow)"/>
+
+  <!-- footer -->
+  <text x="408" y="340" class="l">Connections go from the observer to the rig, never the other way.</text>
+  <text x="408" y="358" class="l">Without a hub, a browser can open a rig's daemon directly.</text>
+  <text x="408" y="376" class="l">Every client sees the same prompts; the first valid answer is kept.</text>
+</svg>
