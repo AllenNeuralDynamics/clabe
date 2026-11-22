@@ -46,7 +46,7 @@
                         <p class="@(run.ExitCode == 0 ? "muted" : "error")">Exited with code @run.ExitCode.</p>
                         break;
                 }
-                @if (run.LogTail.Count > 0)
+                @if (run.LogTail is { Count: > 0 })
                 {
                     <details class="log" open="@(run.Status != "running")">
                         <summary>Output</summary>
@@ -105,7 +105,7 @@
 
 @code {
     private HostInfo? _info;
-    private DaemonRunInfo? _run;
+    private RunInfo? _run;
     private List<RepositoryInfo>? _repositories;
     private readonly Dictionary<string, ExperimentListing> _listings = [];
     private readonly HashSet<string> _loading = [];

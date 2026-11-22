@@ -62,7 +62,7 @@ def test_state_snapshot_reports_steps_prompt_and_locks():
 
     state = captured["state"]
     assert [(s.name, s.status, s.locked, s.summary) for s in state.steps] == [
-        ("a", "done", True, "'x'"),
+        ("a", "done", True, "x"),
         ("b", "running", False, None),
     ]
     assert (state.current_step, state.prompt.kind, state.status) == ("b", "confirm", "running")
@@ -74,11 +74,11 @@ def test_state_reuses_the_summary_recorded_when_the_step_finished(monkeypatch):
     wf.step(lambda: "x", name="a")
     run, _ = execute(wf)
 
-    def fail(value, limit=500):
+    def fail(value, limit=160):
         raise AssertionError("state() must not re-summarize outputs")
 
     monkeypatch.setattr("clabe.workflow._run._summarize", fail)
-    assert [s.summary for s in run.state().steps] == ["'x'"]
+    assert [s.summary for s in run.state().steps] == ["x"]
 
 
 def test_state_forgets_summaries_of_steps_that_go_back():
@@ -96,7 +96,7 @@ def test_state_forgets_summaries_of_steps_that_go_back():
 
     execute(wf, [go_back, snapshot_then_answer])
     # a ran again, so its summary is back; the snapshot was taken during b's second prompt
-    assert [s.summary for s in captured["state"].steps] == ["'x'", None]
+    assert [s.summary for s in captured["state"].steps] == ["x", None]
 
 
 def test_each_step_runs_in_a_span(monkeypatch):

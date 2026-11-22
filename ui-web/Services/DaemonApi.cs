@@ -1,6 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json.Nodes;
+using Clabe.Web.Api.Daemon;
+using Clabe.Web.Api.Hub;
+using Clabe.Web.Api.Run;
 using Clabe.Web.Models;
 
 namespace Clabe.Web.Services;
@@ -34,8 +37,8 @@ public sealed class DaemonApi(HttpClient http, RunApi run)
         return (await response.Content.ReadFromJsonAsync<ExperimentListing>(Json.Options))!;
     }
 
-    public async Task<DaemonRunInfo?> CurrentAsync() =>
-        await http.GetFromJsonAsync<DaemonRunInfo?>("api/daemon/runs/current", Json.Options);
+    public async Task<RunInfo?> CurrentAsync() =>
+        await http.GetFromJsonAsync<RunInfo?>("api/daemon/runs/current", Json.Options);
 
     public async Task LaunchAsync(string repository, string file, string experiment)
     {

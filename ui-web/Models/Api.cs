@@ -4,39 +4,9 @@ using System.Text.Json.Serialization;
 
 namespace Clabe.Web.Models;
 
-// Mirrors of the run API's models (clabe.workflow.RunState, clabe.workflow.events, clabe.server._models).
-// Request specs and answer schemas stay JSON: their shape depends on the prompt kind.
-
-public sealed record StepState(
-    string Name,
-    string Title,
-    string Status,
-    bool Barrier,
-    string? Optional,
-    bool Locked,
-    string? Summary);
-
-public sealed record RunState(
-    [property: JsonPropertyName("run_id")] string RunId,
-    string Workflow,
-    string Status,
-    [property: JsonPropertyName("current_step")] string? CurrentStep,
-    List<StepState> Steps,
-    RunEvent? Prompt,
-    [property: JsonPropertyName("last_seq")] int LastSeq);
-
-public sealed record ServerInfo(
-    [property: JsonPropertyName("clabe_version")] string ClabeVersion,
-    string Hostname,
-    [property: JsonPropertyName("run_id")] string RunId,
-    string Workflow,
-    string Status);
-
-public sealed record CommandResult(bool Ok, string? Reason);
-
-public sealed record DirEntry(string Name, string Path, [property: JsonPropertyName("is_dir")] bool IsDir);
-
-public sealed record DirListing(string Path, string? Parent, List<DirEntry> Entries);
+// The run's events, mapped by hand (one discriminated union); every other API model is generated into
+// Models/Generated from ui-web/openapi (see scripts/openapi.py). Request specs and answer schemas stay JSON: their
+// shape depends on the prompt kind.
 
 /// <summary>One run event. Only the fields of its <see cref="Type"/> are set.</summary>
 public sealed class RunEvent

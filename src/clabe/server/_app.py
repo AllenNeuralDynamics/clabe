@@ -2,7 +2,6 @@
 
 import asyncio
 import contextlib
-import hmac
 import logging
 import mimetypes
 import socket
@@ -29,6 +28,7 @@ from ._models import (
     ListDirBody,
     ServerInfo,
 )
+from ._proxy import token_check
 
 logger = logging.getLogger(__name__)
 
@@ -53,25 +53,6 @@ def _result(outcome: Ack | Rejected) -> CommandResult:
     return CommandResult(ok=True)
 
 
-def _token_check(token: str | None):
-    """A dependency rejecting requests without the shared token (when one is set)."""
-
-    async def check(
-        authorization: str | None = Header(default=None),
-        token_param: str | None = Query(default=None, alias="token"),
-    ) -> None:
-        """Raises 401 unless the request carries the token."""
-        if token is None:
-            return
-        given = token_param
-        if authorization and authorization.lower().startswith("bearer "):
-            given = authorization[7:]
-        if given is None or not hmac.compare_digest(given, token):
-            raise HTTPException(status_code=401, detail="A valid token is required.")
-
-    return check
-
-
 def create_app(run: Run, *, token: str | None = None, static_dir: Path | None = STATIC_DIR) -> FastAPI:
     """Builds the API serving ``run``.
 
@@ -85,7 +66,7 @@ def create_app(run: Run, *, token: str | None = None, static_dir: Path | None = 
         version=__version__,
         description="Observe and drive a clabe run: a snapshot, a resumable event stream, answers and commands.",
     )
-    api = APIRouter(prefix="/api", dependencies=[Depends(_token_check(token))])
+    api = APIRouter(prefix="/api", dependencies=[Depends(token_check(token))])
 
     @api.get("/info", response_model=ServerInfo)
     def info() -> ServerInfo:

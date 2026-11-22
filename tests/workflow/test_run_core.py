@@ -291,3 +291,30 @@ def test_a_run_starts_once():
     run, _ = execute(wf)
     with pytest.raises(RuntimeError):
         run.start()
+
+
+def test_summaries_are_short_and_readable():
+    import enum
+    from pathlib import Path
+
+    from pydantic import BaseModel
+
+    from clabe.workflow._run import _summarize
+
+    class Rig(BaseModel):
+        version: str = "0.13"
+        name: str = "rig-3"
+        data_directory: Path = Path("D:/data")
+        cameras: list[str] = ["a", "b"]
+
+    class Mode(enum.Enum):
+        FAST = "fast"
+
+    class Handle:
+        pass
+
+    assert _summarize("mouse-7") == "mouse-7" and _summarize(3.5) == "3.5" and _summarize(Mode.FAST) == "fast"
+    assert _summarize(Rig()) == f"Rig: name=rig-3, data_directory={Path('D:/data')}"
+    assert _summarize({"gain": 0.5, "note": ""}) == "gain=0.5"
+    assert _summarize([1, 2, 3]) == "3 items" and _summarize(Handle()) == "Handle"
+    assert len(_summarize("x" * 1000)) == 160

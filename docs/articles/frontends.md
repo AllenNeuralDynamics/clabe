@@ -206,7 +206,9 @@ activities and the full event log. Every prompt kind is supported, including for
 JSON Schema), groups and sliders; path prompts browse the file system of the machine running the run. Answers are
 validated by the run, so a rejected answer shows the same message as in the TUI.
 
-The UI's source is in `ui-web/`. To work on it, build it into the package with the .NET SDK
+The UI's source is in `ui-web/`. Its models are generated from the APIs' OpenAPI documents (`ui-web/openapi/`):
+after changing an API, run `uv run python scripts/openapi.py` — a test fails until you do, and the UI then fails to
+build wherever it used something that changed. To work on the UI, build it into the package with the .NET SDK
 (`uv run python scripts/build_web.py`) — CI does this before building the wheel — and run
 `tests/server/test_web_ui.py` (needs Playwright: `uv run --with playwright playwright install chromium`).
 

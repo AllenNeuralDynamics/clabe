@@ -153,15 +153,47 @@ class _Command:
     reason: str | None = None
 
 
-def _summarize(value: Any, limit: int = 500) -> str | None:
-    """A short, display-only rendering of a step output (never the raw object); never raises."""
+def _summarize(value: Any, limit: int = 160) -> str | None:
+    """A short, display-only rendering of a step output (never the raw object); never raises.
+
+    Text and numbers as they are; a model as its name and first few fields (``Session: subject=123456, ...``); a
+    mapping as its first few entries; a collection as its size; another object as its type unless it has a
+    meaningful ``repr``.
+    """
     if value is None:
         return None
     try:
-        text = value.model_dump_json() if isinstance(value, BaseModel) else repr(value)
+        text = _short(value)
     except Exception:  # noqa: BLE001 -- a summary is cosmetic; an unprintable output must not fail its step
         return f"<{type(value).__name__}>"
     return text if len(text) <= limit else text[: limit - 1] + "…"
+
+
+def _short(value: Any) -> str:
+    """The text of :func:`_summarize`, before truncation."""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, bool | int | float | Path | enum.Enum):
+        return str(value.value if isinstance(value, enum.Enum) else value)
+    if isinstance(value, BaseModel):
+        fields = _scalar_fields(value.model_dump(mode="json"))
+        return f"{type(value).__name__}: {fields}" if fields else type(value).__name__
+    if isinstance(value, dict):
+        return _scalar_fields(value) or f"{len(value)} entries"
+    if isinstance(value, list | tuple | set | frozenset):
+        return f"{len(value)} item{'s' if len(value) != 1 else ''}"
+    text = repr(value)
+    return type(value).__name__ if " object at 0x" in text else text
+
+
+def _scalar_fields(data: dict[str, Any], count: int = 4) -> str:
+    """The first ``count`` non-empty scalar entries of ``data`` (versions left out), as ``key=value``."""
+    shown = [
+        f"{key}={value}"
+        for key, value in data.items()
+        if isinstance(value, str | int | float | bool) and value != "" and not str(key).endswith("version")
+    ]
+    return ", ".join(shown[:count])
 
 
 def _jsonable(value: Any) -> Any:
