@@ -15,6 +15,7 @@ import subprocess
 import sys
 import threading
 import uuid
+from collections import deque
 from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
@@ -29,6 +30,7 @@ from ..remote._models import (
     LEASE_HEADER,
     FileInfo,
     JobList,
+    JobOutput,
     JobResult,
     JobStatus,
     JobSubmission,
@@ -39,6 +41,9 @@ from ..remote._models import (
 from ._settings import DaemonSettings, RepositoryConfig
 
 logger = logging.getLogger(__name__)
+
+#: Output lines kept per job, for following it while it runs.
+OUTPUT_LINES = 500
 _tracer = trace.get_tracer("clabe.worker")
 
 
@@ -63,6 +68,20 @@ class _Job:
         self.process: subprocess.Popen | None = None
         self.stopped = False
         self.future: Future | None = None
+        self._output: deque[tuple[int, str]] = deque(maxlen=OUTPUT_LINES)
+        self._lines = 0
+        self._output_lock = threading.Lock()
+
+    def add_line(self, text: str) -> None:
+        """Keeps a line of the job's output (stdout and stderr, as they come)."""
+        with self._output_lock:
+            self._lines += 1
+            self._output.append((self._lines, text))
+
+    def output(self, after: int) -> JobOutput:
+        """The kept lines after line number ``after``."""
+        with self._output_lock:
+            return JobOutput(lines=[text for n, text in self._output if n > after], next=self._lines)
 
 
 class Worker:
@@ -73,6 +92,7 @@ class Worker:
         self._busy = busy
         self._pool = ThreadPoolExecutor(max_workers=settings.max_jobs, thread_name_prefix="clabe-job")
         self._jobs: dict[str, _Job] = {}
+        self._read: deque[_Job] = deque(maxlen=50)  # finished jobs whose result was read: output still served
         self._lease: Lease | None = None
         self._lock = threading.Lock()
         self.files_dir = settings.file_transfer_dir or Path(os.environ.get("TEMP", "/tmp")) / "clabe-worker"
@@ -142,6 +162,7 @@ class Worker:
             working_dir=str(root.resolve()),
             python_executable=str(python if python.exists() else sys.executable),
             leased_by=lease.owner if lease is not None else None,
+            os_name=os.name,
         )
 
     def submit(self, submission: JobSubmission) -> JobResult:
@@ -168,7 +189,7 @@ class Worker:
                 job.process = subprocess.Popen(
                     job.cmd, cwd=job.cwd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE
                 )
-                stdout, stderr = job.process.communicate()
+                stdout, stderr = _pump(job)
             except OSError as exc:
                 span.set_status(Status(StatusCode.ERROR, str(exc)))
                 return JobResult(job_id=job.job_id, status=JobStatus.ERROR, error=str(exc))
@@ -179,19 +200,28 @@ class Worker:
             return JobResult(
                 job_id=job.job_id,
                 status=JobStatus.STOPPED if job.stopped else JobStatus.DONE,
-                stdout=stdout.decode(errors="replace"),
-                stderr=stderr.decode(errors="replace"),
+                stdout=stdout,
+                stderr=stderr,
                 returncode=code,
             )
 
+    def output(self, job_id: str, after: int) -> JobOutput:
+        """A job's output lines after line ``after`` (the last :data:`OUTPUT_LINES` are kept)."""
+        job = self._jobs.get(job_id) or next((j for j in self._read if j.job_id == job_id), None)
+        if job is None:
+            raise HTTPException(status_code=404, detail=f"No job {job_id}.")
+        return job.output(after)
+
     def result(self, job_id: str) -> JobResult:
-        """A job's state; a finished job is forgotten once its result is read."""
+        """A job's state; a finished job is forgotten once its result is read (its last output lines are kept a
+        little longer, for whoever follows them)."""
         job = self._jobs.get(job_id)
         if job is None or job.future is None:
             raise HTTPException(status_code=404, detail=f"No job {job_id}.")
         if not job.future.done():
             return JobResult(job_id=job_id, status=JobStatus.RUNNING)
         del self._jobs[job_id]
+        self._read.append(job)
         return job.future.result()
 
     def stop(self, job_id: str, timeout: float = 10.0) -> JobResult:
@@ -261,6 +291,31 @@ class Worker:
         return deleted
 
 
+def _pump(job: _Job) -> tuple[str, str]:
+    """Reads a job's stdout and stderr to their end, keeping each line as it comes; returns them whole."""
+    assert job.process is not None and job.process.stdout is not None and job.process.stderr is not None
+    chunks: dict[str, list[str]] = {"stdout": [], "stderr": []}
+
+    def read(stream, name: str) -> None:
+        """Reads one stream line by line."""
+        for raw in iter(stream.readline, b""):
+            text = raw.decode(errors="replace")
+            chunks[name].append(text)
+            job.add_line(text.rstrip("\r\n"))
+        stream.close()
+
+    readers = [
+        threading.Thread(target=read, args=(job.process.stdout, "stdout"), daemon=True),
+        threading.Thread(target=read, args=(job.process.stderr, "stderr"), daemon=True),
+    ]
+    for reader in readers:
+        reader.start()
+    job.process.wait()
+    for reader in readers:
+        reader.join()
+    return "".join(chunks["stdout"]), "".join(chunks["stderr"])
+
+
 def _now() -> datetime.datetime:
     """The current time (UTC)."""
     return datetime.datetime.now(datetime.UTC)
@@ -297,50 +352,65 @@ def worker_router(worker: Worker, token_check) -> APIRouter:
         """Gives the worker back; ``stop_jobs`` stops its running jobs too."""
         worker.release(lease_id, stop_jobs=stop_jobs)
 
-    @guarded.post("/jobs", response_model=JobResult)
+    _add_job_routes(guarded, worker)
+    _add_file_routes(guarded, worker)
+    api.include_router(guarded)
+    return api
+
+
+def _add_job_routes(router: APIRouter, worker: Worker) -> None:
+    """The job routes of the worker API."""
+
+    @router.post("/jobs", response_model=JobResult)
     def submit(body: JobSubmission) -> JobResult:
         """Starts a command in the background."""
         return worker.submit(body)
 
-    @guarded.get("/jobs", response_model=JobList)
+    @router.get("/jobs", response_model=JobList)
     def jobs() -> JobList:
         """The jobs, running and finished."""
         return worker.jobs()
 
-    @guarded.get("/jobs/{job_id}", response_model=JobResult)
+    @router.get("/jobs/{job_id}", response_model=JobResult)
     def result(job_id: str) -> JobResult:
         """A job's state, with its output once it ended (read once)."""
         return worker.result(job_id)
 
-    @guarded.post("/jobs/{job_id}/stop", response_model=JobResult)
+    @router.get("/jobs/{job_id}/output", response_model=JobOutput)
+    def output(job_id: str, after: int = Query(default=0, ge=0)) -> JobOutput:
+        """A job's output lines after line ``after``, while it runs (the last 500 lines are kept)."""
+        return worker.output(job_id, after)
+
+    @router.post("/jobs/{job_id}/stop", response_model=JobResult)
     def stop(job_id: str) -> JobResult:
         """Stops a job."""
         return worker.stop(job_id)
 
-    @guarded.get("/files", response_model=list[FileInfo])
+
+def _add_file_routes(router: APIRouter, worker: Worker) -> None:
+    """The file routes of the worker API."""
+
+    @router.get("/files", response_model=list[FileInfo])
     def files() -> list[FileInfo]:
         """The files of the transfer directory."""
         return worker.files()
 
-    @guarded.put("/files/{name}", response_model=FileInfo)
+    @router.put("/files/{name}", response_model=FileInfo)
     async def upload(name: str, request: Request, overwrite: bool = Query(default=True)) -> FileInfo:
         """Uploads a file (the request body) to the transfer directory."""
         return worker.upload(name, await request.body(), overwrite)
 
-    @guarded.get("/files/{name}", response_class=FileResponse)
+    @router.get("/files/{name}", response_class=FileResponse)
     def download(name: str) -> FileResponse:
         """Downloads a file of the transfer directory."""
         return FileResponse(worker.download(name))
 
-    @guarded.delete("/files/{name}", status_code=204)
+    @router.delete("/files/{name}", status_code=204)
     def delete(name: str) -> None:
         """Deletes a file of the transfer directory."""
         worker.delete(name)
 
-    @guarded.delete("/files", response_model=list[str])
+    @router.delete("/files", response_model=list[str])
     def delete_all() -> list[str]:
         """Deletes every file of the transfer directory."""
         return worker.delete_all()
-
-    api.include_router(guarded)
-    return api

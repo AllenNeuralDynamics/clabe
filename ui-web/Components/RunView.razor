@@ -74,7 +74,20 @@
                     <ul class="activities">
                         @foreach (var activity in Connection.Activities)
                         {
-                            <li><span class="spinner"></span> @activity.Description</li>
+                            <li>
+                                <span class="spinner"></span> @activity.Description
+                                @if (activity.Machine is { } machine)
+                                {
+                                    <span class="tag">@machine</span>
+                                }
+                                @if (Connection.OutputOf(activity.ActivityId!) is { Count: > 0 } output)
+                                {
+                                    <details class="output">
+                                        <summary>@output[^1]</summary>
+                                        <pre>@string.Join('\n', output)</pre>
+                                    </details>
+                                }
+                            </li>
                         }
                     </ul>
                 }

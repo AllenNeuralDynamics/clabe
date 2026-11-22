@@ -235,3 +235,23 @@ def test_a_run_that_ends_gives_the_worker_back_and_an_aborted_one_stops_its_jobs
     run = Run(completed)
     run.start()
     assert run.wait(30) and run.status is RunStatus.COMPLETED and not remote.client.leased
+
+
+def test_a_remote_command_shows_as_an_activity_with_its_output(worker_url, repository):
+    from clabe.workflow import Run, RunStatus, Workflow
+    from clabe.workflow.events import ActivityEnded, ActivityOutput, ActivityStarted
+
+    remote = RemoteRepository(_client(worker_url, repository="Aind.Experiment.Demo"), local_path=repository)
+    script = "import time\nfor i in range(8):\n    print(f'frame {i}', flush=True)\n    time.sleep(0.25)\n"
+    wf = Workflow("demo")
+    wf.step(lambda: remote.run(Command(cmd=[sys.executable, "-c", script], output_parser=identity_parser)), name="a")
+    run = Run(wf)
+    run.start()
+    assert run.wait(30) and run.status is RunStatus.COMPLETED
+    events = run.events.since(0)
+    started = [e for e in events if isinstance(e, ActivityStarted) and e.machine == "127.0.0.1"]
+    assert len(started) == 1 and started[0].step == "a" and "on 127.0.0.1" in started[0].description
+    lines = [line for e in events if isinstance(e, ActivityOutput) for line in e.lines]
+    assert lines == [f"frame {i}" for i in range(8)]
+    assert sum(isinstance(e, ActivityOutput) for e in events) >= 2  # streamed while running, not only at the end
+    assert any(isinstance(e, ActivityEnded) and e.activity_id == started[0].activity_id for e in events)

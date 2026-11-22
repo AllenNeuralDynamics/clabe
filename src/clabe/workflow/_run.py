@@ -36,6 +36,7 @@ from ..ui import (
 from ._control import Abort, GoBack, GoBackRejected
 from ._events import (
     ActivityEnded,
+    ActivityOutput,
     ActivityStarted,
     ArtifactExported,
     EventLog,
@@ -1061,7 +1062,7 @@ class Run:
 
     # --- observability ----------------------------------------------------
     @contextlib.contextmanager
-    def activity(self, description: str) -> Generator[None, None, None]:
+    def activity(self, description: str, *, machine: str | None = None) -> Generator[str, None, None]:
         """Records live work (e.g. a running app) as start/end events around the block.
 
         The run observes the process-wide activity indicator while it executes, so it records activities from any
@@ -1070,17 +1071,28 @@ class Run:
 
         Args:
             description: What the work is, as shown to the user.
+            machine: The machine the work runs on, when not this one.
+
+        Yields:
+            The activity's id, to record its output with :meth:`activity_output`.
         """
         activity_id = uuid.uuid4().hex[:12]
         with self._lock:  # the step read and the event are one atomic change: no step can start or end between
             step = self._current.name if self._current is not None else None
-            self.events.append(ActivityStarted(activity_id=activity_id, description=description, step=step))
+            self.events.append(
+                ActivityStarted(activity_id=activity_id, description=description, step=step, machine=machine)
+            )
         try:
-            yield
+            yield activity_id
         finally:
             # Not under _lock (no state is read): an abort's KeyboardInterrupt could land on acquiring it and the
             # activity would never end. The event log is thread-safe on its own.
             self.events.append(ActivityEnded(activity_id=activity_id))
+
+    def activity_output(self, activity_id: str, lines: list[str]) -> None:
+        """Records new output lines of a running activity."""
+        if lines:
+            self.events.append(ActivityOutput(activity_id=activity_id, lines=lines))
 
     def state(self) -> RunState:
         """A consistent snapshot of the run; clients then follow events after ``last_seq``.

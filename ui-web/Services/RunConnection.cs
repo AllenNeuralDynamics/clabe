@@ -18,6 +18,7 @@ public sealed class RunConnection(RunApi api, IJSRuntime js, NavigationManager n
     ];
 
     private readonly Dictionary<string, RunEvent> _activities = [];
+    private readonly Dictionary<string, List<string>> _outputs = [];
     private readonly Dictionary<string, RunEvent> _failures = [];
     private readonly Dictionary<string, List<BranchView>> _branches = [];
     private DotNetObjectReference<RunConnection>? _self;
@@ -38,6 +39,9 @@ public sealed class RunConnection(RunApi api, IJSRuntime js, NavigationManager n
     public List<RunEvent> Log { get; } = [];
     public List<RunEvent> Messages { get; } = [];
     public IEnumerable<RunEvent> Activities => _activities.Values;
+
+    /// <summary>The last lines an activity printed (remote jobs), newest last.</summary>
+    public IReadOnlyList<string> OutputOf(string activityId) => _outputs.GetValueOrDefault(activityId) ?? [];
 
     /// <summary>Set when the prompt on screen was answered by another client (e.g. "Answered on pc-2").</summary>
     public string? ClosedElsewhere { get; private set; }
@@ -139,6 +143,15 @@ public sealed class RunConnection(RunApi api, IJSRuntime js, NavigationManager n
                 break;
             case "activity_ended":
                 _activities.Remove(e.ActivityId!);
+                _outputs.Remove(e.ActivityId!);
+                break;
+            case "activity_output":
+                var tail = _outputs.TryGetValue(e.ActivityId!, out var known) ? known : _outputs[e.ActivityId!] = [];
+                tail.AddRange(e.Lines ?? []);
+                if (tail.Count > 200)
+                {
+                    tail.RemoveRange(0, tail.Count - 200);
+                }
                 break;
             case "step_failed":
                 _failures[e.Step!] = e;

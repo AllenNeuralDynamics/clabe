@@ -213,3 +213,8 @@ a.button {
 table.fleet { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; }
 table.fleet tr.offline td { color: var(--muted); }
 table.fleet small { margin-left: .4rem; }
+
+.activities .tag { font-size: .7rem; border: 1px solid var(--border); border-radius: 4px; padding: 0 .3rem; margin-left: .3rem; }
+.activities .output { margin: .2rem 0 .4rem 1.3rem; }
+.activities .output summary { cursor: pointer; font-family: ui-monospace, monospace; font-size: .8rem; overflow-wrap: anywhere; }
+.activities .output pre { font-size: .78rem; max-height: 14rem; overflow: auto; background: var(--panel); padding: .5rem; border-radius: 6px; }

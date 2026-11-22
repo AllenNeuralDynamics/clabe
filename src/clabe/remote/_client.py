@@ -17,6 +17,7 @@ from ._models import (
     LEASE_HEADER,
     FileInfo,
     JobList,
+    JobOutput,
     JobResult,
     JobStatus,
     JobSubmission,
@@ -186,6 +187,11 @@ class WorkerClient:
     def list_jobs(self) -> JobList:
         """The worker's jobs."""
         return JobList.model_validate_json(self._request("GET", "/jobs").content)
+
+    def job_output(self, job_id: str, after: int = 0) -> JobOutput:
+        """A running job's output lines after line ``after``."""
+        response = self._request("GET", f"/jobs/{job_id}/output", params={"after": after})
+        return JobOutput.model_validate_json(response.content)
 
     def stop_job(self, job_id: str) -> JobResult:
         """Stops a job's process."""

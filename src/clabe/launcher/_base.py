@@ -4,6 +4,7 @@ import logging
 import os
 import random
 import shutil
+import socket
 import threading
 from collections.abc import Generator
 from pathlib import Path
@@ -78,7 +79,7 @@ class Launcher:
         self._ui_binding = ui.bind(self._ui_session)
         self._ui_binding.__enter__()
         self.temp_dir = Path(TMP_DIR) / format_datetime(utcnow())
-        self.computer_name = os.environ["COMPUTERNAME"]
+        self.computer_name = os.environ.get("COMPUTERNAME") or socket.gethostname()
         self._data_directory: Path | None = None
         repository_dir = (
             Path(self.settings.repository_directory) if self.settings.repository_directory is not None else None

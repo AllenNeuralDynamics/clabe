@@ -8,7 +8,7 @@ import tempfile
 import time
 import uuid
 from collections.abc import Mapping
-from pathlib import Path, PureWindowsPath
+from pathlib import Path, PurePath, PurePosixPath, PureWindowsPath
 from typing import TYPE_CHECKING, Any, Self
 from urllib.parse import urlparse
 
@@ -140,7 +140,7 @@ class RemoteRepository:
         self.data_roots = {PureWindowsPath(local): PureWindowsPath(unc) for local, unc in (data_roots or {}).items()}
         self._info: WorkerInfo | None = None
         self._session: Session | None = None
-        self._data_directory: PureWindowsPath | None = None
+        self._data_directory: PurePath | None = None
 
     @classmethod
     def from_computer_name(
@@ -267,7 +267,7 @@ class RemoteRepository:
                 __version__,
             )
         problems: list[str] = []
-        if self._path is not None and PureWindowsPath(self._path) != PureWindowsPath(info.working_dir):
+        if self._path is not None and self._remote_path(self._path) != self._remote_path(info.working_dir):
             problems.append(f"the worker's repository is {info.working_dir}, not {self._path}")
         if problems:
             raise RepositoryMismatchError(f"Remote repository on {self.host} does not match: " + "; ".join(problems))
@@ -293,6 +293,10 @@ class RemoteRepository:
         if problems:
             raise RepositoryMismatchError(f"Remote repository on {self.host} does not match: " + "; ".join(problems))
         logger.info("Remote repository on %s matches the local one (%s)", self.host, local["."].commit_sha)
+
+    def _remote_path(self, path: os.PathLike | str) -> PurePath:
+        """``path`` as the remote machine spells paths (Windows or POSIX, as its worker reports)."""
+        return PurePosixPath(path) if self.info().os_name == "posix" else PureWindowsPath(path)
 
     def to_unc(self, path: os.PathLike | str) -> PureWindowsPath:
         """Translates a path on the remote machine to the network share path other machines reach it by.
@@ -322,7 +326,7 @@ class RemoteRepository:
         if session.session_name is None:
             raise ValueError("session.session_name is not set.")
         self._session = session
-        self._data_directory = PureWindowsPath(data_directory)
+        self._data_directory = self._remote_path(data_directory)
         self.mkdir(self.session_directory)
         logger.debug("Created session directory on %s at %s", self.host, self.session_directory)
         return self
@@ -341,7 +345,7 @@ class RemoteRepository:
             path: The file, as the remote machine sees it. Replaced if it exists.
             content: The content. Text is written as UTF-8.
         """
-        name = PureWindowsPath(path).name
+        name = self._remote_path(path).name
         self.lease()
         with tempfile.TemporaryDirectory() as staging:
             upload_path = Path(staging) / f"clabe_{uuid.uuid4().hex}_{name}"
@@ -364,14 +368,14 @@ class RemoteRepository:
         )
 
     @property
-    def data_directory(self) -> PureWindowsPath:
+    def data_directory(self) -> PurePath:
         """Root data directory on the remote machine, set by :meth:`register_session`."""
         if self._data_directory is None:
             raise ValueError("Data directory is not set. Call register_session first.")
         return self._data_directory
 
     @property
-    def session_directory(self) -> PureWindowsPath:
+    def session_directory(self) -> PurePath:
         """Session directory as the remote machine sees it, e.g. to configure where an app saves its data."""
         if self._session is None or self._session.session_name is None:
             raise ValueError("Session is not registered. Call register_session first.")

@@ -145,6 +145,8 @@ class ActivityStarted(_Event):
     activity_id: str
     description: str
     step: str | None = None
+    machine: str | None = None
+    """The machine it runs on, when not this one (e.g. a job on a leased worker)."""
 
 
 class ActivityEnded(_Event):
@@ -152,6 +154,14 @@ class ActivityEnded(_Event):
 
     type: Literal["activity_ended"] = "activity_ended"
     activity_id: str
+
+
+class ActivityOutput(_Event):
+    """New output lines of a running activity (e.g. a remote job's log), at most about one event per second."""
+
+    type: Literal["activity_output"] = "activity_output"
+    activity_id: str
+    lines: list[str]
 
 
 class BranchStarted(_Event):
@@ -190,6 +200,7 @@ Event = Annotated[
     | Header
     | ActivityStarted
     | ActivityEnded
+    | ActivityOutput
     | BranchStarted
     | BranchEnded,
     Field(discriminator="type"),

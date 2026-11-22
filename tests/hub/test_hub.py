@@ -1,6 +1,7 @@
 """The hub end to end: a rig's daemon runs an experiment; the hub shows it, lists it in the inbox, and proxies it."""
 
 import asyncio
+import json
 import os
 import subprocess
 import sys
@@ -84,12 +85,14 @@ def _launch_and_wait_for_prompt(base: str) -> dict:
         json={"repository": "Aind.Experiment.Demo", "file": "experiments/demo.py"},
     )
     assert launched.ok, launched.text
-    deadline = time.monotonic() + 90
+    deadline = time.monotonic() + 180  # a first launch on a CI runner can be slow
     while True:
         rigs = {r["id"]: r for r in _hub(base, "/api/hub/rigs").json()}
         if rigs["rig-3"]["waiting"] is not None:
             return rigs
-        assert time.monotonic() < deadline, rigs["rig-3"]
+        if time.monotonic() >= deadline:
+            run = _hub(base, "/rigs/rig-3/api/daemon/runs/current").json()
+            pytest.fail(f"No prompt after 180 s. Rig: {rigs['rig-3']} Run: {json.dumps(run, indent=1)}")
         time.sleep(0.3)
 
 

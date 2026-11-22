@@ -30,6 +30,7 @@ class WorkerInfo(BaseModel):
     working_dir: str = Field(description="Default working directory of jobs (the repository's root)")
     python_executable: str = Field(description="The repository environment's Python interpreter")
     leased_by: str | None = Field(default=None, description="Who holds the worker's lease, if anyone")
+    os_name: str = Field(default="nt", description="The worker's ``os.name``: its paths are Windows ('nt') or POSIX")
 
 
 class JobSubmission(BaseModel):
@@ -50,6 +51,13 @@ class JobResult(BaseModel):
     stderr: str | None = None
     returncode: int | None = None
     error: str | None = None
+
+
+class JobOutput(BaseModel):
+    """Output lines of a running job, and the number of the last one (pass it as ``after`` next time)."""
+
+    lines: list[str]
+    next: int
 
 
 class JobList(BaseModel):

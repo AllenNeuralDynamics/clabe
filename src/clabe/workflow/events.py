@@ -7,6 +7,7 @@ union of all of them (on ``type``); :meth:`EventLog.read` loads a persisted log 
 
 from ._events import (
     ActivityEnded,
+    ActivityOutput,
     ActivityStarted,
     ArtifactExported,
     BranchEnded,
@@ -28,6 +29,7 @@ from ._events import (
 
 __all__ = [
     "ActivityEnded",
+    "ActivityOutput",
     "ActivityStarted",
     "ArtifactExported",
     "BranchEnded",

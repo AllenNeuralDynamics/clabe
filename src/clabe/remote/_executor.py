@@ -1,16 +1,18 @@
 """Running commands on another machine's worker as if they were local (an :class:`~clabe.apps.Executor`)."""
 
 import asyncio
+import contextlib
 import logging
 import os
 import re
 import time
 import uuid
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from ..apps._base import Command, CommandResult
+from ..workflow._records import ACTIVE_STEP
 from ._models import JobResult, JobStatus
 from ._staged_command import StagedCommand, StagedFile
 
@@ -102,33 +104,88 @@ class RemoteExecutor:
         return result
 
     def run(self, command: Command[Any]) -> CommandResult:
-        """Runs the command on the worker and waits for it."""
+        """Runs the command on the worker and waits for it; inside a run its output shows as a live activity."""
         logger.info("Running on %s: %s", self.client.base_url, command.cmd)
-        return self._result(self.client.run_command(self._prepare(command), timeout=self.timeout, cwd=self.cwd))
+        job_id = self.client.submit_command(self._prepare(command), cwd=self.cwd).job_id
+        with self._activity(command) as follow:
+            started = time.monotonic()
+            while True:
+                time.sleep(self._interval)
+                follow.poll(job_id)
+                result = self.client.get_result(job_id)
+                if result.status is not JobStatus.RUNNING:
+                    follow.poll(job_id, final=True)
+                    return self._result(result)
+                started = self._check_timeout(job_id, started)
 
     async def run_async(self, command: Command[Any]) -> CommandResult:
-        """Runs the command on the worker without blocking the event loop; cancelling it stops the job."""
+        """Runs the command on the worker without blocking the event loop; cancelling it stops the job. Inside a
+        run its output shows as a live activity."""
         cmd = await asyncio.to_thread(self._prepare, command)
         job_id = (await asyncio.to_thread(self.client.submit_command, cmd, self.cwd)).job_id
         try:
-            return self._result(await self._wait(job_id))
+            with self._activity(command) as follow:
+                started = time.monotonic()
+                while True:
+                    await asyncio.sleep(self._interval)
+                    await asyncio.to_thread(follow.poll, job_id)
+                    result = await asyncio.to_thread(self.client.get_result, job_id)
+                    if result.status is not JobStatus.RUNNING:
+                        await asyncio.to_thread(follow.poll, job_id, final=True)
+                        return self._result(result)
+                    started = self._check_timeout(job_id, started)
         except asyncio.CancelledError:
             logger.info("Stopping job %s on %s", job_id, self.client.base_url)
             await asyncio.to_thread(self.client.stop_job, job_id)
             raise
 
-    async def _wait(self, job_id: str) -> JobResult:
-        """Waits for a job to end (see the client's ``monitor``)."""
+    @property
+    def _interval(self) -> float:
+        """Seconds between checks of a job."""
+        return self.poll_interval or self.client.settings.poll_interval
+
+    def _check_timeout(self, job_id: str, started: float) -> float:
+        """The start of the timeout window: reset while monitoring (the job was seen running), else checked."""
         settings = self.client.settings
+        if settings.monitor:
+            return time.monotonic()
         timeout = self.timeout or settings.timeout
-        interval = self.poll_interval or settings.poll_interval
-        started = time.monotonic()
-        while True:
-            await asyncio.sleep(interval)
-            result = await asyncio.to_thread(self.client.get_result, job_id)
-            if result.status is not JobStatus.RUNNING:
-                return result
-            if settings.monitor:
-                started = time.monotonic()
-            elif time.monotonic() - started >= timeout:
-                raise TimeoutError(f"Job {job_id} did not complete within {timeout} seconds")
+        if time.monotonic() - started >= timeout:
+            raise TimeoutError(f"Job {job_id} did not complete within {timeout} seconds")
+        return started
+
+    @contextlib.contextmanager
+    def _activity(self, command: Command[Any]) -> Iterator["_Follow"]:
+        """Inside a run, the job as an activity tagged with the worker's host, its output recorded as it comes."""
+        context = ACTIVE_STEP.get()
+        if context is None:
+            yield _Follow(self.client, None, None)
+            return
+        description = f"{Path(command.cmd[0]).name} on {self.host}"
+        with context.run.activity(description, machine=self.host) as activity_id:
+            yield _Follow(self.client, context.run, activity_id)
+
+
+class _Follow:
+    """Forwards a remote job's new output lines to its activity, at most about once a second."""
+
+    def __init__(self, client: "WorkerClient", run: Any, activity_id: str | None) -> None:
+        self.client = client
+        self.run = run
+        self.activity_id = activity_id
+        self._after = 0
+        self._last = 0.0
+
+    def poll(self, job_id: str, *, final: bool = False) -> None:
+        """Records the lines produced since the last poll (none outside a run); ``final`` reads the job's last lines
+        whatever the time since the last poll."""
+        if self.run is None or (not final and time.monotonic() - self._last < 1.0):
+            return
+        self._last = time.monotonic()
+        try:
+            output = self.client.job_output(job_id, self._after)
+        except Exception:
+            logger.debug("Could not follow the output of job %s", job_id, exc_info=True)
+            return
+        self._after = output.next
+        self.run.activity_output(self.activity_id, output.lines)

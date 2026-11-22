@@ -70,6 +70,8 @@ public sealed class RunEvent
     public string? Text { get; set; }
     [JsonPropertyName("activity_id")] public string? ActivityId { get; set; }
     public string? Description { get; set; }
+    public string? Machine { get; set; }
+    public List<string>? Lines { get; set; }
 
     /// <summary>The spec's field (e.g. <c>rig.failed</c>), naming what the prompt asks about.</summary>
     [JsonIgnore] public string? Field => Spec?["field"]?.GetValue<string>();
