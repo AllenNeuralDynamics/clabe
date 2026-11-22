@@ -19,9 +19,9 @@ operation, decorate the method and let the shared lifecycle handle it.
 from clabe.runnable import runnable
 
 
-class ResourceMonitor(Service):
-    @runnable(name="Resource monitor")
-    def run(self) -> bool: ...
+class ValveCalibration(Service):
+    @runnable(name="Valve calibration")
+    def run(self) -> float: ...
 ```
 
 The decorator forwards the return value unchanged and re-raises any exception

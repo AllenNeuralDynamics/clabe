@@ -19,6 +19,9 @@ raised in a step does the same.
 
 **Built-in** — A name every step can take as a parameter without a step producing it: `launcher`, `run`.
 
+**Check** — A function that raises when something is wrong (free space, a share, the rig's setup); `steps.preflight`
+runs several as one step and reports every failure (`clabe.checks`).
+
 **Client** — Anything that shows prompts and collects answers: the TUI, the console, the web UI, an agent.
 
 **Codec** — How a step's output is recorded in `outputs.jsonl`.

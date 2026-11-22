@@ -55,7 +55,10 @@ returns.
 | `codec=` | How the output is recorded (see [Events and records](records.md)). |
 
 Reusable steps (`clabe.steps`) carry their own defaults — `register()` is a barrier — through
-`step_defaults(...)`; options given when declaring a step win.
+`step_defaults(...)`; options given when declaring a step win. A **check** is smaller still: a function that raises
+when something is wrong, run with others by one `steps.preflight(...)` step that reports every failure at once. Labs
+keep their own steps and checks in a package their experiments import: see
+[Reusable steps and checks](../articles/reusable_steps.md).
 
 ## Composition
 

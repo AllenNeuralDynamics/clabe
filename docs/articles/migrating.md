@@ -79,6 +79,8 @@ Rules of thumb:
 - "Would you like to ...?" confirms become `optional="..."` steps; best-effort work (`try/except: log`) becomes
   `on_error="warn"`; early `return`s on a "no" become `raise GoBack(...)` or `raise Abort(...)`.
 - What must not run twice (registering the session, starting acquisition, transferring) is a `barrier`.
+- `ResourceMonitor` and its constraints become checks run by a `steps.preflight(...)` step (or `checks.run(...)` in
+  a script that is not a workflow yet): see [Reusable steps and checks](reusable_steps.md#from-the-resource-monitor).
 - Annotate parameters and returns, and add `clabe check experiments --strict` to CI.
 
 See [Workflows](workflows.md).

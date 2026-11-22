@@ -88,7 +88,7 @@ class TestReview:
 
 class TestFreeSpace:
     def test_short_of_space_fails(self, tmp_path, monkeypatch):
-        monkeypatch.setattr("clabe.steps.shutil.disk_usage", lambda path: _Usage(100, 90, 10e9))
+        monkeypatch.setattr("clabe.checks.shutil.disk_usage", lambda path: _Usage(100, 90, 10e9))
         check = steps.free_space(20e9)
         with pytest.raises(RuntimeError, match=r"10\.0 GB free"):
             check(rig=_Rig(name="r", data_directory=tmp_path / "not-yet" / "created"))
@@ -96,7 +96,7 @@ class TestFreeSpace:
 
     def test_a_custom_directory(self, tmp_path, monkeypatch):
         seen = []
-        monkeypatch.setattr("clabe.steps.shutil.disk_usage", lambda path: seen.append(path) or _Usage(1, 0, 1e12))
+        monkeypatch.setattr("clabe.checks.shutil.disk_usage", lambda path: seen.append(path) or _Usage(1, 0, 1e12))
         steps.free_space(1, directory=lambda rig: tmp_path)(rig=object())
         assert seen == [tmp_path]
 

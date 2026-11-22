@@ -11,7 +11,7 @@ from _mocks import (
 )
 from pydantic_settings import CliApp
 
-from clabe import resource_monitor
+from clabe import checks
 from clabe.apps import AindBehaviorServicesBonsaiApp
 from clabe.data_transfer.aind_watchdog import WatchdogDataTransferService, WatchdogSettings
 from clabe.launcher import Launcher, LauncherCliArgs, experiment
@@ -38,11 +38,7 @@ async def client_experiment(launcher: Launcher) -> None:
     trainer_state = store.resolve(SUGGESTION)
     task = MockTask.model_validate_json(trainer_state.stage.task.model_dump_json())
 
-    resource_monitor.ResourceMonitor(
-        constrains=[
-            resource_monitor.available_storage_constraint_factory_from_rig(rig, 1e9),
-        ]
-    ).run()
+    checks.run(checks.free_space(1e9), rig=rig)  # in a workflow: wf.step(steps.preflight(checks.free_space(1e9)))
 
     # The other machine runs `clabe daemon` with this repository under `daemon: repositories:`.
     # The first command takes its lease: no other run can use it until this one gives it back.

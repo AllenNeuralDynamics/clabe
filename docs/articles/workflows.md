@@ -5,9 +5,11 @@ earlier steps whose outputs it needs, and what it returns is stored under its ow
 in order, shows them to every client (the TUI, the console, the web UI) and lets the user go back, retry or skip.
 
 ```python
-from clabe import steps, ui
+from clabe import checks, steps, ui
 from clabe.launcher import Launcher
 from clabe.workflow import GoBack, Workflow
+
+SHARE = r"\\allen\aind\scratch"  # where the data is copied to
 
 wf = Workflow("vr-foraging", exit_prompt_timeout=60)
 
@@ -24,7 +26,7 @@ def rig(session: Session) -> AindVrForagingRig: ...
 
 
 wf.step(steps.review("session", "trainer_state", back_to="session"))
-wf.step(steps.free_space(200e9))
+wf.step(steps.preflight(checks.free_space(200e9), checks.exists(SHARE)))  # fails once, listing every problem
 wf.step(steps.register())  # a barrier: nothing before it runs again
 
 
@@ -105,12 +107,14 @@ carrying default options, which the options you pass override:
 |---|---|---|---|
 | `steps.session()` | `launcher` | asks who is running and on which animal | |
 | `steps.review(*names, back_to=)` | the named outputs | shows them; "Go back" goes back to `back_to` | |
+| `steps.preflight(*checks)` | what the checks take | runs every [check](reusable_steps.md#checks); fails once, listing each failure | |
 | `steps.free_space(bytes)` | `rig` | fails when the data drive is short of space | |
 | `steps.register()` | `launcher`, `session`, `rig` | creates the session's data directory | barrier |
 | `steps.transfer(service)` | `launcher`, `session` | hands the data to a data-transfer service | barrier |
 | `steps.waterlog(earned_water)` | `launcher`, `session` | logs the water earned | warns on failure |
 
-Your own reusable steps can carry defaults the same way, with `clabe.workflow.step_defaults(barrier=True, ...)`.
+Your own reusable steps can carry defaults the same way, with `clabe.workflow.step_defaults(barrier=True, ...)`;
+see [Reusable steps and checks](reusable_steps.md) for writing them and sharing them across experiment repositories.
 
 ## Variants
 

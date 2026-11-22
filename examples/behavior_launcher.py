@@ -26,7 +26,7 @@ from aind_behavior_services.session import Session
 from pydantic import BaseModel, Field
 from pydantic_settings import CliApp
 
-from clabe import steps, ui
+from clabe import checks, steps, ui
 from clabe.apps import CommandResult, CurriculumApp, CurriculumSettings, PythonScriptApp
 from clabe.cache_manager import CacheManager
 from clabe.launcher import Launcher, LauncherCliArgs
@@ -153,7 +153,7 @@ def tuning() -> dict[str, Any]:
 
 
 demo.step(steps.review("session", "rig", "config", back_to="session"))
-demo.step(steps.free_space(1e9))
+demo.step(steps.preflight(checks.free_space(1e9), checks.exists(Path.home())))  # every check, one failure
 demo.step(steps.register())
 
 

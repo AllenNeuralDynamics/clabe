@@ -9,7 +9,7 @@ options (``register`` is a barrier, ``waterlog`` only warns when it fails); opti
     wf.step(steps.session())
     ...                                         # store, trainer_state, rig, ...
     wf.step(steps.review("session", "trainer_state", back_to="session"))
-    wf.step(steps.free_space(200e9))
+    wf.step(steps.preflight(checks.free_space(200e9), checks.exists(SHARE)))
     wf.step(steps.register())                   # barrier: nothing before it can run again
     ...                                         # run the task
     wf.step(steps.transfer(make_watchdog))
@@ -17,7 +17,6 @@ options (``register`` is a barrier, ``waterlog`` only warns when it fails); opti
 
 import inspect
 import os
-import shutil
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -25,6 +24,7 @@ from typing import Any
 from aind_behavior_services import Session
 from pydantic import BaseModel
 
+from . import checks as _checks
 from . import ui
 from .data_transfer import DataTransfer
 from .launcher import Launcher
@@ -32,7 +32,7 @@ from .session import SessionBuilder
 from .utils.aind_validators import validate_username
 from .workflow import GoBack, step_defaults
 
-__all__ = ["free_space", "register", "review", "session", "transfer", "waterlog"]
+__all__ = ["free_space", "preflight", "register", "review", "session", "transfer", "waterlog"]
 
 
 def session(
@@ -93,25 +93,47 @@ def review(*names: str, back_to: str | None = None, title: str = "Confirm sessio
     return step_defaults(title=title)(review)
 
 
+def preflight(
+    *checks: Callable[..., Any], name: str = "preflight", title: str = "Preflight checks"
+) -> Callable[..., None]:
+    """A step running ``checks`` (see [`clabe.checks`][clabe.checks]) and failing once, listing every failure.
+
+    The step takes what its checks take, by name (e.g. ``rig``); Retry runs them all again.
+
+    Args:
+        *checks: The checks, e.g. ``checks.free_space(200e9)`` or your own functions.
+        name: The step's name.
+        title: The step's title.
+    """
+    if not checks:
+        raise ValueError("preflight() needs at least one check.")
+    names = _checks.inputs(*checks)
+
+    def preflight(**outputs: Any) -> None:
+        _checks.run(*checks, **outputs)
+
+    # wired by name: the step takes exactly what its checks take
+    preflight.__signature__ = inspect.Signature(  # type: ignore[attr-defined]
+        [inspect.Parameter(n, inspect.Parameter.KEYWORD_ONLY, annotation=Any) for n in names],
+        return_annotation=None,
+    )
+    preflight.__annotations__ = {**dict.fromkeys(names, Any), "return": None}
+    preflight.__name__ = preflight.__qualname__ = name
+    return step_defaults(title=title)(preflight)
+
+
 def free_space(minimum_bytes: float, *, directory: Callable[[Any], os.PathLike] | None = None) -> Callable[..., None]:
     """A ``free_space`` step failing (Retry / Go back / Abort) when the rig's data drive is short of space.
+
+    The step form of [`checks.free_space`][clabe.checks.free_space].
 
     Args:
         minimum_bytes: Free space required.
         directory: Where the data goes, from the ``rig``; by default ``rig.data_directory``.
     """
-
-    @step_defaults(title="Check free space")
-    def free_space(rig: Any) -> None:
-        target = Path(directory(rig) if directory is not None else rig.data_directory)
-        existing = next((p for p in (target, *target.parents) if p.exists()), None)
-        if existing is None:
-            raise FileNotFoundError(f"Neither {target} nor any of its parents exist.")
-        free = shutil.disk_usage(existing).free
-        if free < minimum_bytes:
-            raise RuntimeError(f"Only {free / 1e9:.1f} GB free on {existing}; {minimum_bytes / 1e9:.1f} GB needed.")
-
-    return free_space
+    return preflight(
+        _checks.free_space(minimum_bytes, directory=directory), name="free_space", title="Check free space"
+    )
 
 
 def register(*, directory: Callable[[Any], os.PathLike] | None = None) -> Callable[..., Path]:

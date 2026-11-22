@@ -29,6 +29,7 @@ nav = [
   ] },
   { "Guides" = [
     { "Workflows" = "articles/workflows.md" },
+    { "Reusable steps and checks" = "articles/reusable_steps.md" },
     { "Frontends" = "articles/frontends.md" },
     { "Run records" = "articles/records.md" },
     { "Configuration" = "articles/configuration.md" },
@@ -55,6 +56,9 @@ nav = [
   { "API Reference" = [
     { "Cache Manager" = [
       { "cache_manager" = "api/cache_manager.md" },
+    ] },
+    { "Checks" = [
+      { "checks" = "api/checks.md" },
     ] },
     { "Cli" = [
       { "cli" = "api/cli.md" },
