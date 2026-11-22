@@ -195,10 +195,20 @@ def test_the_closing_screen_closes_the_session(page):
         run.begin_closing(datetime.datetime.now(datetime.UTC) + datetime.timedelta(seconds=60))
 
         page.get_by_role("heading", name="Run completed").wait_for()
+        # a second tab on the same run, closable by its script like a tab clabe opens (Playwright's own tabs aren't)
+        with page.expect_popup() as popup:
+            page.evaluate("url => window.open(url)", url)
+        other = popup.value
+        other.get_by_role("heading", name="Run completed").wait_for()
         page.get_by_text("Closing in").wait_for()
         page.get_by_role("button", name="Close session").click()
         assert run.wait_closed(10)
+        page.get_by_text("this tab closes in").wait_for()
+        page.get_by_role("button", name="Keep it open").click()
         page.get_by_text("Session closed — you can close this tab.").wait_for()
+        # without "Keep it open", a tab closes itself
+        other.get_by_text("this tab closes in").wait_for()
+        other.wait_for_event("close", timeout=15_000)
     finally:
         if not run.wait(0):
             run.abort("test teardown")

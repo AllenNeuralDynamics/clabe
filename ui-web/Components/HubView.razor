@@ -40,8 +40,14 @@
         </button>
     </nav>
 
-    <main class="content @_tab">
-        @if (_error is not null)
+    <main class="content @_tab @(_unreachable ? "stale" : null)">
+        @if (_unreachable)
+        {
+            <div class="alert error" role="alert">
+                <span><strong>The hub is not answering</strong> (stopped?). What you see is from @ReportTime.Duration(DateTimeOffset.UtcNow - _lastSeen) ago; the page reconnects by itself.</span>
+            </div>
+        }
+        else if (_error is not null)
         {
             <div class="alert error" role="alert">@_error</div>
         }
@@ -123,7 +129,7 @@
         else
         {
             <div id="panel-reports" role="tabpanel" aria-labelledby="tab-reports" class="reports-panel">
-                <ReportBrowser Rigs="_rigs" OnChanged="Refresh" />
+                <ReportBrowser Rigs="_rigs" OnChanged="Refresh" HubUnreachable="_unreachable" />
             </div>
         }
     </main>
@@ -137,6 +143,8 @@
 @code {
     private List<RigStatus>? _rigs;
     private string? _error;
+    private bool _unreachable;
+    private DateTimeOffset _lastSeen = DateTimeOffset.UtcNow;
     private Timer? _timer;
     private string _tab = "rigs";
     private bool _palette;
@@ -201,10 +209,17 @@
         {
             _rigs = await Hub.RigsAsync();
             _error = null;
+            _unreachable = false;
+            _lastSeen = DateTimeOffset.UtcNow;
         }
-        catch (HttpRequestException exc)
+        catch (HttpRequestException exc) when (exc.StatusCode is not null)
         {
             _error = exc.Message.Contains("401") ? "The hub requires a token: open the link with ?token=…" : exc.Message;
+        }
+        catch (HttpRequestException)
+        {
+            // no response at all ("TypeError: Failed to fetch"): the hub is down or the network is
+            _unreachable = true;
         }
     }
 

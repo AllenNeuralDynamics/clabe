@@ -1,5 +1,8 @@
 @* The end of the run: its outcome, duration and step counts, the session folder, and Close session (the first client
-   to close wins); a countdown when the session closes on its own. Then: "Session closed — you can close this tab". *@
+   to close wins); a countdown when the session closes on its own. Then "Session closed", and the tab closes itself
+   after a few seconds (when the browser allows it). *@
+@inject IJSRuntime JS
+@implements IDisposable
 
 <section class="closing @Outcome" aria-live="polite">
     <div class="closing-icon">
@@ -44,7 +47,16 @@
     {
         <div class="alert ok closing-closed" role="status">
             <RunIcon Name="check" Size="16" Class="alert-icon" />
-            <span>@ClosedText</span>
+            @if (_tabLeft is { } left)
+            {
+                <span>@ClosedBy — this tab closes in <strong>@left s</strong>.</span>
+                <span class="grow"></span>
+                <button type="button" class="ghost sm" @onclick="KeepTab">Keep it open</button>
+            }
+            else
+            {
+                <span>@ClosedBy — you can close this tab.</span>
+            }
         </div>
         <div class="actions closing-actions">
             <button type="button" @onclick="OnExport"><RunIcon Name="download" Size="15" /> Export logs</button>
@@ -102,21 +114,72 @@
     public bool Closed => Connection.ClosedEvent is not null || State.Closing?.Closed == true
                           || (State.Closing is not null && Connection.Status == "ended");
 
-    private string ClosedText
+    private string ClosedBy
     {
         get
         {
             var by = Connection.ClosedEvent?.ClosedBy ?? State.Closing?.ClosedBy;
             return by switch
             {
-                "local" => "Closed from the terminal — you can close this tab.",
-                "timeout" => "Closed automatically — you can close this tab.",
+                "local" => "Closed from the terminal",
+                "timeout" => "Closed automatically",
                 { } client when client.StartsWith("web-") && client != Connection.Api.ClientName
-                    => $"Closed from another browser ({client}) — you can close this tab.",
-                _ => "Session closed — you can close this tab.",
+                    => $"Closed from another browser ({client})",
+                _ => "Session closed",
             };
         }
     }
+
+    /// <summary>Seconds before this tab closes itself once the session is closed (null: not counting down).</summary>
+    public const int TabCloseSeconds = 5;
+
+    private int? _tabLeft;
+    private bool _tabStarted;
+    private Timer? _tabTimer;
+
+    protected override void OnParametersSet()
+    {
+        if (Closed && !_tabStarted)
+        {
+            _tabStarted = true;
+            _tabLeft = TabCloseSeconds;
+            _tabTimer = new Timer(_ => InvokeAsync(TickTab), null, 1000, 1000);
+        }
+    }
+
+    private async Task TickTab()
+    {
+        if (_tabLeft is not { } left)
+        {
+            return;
+        }
+        if (left > 1)
+        {
+            _tabLeft = left - 1;
+            StateHasChanged();
+            return;
+        }
+        _tabTimer?.Dispose();
+        _tabLeft = null;
+        StateHasChanged();
+        // browsers only let a page close a tab that has a single page of history (e.g. one opened by clabe);
+        // otherwise this does nothing and the message stays
+        try
+        {
+            await JS.InvokeVoidAsync("close");
+        }
+        catch (JSException)
+        {
+        }
+    }
+
+    private void KeepTab()
+    {
+        _tabTimer?.Dispose();
+        _tabLeft = null;
+    }
+
+    public void Dispose() => _tabTimer?.Dispose();
 
     /// <summary>Close session (the button, or Enter).</summary>
     public async Task Close()

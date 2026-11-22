@@ -54,7 +54,9 @@ def _boolean(value: Any) -> bool:
 
 
 def _text(request: "TextRequest | AutoCompleteRequest", value: Any) -> str:
-    """Accepts a string, falling back to the default when empty, then runs the validators."""
+    """Accepts a string (no answer is an empty one), falling back to the default when empty, then runs the validators."""
+    if value is None:
+        value = ""
     if not isinstance(value, str):
         raise AnswerRejected("Expected text.")
     if value == "" and request.default is not None:

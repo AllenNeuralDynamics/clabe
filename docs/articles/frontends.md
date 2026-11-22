@@ -121,7 +121,8 @@ class MyClient:
 
 When the run ends, every client shows a closing screen: outcome, duration, the session folder, **Close session**,
 **Export logs** and **Report an issue**. The first client to close wins (Enter in the terminal, the button in the
-browser); the run server stays up until then.
+browser); the run server stays up until then. Then each browser tab closes itself after 5 s (**Keep it open** stops
+it); a tab you opened by hand rather than through a link from clabe may not be allowed to close, and says so.
 
 ```python
 wf = Workflow("vr-foraging", exit_prompt_timeout=60)  # or @experiment(..., exit_prompt_timeout=60)

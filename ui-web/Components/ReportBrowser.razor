@@ -53,13 +53,17 @@
         <button type="button" class="ghost icon sm" aria-label="Refresh" title="Refresh" @onclick="Load"><HubIcon Name="refresh" Size="15" /></button>
     </div>
 
-    @if (_error is not null)
+    @if (_error is not null && !HubUnreachable)
     {
         <div class="alert error" role="alert"><span>@_error</span><span class="grow"></span><button type="button" class="ghost sm" @onclick="() => _error = null">Dismiss</button></div>
     }
 
     <div class="reports-card">
-        @if (_page is null)
+        @if (_page is null && (_failed || HubUnreachable))
+        {
+            <div class="state subtle">The reports could not be loaded. <button type="button" class="sm" @onclick="Load">Try again</button></div>
+        }
+        else if (_page is null)
         {
             <div class="state subtle"><span class="spinner"></span> Loading reports…</div>
         }
@@ -185,6 +189,21 @@ else if (_confirm == Confirmation.Bulk)
     [Parameter] public List<RigStatus>? Rigs { get; set; }
     /// <summary>Called when reports change (deleted, triaged), e.g. to refresh counts.</summary>
     [Parameter] public EventCallback OnChanged { get; set; }
+    /// <summary>Whether the hub stopped answering (the page shows one banner for it; the table reloads once it is back).</summary>
+    [Parameter] public bool HubUnreachable { get; set; }
+
+    private bool _wasUnreachable;
+    private bool _failed;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var back = _wasUnreachable && !HubUnreachable;
+        _wasUnreachable = HubUnreachable;
+        if (back)
+        {
+            await Load();
+        }
+    }
 
     private enum Confirmation { None, One, Bulk }
     private sealed record Column(string Label, string Sort, string Css);
@@ -274,6 +293,7 @@ else if (_confirm == Confirmation.Bulk)
                 _rigsSeen.Add(report.RigId);
             }
             _selected.IntersectWith(page.Items.Select(r => r.ReportId));
+            _failed = false;
             if (!quiet)
             {
                 _error = null;
@@ -281,10 +301,11 @@ else if (_confirm == Confirmation.Bulk)
         }
         catch (HttpRequestException exc)
         {
+            // keep the last page shown; never claim "no reports" when they could not be loaded
+            _failed = _page is null;
             if (!quiet)
             {
-                _error = exc.Message;
-                _page ??= new ReportPage(0, []);
+                _error = exc.StatusCode is null ? "The hub is not answering (stopped?)." : exc.Message;
             }
         }
         finally

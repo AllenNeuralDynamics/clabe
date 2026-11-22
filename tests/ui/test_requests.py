@@ -97,6 +97,9 @@ def test_answer_schemas():
         (ConfirmRequest(label="?"), False, False),
         (ReadOnlyTable(columns=["a"], rows=[]), True, True),
         (TextRequest(label="t", default="d"), "", "d"),
+        (TextRequest(label="t"), "", ""),
+        (TextRequest(label="t"), None, ""),  # an untouched field in the browser sends no value
+        (TextRequest(label="t", default="d"), None, "d"),
         (AutoCompleteRequest(label="a", options=["x"], strict=True), "x", "x"),
         (NumberRequest(label="n"), "2.5", 2.5),
         (NumberRequest(label="n", default=1.0), "", 1.0),
