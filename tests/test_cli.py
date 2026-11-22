@@ -20,7 +20,7 @@ def test_repository_state_cli_executes_with_local_executor():
 
     metadata = command.execute(LocalExecutor(cwd=repository_root))
 
-    assert metadata.name == "clabe"
+    assert metadata.name == repository_root.name  # the checkout's folder (clabe in CI)
     assert metadata.path == "."
 
 

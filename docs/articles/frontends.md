@@ -3,6 +3,9 @@
 Ask questions and show messages with `clabe.ui`. The same call works with the console, the TUI, the web UI and
 agents. For how prompts reach clients, see [Prompts and clients](../concepts/index.md#prompts-and-clients).
 
+The terminal UI and the web UI come with the `frontend` extra (`uv add "aind-clabe[frontend]"`). Without it, prompts
+are plain console prompts and runs are not served in the browser.
+
 ## Asking
 
 ```python
