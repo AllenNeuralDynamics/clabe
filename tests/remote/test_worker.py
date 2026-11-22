@@ -274,7 +274,11 @@ def test_the_run_manifest_lists_the_workers_and_their_jobs(worker_url, repositor
         def update_manifest(self, change) -> None:
             change(self.manifest)
 
-    remote = RemoteRepository(_client(worker_url, repository="Aind.Experiment.Demo"), local_path=repository)
+    remote = RemoteRepository(
+        _client(worker_url, repository="Aind.Experiment.Demo"),
+        local_path=repository,
+        data_roots={str(repository.parent): r"\\rig-b\data"},  # a network path on any OS (no share in the test)
+    )
     wf = Workflow("demo")
 
     @wf.step
