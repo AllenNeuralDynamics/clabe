@@ -29,6 +29,7 @@ def create_hub_app(
 
     @contextlib.asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        """Polls the rigs while the app serves."""
         if poll:
             fleet.start()
         yield

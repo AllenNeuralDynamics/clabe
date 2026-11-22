@@ -147,6 +147,7 @@ class Host:
         raise HostError(f"No repository named {name!r}.", status=404)
 
     def _command(self, repository: RepositoryConfig, *args: str) -> list[str]:
+        """``clabe <args>`` in ``repository``'s environment (``settings.command``)."""
         return [part.replace("{repository}", str(repository.path)) for part in self.settings.command] + list(args)
 
     def experiments(self, name: str) -> ExperimentListing:

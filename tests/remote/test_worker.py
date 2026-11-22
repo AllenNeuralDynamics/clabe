@@ -196,3 +196,42 @@ def test_to_unc():
     assert to_unc(r"E:\raw\s1", host="rig-b") == PureWindowsPath(r"\\rig-b\E$\raw\s1")
     with pytest.raises(ValueError):
         to_unc(r"\\server\share\x")
+
+
+def test_a_run_that_ends_gives_the_worker_back_and_an_aborted_one_stops_its_jobs(worker_url, repository, tmp_path):
+    from clabe.workflow import Abort, Run, RunStatus, Workflow
+
+    beat = tmp_path / "beat"
+    script = f"import time, pathlib\nwhile True:\n    pathlib.Path({str(beat)!r}).write_text(str(time.time()))\n    time.sleep(0.05)\n"
+    remote = RemoteRepository(_client(worker_url, repository="Aind.Experiment.Demo"), local_path=repository)
+    wf = Workflow("demo")
+
+    @wf.step
+    def start_recording() -> str:
+        remote.lease()
+        return remote.client.submit_command([sys.executable, "-c", script]).job_id
+
+    @wf.step
+    def operator(start_recording: str) -> None:
+        while not beat.exists():
+            time.sleep(0.05)
+        raise Abort("operator stopped the session")
+
+    run = Run(wf)
+    run.start()
+    assert run.wait(30) and run.status is RunStatus.ABORTED
+    assert not remote.client.leased
+    last = beat.read_text()
+    time.sleep(0.5)
+    assert beat.read_text() == last  # the recording was stopped with the run
+    other = _client(worker_url)
+    assert other.run_command([sys.executable, "-c", "print(1)"]).returncode == 0  # and the machine is free
+
+    completed = Workflow("ok")
+    completed.step(
+        lambda: remote.run(Command(cmd=[sys.executable, "-c", "print(2)"], output_parser=identity_parser)).stdout,
+        name="a",
+    )
+    run = Run(completed)
+    run.start()
+    assert run.wait(30) and run.status is RunStatus.COMPLETED and not remote.client.leased

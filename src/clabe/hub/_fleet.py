@@ -119,6 +119,7 @@ class Fleet:
             self._task = None
 
     async def _get(self, rig: RigConfig, path: str) -> httpx.Response:
+        """GETs ``path`` of a rig's daemon, with its token; raises on an error status."""
         token = rig_token(rig)
         headers = {"Authorization": f"Bearer {token}"} if token else {}
         response = await self._client.get(f"{rig.url.rstrip('/')}{path}", headers=headers)

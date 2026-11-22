@@ -28,6 +28,7 @@ class ClabeTarget:
         self.kind = self._detect()
 
     def _get(self, path: str) -> requests.Response:
+        """GETs ``path`` of the target, with its token."""
         headers = {"Authorization": f"Bearer {self.token}"} if self.token else {}
         return requests.get(f"{self.url}{path}", headers=headers, timeout=10)
 

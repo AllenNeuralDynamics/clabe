@@ -266,6 +266,7 @@ class Run:
         self._prompt_gate = threading.Lock()
         self._finished = threading.Event()
         self._finishing = False
+        self._finalizers: list[Callable[[RunStatus], Any]] = []
         self._steps: dict[str, StepStatus] = {step.name: StepStatus.PENDING for step in self.workflow.steps}
         self._outputs: dict[str, Any] = {}
         self._summaries: dict[str, str | None] = {}  # display renderings of _outputs, computed once per output
@@ -305,6 +306,15 @@ class Run:
             self._session_scope.close()
             raise
 
+    def add_finalizer(self, callback: Callable[[RunStatus], Any]) -> None:
+        """Calls ``callback(status)`` once when the run ends, before ``RunFinished`` is recorded.
+
+        For resources a run holds beyond its steps, e.g. a remote machine's lease. Callbacks run on the run thread,
+        in the order they were added; one that raises is logged and does not stop the others.
+        """
+        with self._lock:
+            self._finalizers.append(callback)
+
     def wait(self, timeout: float | None = None) -> bool:
         """Blocks until the run finishes; returns ``False`` if ``timeout`` elapsed first."""
         return self._finished.wait(timeout)
@@ -336,6 +346,7 @@ class Run:
         finally:
             try:
                 self._stop_loop()
+                self._finalize(stop.status)
                 try:
                     if remove_observer is not None:  # before waiters are released: no activity is recorded after
                         remove_observer()
@@ -355,6 +366,16 @@ class Run:
                     logger.exception("Run %s could not unbind itself as the session", self.id)
                 finally:
                     self._finished.set()
+
+    def _finalize(self, status: RunStatus) -> None:
+        """Calls the finalizers with the run's final status."""
+        with self._lock:
+            finalizers, self._finalizers = self._finalizers, []
+        for callback in finalizers:
+            try:
+                callback(status)
+            except Exception:
+                logger.exception("A finalizer of run %s failed", self.id)
 
     def _drive(self) -> None:
         """Runs pending steps in declaration order until none is left, applying commands between steps."""

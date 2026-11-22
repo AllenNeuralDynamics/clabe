@@ -9,7 +9,7 @@ import time
 import uuid
 from collections.abc import Mapping
 from pathlib import Path, PureWindowsPath
-from typing import Any, Self
+from typing import TYPE_CHECKING, Any, Self
 from urllib.parse import urlparse
 
 from aind_behavior_services import Session
@@ -22,6 +22,9 @@ from ..git_manager import GitRepository, GitRepositoryMetadata
 from ._client import WorkerClient, WorkerClientSettings
 from ._executor import RemoteExecutor
 from ._models import DEFAULT_PORT, WorkerInfo
+
+if TYPE_CHECKING:
+    from ..workflow import RunStatus
 
 logger = logging.getLogger(__name__)
 
@@ -114,6 +117,7 @@ class RemoteRepository:
         *,
         local_path: os.PathLike | str = ".",
         data_roots: Mapping[str, str] | None = None,
+        detach_on_abort: bool = False,
     ) -> None:
         """
         Initializes the remote repository.
@@ -126,8 +130,11 @@ class RemoteRepository:
             data_roots: Maps data directories on the remote machine to the network shares exposing them,
                 e.g. ``{r"D:\\data": r"\\\\rig-b\\data"}``. Used by :meth:`to_unc`; paths under none of them are
                 reached through the drive's administrative share.
+            detach_on_abort: Keep the commands running on the remote machine when the run does not complete (e.g.
+                a recording that must outlive the launcher). By default they are stopped with the run.
         """
         self.client = client
+        self.detach_on_abort = detach_on_abort
         self._path = path
         self.local_path = local_path
         self.data_roots = {PureWindowsPath(local): PureWindowsPath(unc) for local, unc in (data_roots or {}).items()}
@@ -197,7 +204,18 @@ class RemoteRepository:
         run_id = context.run.id if context is not None else None
         self.client.lease(owner=f"{socket.gethostname()} ({Path(self.local_path).resolve().name})", run_id=run_id)
         atexit.register(self.client.release)
+        if context is not None:
+            context.run.add_finalizer(self._run_ended)
         logger.info("Took %s for this run", self.host)
+
+    def _run_ended(self, status: "RunStatus") -> None:
+        """Gives the machine back when the run ends; stops what still runs there unless the run completed (or
+        ``detach_on_abort``)."""
+        from ..workflow import RunStatus
+
+        stop = status is not RunStatus.COMPLETED and not self.detach_on_abort
+        logger.info("Run ended (%s): releasing %s%s", status.value, self.host, " and stopping its jobs" if stop else "")
+        self.release(stop_jobs=stop)
 
     def release(self, *, stop_jobs: bool = False) -> None:
         """Gives the remote machine back; ``stop_jobs`` also stops what still runs there."""
