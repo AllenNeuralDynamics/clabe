@@ -72,6 +72,8 @@ def generate_api_structure() -> dict[str, list[dict[str, str]]]:
     api_structure: dict[str, list[dict[str, str]]] = {}
     modules = discover_python_modules(SRC_DIR, INCLUDE_PRIVATE_MODULES)
 
+    if API_DIR.exists():
+        shutil.rmtree(API_DIR)  # pages of removed modules must not linger
     API_DIR.mkdir(parents=True, exist_ok=True)
 
     for item in SRC_DIR.iterdir():

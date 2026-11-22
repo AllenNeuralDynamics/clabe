@@ -60,6 +60,8 @@ uv sync
 
 ## Quick start
 
+New to CLABE? [The big picture](https://github.com/AllenNeuralDynamics/clabe/blob/main/docs/concepts/overview.md) explains the pieces and how a session flows through them.
+
 Declare an experiment as a workflow in a Python module:
 
 ```python
@@ -87,7 +89,7 @@ Run it with the CLABE CLI — it is served in the browser too (`--no-serve` to t
 uv run clabe run path/to/my_experiment.py
 ```
 
-See [examples/behavior_launcher.py](examples/behavior_launcher.py) for a fuller example that combines sessions, forms, stores, resource checks, applications, and telemetry, and [Workflows](docs/articles/workflows.md) for the rules.
+See [examples/behavior_launcher.py](examples/behavior_launcher.py) for a fuller example that combines sessions, forms, stores, resource checks, applications, and telemetry, and [Workflows](https://github.com/AllenNeuralDynamics/clabe/blob/main/docs/articles/workflows.md) for the rules.
 
 ## Command line
 

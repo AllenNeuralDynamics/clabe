@@ -112,7 +112,7 @@ requires-dist = [
     { name = "gitpython" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "markdown-it-py", specifier = ">=2" },
-    { name = "mcp", marker = "extra == 'agents'", specifier = ">=1.10" },
+    { name = "mcp", marker = "extra == 'agents'", specifier = ">=2.3" },
     { name = "msal", marker = "sys_platform == 'win32' and extra == 'aind-services'" },
     { name = "opentelemetry-api", specifier = ">=1.24" },
     { name = "opentelemetry-exporter-otlp-proto-grpc", marker = "extra == 'otel'" },

@@ -62,7 +62,7 @@ aind-services = [
     "confierge>=0.1.4",
 ]
 agents = [
-    "mcp>=1.10",
+    "mcp>=2.3",
 ]
 
 [dependency-groups]

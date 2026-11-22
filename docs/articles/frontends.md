@@ -1,14 +1,16 @@
 # Talking to the user: requests, sessions and clients
 
+For the ideas behind this page, see [Prompts, sessions and clients](../concepts/prompts.md).
+
 Everything CLABE shows to, or asks of, the person running an experiment goes through `clabe.ui`. Three pieces:
 
 - **Requests** describe *what* to ask (`TextRequest`, `NumberRequest`, `PickRequest`, `FormRequest`, ...). Each one
   also describes itself as JSON for any client (`spec()`, `answer_schema()`) and checks an answer with its own rules
-  (`validate_answer()`), so every client — console, TUI, later a web page or an agent — gets the same rules.
+  (`validate_answer()`), so every client — console, TUI, the web UI or an agent — gets the same rules.
 - A **session** is whatever can ask right now: the running **run** while an experiment executes, or the launcher's
   local client before and after it. Code never holds a frontend; it calls `ui.ask(...)` and the bound session
   answers.
-- A **client** renders messages and collects raw answers (console, TUI). It never validates: whoever drives it — a
+- A **client** renders messages and collects raw answers (console, TUI, the web UI, agents). It never validates: whoever drives it — a
   run, or a `ClientSession` outside a run — validates and asks again with the reason.
 
 Logging stays separate: a logger is a durable diagnostic record, `ui.notify` is how a human is informed. See
@@ -86,14 +88,21 @@ In tests, bind a session for the duration: `with ui.bind(ClientSession(fake_clie
 | --- | --- | --- | --- |
 | **Console** | `ConsoleClient` | A `rich`-styled, line-based console. On a real terminal it offers an arrow-key picker, a type-to-filter autocomplete and a path browser; piped/CI it degrades to plain prompts and `input()`. Forms are asked field by field. | `--frontend console`, or `auto` when not attached to a terminal |
 | **TUI** | `TextualClient` | A persistent full-screen Textual app with four panes — **Session** (messages + answered prompts), **Processes** (live activity spinners), **Input** (the current prompt), **Logs**. | `--frontend tui`, or `auto` on a terminal (the default) |
+| **Headless** | `HeadlessClient` | No screen: prompts wait until another client answers them, messages go to the log. | `--frontend headless` (needs `--serve`); runs started by the [daemon](daemon.md) |
+| **Web UI** | — (a client of the run server) | The page served by the run: steps, the open prompt, messages, the log. | Whenever the run is served (the default for `clabe run`); see [below](#serving-a-run-over-http) |
+| **Agents** | — (clients of the run server) | MCP and AG-UI adapters. | See [Agents](agents.md) |
 
 ```bash
 clabe run my_experiment.py                      # auto (TUI on a terminal)
 clabe run my_experiment.py --frontend tui       # force the TUI
 clabe run my_experiment.py --frontend console   # force the rich console
+clabe run my_experiment.py --frontend headless  # no local screen: answer from the browser
 ```
 
-In code: `ui.make_client("auto" | "tui" | "console")`. A `Launcher` builds one from `settings.frontend` (or takes
+The local client and the remote ones share the run: every prompt shows on all of them and the first valid answer
+wins.
+
+In code: `ui.make_client("auto" | "tui" | "console" | "headless")`. A `Launcher` builds one from `settings.frontend` (or takes
 `Launcher(client=...)`).
 
 ### Writing a client

@@ -89,6 +89,15 @@ markdown_extensions:
     - .
 nav:
 - Home: index.md
+- Concepts:
+  - concepts/index.md
+  - The big picture: concepts/overview.md
+  - Workflows and steps: concepts/workflows.md
+  - Runs: concepts/runs.md
+  - Prompts, sessions and clients: concepts/prompts.md
+  - Events and records: concepts/records.md
+  - Machines: concepts/machines.md
+  - Glossary: concepts/glossary.md
 - API Reference:
   - Cache Manager:
     - cache_manager: api/cache_manager.md
@@ -166,7 +175,9 @@ nav:
   - Frontends: articles/frontends.md
   - Hub: articles/hub.md
   - Logging: articles/logging.md
+  - Migrating: articles/migrating.md
   - Remote execution: articles/remote_execution.md
+  - Run records: articles/records.md
   - Runnables: articles/runnables.md
   - ServiceSettings and yaml tags: articles/service_settings.md
   - Stores: articles/stores.md

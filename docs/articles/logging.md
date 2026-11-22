@@ -122,16 +122,12 @@ run's `events.jsonl`; outside a run the launcher's client also writes them to th
 renders messages at/above the current verbosity threshold (warnings and above by
 default), while `events.jsonl` records them all.
 
-## The transcript
+## What the user saw and answered
 
-Everything the Frontend shows the user — and every prompt answer — is written to
-a dedicated `clabe.transcript` logger. That logger reaches the **file** handler
-(so `launcher.log` contains the user-facing narrative *and* the user's inputs)
-but is filtered out of the **console** (the Frontend already rendered it), which
-avoids double display.
-
-This is why you don't need to manually log what you show the user: surfacing a
-message or collecting an answer through the Frontend already records it.
+Every message shown to the user and every prompt and answer is recorded without you logging it. Inside a run they are
+events, written to the run's `events.jsonl` with who answered each prompt (see [Run records](records.md)); outside a
+run (before it starts, at the exit prompt) the launcher's client session writes them to the log file at debug level.
+The console does not repeat them: the client already showed them.
 
 ## Finding the log after a run
 
@@ -142,8 +138,8 @@ completion the launcher's `copy_logs()` copies them into the session directory:
 <data_directory>/<session_name>/Behavior/Logs/.launcher/launcher.log
 ```
 
-This file is the full UTC-timestamped record — diagnostics, the user-facing
-transcript, and user input — for the entire run.
+This file is the UTC-timestamped diagnostic record of the entire run; next to it, `events.jsonl` holds what the
+user saw and answered (see [Run records](records.md)).
 
 ## Recipes
 
