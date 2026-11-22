@@ -227,19 +227,18 @@ class TestDeployment:
         monkeypatch.setattr(_install.time, "sleep", lambda s: None)
         return calls, xml
 
-    def test_install_with_uvx_pins_the_package_in_the_task(self, scheduler, monkeypatch, tmp_path):
+    def test_install_registers_the_installed_clabe_with_a_working_directory(self, scheduler, monkeypatch, tmp_path):
         calls, xml = scheduler
-        monkeypatch.setattr(_install.shutil, "which", lambda name: f"C:/uv/{name}.exe")
+        monkeypatch.setattr(_install.shutil, "which", lambda name: f"C:/Users/me/.local/bin/{name}.exe")
         monkeypatch.setattr(_install, "task_state", lambda: "Ready")
-        message = _install.install(uvx="aind-clabe==0.18.0")
-        assert "<Command>C:/uv/uvx.exe</Command>" in xml["text"]
-        assert "<Arguments>--from aind-clabe==0.18.0 clabe daemon run</Arguments>" in xml["text"]
+        message = _install.install()
+        assert "<Command>C:/Users/me/.local/bin/clabe.exe</Command><Arguments>daemon run</Arguments>" in xml["text"]
         assert f"<WorkingDirectory>{tmp_path / 'clabe'}</WorkingDirectory>" in xml["text"]
         assert calls == ["/Create", "/Run"] and (tmp_path / "clabe").is_dir() and "Registered" in message
 
-    def test_installing_from_uvx_without_a_spec_is_refused(self, monkeypatch):
+    def test_installing_from_uv_s_cache_is_refused(self, monkeypatch):
         monkeypatch.setattr(_install, "_in_uv_cache", lambda: True)  # after the autouse stub: wins
-        with pytest.raises(OSError, match="--uvx"):
+        with pytest.raises(OSError, match="installer"):
             _install.daemon_command()
 
     def test_reinstalling_says_the_running_daemon_needs_a_restart(self, scheduler, monkeypatch):

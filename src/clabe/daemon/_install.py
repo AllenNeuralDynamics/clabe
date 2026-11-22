@@ -30,27 +30,17 @@ def _in_uv_cache() -> bool:
     return any(part in ("archive-v0", "builds-v0") for part in parts)
 
 
-def daemon_command(uvx: str | None = None) -> list[str]:
-    """How the task starts the daemon.
-
-    Args:
-        uvx: A package spec (``aind-clabe==0.18.0``, ``git+https://...@v0.18.0``): the task runs
-            ``uvx --from <spec> clabe daemon run``, so nothing needs installing and the version is pinned in the task.
-            Without it, the installed ``clabe`` executable (``uv tool install``), else this interpreter.
+def daemon_command() -> list[str]:
+    """How the task starts the daemon: the installed ``clabe`` executable (``uv tool install``), else this
+    interpreter.
 
     Raises:
-        OSError: ``uvx`` is not on the PATH, or this clabe runs from uv's cache without ``uvx`` (the task would point
-            into a cache uv may clean up).
+        OSError: This clabe runs from uv's cache (e.g. ``uvx``): the task would point into a cache uv may clean up.
     """
-    if uvx:
-        program = shutil.which("uvx")
-        if program is None:
-            raise OSError("uvx is not on the PATH: install uv first (https://docs.astral.sh/uv/).")
-        return [program, "--from", uvx, "clabe", "daemon", "run"]
     if _in_uv_cache():
         raise OSError(
-            "This clabe runs from uv's cache (uvx). Pass --uvx <package spec> (e.g. --uvx aind-clabe==X.Y.Z) so the "
-            "task starts the daemon with uvx too, or install clabe with `uv tool install aind-clabe`."
+            "This clabe runs from uv's cache (uvx): the daemon's task needs an installed clabe. Install it with the "
+            "installer (see the Deploying docs) or `uv tool install aind-clabe`, then run `clabe daemon install`."
         )
     executable = shutil.which("clabe")
     return [executable, "daemon", "run"] if executable else [sys.executable, "-m", "clabe.cli", "daemon", "run"]
@@ -106,14 +96,14 @@ def task_state() -> str | None:
     return (done.stdout.strip() or None) if done.returncode == 0 else None
 
 
-def install(*, uvx: str | None = None, working_directory: Path | None = None) -> str:
+def install(*, working_directory: Path | None = None) -> str:
     """Registers (or replaces) the scheduled task and starts it.
 
     A daemon that is already running keeps running the old task's command: :func:`restart` it to use the new one.
     """
     directory = working_directory or default_working_directory()
     directory.mkdir(parents=True, exist_ok=True)
-    xml = task_xml(daemon_command(uvx), working_directory=directory)
+    xml = task_xml(daemon_command(), working_directory=directory)
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "clabe-daemon.xml"
         path.write_text(xml, encoding="utf-16")
@@ -217,10 +207,7 @@ def uninstall() -> str:
 
 
 def upgrade() -> str:
-    """Upgrades a ``uv tool`` installation of clabe; restart the daemon afterwards.
-
-    A daemon installed with ``--uvx`` is upgraded by installing again with the new package spec, then restarting.
-    """
+    """Upgrades the ``uv tool`` installation of clabe; restart the daemon afterwards (the installer does both)."""
     uv = shutil.which("uv")
     if uv is None:
         raise OSError("uv is required to upgrade clabe (it is installed with `uv tool install aind-clabe`).")

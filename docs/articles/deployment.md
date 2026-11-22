@@ -9,7 +9,7 @@ For what the daemon and the hub are, see [Machines](../concepts/machines.md).
 |---|---|
 | A Windows user that stays **logged on** (e.g. auto-logon) | The daemon runs in that user's desktop session, so the experiments it starts can open windows (Bonsai, Open Ephys). It starts at that user's logon. |
 | **OpenSSH Server** enabled, and SSH access as that user | Deployments run as that user, over SSH. |
-| **uv** for that user | clabe runs from uv (the deployment script can install it with `-InstallUv`). |
+| **uv** for that user | clabe is installed with uv (the installer installs uv when it is missing). |
 | The experiment repositories cloned | The daemon runs each experiment in its repository's own environment (`uv run`). |
 | Port 8070 reachable from the hub and browsers (if the daemon binds `0.0.0.0`) | The daemon's page, its runs and its worker API. |
 
@@ -28,56 +28,78 @@ daemon:
 ```
 
 The **token** is not in that file (every user of the machine can read it): it is the logged-on user's `CLABE_TOKEN`
-environment variable. The deployment script sets both.
+environment variable. The installer sets both.
 
-## Deploy over SSH
+## Install a rig PC
 
-`scripts/deploy/Deploy-ClabeDaemon.ps1` installs or updates clabe and its daemon on the machine it runs on, restarts
-the daemon and checks it answers. Every step is idempotent, so run it for a first install and for every update.
+One line, like uv's installer — run as the rig's user, in PowerShell or `cmd`:
 
-```bash
-# copy the script (and a config) to the rig, then run it there as the rig's user
-scp scripts/deploy/Deploy-ClabeDaemon.ps1 rig-config/clabe.yml rig-3:
-ssh rig-3 powershell -NoProfile -ExecutionPolicy Bypass -File Deploy-ClabeDaemon.ps1 \
-    -Package aind-clabe==0.18.0 -Config clabe.yml -Token "$CLABE_TOKEN"
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/AllenNeuralDynamics/clabe/main/scripts/install.ps1 | iex"
 ```
 
-What it does:
+It installs or updates clabe and its daemon, then restarts the daemon and checks it answers:
 
-1. finds uv (or installs it with `-InstallUv`), even if the SSH session does not have the user's `PATH` yet;
-2. sets `CLABE_TOKEN` for the user (`-Token`) and installs `%PROGRAMDATA%\clabe.yml` (`-Config`), when given;
-3. installs the package as a uv tool (`uv tool install --force <Package>`): a stable `clabe.exe` that starts without
-   the network;
+1. installs uv for the user if it is missing (even when the session does not have the user's `PATH` yet);
+2. sets the user's `CLABE_TOKEN` and installs `%PROGRAMDATA%\clabe.yml`, when given;
+3. installs clabe as a uv tool (`uv tool install --force`): a stable `clabe.exe` that starts without the network;
 4. registers the `clabe-daemon` scheduled task: at the user's logon, in their desktop session, restarted every
    minute if it fails, no time limit;
 5. restarts the daemon and waits until it answers (`clabe daemon restart`), then prints its status.
 
-It exits with a non-zero code as soon as a step fails, so a deployment pipeline stops there. `-DryRun` prints what it
-would run.
+Every step is safe to repeat: the same line installs, updates and repairs. A daemon running a session is never
+interrupted (the install fails instead) unless forced. Any failure stops the installer with a non-zero exit code.
 
-`-Package` takes anything uv does: `aind-clabe==0.18.0`, `aind-clabe[agents]==0.18.0`, or a Git reference
-(`git+https://github.com/AllenNeuralDynamics/clabe@v0.18.0`). **Pin a version**: the rig then runs exactly what you
-deployed, and rolling back is running the script again with the previous one.
+### Options
 
-The script never interrupts a session: when the daemon runs an experiment, or another rig's run has leased it, the
-restart is refused and the script fails. Run it again later, or pass `-Force` to restart anyway.
+`irm ... | iex` cannot pass arguments, so the installer also reads environment variables:
 
-### Without installing: `-Uvx`
+| Parameter | Variable | Meaning |
+|---|---|---|
+| `-Version` | `CLABE_VERSION` | The clabe version (default: the latest release). **Pin it on rigs.** |
+| `-Package` | `CLABE_PACKAGE` | Any uv package spec instead: `aind-clabe[agents]==0.18.0`, `git+https://github.com/AllenNeuralDynamics/clabe@v0.18.0` |
+| `-Token` | `CLABE_TOKEN` | The daemon's token, saved as the user's `CLABE_TOKEN` |
+| `-Config` | `CLABE_CONFIG` | A `clabe.yml` on the PC to install as `%PROGRAMDATA%\clabe.yml` |
+| `-Force` | `CLABE_FORCE=1` | Restart even if the daemon runs a session (it is interrupted) |
+| `-NoInstallUv` | | Fail instead of installing uv |
+| `-DryRun` | `CLABE_DRY_RUN=1` | Print the commands instead of running them |
+| `-Timeout` | | Seconds to wait for the daemon to answer (default 120) |
 
-`-Uvx` registers `uvx --from <Package> clabe daemon run` as the task instead of installing a tool, so the version
-lives in the task alone. The daemon then needs uv's cache — or the network — at every logon; prefer the default on
-rigs.
+```powershell
+$env:CLABE_VERSION = "0.18.0"; irm https://raw.githubusercontent.com/AllenNeuralDynamics/clabe/main/scripts/install.ps1 | iex
+```
 
-The same works by hand, without the script:
+or with arguments:
+
+```powershell
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/AllenNeuralDynamics/clabe/main/scripts/install.ps1))) -Version 0.18.0
+```
+
+To pin the installer itself too, take it from the release's tag instead of `main`:
+`https://raw.githubusercontent.com/AllenNeuralDynamics/clabe/v0.18.0/scripts/install.ps1`.
+
+### Over SSH
+
+The same line, as the rig's user (the default SSH shell on Windows is `cmd`; the line works from PowerShell too):
 
 ```bash
-ssh rig-3 uvx --from aind-clabe==0.18.0 clabe daemon install --uvx aind-clabe==0.18.0
-ssh rig-3 uvx --from aind-clabe==0.18.0 clabe daemon restart
+ssh rig-3 'powershell -NoProfile -ExecutionPolicy ByPass -c "& ([scriptblock]::Create((irm https://raw.githubusercontent.com/AllenNeuralDynamics/clabe/main/scripts/install.ps1))) -Version 0.18.0"'
 ```
+
+Send the configuration first and point the installer at it; pass the token through the environment of the SSH
+session (or set it once on the rig) rather than on the command line, where other users of the rig can see it:
+
+```bash
+scp rig-config/clabe.yml rig-3:clabe.yml
+ssh rig-3 'powershell -NoProfile -ExecutionPolicy ByPass -c "& ([scriptblock]::Create((irm https://raw.githubusercontent.com/AllenNeuralDynamics/clabe/main/scripts/install.ps1))) -Version 0.18.0 -Config clabe.yml"'
+```
+
+The exit code is non-zero when anything failed, so a deployment pipeline stops there. **Rollback** is the same line
+with the previous version.
 
 ## Operate it remotely
 
-All over SSH, as the rig's user (with the default tool install, `clabe` is in `%USERPROFILE%\.local\bin`):
+All over SSH, as the rig's user (`clabe` is in `%USERPROFILE%\.local\bin`):
 
 ```bash
 ssh rig-3 clabe daemon status            # the task, and whether the daemon answers (idle, busy, leased)
@@ -111,7 +133,7 @@ CLABE_HUB_TOKEN=... CLABE_TOKEN=... docker compose -f docker/hub/compose.yml up 
 |---|---|
 | `restart` says the task is `Ready` and the daemon starts at logon | The rig's user is not logged on: the daemon runs in their session. |
 | `restart` times out with the task `Running` | `%LOCALAPPDATA%\clabe\daemon.log`: usually the port is taken or `%PROGRAMDATA%\clabe.yml` is invalid. |
-| `uv is not installed` | uv is missing for that user: pass `-InstallUv`, or install it once. |
+| The installer cannot download uv or clabe | The rig needs internet access (or a uv index mirror) while installing; once installed, the daemon starts offline. |
 | The daemon answers but its repositories list is empty | `%PROGRAMDATA%\clabe.yml` has no `daemon: repositories:` (or another `./clabe.yml` takes precedence in the task's working directory, `%LOCALAPPDATA%\clabe`). |
 | 401 from the hub or a browser | The token differs from the rig's `CLABE_TOKEN` (restart the daemon after changing it: it reads it when it starts). |
 | `The daemon runs an experiment: restarting would interrupt it` | A session is going; deploy later, or `-Force`. |

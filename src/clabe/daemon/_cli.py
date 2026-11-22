@@ -61,18 +61,13 @@ class _InstallCli(BaseSettings, cli_kebab_case=True):
     task; a daemon already running keeps its old command until `clabe daemon restart`.
     """
 
-    uvx: str | None = Field(
-        default=None,
-        description="Start the daemon with `uvx --from <spec> clabe daemon run`, e.g. aind-clabe==0.18.0 or "
-        "git+https://github.com/AllenNeuralDynamics/clabe@v0.18.0 (no install needed; the version is pinned)",
-    )
     working_directory: Path | None = Field(
         default=None, description="Where the task runs and the daemon logs (default %LOCALAPPDATA%\\clabe)"
     )
 
     def cli_cmd(self):
         """Register the scheduled task."""
-        _report(lambda: _install.install(uvx=self.uvx, working_directory=self.working_directory))
+        _report(lambda: _install.install(working_directory=self.working_directory))
 
 
 class _RestartCli(DaemonSettings, cli_kebab_case=True):
@@ -106,7 +101,7 @@ class _UninstallCli(BaseSettings):
 
 
 class _UpgradeCli(BaseSettings):
-    """Upgrade a `uv tool` installation of clabe; restart the daemon afterwards (with --uvx: install again)."""
+    """Upgrade the `uv tool` installation of clabe; restart the daemon afterwards (the installer does both)."""
 
     def cli_cmd(self):
         """Upgrade the tool installation."""

@@ -37,6 +37,12 @@ Or install with pip:
 pip install aind-clabe
 ```
 
+To install the daemon on a rig PC (see [Deploying](https://github.com/AllenNeuralDynamics/clabe/blob/main/docs/articles/deployment.md)):
+
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/AllenNeuralDynamics/clabe/main/scripts/install.ps1 | iex"
+```
+
 To work on this repository locally:
 
 ```bash
