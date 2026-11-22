@@ -3,7 +3,7 @@ from typing import Optional
 import pydantic
 import pytest
 
-from clabe.modifiers import ByAnimalModifier
+from clabe.aind.modifiers import ByAnimalModifier
 from clabe.stores import Kind, MemoryStore
 
 

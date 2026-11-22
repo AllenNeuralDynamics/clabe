@@ -16,7 +16,7 @@ from pydantic_settings import NoDecode, SettingsConfigDict
 
 from ..reports import REPORT_ID_PATTERN, read_report_info
 from ..server._models import SessionInfo
-from ..services import EnvSettings, split_list
+from ..settings import EnvSettings, split_list
 
 if TYPE_CHECKING:
     from ._reports import ReportStore

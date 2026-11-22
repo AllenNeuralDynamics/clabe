@@ -6,11 +6,11 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, CliApp, CliImplicitFlag, CliPositionalArg, CliSubCommand
 
 from .agents._cli import McpCli
-from .cache_manager import _CacheManagerCli
+from .cache import _CacheManagerCli
 from .daemon._cli import DaemonCli
-from .git_manager import GitRepository
 from .hub._cli import HubCli
 from .launcher import Launcher, LauncherCliArgs
+from .repository import GitRepository
 from .workflow import select_workflow
 
 logger = logging.getLogger(__name__)

@@ -3,7 +3,7 @@ import os
 import pytest
 from aind_behavior_services import Session
 
-from clabe.cache_manager import CacheManager
+from clabe.cache import CacheManager
 from clabe.session import SessionBuilder
 from tests.conftest import use_client
 

@@ -11,7 +11,7 @@ import yaml
 from aind_behavior_services import Session
 from aind_data_transfer_service.models.core import Task
 
-from clabe.data_transfer.aind_watchdog import (
+from clabe.aind.watchdog import (
     ManifestConfig,
     UploadGroup,
     WatchdogDataTransferService,
@@ -327,7 +327,7 @@ class TestSecondMachine:
         assert _job(ecephys.manifest).job_type == "ephys_append"
 
 
-@patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.is_running", return_value=True)
+@patch("clabe.aind.watchdog.WatchdogDataTransferService.is_running", return_value=True)
 class TestTransfer:
     def test_writes_one_manifest_per_group(self, _, behavior_dir, session, tmp_path):
         service = _service(behavior_dir, _settings(upload_groups=VIDEO_SPLIT), session)

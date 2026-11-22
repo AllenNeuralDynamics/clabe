@@ -12,8 +12,8 @@ from aind_behavior_curriculum import TrainerState
 from aind_behavior_services.session import Session
 
 from clabe import checks, steps
+from clabe.aind.watchdog import WatchdogDataTransferService, WatchdogSettings
 from clabe.apps import AindBehaviorServicesBonsaiApp, CommandResult
-from clabe.data_transfer.aind_watchdog import WatchdogDataTransferService, WatchdogSettings
 from clabe.launcher import Launcher
 from clabe.remote import RemoteRepository
 from clabe.stores import LocalFileStore, Store

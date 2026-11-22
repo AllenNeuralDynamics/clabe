@@ -10,7 +10,7 @@ from typing import Annotated, ClassVar
 from pydantic import BaseModel, Field, SecretStr, field_validator
 from pydantic_settings import NoDecode
 
-from ..services import EnvSettings, split_list
+from ..settings import EnvSettings, split_list
 
 logger = logging.getLogger(__name__)
 

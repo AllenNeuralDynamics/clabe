@@ -48,7 +48,7 @@ MANIPULATOR = Kind(ManipulatorPosition)  # a custom record, named "manipulator_p
 Add your own checks with `validators=` (one callable or a list, applied to every record read):
 
 ```python
-from clabe.utils.aind_validators import validate_rig_computer_name
+from clabe.aind.validators import validate_rig_computer_name
 
 STRICT_RIG = Kind.from_rig(MyRigModel, validators=[validate_rig_computer_name, my_extra_check])
 ```

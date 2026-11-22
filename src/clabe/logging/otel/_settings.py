@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, ClassVar, Literal
 from opentelemetry.util.types import AttributeValue
 from pydantic import Field
 
-from ...services import ServiceSettings
+from ...settings import ServiceSettings
 
 if TYPE_CHECKING:
     from aind_behavior_services.session import Session
@@ -130,7 +130,7 @@ class AindOtelSettings(OtelSettings):
 
     def initial_attributes(self) -> dict[str, AttributeValue]:
         """Resolve the log-schema fields, applying auto-defaults to any left unset in config."""
-        from ...utils.aind_validators import get_aind_rig_name
+        from ...aind.validators import get_aind_rig_name
 
         resolved: dict[str, str | None] = {
             "hostname": self.hostname or _default_hostname(),

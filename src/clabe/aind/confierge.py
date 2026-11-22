@@ -6,9 +6,9 @@ from typing import ClassVar, TypeVar
 from confierge import Confierge
 from pydantic import Field
 
-from ..services import ServiceSettings
+from ..settings import ServiceSettings
+from ..stores._base import Candidate, Kind, KindLike, Scope, StoreBase, as_kind
 from ..utils import get_computer_name
-from ._base import Candidate, Kind, KindLike, Scope, StoreBase, as_kind
 
 T = TypeVar("T")
 logger = logging.getLogger(__name__)

@@ -2,7 +2,7 @@ import abc
 import logging
 from typing import Generic, TypeVar
 
-from ..services import Service, ServiceSettings
+from ..settings import Service, ServiceSettings
 
 logger = logging.getLogger(__name__)
 

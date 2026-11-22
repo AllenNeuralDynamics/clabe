@@ -27,9 +27,9 @@ from pydantic import BaseModel
 
 from . import checks as _checks
 from . import ui
+from .aind.validators import validate_username
 from .launcher import Launcher
 from .session import SessionBuilder
-from .utils.aind_validators import validate_username
 from .workflow import GoBack, step_defaults
 
 __all__ = ["free_space", "preflight", "register", "review", "session", "waterlog"]
@@ -160,7 +160,7 @@ def waterlog(earned_water: Callable[[Launcher], float]) -> Callable[..., None]:
 
     @step_defaults(title="Water log", on_error="warn")
     def waterlog(launcher: Launcher, session: Session) -> None:
-        from .aind_apps import WaterlogApp, WaterlogSettings
+        from .aind.waterlog import WaterlogApp, WaterlogSettings
 
         WaterlogApp(
             settings=WaterlogSettings(

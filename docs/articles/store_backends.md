@@ -6,8 +6,8 @@ Every store backend clabe ships, and how to combine them. See [Stores](stores.md
 | --- | --- | --- | --- |
 | [`LocalFileStore`][clabe.stores.LocalFileStore] | any kind | Pick list over files | — |
 | [`MemoryStore`][clabe.stores.MemoryStore] | any kind | Pick list over records | — |
-| [`DataverseStore`][clabe.stores.dataverse.DataverseStore] | `trainer_state` only | Pick list over recent suggestions | `aind-services` |
-| [`ConfiergeStore`][clabe.stores.confierge.ConfiergeStore] | one ficus namespace | Never | `aind-services` |
+| [`DataverseStore`][clabe.aind.dataverse.DataverseStore] | `trainer_state` only | Pick list over recent suggestions | `aind-services` |
+| [`ConfiergeStore`][clabe.aind.confierge.ConfiergeStore] | one ficus namespace | Never | `aind-services` |
 | [`CompositeStore`][clabe.stores.CompositeStore] | whatever it routes | The routed backend's | — |
 
 ```mermaid
@@ -20,7 +20,7 @@ flowchart LR
 
 ```python
 from clabe.stores import CompositeStore, Kind, LocalFileStore
-from clabe.stores.dataverse import DataverseStore
+from clabe.aind.dataverse import DataverseStore
 
 RIG = Kind.from_rig(MyRigModel)
 SUGGESTION = Kind.from_trainer_state()
@@ -112,7 +112,7 @@ uv add "aind-clabe[aind-services]"
 
 ```python
 from clabe.stores import Kind
-from clabe.stores.dataverse import DataverseStore
+from clabe.aind.dataverse import DataverseStore
 
 SUGGESTION = Kind.from_trainer_state()
 
@@ -140,7 +140,7 @@ Reads and writes [ficus](https://github.com/AllenNeuralDynamics/ficus), which me
 
 ```python
 from clabe.stores import Kind
-from clabe.stores.confierge import ConfiergeSettings, ConfiergeStore
+from clabe.aind.confierge import ConfiergeSettings, ConfiergeStore
 
 RIG = Kind.from_rig(AindVrForagingRig)
 
@@ -166,7 +166,7 @@ Settings (`confierge` section of `clabe.yml`):
 | `create_if_missing` | `true` | Writes may create a missing layer |
 | `append_new_fields_to_last_scope` | `true` | New fields go to the most specific scope |
 
-Scope keys map to ficus scopes through [`DEFAULT_SCOPE_MAPPING`][clabe.stores.confierge.DEFAULT_SCOPE_MAPPING]:
+Scope keys map to ficus scopes through [`DEFAULT_SCOPE_MAPPING`][clabe.aind.confierge.DEFAULT_SCOPE_MAPPING]:
 
 | Store scope | Ficus scope |
 | --- | --- |
@@ -180,10 +180,10 @@ Scope keys map to ficus scopes through [`DEFAULT_SCOPE_MAPPING`][clabe.stores.co
 
 ### Per-animal settings with ByAnimalModifier
 
-[`ByAnimalModifier`][clabe.modifiers.ByAnimalModifier] reads and writes per-animal state through any store.
+[`ByAnimalModifier`][clabe.aind.modifiers.ByAnimalModifier] reads and writes per-animal state through any store.
 
 ```python
-from clabe.modifiers import ByAnimalModifier
+from clabe.aind.modifiers import ByAnimalModifier
 from clabe.stores import Kind
 
 MANIPULATOR = Kind(ManipulatorPosition)

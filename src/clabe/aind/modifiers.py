@@ -3,12 +3,14 @@ import functools
 import logging
 from typing import Any, Generic, TypeVar
 
-from ._typing import TRig
-from .stores import Kind, KindLike, Store, as_kind
+from aind_behavior_services import Rig
+
+from ..stores import Kind, KindLike, Store, as_kind
 
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
+TRig = TypeVar("TRig", bound=Rig)
 
 
 class ByAnimalModifier(abc.ABC, Generic[TRig]):

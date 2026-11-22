@@ -108,7 +108,7 @@ wf.step(steps.preflight(*lab_checks.RIG_READY, lab_checks.camera_count(2)))
 
 ## From the resource monitor
 
-`clabe.resource_monitor` is deprecated. Replace it as follows:
+`clabe.resource_monitor` was removed. Replace it as follows:
 
 | Before | Now |
 |---|---|

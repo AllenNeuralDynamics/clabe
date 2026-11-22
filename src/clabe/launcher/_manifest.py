@@ -19,8 +19,8 @@ from typing import TYPE_CHECKING, Any
 from pydantic import BaseModel, Field
 
 from .. import __version__
-from ..constants import KNOWN_CONFIG_FILES
-from ..git_manager import GitRepositoryMetadata
+from ..repository import GitRepositoryMetadata
+from ..settings import KNOWN_CONFIG_FILES
 from ..utils import get_computer_name
 
 if TYPE_CHECKING:

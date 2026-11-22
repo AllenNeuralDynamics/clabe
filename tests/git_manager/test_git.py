@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from clabe import ui
-from clabe.git_manager._git import GitRepository, _strip_credentials
+from clabe.repository import GitRepository, _strip_credentials
 
 
 @pytest.fixture
@@ -226,7 +226,7 @@ def test_relative_path_falls_back_to_absolute_across_drives(tmp_path: Path, monk
     def relpath_across_drives(path, start=None):
         raise ValueError("path is on mount 'C:', start on mount 'D:'")
 
-    monkeypatch.setattr("clabe.git_manager._git.os.path.relpath", relpath_across_drives)
+    monkeypatch.setattr("clabe.repository.os.path.relpath", relpath_across_drives)
     assert GitRepository._relative_path(str(tmp_path)) == tmp_path.as_posix()
 
 

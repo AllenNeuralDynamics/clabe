@@ -6,9 +6,9 @@ import pydantic
 import pytest
 from pydantic_settings import CliApp
 
-from clabe import services
+from clabe import settings as clabe_settings
 from clabe.launcher import LauncherCliArgs
-from clabe.services import ServiceSettings, get_clabe_yml, override_clabe_yml, set_clabe_yml
+from clabe.settings import ServiceSettings, get_clabe_yml, override_clabe_yml, set_clabe_yml
 
 
 class _MySettings(ServiceSettings):
@@ -22,7 +22,7 @@ class _MySettings(ServiceSettings):
 def _isolated_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     local = tmp_path / "local.yml"
     shared = tmp_path / "shared.yml"
-    monkeypatch.setattr(services, "KNOWN_CONFIG_FILES", [str(local), str(shared)])
+    monkeypatch.setattr(clabe_settings, "KNOWN_CONFIG_FILES", [str(local), str(shared)])
     set_clabe_yml(None)
     yield local, shared
     set_clabe_yml(None)
@@ -67,8 +67,9 @@ def test_environment_variables_are_prefixed_and_rank_below_the_files(_isolated_c
     assert _MySettings().port == 3333
 
 
-def test_the_repository_clabe_yml_is_not_read():
-    from clabe.constants import KNOWN_CONFIG_FILES
+def test_the_repository_clabe_yml_is_not_read(monkeypatch):
+    monkeypatch.undo()  # the real list, not the isolated one
+    from clabe.settings import KNOWN_CONFIG_FILES
 
     assert "./clabe.yml" not in KNOWN_CONFIG_FILES and KNOWN_CONFIG_FILES[0] == "./local/clabe.yml"
 

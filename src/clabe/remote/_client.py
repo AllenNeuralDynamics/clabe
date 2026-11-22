@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field, HttpUrl, SecretStr
 
 from ..apps import Command
 from ..apps._base import CommandResult
-from ..services import ServiceSettings
+from ..settings import ServiceSettings
 from ._models import (
     LEASE_HEADER,
     FileInfo,

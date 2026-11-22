@@ -1,11 +1,11 @@
 # Configuration
 
 Stores, data transfer, logging and apps read their settings from a `clabe.yml` document, one section per
-[`ServiceSettings`][clabe.services.ServiceSettings] subclass.
+[`ServiceSettings`][clabe.settings.ServiceSettings] subclass.
 
 ```python
 from typing import ClassVar
-from clabe.services import ServiceSettings
+from clabe.settings import ServiceSettings
 
 
 class MyServiceSettings(ServiceSettings):
@@ -63,13 +63,13 @@ clabe run my_experiment.py --clabe-yml D:/rig-configs/clabe.yml
 
 ### From code
 
-Call [`set_clabe_yml`][clabe.services.set_clabe_yml] with a parsed mapping, before any settings object is built:
+Call [`set_clabe_yml`][clabe.settings.set_clabe_yml] with a parsed mapping, before any settings object is built:
 
 ```python
 import requests
 import yaml
 
-from clabe.services import set_clabe_yml
+from clabe.settings import set_clabe_yml
 
 response = requests.get("http://config-server/rigs/my-rig/clabe.yml", timeout=10)
 response.raise_for_status()
@@ -84,11 +84,11 @@ settings = MyServiceSettings()  # sees the fetched document
 
 ## Temporary overrides
 
-[`override_clabe_yml`][clabe.services.override_clabe_yml] replaces the document inside a `with` block only, per thread
+[`override_clabe_yml`][clabe.settings.override_clabe_yml] replaces the document inside a `with` block only, per thread
 and asyncio task. This is useful in tests:
 
 ```python
-from clabe.services import get_clabe_yml, override_clabe_yml
+from clabe.settings import get_clabe_yml, override_clabe_yml
 
 with override_clabe_yml({"my_service": {"port": 9091}}):
     assert MyServiceSettings().port == 9091

@@ -6,7 +6,7 @@ from pydantic_settings import CliApp
 
 from clabe import cli
 from clabe.apps import Command, LocalExecutor
-from clabe.git_manager import GitRepositoryMetadata
+from clabe.repository import GitRepositoryMetadata
 from tests import REPO_ROOT
 
 

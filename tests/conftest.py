@@ -185,7 +185,7 @@ def isolated_cache_manager(tmp_path, monkeypatch):
     contents flaky. This points the default at a per-test temp dir and resets
     the singleton around each test so the on-disk cache never matters.
     """
-    from clabe import cache_manager
+    from clabe import cache as cache_manager
 
     monkeypatch.setattr(cache_manager, "TMP_DIR", str(tmp_path))
     cache_manager.CacheManager._instance = None

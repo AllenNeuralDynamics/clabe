@@ -17,7 +17,7 @@ log = logging.getLogger("docs")
 
 
 # The API reference, grouped by task: (section, [(page title, module), ...]), in nav order. Public modules only;
-# internal (``_x``), command-line and deprecated modules (``logging_helper``, ``resource_monitor``) are left out.
+# internal (``_x``) and command-line modules are left out.
 API_SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
     (
         "Workflows",
@@ -54,37 +54,37 @@ API_SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
     (
         "Configuration and stores",
         [
+            ("clabe.settings", "clabe.settings"),
             ("clabe.stores", "clabe.stores"),
-            ("clabe.stores.confierge", "clabe.stores.confierge"),
-            ("clabe.stores.dataverse", "clabe.stores.dataverse"),
-            ("clabe.services", "clabe.services"),
-            ("clabe.modifiers", "clabe.modifiers"),
-            ("clabe.cache_manager", "clabe.cache_manager"),
+            ("clabe.cache", "clabe.cache"),
+            ("clabe.repository", "clabe.repository"),
         ],
     ),
     (
         "Data",
         [
             ("clabe.data_transfer", "clabe.data_transfer"),
-            ("clabe.data_transfer.aind_watchdog", "clabe.data_transfer.aind_watchdog"),
             ("clabe.data_transfer.robocopy", "clabe.data_transfer.robocopy"),
             ("clabe.data_mapper", "clabe.data_mapper"),
-            ("clabe.data_mapper.aind_data_schema", "clabe.data_mapper.aind_data_schema"),
             ("clabe.data_mapper.helpers", "clabe.data_mapper.helpers"),
-            ("clabe.git_manager", "clabe.git_manager"),
         ],
     ),
     ("Logging", [("clabe.logging", "clabe.logging"), ("clabe.logging.otel", "clabe.logging.otel")]),
+    ("Utilities", [("clabe.utils", "clabe.utils")]),
     (
         "AIND",
         [
-            ("clabe.aind_apps", "clabe.aind_apps"),
-            ("clabe.aind_apps.waterlog", "clabe.aind_apps.waterlog"),
-            ("clabe.utils", "clabe.utils"),
-            ("clabe.utils.aind_auth", "clabe.utils.aind_auth"),
-            ("clabe.utils.aind_smartsheet", "clabe.utils.aind_smartsheet"),
-            ("clabe.utils.aind_validators", "clabe.utils.aind_validators"),
-            ("clabe.utils.keepass", "clabe.utils.keepass"),
+            ("clabe.aind", "clabe.aind"),
+            ("clabe.aind.watchdog", "clabe.aind.watchdog"),
+            ("clabe.aind.data_schema", "clabe.aind.data_schema"),
+            ("clabe.aind.dataverse", "clabe.aind.dataverse"),
+            ("clabe.aind.confierge", "clabe.aind.confierge"),
+            ("clabe.aind.modifiers", "clabe.aind.modifiers"),
+            ("clabe.aind.waterlog", "clabe.aind.waterlog"),
+            ("clabe.aind.smartsheet", "clabe.aind.smartsheet"),
+            ("clabe.aind.keepass", "clabe.aind.keepass"),
+            ("clabe.aind.auth", "clabe.aind.auth"),
+            ("clabe.aind.validators", "clabe.aind.validators"),
         ],
     ),
 ]

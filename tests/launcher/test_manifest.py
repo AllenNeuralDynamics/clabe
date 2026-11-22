@@ -7,10 +7,10 @@ from types import SimpleNamespace
 import pytest
 from pydantic import BaseModel
 
-from clabe.git_manager import GitRepository
 from clabe.launcher import _manifest
 from clabe.launcher._cli import LauncherCliArgs
 from clabe.launcher._manifest import collect_manifest, describe_steps
+from clabe.repository import GitRepository
 from clabe.workflow import Workflow, as_workflow, experiment
 
 

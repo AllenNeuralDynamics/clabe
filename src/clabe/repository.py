@@ -8,7 +8,7 @@ from urllib.parse import urlsplit, urlunsplit
 from git import Repo
 from pydantic import BaseModel, Field
 
-from .. import ui
+from . import ui
 
 logger = logging.getLogger(__name__)
 

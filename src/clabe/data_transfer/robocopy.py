@@ -11,7 +11,7 @@ from ..apps import ExecutableApp
 from ..apps._base import AsyncExecutor, Command, CommandError, CommandResult, Executor, identity_parser
 from ..apps._executors import _DefaultExecutorMixin
 from ..runnable import runnable
-from ..services import ServiceSettings
+from ..settings import ServiceSettings
 from ._base import DataTransfer
 
 logger = logging.getLogger(__name__)

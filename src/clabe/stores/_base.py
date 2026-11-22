@@ -11,14 +11,15 @@ from aind_behavior_services import Rig, Session, Task
 from pydantic.alias_generators import to_snake
 
 from .. import ui
-from .._typing import TRig, TTask
-from ..cache_manager import CacheManager
-from ..utils.aind_validators import validate_rig_computer_name
+from ..aind.validators import validate_rig_computer_name
+from ..cache import CacheManager
 from ._provenance import record_resolution
 
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
+TRig = TypeVar("TRig", bound=Rig)
+TTask = TypeVar("TTask", bound=Task)
 
 #: A set of key/value narrowings selecting which records a call addresses,
 #: e.g. ``{"subject": "789012", "computer_name": "RIG-01"}``.
@@ -315,7 +316,7 @@ class CompositeStore(StoreBase):
 
     Example:
         ```python
-        from clabe.stores.dataverse import DataverseStore
+        from clabe.aind.dataverse import DataverseStore
 
         store = CompositeStore(
             default=LocalFileStore(root=VR_LIB),

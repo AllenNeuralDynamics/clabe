@@ -6,7 +6,7 @@ from aind_behavior_curriculum import TrainerState
 from aind_behavior_services import Rig, Task
 
 from clabe import ui
-from clabe.cache_manager import CacheManager
+from clabe.cache import CacheManager
 from clabe.stores import CompositeStore, Kind, MemoryStore, as_kind
 from tests.conftest import use_client
 

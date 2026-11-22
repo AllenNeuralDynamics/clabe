@@ -12,7 +12,7 @@ from typing import ClassVar
 
 from pykeepass import Entry, PyKeePass
 
-from ..services import Service, ServiceSettings
+from ..settings import Service, ServiceSettings
 
 _PROGRAMDATA = os.getenv("PROGRAMDATA", r"C:\ProgramData")
 

@@ -18,10 +18,10 @@ from aind_behavior_services import Session
 
 from .. import __version__, ui
 from .. import logging as clabe_logging
-from ..constants import TMP_DIR
-from ..git_manager import GitRepository
 from ..logging.otel import bind_session, record_exception, run_span
+from ..repository import GitRepository
 from ..runnable import set_include_timing
+from ..settings import TMP_DIR
 from ..ui import Client, ClientSession, MessageLevel, PromptCancelledError, make_client
 from ..utils import abspath, format_datetime, utcnow
 from ..workflow import ExperimentCallable, LocalClient, Run, RunStatus, Workflow, as_workflow

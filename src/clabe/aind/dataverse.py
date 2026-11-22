@@ -14,9 +14,9 @@ import requests
 from aind_behavior_curriculum import TrainerState
 from pydantic import BaseModel, SecretStr, computed_field, field_validator
 
-from ..services import ServiceSettings
-from ..utils.keepass import KeePass, KeePassSettings
-from ._base import Candidate, Kind, KindLike, Scope, StoreBase, as_kind
+from ..settings import ServiceSettings
+from ..stores._base import Candidate, Kind, KindLike, Scope, StoreBase, as_kind
+from .keepass import KeePass, KeePassSettings
 
 logger = logging.getLogger(__name__)
 

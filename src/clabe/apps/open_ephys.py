@@ -9,7 +9,7 @@ from typing import Any, Literal
 import requests
 from pydantic import BaseModel, Field
 
-from ..services import ServiceSettings
+from ..settings import ServiceSettings
 from ._base import AsyncExecutor, Command, CommandResult, ExecutableApp, identity_parser
 from ._executors import _DefaultExecutorMixin
 

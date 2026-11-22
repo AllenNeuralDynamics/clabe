@@ -7,7 +7,7 @@ from pydantic_settings import (
     CliImplicitFlag,
 )
 
-from ..services import ServiceSettings, _read_clabe_yml, set_clabe_yml
+from ..settings import ServiceSettings, _read_clabe_yml, set_clabe_yml
 
 
 class LauncherCliArgs(ServiceSettings, cli_prog_name="clabe", cli_kebab_case=True):

@@ -99,7 +99,29 @@ async def acquire(rig: AindVrForagingRig, session: Session, trainer_state: Train
   `executor=remote` work as before.
 - New: a run leases the remote PC, and aborting the run stops its commands there. See [Run on two PCs](remote_execution.md).
 
-## 5. Update the command line
+## 5. Update the imports
+
+The package was reorganized. AIND-specific modules are now under `clabe.aind`, and a few modules were renamed.
+
+| Before | Now |
+| --- | --- |
+| `clabe.data_transfer.aind_watchdog` | `clabe.aind.watchdog` |
+| `clabe.data_mapper.aind_data_schema` | `clabe.aind.data_schema` |
+| `clabe.stores.dataverse`, `clabe.stores.confierge` | `clabe.aind.dataverse`, `clabe.aind.confierge` |
+| `clabe.aind_apps` (`WaterlogApp`) | `clabe.aind.waterlog` |
+| `clabe.utils.aind_auth`, `aind_validators`, `aind_smartsheet` | `clabe.aind.auth`, `clabe.aind.validators`, `clabe.aind.smartsheet` |
+| `clabe.utils.keepass` | `clabe.aind.keepass` |
+| `clabe.modifiers` (`ByAnimalModifier`) | `clabe.aind.modifiers` |
+| `clabe.git_manager` | `clabe.repository` |
+| `clabe.cache_manager` | `clabe.cache` |
+| `clabe.services`, `clabe.constants` | `clabe.settings` |
+| `clabe.logging_helper` | `clabe.logging` |
+| `clabe.resource_monitor` | `clabe.checks` and `steps.preflight` (see [Reusable steps and checks](reusable_steps.md)) |
+
+- `clabe.git_manager`, `clabe.cache_manager` and `clabe.services` still import, with a deprecation warning.
+- The terminal UI and the browser page are in the `frontend` extra: depend on `aind-clabe[frontend]`.
+
+## 6. Update the command line
 
 | Before | Now |
 | --- | --- |
@@ -107,7 +129,7 @@ async def acquire(rig: AindVrForagingRig, session: Session, trainer_state: Train
 | the `web` extra | removed; the web UI ships in the package |
 | — | `clabe list`, `clabe check`, `clabe replay`, `clabe daemon`, `clabe hub`, `clabe mcp` (`agents` extra) |
 
-## 6. Records
+## 7. Records
 
 No changes are needed. `events.jsonl`, `outputs.jsonl`, `artifacts/` and `run.json` are written next to
 `launcher.log`. The `clabe.transcript` logger is removed. Use `events.jsonl` instead. See [Run records](records.md).

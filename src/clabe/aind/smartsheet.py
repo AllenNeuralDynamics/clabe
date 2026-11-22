@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
 
-from .aind_validators import validate_username
+from .validators import validate_username
 
 logger = logging.getLogger(__name__)
 

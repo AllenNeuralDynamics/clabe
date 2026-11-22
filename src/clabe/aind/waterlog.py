@@ -11,7 +11,7 @@ from clabe.apps._base import CommandResult
 
 from ..apps import ExecutableApp, LocalDetachedExecutor
 from ..runnable import runnable
-from ..services import ServiceSettings
+from ..settings import ServiceSettings
 
 
 class WaterlogSettings(ServiceSettings):

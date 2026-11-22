@@ -1,6 +1,6 @@
 # Uploading data with the watchdog
 
-[`WatchdogDataTransferService`][clabe.data_transfer.aind_watchdog.WatchdogDataTransferService] hands a session to
+[`WatchdogDataTransferService`][clabe.aind.watchdog.WatchdogDataTransferService] hands a session to
 [aind-watchdog-service](https://github.com/AllenNeuralDynamics/aind-watchdog-service), which copies it to
 `destination` and submits the upload job at `schedule_time`.
 
@@ -30,7 +30,7 @@ watchdog:
 Or in code:
 
 ```python
-from clabe.data_transfer.aind_watchdog import UploadGroup, WatchdogDataTransferService, WatchdogSettings
+from clabe.aind.watchdog import UploadGroup, WatchdogDataTransferService, WatchdogSettings
 
 settings = WatchdogSettings(
     destination=r"\\allen\aind\scratch\vr-foraging\data",

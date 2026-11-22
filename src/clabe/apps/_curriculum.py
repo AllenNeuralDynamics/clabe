@@ -6,7 +6,7 @@ from pathlib import Path
 import aind_behavior_curriculum.trainer
 import pydantic
 
-from ..services import ServiceSettings
+from ..settings import ServiceSettings
 from ._base import Command, ExecutableApp
 from ._executors import _DefaultExecutorMixin
 from ._python_script import PythonScriptApp

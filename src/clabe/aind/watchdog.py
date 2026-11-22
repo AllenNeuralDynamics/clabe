@@ -22,9 +22,9 @@ from aind_watchdog_service.models.watch_config import WatchConfig
 from pydantic import BaseModel, SerializeAsAny, TypeAdapter
 from requests.exceptions import HTTPError
 
+from ..data_transfer import DataTransfer
 from ..runnable import runnable
-from ..services import ServiceSettings
-from ._base import DataTransfer
+from ..settings import ServiceSettings
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +57,7 @@ def _default_email_from_experimenter(user_name: str) -> str:
         pydantic.ValidationError: If the Active Directory response is malformed.
         ValueError: If the user has no email on record.
     """
-    from ..utils.aind_validators import get_active_directory_user
+    from .validators import get_active_directory_user
 
     user = get_active_directory_user(user_name)
     if not user.email:

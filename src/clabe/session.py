@@ -4,9 +4,9 @@ from collections.abc import Callable
 from aind_behavior_services import Session
 
 from . import ui
-from .cache_manager import CacheManager
+from .aind.validators import validate_username
+from .cache import CacheManager
 from .launcher import Launcher
-from .utils.aind_validators import validate_username
 
 logger = logging.getLogger(__name__)
 

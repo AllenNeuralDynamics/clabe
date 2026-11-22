@@ -1,6 +1,5 @@
-"""clabe.checks, steps.preflight, and the deprecated resource_monitor built on them."""
+"""clabe.checks and steps.preflight."""
 
-import warnings
 from collections import namedtuple
 from pathlib import Path
 
@@ -162,17 +161,3 @@ class TestPreflight:
 
         wf.step(steps.preflight(checks.free_space(1e9), checks.exists(lambda rig: rig.data_directory)))
         assert [i for i in check_workflow(wf, strict=True) if i.severity == "error"] == []
-
-
-class TestDeprecatedResourceMonitor:
-    def test_it_warns_and_still_works_through_the_checks(self, tmp_path):
-        from clabe.resource_monitor import ResourceMonitor, remote_dir_exists_constraint_factory
-
-        with pytest.warns(DeprecationWarning, match="clabe.checks"):
-            monitor = ResourceMonitor([remote_dir_exists_constraint_factory(tmp_path)])
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            assert monitor.run() is True
-            missing = remote_dir_exists_constraint_factory(tmp_path / "missing")
-        assert not missing()
-        assert missing.on_fail().endswith("does not exist or cannot be reached.")
