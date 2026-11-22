@@ -344,7 +344,7 @@ table.table tr.selected td { background: var(--accent-soft); }
     box-shadow: var(--shadow); font-size: var(--text-sm);
 }
 .brand { display: inline-flex; align-items: center; gap: var(--s2); font-weight: 700; letter-spacing: -0.02em; color: var(--text); }
-.brand img { width: 22px; height: 22px; border-radius: 5px; }
+.brand img { width: auto; height: 22px; border-radius: 5px; }
 .brand .slash { color: var(--lime); filter: drop-shadow(0 0 0.5px var(--navy)); }
 [data-theme="light"] .brand .slash, :root:not([data-theme]) .brand .slash { color: #8fa600; }
 
@@ -371,6 +371,6 @@ table.table tr.selected td { background: var(--accent-soft); }
 }
 .token-card h2 { margin: 6px 0 0; font-size: 20px; }
 .token-card p { margin: 0; }
-.token-card .token-logo { width: 32px; height: 32px; }
+.token-card .token-logo { width: auto; height: 32px; align-self: flex-start; }
 .token-card label { font-weight: 600; font-size: 13px; margin-top: 6px; }
 .token-card button[type=submit] { margin-top: 4px; justify-content: center; }

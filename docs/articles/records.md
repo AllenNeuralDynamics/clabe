@@ -14,7 +14,7 @@ In the session folder, under `Behavior/Logs/.launcher/`:
 | `artifacts/<step>/<attempt>/` | Files steps exported |
 | `repository.diff` | Uncommitted changes, when the repository was dirty |
 | `uv.lock` | The lockfile the run used |
-| `launcher.log`, `repository-state.json` | The diagnostic log; the repository and submodules |
+| `launcher.log`, `repository-state.json` | The diagnostic log, and the state of the repository and its submodules |
 
 `events.jsonl` includes `command_finished` (each app command, with hashes) and `record_resolved` (each store record
 used, copied under `artifacts/<step>/<attempt>/stores/`).
@@ -25,7 +25,8 @@ used, copied under `artifacts/<step>/<attempt>/stores/`).
 clabe replay <session>/Behavior/Logs/.launcher/events.jsonl experiments/vr_foraging.py --allow-dirty
 ```
 
-- Reruns headless with the recorded answers; stops at a prompt that differs. Secrets can't be replayed.
+- Reruns the experiment headless with the recorded answers. It stops at the first prompt that differs from the
+  recording. Secrets cannot be replayed.
 - In a test: `LocalClient(run, ReplayClient("events.jsonl")).drive()`.
 
 ## Choosing how an output is recorded
@@ -42,12 +43,13 @@ def credentials() -> Credentials: ...
 def handle() -> SerialPort: ...
 
 
-@wf.step(codec=lambda frames: {"n": len(frames), "first": frames[0].timestamp})  # your own
+@wf.step(codec=lambda frames: {"n": len(frames), "first": frames[0].timestamp})  # a custom codec
 def frames() -> list[Frame]: ...
 ```
 
-- Default `codecs.auto`: a pydantic model as its JSON, anything else via pydantic's serialization.
-- A failing codec falls back to `repr` (line marked `lossy`); it never fails the step.
+- The default, `codecs.auto`, records a pydantic model as its JSON and any other value through pydantic's
+  serialization.
+- If a codec raises, the output is recorded with `repr` and the line is marked `lossy`. The step does not fail.
 
 ## Exporting artifacts
 
@@ -64,8 +66,9 @@ def configure(rig: Rig, session: Session) -> Path:
     return path
 ```
 
-- Only inside a running step (and its tasks or `asyncio.to_thread`; not a new `threading.Thread`).
-- For provenance-sized files, not session data.
+- Works only inside a running step, including its tasks and `asyncio.to_thread` calls. It does not work from a new
+  `threading.Thread`.
+- Use it for small provenance files. Do not use it for session data.
 
 ## Reading the records
 
@@ -87,6 +90,6 @@ print(register["inputs"])  # {"session": 2, "rig": 1}: the attempts it used
 
 ## The manifest: `run.json`
 
-- Written at start, rewritten with the outcome at the end.
-- Secrets stay out: URL credentials stripped; `TOKEN`/`KEY`/`SECRET`/`PASSWORD`/`AUTH`-like values masked; only
-  `CLABE_*` and `OTEL_*` environment variables kept.
+- Written when the run starts, and rewritten with the outcome when it ends.
+- Secrets are kept out of it. Credentials in URLs are stripped. Values that look like a `TOKEN`, `KEY`, `SECRET`,
+  `PASSWORD` or `AUTH` are masked. Only the `CLABE_*` and `OTEL_*` environment variables are kept.

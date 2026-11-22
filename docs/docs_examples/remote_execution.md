@@ -1,10 +1,8 @@
-# Remote Execution Example
+# Two PCs
 
-## Example Code
-
-The following example runs an app on another rig through its XML-RPC server, then transfers the data of both
-machines with the watchdog. See [Running on other rigs](../articles/remote_execution.md) for how each step works.
+A session that runs Bonsai on a second rig PC through its clabe daemon, then sends the data of both PCs to the
+watchdog in one manifest. [Run on two PCs](../articles/remote_execution.md) explains each step.
 
 ```python
---8 < --"examples/client_behavior_launcher.py"
+--8<-- "examples/remote_execution.py"
 ```

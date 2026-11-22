@@ -1,10 +1,8 @@
 <div align="center">
 
-<img src="docs/logo.svg" width="96" alt="clabe">
+<img src="docs/logo.svg" width="220" alt="clabe">
 
-# clabe
-
-**Behavior experiments as declared workflows: run them on the rig, answer them from anywhere, and record everything.**
+<br>
 
 [![Documentation](https://img.shields.io/badge/documentation-blue)](https://allenneuraldynamics.github.io/clabe/)
 [![CI](https://github.com/AllenNeuralDynamics/clabe/actions/workflows/clabe.yml/badge.svg)](https://github.com/AllenNeuralDynamics/clabe/actions/workflows/clabe.yml)
@@ -13,30 +11,27 @@
 
 </div>
 
-A behavior session is a sequence of things a person and a rig do together: pick the animal, load its training stage
-and the rig's configuration, check them, start Bonsai and Open Ephys, then run the curriculum, QC and hand the data
-off. clabe turns that sequence into plain Python steps — and gives you the rest for free.
+clabe runs behavior experiments. You write a session as a list of Python steps: choose the animal, load its training
+stage and the rig's configuration, check the hardware, start Bonsai and Open Ephys, hand the data off. clabe runs
+those steps on the rig and asks the experimenter for what it needs, in the terminal or in a browser.
 
-## Why clabe
+Each step is a function, and its parameters name the earlier steps it uses. That wiring is what makes going back
+cheap: if the experimenter changes the rig configuration halfway through, only the steps that depend on it run
+again. A step that fails can be retried, and steps that must never run twice, such as registering the session, lock
+everything before them.
 
-- **Write steps, not plumbing.** Each step is a function; its parameters name what it needs. No global state, no
-  hand-written menus or confirmation loops.
-- **Go back without starting over.** Change the rig and only what depends on it runs again. Failed steps offer
-  Retry / Go back / Abort; what must not run twice (registering the session, starting acquisition) is a barrier.
-- **Answer from anywhere.** The terminal on the rig, a browser in the corridor and an AI agent all see the same
-  prompts; the first valid answer wins. Forms come from your Pydantic models.
-- **Run several things at once.** Bonsai, Open Ephys and a camera in one step; each fails, retries and stops on its
-  own.
-- **Two PCs, one session.** Run apps on a second rig PC as if they were local; clabe checks it runs the same commit and
-  leases it for the session.
-- **Recorded by default.** Every prompt and answer, every step's inputs and outputs, every program run with its
-  hash, the configuration used, and the code, environment and machine behind it. Replay a session with
-  `clabe replay`.
-- **A fleet, not a pile of PCs.** A daemon on each rig starts experiments from the browser; an optional hub shows
-  every rig and every run waiting for an answer. Install a rig with one line, over SSH.
-- **Checked in CI.** `clabe check --strict` verifies every workflow's wiring and types without running anything.
+Prompts are declared once and answered anywhere. The same question appears in the terminal on the rig, in a browser
+on a phone in the corridor, and to an AI agent through MCP; the first valid answer is kept. Forms are built from your
+Pydantic models and validated wherever they are filled in.
 
-## A taste
+Every session leaves a record next to its data: each prompt and answer, each step's inputs and outputs, every command
+it ran, the configuration it used, the repository's commit and lockfile, and the machine. `clabe replay` runs a
+session again from that record.
+
+When you have more than one rig, a small daemon on each PC lets you start experiments from a browser, and an
+optional hub shows every rig, every session in progress and every run waiting for an answer on one page.
+
+## Example
 
 ```python
 # main.py
@@ -45,17 +40,17 @@ from clabe.launcher import Launcher
 from clabe.workflow import Workflow, concurrently
 
 wf = Workflow("vr-foraging")
-wf.step(steps.session())  # who is running, on which animal
+wf.step(steps.session())  # the experimenter and the animal
 
 
 @wf.step
 def trials() -> float:
-    return ui.number("Trials", minimum=1, maximum=500)  # validated wherever it is answered
+    return ui.number("Trials", minimum=1, maximum=500)
 
 
 wf.step(steps.review("session", "trials", back_to="session"))
-wf.step(steps.preflight(checks.free_space(200e9)))  # every problem reported at once
-wf.step(steps.register())  # a barrier: the session folder exists now
+wf.step(steps.preflight(checks.free_space(200e9)))  # reports every failed check at once
+wf.step(steps.register())  # creates the session folder; the steps above are locked from here on
 
 
 @wf.step(title="Acquire", cancellable=True)
@@ -64,43 +59,37 @@ async def acquire(launcher: Launcher, trials: float) -> dict:
 ```
 
 ```bash
-uv run clabe run                      # main.py: the terminal UI here, the web UI at the printed address
-uv run clabe shortcut                 # or a desktop icon that does it
+uv run clabe run        # runs main.py in this terminal and serves it in the browser
+uv run clabe shortcut   # puts a desktop icon on the rig that does the same
 ```
 
 ## Try it
 
-From a checkout, with [uv](https://docs.astral.sh/uv/):
+From a checkout of this repository, with [uv](https://docs.astral.sh/uv/) installed:
 
 ```powershell
-powershell -ExecutionPolicy ByPass -File scripts/demo-local.ps1   # clabe alone: nothing else to install or run
-powershell -ExecutionPolicy ByPass -File scripts/demo.ps1         # the same, followed by a hub (needs Docker)
+powershell -ExecutionPolicy ByPass -File scripts/demo-local.ps1
 ```
 
-A one-minute session ([examples/demo/main.py](examples/demo/main.py)) in this terminal and in your browser at once:
-a form, a review, checks, a step that fails and is retried, a conditional step, two things running at once, a
-figure and a report. `demo.ps1` also starts a daemon and the hub, and shows the run in the hub in another tab.
+This runs [examples/demo/main.py](examples/demo/main.py), a one-minute session that you can answer in the terminal
+or in the browser tab it opens. `scripts/demo.ps1` runs the same session with a daemon and a hub, and needs Docker.
 
 ## Install
 
 ```bash
-uv add aind-clabe                       # in an experiment repository
-uv add "aind-clabe[aind-services]"      # + AIND services, data schema and transfer tooling
-uv add "aind-clabe[otel]"               # + OpenTelemetry
-uv add "aind-clabe[agents]"             # + MCP server for AI agents (clabe mcp)
+uv add aind-clabe                     # in an experiment repository
+uv add "aind-clabe[aind-services]"    # AIND data schema, data transfer and watchdog
+uv add "aind-clabe[otel]"             # sending logs to OpenTelemetry
+uv add "aind-clabe[agents]"           # the MCP server (clabe mcp)
 ```
 
-The daemon on a rig PC (PowerShell; see [Deploy a rig](https://allenneuraldynamics.github.io/clabe/articles/deployment/)):
+To install the daemon on a rig PC, see [Deploy a rig](https://allenneuraldynamics.github.io/clabe/articles/deployment/).
 
-```powershell
-powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/AllenNeuralDynamics/clabe/main/scripts/install.ps1 | iex"
-```
+## Documentation
 
-## Learn more
-
-The [documentation](https://allenneuraldynamics.github.io/clabe/) has tutorials — your first workflow, reusable steps
-and checks, two-PC sessions, deploying rigs, migrating an existing experiment — and the API reference.
-[examples/behavior_launcher.py](examples/behavior_launcher.py) is a complete workflow to start from.
+The [documentation](https://allenneuraldynamics.github.io/clabe/) starts with a tutorial that builds a first
+workflow, then covers reusable steps, running on two PCs, deploying rigs, migrating an existing experiment, and the
+API. [examples/behavior_launcher.py](examples/behavior_launcher.py) is a complete workflow to start from.
 
 ## Development
 
@@ -109,10 +98,9 @@ git clone https://github.com/AllenNeuralDynamics/clabe.git && cd clabe
 uv sync
 uv run pytest
 uv run ruff check
-uv run docs/build.py && uv run zensical serve   # the docs, with the docs dependency group
+uv run docs/build.py && uv run zensical serve   # the documentation, from the docs dependency group
 ```
 
-The web UI (`ui-web/`, Blazor) is built into `src/clabe/server/static` by `uv run python scripts/build_web.py`; its
-models are generated from the APIs with `uv run python scripts/openapi.py` (a test fails when they are stale).
-
-Contributions are welcome: include focused tests for behavior changes and keep Windows and Linux working.
+The web UI in `ui-web/` is a Blazor app. `uv run python scripts/build_web.py` builds it into
+`src/clabe/server/static`, and `uv run python scripts/openapi.py` regenerates its models from the APIs (a test fails
+when they are out of date).

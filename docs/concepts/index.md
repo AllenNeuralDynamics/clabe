@@ -1,6 +1,6 @@
 # Concepts
 
-How clabe's pieces relate, in pictures. Terms are defined in the [glossary](glossary.md).
+Diagrams of how clabe's parts relate. Terms are defined in the [glossary](glossary.md).
 
 ## How it fits together
 
@@ -23,8 +23,9 @@ flowchart LR
   output -. "input of later steps,<br/>by name" .-> step
 ```
 
-- A step's **name** is its output's name; its **parameters** name the outputs it needs.
-- Built-ins every step can take: `launcher`, `run`.
+- A step's name is the name of its output.
+- A step's parameters name the outputs it needs.
+- Any step can also take the built-ins `launcher` and `run`.
 
 A step's states:
 
@@ -56,7 +57,7 @@ flowchart LR
 
 ## Prompts and clients
 
-Every client sees every prompt; the run validates; the first valid answer wins.
+Every client sees every prompt. The run validates each answer and accepts the first valid one.
 
 ```mermaid
 sequenceDiagram
@@ -99,5 +100,5 @@ flowchart TB
   run -- "lease, jobs" --> b
 ```
 
-- Connections go from the observer to the rig, never the other way.
-- A worker serves one run at a time (its **lease**).
+- Connections go from the observer to the rig. The rig does not connect to observers.
+- A worker serves one run at a time. That run holds the worker's lease.

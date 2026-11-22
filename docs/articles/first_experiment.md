@@ -1,6 +1,6 @@
 # Your first experiment
 
-Write a workflow, run it, answer it from a browser and find what it recorded.
+Write a workflow, run it, answer its prompts from a browser and find what it recorded.
 
 ## 1. Install
 
@@ -46,8 +46,8 @@ def task() -> Task:
     return ui.form(Task, title="Task")  # a form from the model
 ```
 
-- A step's **name** is the name of what it returns.
-- A step's **parameters** are the earlier outputs it needs.
+- A step's name is the name of its output.
+- A step's parameters are the earlier outputs it needs.
 
 ## 3. Run it
 
@@ -56,7 +56,7 @@ uv run clabe run --allow-dirty   # runs main.py
 ```
 
 - The terminal shows the prompts.
-- Open the printed address: the same prompts are in the browser. Answer in either.
+- The printed address shows the same prompts in the browser. You can answer in either one.
 
 ## 4. Review, check, register
 
@@ -64,12 +64,12 @@ uv run clabe run --allow-dirty   # runs main.py
 from clabe import checks
 
 wf.step(steps.review("session", "rig", "task", back_to="task"))  # "Go back" re-asks the task
-wf.step(steps.preflight(checks.free_space(1e9)))  # fails listing every problem
+wf.step(steps.preflight(checks.free_space(1e9)))  # on failure, lists every problem
 wf.step(steps.register())  # creates the session folder; a barrier
 ```
 
-- **Go back** re-runs a step and only what depends on it.
-- After a **barrier**, nothing before it can run again.
+- **Go back** re-runs a step and only the steps that depend on it.
+- After a barrier has run, no step before it can run again.
 
 ## 5. Handle failures
 
@@ -90,7 +90,8 @@ def acquire(task: Task, calibrate: float, register: Path) -> None:
 ```
 
 - A step that raises pauses the run with **Retry / Go back / Abort**.
-- `on_error="warn"` only warns; `optional="Run it?"` asks first.
+- With `on_error="warn"`, a failure only shows a warning.
+- With `optional="Run it?"`, the run asks before running the step.
 
 ## 6. Find the records
 
@@ -111,7 +112,7 @@ uv run clabe replay <session>/Behavior/Logs/.launcher/events.jsonl main.py --all
 ## 7. Check it in CI
 
 ```bash
-uv run clabe check main.py --strict   # wiring and types, nothing runs
+uv run clabe check main.py --strict   # checks wiring and types without running anything
 ```
 
 ## 8. Put it on the desktop
@@ -120,11 +121,11 @@ uv run clabe check main.py --strict   # wiring and types, nothing runs
 uv run clabe shortcut --name "Hello"   # an icon that runs main.py in a terminal
 ```
 
-On a rig with the [daemon](daemon.md), a run started this way shows up in the hub too.
+On a rig with the [daemon](daemon.md), a run started this way also appears in the hub.
 
 ## Next
 
-- [Write a workflow](workflows.md): everything a step can do.
+- [Write a workflow](workflows.md): step options, conditions, branches and variants.
 - [Reusable steps and checks](reusable_steps.md): share steps across experiments.
 - [examples/behavior_launcher.py](https://github.com/AllenNeuralDynamics/clabe/blob/main/examples/behavior_launcher.py):
   a complete workflow.

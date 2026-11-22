@@ -54,10 +54,8 @@ dependencies = [
     { name = "pydantic-settings" },
     { name = "requests" },
     { name = "rich" },
-    { name = "semver" },
     { name = "textual" },
     { name = "textual-fspicker" },
-    { name = "typing-extensions" },
     { name = "uvicorn" },
 ]
 
@@ -125,10 +123,8 @@ requires-dist = [
     { name = "requests" },
     { name = "requests", marker = "extra == 'aind-services'" },
     { name = "rich" },
-    { name = "semver" },
     { name = "textual", specifier = ">=8.2.7" },
     { name = "textual-fspicker", specifier = ">=1.0.1" },
-    { name = "typing-extensions", specifier = ">=4.13" },
     { name = "uvicorn", specifier = ">=0.30" },
 ]
 provides-extras = ["otel", "aind-services", "agents"]

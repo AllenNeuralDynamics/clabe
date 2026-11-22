@@ -45,7 +45,7 @@ button.ghost-danger:hover:not(:disabled) { background: var(--err-soft); }
     min-width: 0;
 }
 .run-brand { gap: 10px; min-width: 0; }
-.run-brand img { width: 24px; height: 24px; border-radius: 6px; }
+.run-brand img { width: auto; height: 24px; border-radius: 6px; }
 .run-name { font-size: var(--text-lg); font-weight: 650; letter-spacing: -0.015em; max-width: 32ch; }
 .run-host {
     display: inline-flex; align-items: center; gap: 6px; color: var(--text-2); font-size: var(--text-sm);
@@ -387,7 +387,7 @@ table.review td.bool { color: var(--info); font-family: var(--mono); font-size: 
 /* ---------- dialogs ---------- */
 .dialog-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); margin-bottom: var(--s3); }
 .dialog-head h2 { margin: 0; font-size: var(--text-lg); }
-.dialog-head .brand img { width: 22px; height: 22px; }
+.dialog-head .brand img { width: auto; height: 22px; }
 .dialog .field label { font-size: var(--text-sm); }
 .dialog p { margin: 0 0 var(--s3); }
 .confirm-dialog { width: min(440px, calc(100vw - 2 * var(--s4))); }

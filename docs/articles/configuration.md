@@ -21,7 +21,7 @@ my_service:
   port: 9090
 ```
 
-- Every section clabe ships: [ServiceSettings and yaml tags](service_settings.md).
+- [ServiceSettings and yaml tags](service_settings.md) lists every section clabe ships.
 
 ## Who reads what
 
@@ -36,7 +36,7 @@ environment variables.
 
 ## Where an experiment's settings come from
 
-Highest priority first; fields merge across sources and missing files or sections are skipped.
+Highest priority first. Fields merge across sources. Missing files and sections are skipped.
 
 | # | Source |
 | --- | --- |
@@ -46,9 +46,9 @@ Highest priority first; fields merge across sources and missing files or section
 | 4 | `%PROGRAMDATA%/clabe.yml` (the rig's) |
 | 5 | Environment variables, `CLABE_<SECTION>_<FIELD>` |
 
-- A repository has no committed `clabe.yml`: put rig settings in `%PROGRAMDATA%/clabe.yml`, per-checkout ones in
-  `local/clabe.yml`.
-- Settings are read when the object is built; objects built earlier keep their values.
+- A repository has no committed `clabe.yml`. Put rig settings in `%PROGRAMDATA%/clabe.yml` and per-checkout
+  settings in `local/clabe.yml`.
+- Settings are read when the settings object is built. Objects built earlier keep their values.
 
 ## Loading a clabe.yml from elsewhere
 
@@ -58,7 +58,7 @@ Highest priority first; fields merge across sources and missing files or section
 clabe run my_experiment.py --clabe-yml D:/rig-configs/clabe.yml
 ```
 
-- Also settable through the `CLABE_YML` environment variable.
+- The `CLABE_YML` environment variable does the same.
 - Launcher flags (`--debug-mode`, `--frontend`, …) are read before this file, so pass them on the command line.
 
 ### From code
@@ -80,12 +80,12 @@ settings = MyServiceSettings()  # sees the fetched document
 
 - Any mapping works, e.g. `set_clabe_yml(row["clabe_config"])` from a database.
 - `set_clabe_yml(None)` removes it.
-- It wins over every file.
+- It takes priority over every file.
 
 ## Temporary overrides
 
-[`override_clabe_yml`][clabe.services.override_clabe_yml] swaps the document inside a `with` block only (per thread and
-asyncio task), which suits tests:
+[`override_clabe_yml`][clabe.services.override_clabe_yml] replaces the document inside a `with` block only, per thread
+and asyncio task. This is useful in tests:
 
 ```python
 from clabe.services import get_clabe_yml, override_clabe_yml
@@ -93,7 +93,7 @@ from clabe.services import get_clabe_yml, override_clabe_yml
 with override_clabe_yml({"my_service": {"port": 9091}}):
     assert MyServiceSettings().port == 9091
 
-with override_clabe_yml(None):  # files only
+with override_clabe_yml(None):  # read from files only
     settings = MyServiceSettings()
 
 get_clabe_yml()  # the document currently in effect

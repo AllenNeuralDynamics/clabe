@@ -1,7 +1,7 @@
 # Write a workflow
 
-Build an experiment as a [`Workflow`][clabe.workflow.Workflow]: an ordered list of steps that clabe runs, shows to
-every client and lets the user go back, retry or skip.
+Build an experiment as a [`Workflow`][clabe.workflow.Workflow]: an ordered list of steps. clabe runs the steps,
+shows them in every client and lets the user go back, retry or skip a step.
 
 ## 1. Declare the workflow
 
@@ -15,8 +15,8 @@ wf = Workflow("vr-foraging", exit_prompt_timeout=60)
 wf.step(steps.session())  # a `session` step: who is running, on which animal
 ```
 
-- `exit_prompt_timeout`: `None` waits for a client to close the session, `0` exits at once, `N` counts down `N`
-  seconds.
+- `exit_prompt_timeout`: with `None` the run waits for a client to close the session, with `0` it exits at once, and
+  with `N` it counts down `N` seconds.
 
 ## 2. Add your own steps
 
@@ -39,7 +39,7 @@ Wiring is by name:
 - Parameters name earlier steps' outputs, or `launcher` / `run`.
 - The return value is stored under the step's name.
 - Bad wiring (unknown names, duplicates, `*args`) fails at import.
-- Return new values (`session.model_copy(update=...)`); don't mutate inputs.
+- Return new values (`session.model_copy(update=...)`) instead of mutating inputs.
 
 ## 3. Review, check and register
 
@@ -76,7 +76,7 @@ def qc(launcher: Launcher) -> QcReport: ...
 | `codec=` | How the output is recorded (see [Run records](records.md#choosing-how-an-output-is-recorded)) |
 | `name=` | Store the output under another name |
 
-Going back (web UI, `raise GoBack("session")`) reruns that step and everything depending on it.
+Going back (from the web UI, or with `raise GoBack("session")`) reruns that step and every step that depends on it.
 
 ## 5. Run a step only in some cases
 
@@ -99,13 +99,14 @@ def acquire(calibrate: Calibration | None, last_calibration: Calibration | None)
     calibration = calibrate or last_calibration
 ```
 
-- `when` takes earlier outputs by name, like a step; it must be a plain (not async) function.
-- Skipped steps output `None`: annotate their consumers `T | None` (`clabe check` tells you).
+- `when` takes earlier outputs by name, as a step does. It must be a regular function, not an async one.
+- Skipped steps output `None`, so annotate the parameters that receive them as `T | None`. `clabe check` reports
+  the ones that are not.
 - Going back to `mode` evaluates the conditions again.
-- With `optional=` too, the question is only asked when the condition holds.
-- If the two cases are just code, one step with an `if` is simpler.
+- If a step also has `optional=`, the question is asked only when the condition holds.
+- If the two cases differ only in code, one step with an `if` is simpler.
 
-## 6. Run several things at once
+## 6. Run several branches at once
 
 ```python
 from clabe.workflow import concurrently
@@ -127,13 +128,13 @@ async def acquire(rig: MyRig) -> dict[str, Any]:
 ```
 
 - A failed branch offers **Retry**, **Continue without** (result `None`) or **Stop all**.
-- A cancelled branch gets 30 s for its `finally`.
+- A cancelled branch has 30 s to run its `finally` block.
 
 ## 7. Run it
 
 ```bash
-clabe run                                       # main.py; --experiment-name if it declares several
-clabe check my_experiments/ --strict            # CI: checks wiring and annotations, runs nothing
+clabe run                                       # runs main.py; add --experiment-name if it declares several workflows
+clabe check my_experiments/ --strict            # for CI: checks wiring and annotations without running anything
 ```
 
 From Python: `Launcher(settings=...).run_experiment(wf)`.

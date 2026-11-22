@@ -1,16 +1,17 @@
 # Agents
 
-Let an AI agent follow a run and answer its prompts, through MCP or AG-UI. The first valid answer wins, as with any client.
+An AI agent can follow a run and answer its prompts through MCP or AG-UI. As with any client, the first valid answer
+is the one accepted.
 
 ## MCP
 
-The [hub](hub.md) serves MCP itself, for every rig, at one address (streamable HTTP):
+The [hub](hub.md) serves MCP for every rig at one address (streamable HTTP):
 
 ```json
 {"mcpServers": {"clabe": {"url": "http://hub:8080/mcp", "headers": {"Authorization": "Bearer <the hub's TOKEN>"}}}}
 ```
 
-- Every tool takes the `rig` to act on (see `list_rigs`); leave the header out when the hub has no token.
+- Every tool takes the `rig` to act on (see `list_rigs`). Leave the header out when the hub has no token.
 
 Without a hub, `clabe mcp` serves a run server, a rig's [daemon](daemon.md) (or a hub) over stdio:
 
@@ -38,7 +39,7 @@ Through a hub, every tool takes the `rig` to act on.
 
 ## AG-UI
 
-Every run speaks [AG-UI](https://docs.ag-ui.com):
+Every run supports [AG-UI](https://docs.ag-ui.com):
 
 | Via | Endpoint |
 |---|---|
@@ -46,8 +47,8 @@ Every run speaks [AG-UI](https://docs.ag-ui.com):
 | Daemon | `POST /run/api/agui` |
 | Hub | `POST /rigs/<id>/run/api/agui` |
 
-- One AG-UI run is one turn: it streams steps (`STEP_STARTED`/`STEP_FINISHED`), messages, and state
+- One AG-UI run is one turn. It streams steps (`STEP_STARTED`/`STEP_FINISHED`), messages and state
   (`STATE_SNAPSHOT`) until the run needs the user.
-- An open prompt is a call of the frontend tool `clabe_prompt` (arguments: `kind`, `spec`, `answer_schema`).
-- Answer with a `tool` message for that call in the next turn, its content the answer as JSON.
+- An open prompt arrives as a call of the frontend tool `clabe_prompt` (arguments: `kind`, `spec`, `answer_schema`).
+- To answer, send a `tool` message for that call in the next turn, with the answer as JSON in its content.
 - A rejected answer comes back as a text message, and the prompt is asked again.

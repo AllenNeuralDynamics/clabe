@@ -7,7 +7,7 @@ hide:
 
 # clabe<span class="clabe-slash">/</span>
 
-<p class="lead">Write a behavior session as Python steps. Run it on the rig, answer it from anywhere, record everything.</p>
+<p class="lead">Write a behavior session as Python steps. The rig runs it, its prompts can be answered from the terminal, a browser or an agent, and every prompt, answer and output is recorded.</p>
 
 [Get started](articles/first_experiment.md){ .md-button .md-button--primary }
 [Install a rig](articles/deployment.md){ .md-button }
@@ -21,7 +21,7 @@ hide:
 
     ---
 
-    Write a workflow, run it, answer it from a browser, find its records.
+    Write a workflow, run it, answer its prompts from a browser and find its records.
 
     [:octicons-arrow-right-24: Start here](articles/first_experiment.md)
 
@@ -37,7 +37,7 @@ hide:
 
     ---
 
-    One-line install, two-PC sessions, the fleet hub.
+    Install the daemon on a rig PC in one line, run sessions across two PCs and follow the fleet from the hub.
 
     [:octicons-arrow-right-24: Deploy a rig](articles/deployment.md)
 
@@ -45,7 +45,7 @@ hide:
 
     ---
 
-    How the pieces relate, in diagrams; and the glossary.
+    Diagrams of how clabe's parts relate, and a glossary.
 
     [:octicons-arrow-right-24: Concepts](concepts/index.md)
 
@@ -65,28 +65,28 @@ wf.step(steps.session())  # who is running, on which animal
 
 @wf.step
 def trials() -> float:
-    return ui.number("Trials", minimum=1, maximum=500)  # validated wherever it is answered
+    return ui.number("Trials", minimum=1, maximum=500)  # the run validates it, whichever client answers
 
 
 wf.step(steps.review("session", "trials", back_to="session"))
-wf.step(steps.register())  # a barrier: the session folder exists now
+wf.step(steps.register())  # a barrier; creates the session folder
 
 
 @wf.step(title="Acquire", cancellable=True)
 async def acquire(launcher: Launcher, trials: float) -> dict:
-    return await concurrently(behavior=run_bonsai, ephys=run_open_ephys)  # retried and stopped one by one
+    return await concurrently(behavior=run_bonsai, ephys=run_open_ephys)  # each branch is retried or stopped on its own
 ```
 
 ```bash
-uv run clabe run                           # main.py: the TUI here, the web UI at the printed address
+uv run clabe run                           # runs main.py: the TUI in this terminal, the web UI at the printed address
 ```
 
 ## Try it
 
-From a checkout, with uv: a one-minute session in the terminal and the browser.
+From a checkout, with uv installed, these scripts run a one-minute session in the terminal and the browser.
 
 ```powershell
-powershell -ExecutionPolicy ByPass -File scripts/demo-local.ps1   # clabe alone: no daemon, no hub
+powershell -ExecutionPolicy ByPass -File scripts/demo-local.ps1   # clabe only, without the daemon or the hub
 powershell -ExecutionPolicy ByPass -File scripts/demo.ps1         # followed by the hub (needs Docker)
 ```
 

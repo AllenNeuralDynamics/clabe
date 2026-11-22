@@ -17,7 +17,7 @@ rig = store.resolve(RIG)  # asks the user if there is more than one
 store.write(TASK, task_logic)
 ```
 
-- Every backend has the same four methods; combine backends with [`CompositeStore`][clabe.stores.CompositeStore].
+- Every backend has the same four methods. [`CompositeStore`][clabe.stores.CompositeStore] combines backends.
 - See [Store Backends](store_backends.md) for each backend and how to combine them.
 
 ## Kinds
@@ -43,7 +43,7 @@ MANIPULATOR = Kind(ManipulatorPosition)  # a custom record, named "manipulator_p
 | `Kind(model)` | snake-cased class name | — |
 
 !!! warning
-    `Kind(MyRigModel)` is named `"my_rig_model"`, not `"rig"`, and nothing raises. Use the `from_*` constructors for framework records.
+    `Kind(MyRigModel)` is named `"my_rig_model"` instead of `"rig"`, and no error is raised. Use the `from_*` constructors for framework records.
 
 Add your own checks with `validators=` (one callable or a list, applied to every record read):
 
@@ -57,9 +57,9 @@ STRICT_RIG = Kind.from_rig(MyRigModel, validators=[validate_rig_computer_name, m
 
 | Method | Prompts? | Use it for |
 | --- | --- | --- |
-| [`resolve(kind)`][clabe.stores.Store.resolve] | When there is a choice | "Give me *the* record to use now." |
+| [`resolve(kind)`][clabe.stores.Store.resolve] | When there is a choice | Getting the one record to use now. |
 | [`list(kind)`][clabe.stores.Store.list] | Never | Headless reads (servers, batch jobs, modifiers). |
-| [`write(kind, value)`][clabe.stores.Store.write] | Never | Saving a record; overwrite vs. append is up to the backend. |
+| [`write(kind, value)`][clabe.stores.Store.write] | Never | Saving a record. The backend decides whether it overwrites or appends. |
 | [`scoped(**scope)`][clabe.stores.Store.scoped] | — | A narrowed copy, e.g. to one animal. |
 
 ### resolve
@@ -72,7 +72,7 @@ rig = store.resolve(RIG, pick_kwargs={"label": "Which rig is this session using?
 - No match: raises `LookupError`.
 - One match: returns it (and notifies the user).
 - Several: asks the user through the active session; raises [`NoSessionError`][clabe.ui.NoSessionError] if nothing can ask (see [Talking to the user](frontends.md#when-nothing-can-ask)).
-- `pick_kwargs` overrides the prompt (label, `allow_none`, …), not its options.
+- `pick_kwargs` overrides the prompt's settings (label, `allow_none`, …). It does not change the options offered.
 
 ### list
 
@@ -100,12 +100,13 @@ store = store.scoped(subject=session.subject)
 rig = store.resolve(RIG)  # same as store.resolve(RIG, scope={"subject": session.subject})
 ```
 
-- Returns a new store; the original is untouched. Calls stack.
-- Keys are plain strings (`subject`, `computer_name`, `task_name`, …); each backend decides what they mean.
+- Returns a new store and leaves the original unchanged. Repeated calls add to the scope.
+- Keys are plain strings (`subject`, `computer_name`, `task_name`, …). Each backend decides what they mean.
 
 ## Writing your own store
 
-Subclass [`StoreBase`][clabe.stores.StoreBase] and implement two methods; `resolve`, `list` and `scoped` come for free.
+Subclass [`StoreBase`][clabe.stores.StoreBase] and implement two methods. `StoreBase` provides `resolve`, `list` and
+`scoped`.
 
 ```python
 from collections.abc import Sequence

@@ -8,7 +8,6 @@
 }
 .brand { font-size: var(--text-lg); gap: var(--s2); }
 .brand:hover { text-decoration: none; }
-.brand .slash { font-weight: 400; margin: 0 -2px; }
 .where { font-weight: 550; color: var(--text-2); letter-spacing: -0.01em; }
 .chips { display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; }
 .grow { flex: 1; }

@@ -1,6 +1,6 @@
 # Run on two PCs
 
-Drive an app on a second rig PC (e.g. ephys) from the launcher on the first, and collect both machines' data.
+Drive an app on a second rig PC (e.g. ephys) from the launcher on the first PC, and collect the data of both machines.
 
 ```mermaid
 flowchart LR
@@ -14,15 +14,16 @@ The full script is in the [remote execution example](../docs_examples/remote_exe
 ## 1. Install the daemon on the other PC
 
 - Install it once per rig PC: see [Deploy a rig](deployment.md).
-- Clone **this repository** on rig-b too, under `C:/git`: the daemon finds it (see
-  [Repositories](daemon.md#repositories)); commands run there, in its `.venv`.
+- Clone this repository on rig-b as well, under `C:/git`. The daemon finds it there (see
+  [Repositories](daemon.md#repositories)), and commands run in that checkout's `.venv`.
+
 !!! warning "The daemon runs any command it is given"
-    Keep it on the rig network. A token (`DAEMON_CLABE_TOKEN` there, `worker_client: token:` in the experiment) is
-    optional; when set, both must match.
+    Keep it on the rig network. A token (`DAEMON_CLABE_TOKEN` on the daemon, `worker_client: token:` in the
+    experiment) is optional. When it is set, both values must match.
 
 ## 2. Connect from the experiment
 
-Nothing to configure: connect by computer name.
+No configuration is needed. Connect by computer name:
 
 ```python
 from clabe.remote import RemoteRepository
@@ -30,7 +31,7 @@ from clabe.utils import is_this_computer
 
 remote = RemoteRepository.from_computer_name("rig-b", data_roots={r"D:\data": r"\\rig-b\data"})
 remote.ensure_running()  # pings the daemon; starts its task if it is down
-remote.verify()  # same origin, commit, submodules, and no uncommitted changes there
+remote.verify()  # checks the other checkout: same origin, commit and submodules, no uncommitted changes
 ```
 
 | Argument | Meaning |
@@ -42,9 +43,10 @@ remote.verify()  # same origin, commit, submodules, and no uncommitted changes t
 | `detach_on_abort` | Keep remote commands running when the run aborts ([`RemoteRepository`][clabe.remote.RemoteRepository] constructor only). |
 
 - `ensure_running()` needs admin rights on that PC to start its task (`schtasks /run /s <host>`).
-- `verify(allow_dirty=True)` accepts uncommitted changes there.
+- `verify(allow_dirty=True)` accepts uncommitted changes on the other PC.
 - `is_this_computer(rig.computer_name)` tells you whether to run a rig's app locally instead.
-- Optional `worker_client:` in the experiment's `clabe.yml`: `token`, `timeout`, `lease_ttl`, ….
+- The experiment's `clabe.yml` can set an optional `worker_client:` section (`token`, `timeout`, `lease_ttl`, and
+  more).
 
 ## 3. Run an app there
 
@@ -66,18 +68,20 @@ results = await concurrently(
 )
 ```
 
-- The first command **leases** the machine: other runs get `423` until this run ends.
-- Paths inside the local repository (also in `-p:Name=<path>`) are rewritten to the remote one. Other paths are sent as is.
-- Files in [`Command.inputs`][clabe.apps.Command] (rig, session, task JSON) are copied there and deleted when the command exits.
-- Output streams live into the run's UI; aborting the run stops the command there.
+- The first command leases the machine. Other runs get `423` until this run ends.
+- Paths inside the local repository (also in `-p:Name=<path>`) are rewritten to the remote repository. Other paths
+  are sent unchanged.
+- Files in [`Command.inputs`][clabe.apps.Command] (rig, session, task JSON) are copied to the other PC and deleted
+  when the command exits.
+- The command's output streams live into the run's UI. Aborting the run stops the command on the other PC.
 - `run.json` records each machine (`workers`) and each command it ran.
-- The launcher must pass the app's validation (e.g. `.bonsai/`), or pass `skip_validation=True` to the app.
+- The launcher PC must pass the app's validation (e.g. `.bonsai/`). Otherwise, pass `skip_validation=True` to the app.
 
 To run a command without an app, use the [`WorkerClient`][clabe.remote.WorkerClient]:
 
 ```python
-result = remote.client.run_command(["python", "--version"])  # waits
-job = remote.client.submit_command(["python", "slow.py"])  # poll with get_result(job.job_id)
+result = remote.client.run_command(["python", "--version"])  # waits for the result
+job = remote.client.submit_command(["python", "slow.py"])  # returns at once; poll with get_result(job.job_id)
 remote.client.upload_model(session, "session.json")  # up to max_file_size
 ```
 
@@ -93,9 +97,10 @@ remote.register_session(session, r"D:\data")  # creates D:\data\<session name> o
 | `remote.session_directory_unc` | `\\rig-b\data\<session>` | The **launcher**: watchdog, data mappers. |
 | `remote.data_directory` | `D:\data` | The root, as that PC sees it. |
 
-- These are `PureWindowsPath`s; wrap in `Path(...)` where needed.
-- `remote.to_unc(path)` translates any path; `clabe.remote.to_unc(path, data_roots, host=...)` works without a daemon.
-- Run heavy processing on the PC that has the data (`executor=remote`), not over the share.
+- These are `PureWindowsPath`s. Wrap them in `Path(...)` where needed.
+- `remote.to_unc(path)` translates any path. `clabe.remote.to_unc(path, data_roots, host=...)` does the same without
+  a daemon.
+- Run heavy processing on the PC that holds the data (`executor=remote`) instead of over the share.
 
 ## 5. Upload both machines' data
 
@@ -108,14 +113,15 @@ watchdog = WatchdogDataTransferService(
 watchdog.transfer()
 ```
 
-- One manifest covers both; modality folders with the same name are merged.
-- Every source must be reachable, or `transfer()` fails and lists them all.
-- The watchdog copies later, as its own account: that account needs the share, and the PC must be on.
+- One manifest covers both machines. Modality folders with the same name are merged.
+- Every source must be reachable. Otherwise `transfer()` fails and lists the unreachable sources.
+- The watchdog copies the data later, under its own account. That account needs access to the share, and the PC must
+  be on.
 - To upload the other PC's modalities as a separate job, see [Uploading data with the watchdog](data_transfer.md).
 
 ## 6. Recover after a crash
 
-Remote jobs keep running if the launcher dies. Reattach with the crashed run's id (from its `run.json`) within
+Remote jobs keep running if the launcher crashes. Reattach with the crashed run's id (from its `run.json`) within
 `lease_grace`:
 
 ```python

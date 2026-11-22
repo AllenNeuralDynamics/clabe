@@ -1,6 +1,6 @@
 # Runnables
 
-Decorate an operation with [`runnable`][clabe.runnable.runnable] to get, without extra code:
+Decorate an operation with [`runnable`][clabe.runnable.runnable] to get:
 
 - a spinner while it runs,
 - start / finish / failure notifications and log lines,
@@ -41,11 +41,11 @@ class MyApp:
 def transfer(self) -> None: ...
 
 
-@runnable(notify_start=False, notify_success=False)  # only speak up on failure
+@runnable(notify_start=False, notify_success=False)  # notify only on failure
 def check(self) -> bool: ...
 ```
 
-`--verbose` / `--quiet` choose which notifications reach the screen; all are logged.
+`--verbose` and `--quiet` choose which notifications reach the screen. All notifications are logged.
 
 ## Overriding at the call site
 
@@ -54,13 +54,14 @@ runnable(monitor.run, notify_start=False, notify_success=False)()  # quiet unles
 runnable(monitor.run, name="Disk check")()  # rename for one call
 ```
 
-Rewrapping merges the flags; you never get two spinners.
+Wrapping a runnable again merges the flags, and it still shows a single spinner.
 
 ## Nesting
 
-- A runnable called directly (call or `await`) by another folds in: only the outermost shows a spinner and notifies.
-  Inner ones still log.
-- Tasks from `asyncio.gather` / `asyncio.create_task` are independent: each gets its own spinner and notifications.
+- When a runnable calls or awaits another runnable directly, only the outermost one shows a spinner and sends
+  notifications. The inner ones still log.
+- Tasks started with `asyncio.gather` or `asyncio.create_task` are independent. Each one gets its own spinner and
+  notifications.
 
 ```python
 @runnable(name="Experiment")
@@ -73,12 +74,12 @@ async def run_experiment(self) -> None:
 
 ## Telling the user
 
-- **Failure:** raise an exception whose message says what went wrong; it becomes `"<name> failed: <message>"`.
-- **Anything else worth knowing:** call [`notify`][clabe.ui.notify].
-- Don't do both for the same event, or the user sees it twice.
+- On failure, raise an exception whose message says what went wrong. The user sees `"<name> failed: <message>"`.
+- For any other information the user needs, call [`notify`][clabe.ui.notify].
+- Do not do both for the same event, or the user sees it twice.
 
 ```python
-raise RuntimeError(f"Need 10 GB free on {drive}")  # not "constraints failed"
+raise RuntimeError(f"Need 10 GB free on {drive}")  # a specific message, instead of "constraints failed"
 ```
 
 ```python
@@ -89,6 +90,6 @@ notify("Found a single rig config; using it.", MessageLevel.WARNING)
 
 ## Inheritance
 
-- Inherited, not overridden: still wrapped.
-- Overridden: plain again; re-apply `@runnable` (or call `super()`).
-- Abstract methods: decorate the concrete implementation.
+- A subclass that inherits the method without overriding it keeps the wrapper.
+- An override is not wrapped. Re-apply `@runnable` to it, or call `super()`.
+- For an abstract method, decorate the concrete implementation.

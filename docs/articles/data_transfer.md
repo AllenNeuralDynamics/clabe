@@ -9,7 +9,8 @@
 
 ## Upload groups
 
-Split a session into jobs that land in the **same asset**, so slow modalities (e.g. videos) don't hold back the rest.
+Split a session into several jobs that upload to the same asset, so slow modalities (e.g. videos) do not delay the
+others.
 
 ```yaml
 watchdog:
@@ -61,9 +62,9 @@ transfer_service.transfer()
 - Each group is its own manifest: `manifest_<session>.yaml` for the record group, `manifest_<session>__<name>.yaml`
   for the others.
 - Non-record groups append to the record, so their job types must support appending.
-- A modality no group claims is an error; a group that finds none of its modalities is skipped with a warning.
-- The record group goes first: an appending group with `schedule_time: null` while the record is scheduled later is
-  refused; an earlier time of day only warns.
+- A modality that no group claims is an error. A group that finds none of its modalities is skipped with a warning.
+- The record group must be submitted first. An appending group with `schedule_time: null` is refused when the record
+  group is scheduled later. An appending group scheduled at an earlier time of day only logs a warning.
 
 Preview the manifests without writing them:
 
@@ -106,5 +107,5 @@ transfer_service = WatchdogDataTransferService(
 ```
 
 - The data crosses the launcher's network, so schedule large modalities at night.
-- The watchdog's account needs read access to the share (write, if it deletes sources). Prefer a data-folder share
-  over `D$`.
+- The watchdog's account needs read access to the share, and write access if it deletes sources. Share a data folder
+  rather than using `D$`.

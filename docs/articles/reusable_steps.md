@@ -1,6 +1,7 @@
 # Reusable steps and checks
 
-Write a step or check once, in a package every experiment repository imports, and declare it in one line.
+Write a step or check once in a package that every experiment repository imports. Each experiment then declares it
+in one line.
 
 ## 1. Use the built-in steps { #built-in-steps }
 
@@ -25,8 +26,8 @@ Options passed to `wf.step(...)` override the defaults.
 
 ## 2. Write a reusable step
 
-An outer function takes settings; the inner one is the step, with defaults from
-[`step_defaults`][clabe.workflow.step_defaults]:
+An outer function takes the settings. The inner function is the step, and
+[`step_defaults`][clabe.workflow.step_defaults] sets its default options:
 
 ```python
 # my_lab/steps.py
@@ -53,13 +54,14 @@ wf.step(lab_steps.calibrate_valves(), name="recalibrate", title="Calibrate again
 
 - The inner function's name is the step's name.
 - Use the usual input names (`session`, `rig`, `launcher`), annotated.
-- Fail by raising an actionable message.
-- Test as a function: `calibrate_valves()(rig=fake_rig, launcher=MagicMock())`.
-- Options: see [step options](workflows.md#step-options).
+- To fail, raise an exception whose message tells the user what to do.
+- Test it as a plain function: `calibrate_valves()(rig=fake_rig, launcher=MagicMock())`.
+- For the available options, see [step options](workflows.md#step-options).
 
 ## 3. Write a check { #checks }
 
-A check returns nothing and raises when something is wrong; it takes what it needs by name.
+A check returns nothing and raises an exception when its condition is not met. It takes its inputs by name, as a
+step does.
 
 | Check | Takes | Fails when |
 |---|---|---|
@@ -99,13 +101,14 @@ wf.step(steps.preflight(*lab_checks.RIG_READY, lab_checks.camera_count(2)))
 - No Bonsai in C:\bonsai: run ./scripts/deploy.ps1 on this rig.
 ```
 
-- Every check runs; Retry reruns them all. Several `preflight` steps need distinct `name=`s.
+- Every check runs, and Retry runs them all again.
+- If a workflow has several `preflight` steps, give each one a distinct `name=`.
 - Outside a workflow: `checks.run(*lab_checks.RIG_READY, rig=rig)` raises
   [`ChecksFailed`][clabe.checks.ChecksFailed].
 
 ## From the resource monitor
 
-`clabe.resource_monitor` is deprecated:
+`clabe.resource_monitor` is deprecated. Replace it as follows:
 
 | Before | Now |
 |---|---|
@@ -115,4 +118,5 @@ wf.step(steps.preflight(*lab_checks.RIG_READY, lab_checks.camera_count(2)))
 | `Constraint(name, predicate, fail_msg_handler=...)` | `checks.that(predicate, message)`, or a function that raises |
 | `ResourceMonitor([...]).run()` | `wf.step(steps.preflight(...))`, or `checks.run(..., rig=rig)` |
 
-Unlike the monitor, every check runs, and free space is measured where the data goes, not at the drive root.
+Unlike the resource monitor, `steps.preflight` and `checks.run` run every check. They also measure free space where
+the data goes, instead of at the drive root.

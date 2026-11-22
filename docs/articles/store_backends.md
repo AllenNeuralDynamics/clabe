@@ -40,7 +40,7 @@ store = store.scoped(subject="789012")  # narrows every backend
 
 ## LocalFileStore
 
-A directory of JSON files. Writes overwrite and create missing folders.
+A directory of JSON files. Writes overwrite existing files and create missing folders.
 
 ```python
 from clabe.stores import Kind, LocalFileStore
@@ -99,7 +99,8 @@ store.list(MANIPULATOR)  # [] (no subject in scope)
 store.scoped(subject="123").list(MANIPULATOR)  # [ManipulatorPosition(x=0, y=0, z=0)]
 ```
 
-- A record written under a scope is only visible to reads with that scope; an unscoped record is visible everywhere.
+- A record written under a scope is only visible to reads with that scope. An unscoped record is visible to every
+  read.
 
 ## DataverseStore
 
@@ -121,8 +122,10 @@ store.write(SUGGESTION, next_trainer_state)
 ```
 
 - `subject` and `task_name` must be in scope.
-- `history=1` (default) uses the latest suggestion without asking; higher offers a pick list.
-- Credentials: `tenant_id`, `client_id` and `org` from the `dataverse` section of `clabe.yml`; username and password from KeePass (entry `svc_sipe`).
+- With `history=1` (the default), the store uses the latest suggestion without asking. A higher value offers a pick
+  list.
+- `tenant_id`, `client_id` and `org` come from the `dataverse` section of `clabe.yml`. The username and password come
+  from KeePass (entry `svc_sipe`).
 
 ```yaml
 dataverse:
@@ -147,8 +150,9 @@ rig = store.scoped(subject="789907").resolve(RIG)  # with the subject's override
 store.scoped(subject="789907").write(RIG, rig)
 ```
 
-- Never prompts: ficus returns one merged document. Offline, confierge serves its cached copy.
-- One store = one namespace, whatever the kind. Route several namespaces with `CompositeStore`.
+- It never prompts, because ficus returns one merged document. When ficus is unreachable, confierge serves its
+  cached copy.
+- Each store serves one namespace for every kind. To use several namespaces, route them with `CompositeStore`.
 - Records must serialize to a JSON object.
 
 Settings (`confierge` section of `clabe.yml`):

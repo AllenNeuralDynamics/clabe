@@ -9,7 +9,7 @@ An `@experiment` function still works: it runs as a workflow of one step.
 
 ## 2. Replace the frontend calls
 
-Ask through `clabe.ui`; answers come back validated and typed. See [Frontends](frontends.md).
+Ask through `clabe.ui`. Answers come back validated and typed. See [Frontends](frontends.md).
 
 | Before | Now |
 | --- | --- |
@@ -97,7 +97,7 @@ async def acquire(rig: AindVrForagingRig, session: Session, trainer_state: Train
 
 - `from_computer_name`, `ensure_running`, `verify`, `register_session`, `write_file`, `session_directory_unc` and
   `executor=remote` work as before.
-- New: a run leases the remote PC, and aborting stops its commands. See [Run on two PCs](remote_execution.md).
+- New: a run leases the remote PC, and aborting the run stops its commands there. See [Run on two PCs](remote_execution.md).
 
 ## 5. Update the command line
 
@@ -109,5 +109,5 @@ async def acquire(rig: AindVrForagingRig, session: Session, trainer_state: Train
 
 ## 6. Records
 
-Nothing to do: `events.jsonl`, `outputs.jsonl`, `artifacts/` and `run.json` sit next to `launcher.log`. The
-`clabe.transcript` logger is gone; use `events.jsonl`. See [Run records](records.md).
+No changes are needed. `events.jsonl`, `outputs.jsonl`, `artifacts/` and `run.json` are written next to
+`launcher.log`. The `clabe.transcript` logger is removed. Use `events.jsonl` instead. See [Run records](records.md).

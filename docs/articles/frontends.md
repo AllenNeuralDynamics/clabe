@@ -1,7 +1,7 @@
 # Talking to the user
 
-Ask questions and show messages with `clabe.ui`; the same call works in the console, the TUI, the web UI and agents.
-For the ideas behind it, see [Prompts and clients](../concepts/index.md#prompts-and-clients).
+Ask questions and show messages with `clabe.ui`. The same call works with the console, the TUI, the web UI and
+agents. For how prompts reach clients, see [Prompts and clients](../concepts/index.md#prompts-and-clients).
 
 ## Asking
 
@@ -16,10 +16,11 @@ if ui.confirm("Start the session?", default=True):
     mode = ui.field(SessionConfig, "recording_mode")  # one field, with its type and constraints
 ```
 
-- Answers come back validated and typed; `SecretStr` fields are masked in the records.
+- Answers come back validated and typed.
+- `SecretStr` fields are masked in the records.
 - Each helper wraps `ui.ask(request)` (`ui.TextRequest`, `ui.PickRequest`, ...).
-- Also: `ui.text`, `ui.autocomplete`, `ui.path`, `ui.table`, `ui.acknowledge`, `ui.header`.
-- A prompt answered before (you went back) is prefilled with that answer; **Forward** re-submits it.
+- Other helpers: `ui.text`, `ui.autocomplete`, `ui.path`, `ui.table`, `ui.acknowledge`, `ui.header`.
+- After you go back, a prompt you answered before is prefilled with that answer. **Forward** re-submits it.
 
 ### Options from a function
 
@@ -27,8 +28,8 @@ if ui.confirm("Start the session?", default=True):
 subject = ui.autocomplete("Animal", options=lambda typed: subjects_service.search(typed))  # list[str]
 ```
 
-- Called as the user types (debounced), by the run itself: the browser never calls your service.
-- `strict=True` accepts a value only if the function returns it.
+- The run calls the function as the user types (debounced). The browser never calls your service.
+- With `strict=True`, only a value the function returns is accepted.
 
 ### Several prompts as one
 
@@ -41,7 +42,7 @@ tuning = ui.group(
 tuning["gain"]  # a float in [0, 1]
 ```
 
-Items: text, number, confirm, pick, autocomplete, path or field requests.
+Each item is a text, number, confirm, pick, autocomplete, path or field request.
 
 ### Showing documents, images and pages
 
@@ -53,7 +54,7 @@ ui.url("https://grafana.example.org/d/rig-3", title="Rig dashboard")
 ```
 
 - Each waits until the user continues.
-- Only the web UI shows images, HTML and URLs; the TUI and console log a warning naming them.
+- Only the web UI shows images, HTML and URLs. The TUI and the console log a warning that names them.
 
 ### When nothing can ask
 
@@ -62,7 +63,7 @@ ui.url("https://grafana.example.org/d/rig-3", title="Rig dashboard")
 - In tests: `with ui.bind(ClientSession(fake_client)):`.
 
 - When going back, aborting or another client cancels the prompt, `ui.ask` raises
-  [`PromptCancelledError`][clabe.ui.PromptCancelledError]: return or raise, don't ask again.
+  [`PromptCancelledError`][clabe.ui.PromptCancelledError]. The step should then return or raise, and not ask again.
 
 ## Clients
 
@@ -81,12 +82,12 @@ clabe run my_experiment.py --frontend headless  # no local screen: answer from t
 | Web UI | — | Served by the run; see [below](#serving-a-run-over-http) |
 | Agents | — | MCP and AG-UI; see [Agents](agents.md) |
 
-- Every prompt shows on every client; the first valid answer wins.
+- Every prompt shows on every client. The run accepts the first valid answer.
 - In code: `ui.make_client("auto" | "tui" | "console" | "headless")`, or `Launcher(client=...)`.
 
 ### Shortcuts
 
-The same keys in the browser and the terminal UI (letters and digits only outside text fields). In the browser,
+The browser and the terminal UI use the same keys. Letters and digits work only outside text fields. In the browser,
 every action is also in the menu bar (Run, View, Session, Help), with its shortcut.
 
 | Key | Action |
@@ -106,7 +107,7 @@ every action is also in the menu bar (Run, View, Session, Help), with its shortc
 
 ### Writing a client
 
-Implement the [`Client`][clabe.ui.Client] protocol; it never validates:
+Implement the [`Client`][clabe.ui.Client] protocol. A client does not validate answers; the run does.
 
 ```python
 class MyClient:
@@ -120,9 +121,10 @@ class MyClient:
 ## The end of a run
 
 When the run ends, every client shows a closing screen: outcome, duration, the session folder, **Close session**,
-**Export logs** and **Report an issue**. The first client to close wins (Enter in the terminal, the button in the
-browser); the run server stays up until then. Then each browser tab closes itself after 5 s (**Keep it open** stops
-it); a tab you opened by hand rather than through a link from clabe may not be allowed to close, and says so.
+**Export logs** and **Report an issue**. The session closes when the first client closes it (Enter in the terminal,
+the button in the browser), and the run server stays up until then. Each browser tab then closes itself after 5 s,
+unless you click **Keep it open**. The browser may not allow a tab you opened by hand (not through a link from clabe)
+to close itself. In that case the tab says so.
 
 ```python
 wf = Workflow("vr-foraging", exit_prompt_timeout=60)  # or @experiment(..., exit_prompt_timeout=60)
@@ -134,14 +136,14 @@ wf = Workflow("vr-foraging", exit_prompt_timeout=60)  # or @experiment(..., exit
 | `0` | Exit at once |
 | `N` | Count down `N` seconds (shown in every client), then exit |
 
-- A headless served run (started by the daemon) waits up to `N` seconds for a browser to close it; with `None` or
-  `0` it exits at once.
+- A headless served run (started by the daemon) waits up to `N` seconds for a browser to close it. With `None` or
+  `0`, it exits at once.
 
 ## Export logs and report an issue
 
 - **Export logs** downloads one zip of the run so far: `run.json`, `events.jsonl`, `outputs.jsonl`,
   `launcher.log`, the daemon log's tail and `rig.json`.
-- **Report an issue** saves the same zip with your comment and the session's details on the rig; the
+- **Report an issue** saves the same zip on the rig, with your comment and the session's details. The
   [hub](hub.md#issue-reports) collects it, then deletes it from the rig.
 
 ## Serving a run over HTTP
@@ -152,13 +154,15 @@ clabe run my_experiment.py --no-serve        # local client only
 clabe run my_experiment.py --host 0.0.0.0 --token "$CLABE_TOKEN" --open-browser
 ```
 
-- Binds localhost by default; for remote access use `ssh -L 8090:localhost:8090 <rig-host>` or bind `0.0.0.0` with
-  a token.
-- `--token` (or `$CLABE_TOKEN`) requires `Authorization: Bearer <token>` (or `?token=`); the printed URL carries it.
-- In a browser, the page asks for the token (**Sign in**) and keeps it in a cookie for 30 days; a link with
-  `?token=` signs in and is replaced by the same address without it. The same holds for the daemon and the hub.
-- The root page is the web UI: steps on the left (click one to go back), the prompt in the middle, the session and
-  messages on the right; light and dark themes; works on a phone.
+- The server binds localhost by default. For remote access, use `ssh -L 8090:localhost:8090 <rig-host>` or bind
+  `0.0.0.0` with a token.
+- `--token` (or `$CLABE_TOKEN`) requires `Authorization: Bearer <token>` (or `?token=`). The printed URL includes
+  the token.
+- In a browser, the page asks for the token (**Sign in**) and keeps it in a cookie for 30 days. A link with
+  `?token=` signs in, and the address is then replaced by the same one without the token. The daemon and the hub
+  work the same way.
+- The root page is the web UI. It shows the steps on the left (click one to go back), the prompt in the middle, and
+  the session and messages on the right. It has light and dark themes and works on a phone.
 - [`RunClient`][clabe.server.RunClient] is a Python client of the API.
 
 | Endpoint | Does |

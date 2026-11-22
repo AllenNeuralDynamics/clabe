@@ -1,6 +1,6 @@
 # The clabe daemon
 
-The daemon runs on every rig PC: it lists the machine's experiments, starts them, and serves the run at one address.
+The daemon runs on every rig PC. It lists the PC's experiments, starts them, and serves the current run at one address.
 
 | URL | Shows |
 |---|---|
@@ -13,22 +13,22 @@ To install it on a rig, use the one-line installer: [Deploy a rig](deployment.md
 ## Repositories
 
 A repository's workflows are those declared (or imported) in its top-level `main.py`. The daemon finds repositories
-by itself:
+on its own:
 
-- Every folder right under a **root** (default `C:/git`) with a `main.py` and a `pyproject.toml` depending on
+- Every folder directly under a **root** (default `C:/git`) that has a `main.py` and a `pyproject.toml` depending on
   `aind-clabe`.
-- Plus any listed under `repositories`, wherever they are.
-- A repository's name is its folder's name; the first one is the worker's default.
+- Any repository listed under `repositories`, in any location.
+- A repository's name is its folder's name. The first one found is the worker's default.
 
 ## Configure
 
-Only environment variables of the rig's user (never `clabe.yml`); nothing is required. Lists are `a;b` or JSON.
-Restart the daemon after changing them.
+The daemon reads only environment variables of the rig's user, never `clabe.yml`. None are required. Lists are
+written as `a;b` or as JSON. Restart the daemon after changing them.
 
 ```bat
-setx DAEMON_CLABE_TOKEN "..."                                  :: optional; the installer's -Token does this
-setx DAEMON_CLABE_REPOSITORY_ROOTS "C:/git;D:/experiments"     :: where to look (default: C:/git)
-setx DAEMON_CLABE_OTEL_ENDPOINT "collector:4317"               :: send its logs there (service clabe-daemon)
+setx DAEMON_CLABE_TOKEN "..."                                  :: optional; the installer's -Token sets it
+setx DAEMON_CLABE_REPOSITORY_ROOTS "C:/git;D:/experiments"     :: folders to search (default: C:/git)
+setx DAEMON_CLABE_OTEL_ENDPOINT "collector:4317"               :: where to send its logs (service clabe-daemon)
 ```
 
 | Variable | Default | What it does |
@@ -59,40 +59,43 @@ setx DAEMON_CLABE_OTEL_ENDPOINT "collector:4317"               :: send its logs 
 | `clabe daemon upgrade` | Upgrade the uv tool install; restart afterwards |
 | `clabe daemon uninstall` | Stop it and remove the task |
 
-- It runs as the logged-on user (not a service), so experiments can open windows.
-- Logs: `%LOCALAPPDATA%\clabe\daemon.log`; also sent through OpenTelemetry when `DAEMON_CLABE_OTEL_ENDPOINT` is set.
-- After reinstalling or upgrading, `clabe daemon restart` to pick up the new version.
+- It runs as the logged-on user (not as a service), so experiments can open windows.
+- Logs go to `%LOCALAPPDATA%\clabe\daemon.log`. They are also sent through OpenTelemetry when
+  `DAEMON_CLABE_OTEL_ENDPOINT` is set.
+- After reinstalling or upgrading, run `clabe daemon restart` to load the new version.
 
 ## Starting a run
 
-From the page, or `POST /api/daemon/runs`, the daemon runs in the repository:
+When a run is started from the page or with `POST /api/daemon/runs`, the daemon runs this in the repository:
 
 ```bash
 uv run --directory <repository> clabe run main.py --experiment-name <name> --frontend headless --serve ...
 ```
 
-- Each repository's own locked environment (and clabe version) is used.
+- The run uses the repository's own locked environment (and its clabe version).
 - Prompts are answered in the web UI.
-- One run at a time: another start returns `409`.
+- Only one run at a time: a second start returns `409`.
 
 ## Runs started from a terminal
 
-`clabe run` in a terminal (or from a [desktop shortcut](#desktop-shortcuts)) tells the PC's daemon about itself:
+A `clabe run` started in a terminal (or from a [desktop shortcut](#desktop-shortcuts)) registers itself with the PC's
+daemon:
 
-- The daemon serves it under `/run/` and reports the PC busy, so the hub follows it.
-- No daemon, or a busy one: the run goes on, just unseen. It never waits more than a second.
-- It can't be stopped from the daemon's page; abort it from the run.
+- The daemon serves it under `/run/` and reports the PC as busy, so the hub shows the run.
+- If there is no daemon, or the daemon is busy, the run continues but the daemon does not show it. Registering never
+  waits more than a second.
+- The daemon's page cannot stop it. Abort it from the run itself.
 
 ## Issue reports
 
 "Report an issue" saves a zip (`report.json` and the run's records) in `DAEMON_CLABE_REPORTS_DIRECTORY`.
 
-- The [hub](hub.md) collects it, then deletes it here; without a hub, it stays.
-- `GET /api/daemon/info` counts them (`reports_waiting`).
+- The [hub](hub.md) collects each report and then deletes it from the rig. Without a hub, reports stay on the rig.
+- `GET /api/daemon/info` returns how many are waiting (`reports_waiting`).
 
 ## Desktop shortcuts
 
-In a repository, put an icon on the desktop that runs one of its experiments in a terminal:
+To add a desktop icon that runs one of a repository's experiments in a terminal, run this in the repository:
 
 ```bash
 uv run clabe shortcut --experiment-name vr-foraging --name "VR Foraging"

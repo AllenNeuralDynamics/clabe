@@ -1,6 +1,7 @@
 # Logging
 
-clabe uses the standard `logging` module: log for the record, `notify()` for the user.
+clabe uses the standard `logging` module. Use the logger for the record, and `notify()` for messages the user
+should see.
 
 ```python
 import logging
@@ -11,9 +12,9 @@ logger.info("Starting transfer to %s", destination)
 logger.warning("Git repository is dirty: %s", changes)
 ```
 
-- Always use a named logger, never the root logger or `print()`.
-- Use `%`-style arguments, not f-strings: disabled levels then cost nothing.
-- Attach a traceback (file only) with `exc_info=True`:
+- Use a named logger. Do not use the root logger or `print()`.
+- Pass `%`-style arguments instead of f-strings, so messages at disabled levels are never formatted.
+- Add `exc_info=True` to attach a traceback (written to the file only):
 
 ```python
 try:
@@ -38,7 +39,7 @@ except OSError as e:
 | Sink | Level | Notes |
 | --- | --- | --- |
 | Console (`rich`) | `WARNING` | Follows the verbosity flags; muted while the TUI is open |
-| `launcher.log` | `INFO` (`DEBUG` with `--debug-mode`) | Everything, UTC timestamps |
+| `launcher.log` | `INFO` (`DEBUG` with `--debug-mode`) | All records, with UTC timestamps |
 | TUI "Logs" pane | `INFO`+ | Textual frontend only |
 
 ## Verbosity
@@ -72,10 +73,11 @@ logger.info("Starting robocopy transfer service.")  # the record
 notify("Transferring data…", MessageLevel.INFO)  # what the user sees
 ```
 
-- Levels: `INFO`, `SUCCESS`, `WARNING`, `ERROR`; the screen shows those at or above the verbosity threshold.
-- With nothing to show it (no run, no launcher), `notify()` logs the message instead, so library code can call it.
-- Every message, prompt and answer is recorded for you: in the run's `events.jsonl` (see [Run records](records.md)),
-  or at debug level in the log file outside a run.
+- Levels are `INFO`, `SUCCESS`, `WARNING` and `ERROR`. The screen shows messages at or above the verbosity threshold.
+- When there is no run or launcher to show the message, `notify()` logs it instead. Library code can therefore call
+  `notify()`.
+- clabe records every message, prompt and answer. Inside a run they go to the run's `events.jsonl` (see
+  [Run records](records.md)). Outside a run they go to the log file at debug level.
 
 ## Finding the log
 
