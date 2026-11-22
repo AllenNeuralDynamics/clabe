@@ -49,6 +49,14 @@ def test_check_cli_strict_fails_on_warnings(tmp_path, capsys):
     assert "warning" in capsys.readouterr().out
 
 
+def test_list_cli_does_not_read_its_path_from_the_path_variable(tmp_path, monkeypatch, capsys):
+    (tmp_path / "main.py").write_text("from clabe.workflow import Workflow\nwf = Workflow('listed')\n")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("PATH", "not-a-file")
+    CliApp.run(cli.CliAppSettings, cli_args=["list"])
+    assert "listed" in capsys.readouterr().out
+
+
 def test_check_cli_passes_on_the_examples(capsys):
     CliApp.run(cli.CliAppSettings, cli_args=["check", str(REPO_ROOT / "examples")])
     assert "0 issue(s)" in capsys.readouterr().out

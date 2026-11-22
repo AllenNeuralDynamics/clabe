@@ -5,6 +5,7 @@ from pathlib import Path
 from pydantic import Field
 from pydantic_settings import BaseSettings, CliApp, CliImplicitFlag, CliPositionalArg, CliSubCommand
 
+from ._cli_base import CliCommand
 from .agents._cli import McpCli
 from .cache import _CacheManagerCli
 from .daemon._cli import DaemonCli
@@ -76,7 +77,7 @@ class _ReplayCli(LauncherCliArgs):
         print(f"Replayed {client.replayed} answer(s); {client.remaining} recorded answer(s) left unused.")
 
 
-class _RepositoryStateCli(BaseSettings):
+class _RepositoryStateCli(CliCommand):
     """Print the current Git repository state as JSON."""
 
     path: CliPositionalArg[Path] = Field(description="Path to the Git repository to inspect")
@@ -87,7 +88,7 @@ class _RepositoryStateCli(BaseSettings):
         print(metadata.model_dump_json(indent=2))
 
 
-class _CheckCli(BaseSettings):
+class _CheckCli(CliCommand):
     """Statically check the workflows of an experiment file or directory without running them."""
 
     path: CliPositionalArg[Path] = Field(description="Experiment file, or a directory of experiment files")
@@ -107,7 +108,7 @@ class _CheckCli(BaseSettings):
             raise SystemExit(1)
 
 
-class _ListCli(BaseSettings):
+class _ListCli(CliCommand):
     """List the workflows of an experiment file or directory (as JSON with --json)."""
 
     path: CliPositionalArg[Path] = Field(
@@ -131,7 +132,7 @@ class _ListCli(BaseSettings):
             raise SystemExit(1)
 
 
-class _ShortcutCli(BaseSettings, cli_kebab_case=True):
+class _ShortcutCli(CliCommand, cli_kebab_case=True):
     """Put an icon on the desktop that runs an experiment of this repository (its main.py) in a terminal."""
 
     experiment_name: str | None = Field(default=None, description="The workflow to run, when main.py offers several")

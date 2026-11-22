@@ -10,6 +10,7 @@ from pathlib import Path
 from pydantic import Field
 from pydantic_settings import BaseSettings, CliApp, CliImplicitFlag, CliSubCommand
 
+from .._cli_base import CliCommand
 from . import _install
 from ._settings import DaemonSettings
 
@@ -95,7 +96,7 @@ class _RunDaemonCli(DaemonSettings, cli_kebab_case=True):
         uvicorn.run(app, host=host, port=self.port, log_level="warning", log_config=None)
 
 
-class _InstallCli(BaseSettings, cli_kebab_case=True):
+class _InstallCli(CliCommand, cli_kebab_case=True):
     """Start the daemon at logon (a Windows scheduled task that restarts it on failure), and now.
 
     Run it as the user the daemon should run as (an SSH session of that user works). Installing again replaces the
