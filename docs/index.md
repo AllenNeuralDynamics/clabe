@@ -81,6 +81,14 @@ async def acquire(launcher: Launcher, trials: float) -> dict:
 uv run clabe run                           # main.py: the TUI here, the web UI at the printed address
 ```
 
+## Try it
+
+From a checkout, with uv and Docker: a one-minute session in the terminal and the browser, followed by the hub.
+
+```powershell
+powershell -ExecutionPolicy ByPass -File scripts/demo.ps1
+```
+
 ## Install
 
 ```bash

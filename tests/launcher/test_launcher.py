@@ -106,6 +106,14 @@ def test_ensure_directory_structure(mock_session, mock_frontend, tmp_path: Path)
             mock_create_directory.assert_any_call(launcher.temp_dir)
 
 
+def test_a_second_session_in_an_existing_data_directory_gets_its_folder(mock_base_launcher, mock_session, tmp_path):
+    """The data directory exists from earlier sessions: the new session's own folder must still be created."""
+    (tmp_path / "data" / "an-earlier-session").mkdir(parents=True)
+    mock_base_launcher.repository.get_metadata.return_value.model_dump_json.return_value = "{}"
+    mock_base_launcher.register_session(mock_session, data_directory=tmp_path / "data")
+    assert mock_base_launcher.session_directory.is_dir()
+
+
 def test_register_session_saves_repository_state(mock_base_launcher, mock_session, tmp_path: Path):
     """Registering a session writes the repository snapshot with launcher output."""
     expected_json = '{"name":"test-repository"}'

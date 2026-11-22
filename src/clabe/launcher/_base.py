@@ -593,8 +593,8 @@ class Launcher:
         # Note: This function should be idempotent!!!
 
         try:
-            if self._data_directory is not None and not os.path.exists(self._data_directory):
-                # if _data_directory exists, session_directory is guaranteed to exist as well
+            # Each session has its own folder: the data directory existing (from earlier sessions) says nothing about it
+            if self._data_directory is not None and not os.path.exists(self.session_directory):
                 self.create_directory(self.session_directory)
 
             if not os.path.exists(self.temp_dir):
