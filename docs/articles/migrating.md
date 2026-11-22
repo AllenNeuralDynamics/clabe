@@ -126,7 +126,7 @@ The package was reorganized. AIND-specific modules are now under `clabe.aind`, a
 | Before | Now |
 | --- | --- |
 | `clabe serve file.py` | `clabe run file.py` (serves by default; `--no-serve` to turn off) |
-| the `web` extra | removed; the web UI ships in the package |
+| the `web` extra | the `frontend` extra: the terminal UI and the web UI (without it, console prompts only) |
 | — | `clabe list`, `clabe check`, `clabe replay`, `clabe daemon`, `clabe hub`, `clabe mcp` (`agents` extra) |
 
 ## 7. Records
