@@ -248,7 +248,7 @@ class Host:
             if (owner := self._leased_by()) is not None:
                 raise HostError(f"This machine is in use by {owner}.", status=423)
             self._runs_dir.mkdir(parents=True, exist_ok=True)
-            stamp = datetime.datetime.now().strftime("%Y%m%dT%H%M%S")
+            stamp = datetime.datetime.now(datetime.UTC).strftime("%Y%m%dT%H%M%SZ")
             log = self._runs_dir / f"{stamp}-{repository.display_name}.log"
             announce = self._runs_dir / f"{stamp}-{repository.display_name}.json"
             token = secrets.token_urlsafe(24)

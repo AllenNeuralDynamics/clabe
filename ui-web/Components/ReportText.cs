@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Rendering;
+using Microsoft.JSInterop;
 
 namespace Clabe.Web.Components;
 
@@ -72,15 +73,94 @@ public static class ReportSearch
     }
 }
 
-/// <summary>Times as the hub shows them: relative ("3 min ago"), and exact in the browser's time zone.</summary>
+/// <summary>
+/// Times as every page shows them: relative ("3 min ago"), or exact in the browser's local time (the default) or in
+/// UTC, as the user chose (remembered in the browser). Everything is stored and sent in UTC; only the display changes.
+/// </summary>
 public static class ReportTime
 {
-    /// <summary>The browser's offset from UTC (the app has no time zone data; the page sets it once).</summary>
-    public static TimeSpan Offset { get; set; }
+    private const string StorageKey = "clabe.time";
+    private static IJSInProcessRuntime? _js;
+    private static readonly Dictionary<long, TimeSpan> Offsets = [];
 
-    public static DateTimeOffset Local(DateTimeOffset time) => time.ToOffset(Offset);
+    /// <summary>Whether times are shown in UTC rather than local time.</summary>
+    public static bool Utc { get; private set; }
 
-    public static string Exact(DateTimeOffset time) => Local(time).ToString("yyyy-MM-dd HH:mm:ss");
+    /// <summary>Raised when the user switches between local time and UTC.</summary>
+    public static event Action? Changed;
+
+    /// <summary>Called once at startup: the app has no time zone data, so the browser converts (with daylight saving).</summary>
+    public static void Init(IJSInProcessRuntime js)
+    {
+        _js = js;
+        Utc = js.Invoke<string?>("localStorage.getItem", StorageKey) == "utc";
+    }
+
+    public static void SetUtc(bool utc)
+    {
+        Utc = utc;
+        _js?.InvokeVoid("localStorage.setItem", StorageKey, utc ? "utc" : "local");
+        Changed?.Invoke();
+    }
+
+    /// <summary>"UTC", or "local time".</summary>
+    public static string ZoneName => Utc ? "UTC" : "local time";
+
+    /// <summary>The browser's offset from UTC at that instant (cached per quarter hour).</summary>
+    private static TimeSpan OffsetAt(DateTimeOffset time)
+    {
+        if (_js is null)
+        {
+            return TimeSpan.Zero;
+        }
+        var ms = time.ToUnixTimeMilliseconds();
+        var key = Math.DivRem(ms, 900_000, out _);
+        if (!Offsets.TryGetValue(key, out var offset))
+        {
+            offset = TimeSpan.FromMinutes(_js.Invoke<int>("clabeTime.offset", (double)ms));
+            Offsets[key] = offset;
+        }
+        return offset;
+    }
+
+    /// <summary>The time as shown: in local time or in UTC.</summary>
+    public static DateTimeOffset Local(DateTimeOffset time) => Utc ? time.ToUniversalTime() : time.ToOffset(OffsetAt(time));
+
+    /// <summary>"14:03:27" (or "14:03:27.120").</summary>
+    public static string Clock(DateTimeOffset time, bool milliseconds = false) =>
+        Local(time).ToString(milliseconds ? "HH:mm:ss.fff" : "HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture);
+
+    /// <summary>"2026-11-22 14:03:27", with " UTC" when shown in UTC.</summary>
+    public static string Exact(DateTimeOffset time) =>
+        Local(time).ToString("yyyy-MM-dd HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture) + (Utc ? " UTC" : "");
+
+    /// <summary>A tooltip with the time in both zones.</summary>
+    public static string Both(DateTimeOffset time) =>
+        $"{time.ToOffset(OffsetAt(time)):yyyy-MM-dd HH:mm:ss.fff} local · {time.ToUniversalTime():yyyy-MM-dd HH:mm:ss.fff} UTC";
+
+    private static readonly System.Text.RegularExpressions.Regex Stamp = new(
+        @"^(\d{4}-\d{2}-\d{2})[T ](\d{2}):?(\d{2}):?(\d{2})(\.\d+)?(Z|[+-]\d{2}:?\d{2})",
+        System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    /// <summary>A log line whose leading timestamp carries a zone ("2026-11-23T003917Z - …") with that timestamp
+    /// shown as chosen ("2026-11-22 16:39:17 - …"); other lines unchanged.</summary>
+    public static string LogLine(string line)
+    {
+        var match = Stamp.Match(line);
+        if (!match.Success)
+        {
+            return line;
+        }
+        var g = match.Groups;
+        var zone = g[6].Value == "Z" ? "+00:00" : g[6].Value.Length == 5 ? g[6].Value.Insert(3, ":") : g[6].Value;
+        var iso = $"{g[1].Value}T{g[2].Value}:{g[3].Value}:{g[4].Value}{g[5].Value}{zone}";
+        if (!DateTimeOffset.TryParse(iso, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var time))
+        {
+            return line;
+        }
+        var shown = Local(time).ToString(g[5].Success ? "yyyy-MM-dd HH:mm:ss.fff" : "yyyy-MM-dd HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture);
+        return shown + (Utc ? "Z" : "") + line[match.Length..];
+    }
 
     public static string Ago(DateTimeOffset time)
     {

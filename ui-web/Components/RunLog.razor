@@ -12,7 +12,7 @@
         @foreach (var e in Shown)
         {
             <li class="log-row @Level(e)">
-                <time>@e.Ts.ToLocalTime().ToString("HH:mm:ss")</time>
+                <time title="@ReportTime.Both(e.Ts)">@ReportTime.Clock(e.Ts)</time>
                 <code class="log-type">@e.Type</code>
                 <span class="log-text">@Describe(e)</span>
             </li>
@@ -59,7 +59,7 @@
         "record_resolved" => $"{e.Kind} from {e.Label}",
         "run_started" => e.Workflow ?? "",
         "run_finished" => $"{e.Status} {e.Reason}",
-        "run_closing" => e.Deadline is { } deadline ? $"closes at {deadline.ToLocalTime():HH:mm:ss}" : "waits for Close session",
+        "run_closing" => e.Deadline is { } deadline ? $"closes at {ReportTime.Clock(deadline)}" : "waits for Close session",
         "run_closed" => $"by {e.ClosedBy}",
         _ => "",
     };

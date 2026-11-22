@@ -1,10 +1,5 @@
 // Browser helpers of the hub's report viewer and fleet pages.
 
-/** Minutes east of UTC of the browser's time zone (the app has no time zone data). */
-export function utcOffsetMinutes() {
-  return -new Date().getTimezoneOffset();
-}
-
 /** Scrolls `container` so that row `index` (each `rowHeight` px, after `top` px of header) is centered. */
 export function scrollToRow(container, index, rowHeight, top) {
   if (!container) return;

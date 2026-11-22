@@ -4,6 +4,8 @@ The hub is an optional fleet page: every rig's status, and every run waiting for
 
 - **Waiting for an answer**: runs waiting on a prompt, longest first, with a link to answer.
 - **Rigs**: each rig's status (idle, running, leased, offline), experiment and current step.
+- Times are stored in UTC everywhere (records, logs, reports); the pages show them in local time, or in UTC with
+  the clock toggle in the top bar (remembered by the browser; the run page has it under View ▸ Times).
 - Each rig is proxied under `/rigs/<id>/` (page, run, APIs), so the web UI, [`RunClient`][clabe.server.RunClient]
   and [agents](agents.md) work fleet-wide with one token.
 

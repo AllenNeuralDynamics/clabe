@@ -313,3 +313,13 @@ def test_a_run_started_from_a_terminal_is_followed_through_the_daemon(daemon):
         run.abort("test over")
         run.wait(5)
         server.stop()
+
+
+def test_the_daemon_log_is_in_utc():
+    import logging
+
+    from clabe.daemon._cli import _utc_formatter
+
+    record = logging.LogRecord("clabe", logging.INFO, __file__, 1, "hello", None, None)
+    record.created, record.msecs = 0.25, 250
+    assert _utc_formatter().format(record) == "1970-01-01T00:00:00.250Z INFO clabe: hello"

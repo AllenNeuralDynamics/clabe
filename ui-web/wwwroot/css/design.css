@@ -353,3 +353,12 @@ table.table tr.selected td { background: var(--accent-soft); }
     padding: var(--s3) var(--s4); background: var(--err-soft); color: var(--err); border-top: 1px solid var(--err);
 }
 #blazor-error-ui .dismiss { cursor: pointer; float: right; }
+
+/* The local time / UTC switch (top bars, log viewer) and the switchable "Time" column header */
+.time-toggle { white-space: nowrap; }
+.col-zone {
+  all: unset; cursor: pointer; font: inherit; color: inherit; letter-spacing: inherit; text-transform: inherit;
+  border-bottom: 1px dashed currentColor;
+}
+.col-zone:hover { color: var(--text); }
+.col-zone:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }

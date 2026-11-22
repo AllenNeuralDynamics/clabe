@@ -68,7 +68,7 @@
                 {
                     <li class="message @message.Level">
                         <span class="dot"></span>
-                        <time>@message.Ts.ToLocalTime().ToString("HH:mm:ss")</time>
+                        <time title="@ReportTime.Both(message.Ts)">@ReportTime.Clock(message.Ts)</time>
                         <p>@message.Message</p>
                     </li>
                 }

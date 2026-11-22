@@ -103,17 +103,6 @@
         _timer = new Timer(_ => InvokeAsync(async () => { await Refresh(); StateHasChanged(); }), null, 2000, 2000);
     }
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (firstRender)
-        {
-            var report = await JS.InvokeAsync<IJSObjectReference>("import", "./js/report.js");
-            ReportTime.Offset = TimeSpan.FromMinutes(await report.InvokeAsync<int>("utcOffsetMinutes"));
-            await report.DisposeAsync();
-            StateHasChanged();
-        }
-    }
-
     private async Task Refresh()
     {
         try

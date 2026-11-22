@@ -451,6 +451,11 @@
                         new MenuItem("Dark", Action: () => SetTheme("dark"), Icon: "moon", Checked: _theme == "dark"),
                         new MenuItem("System", Action: () => SetTheme("system"), Icon: "monitor", Checked: _theme == "system"),
                     ]),
+                    new MenuItem("Times", Icon: "clock", Children:
+                    [
+                        new MenuItem("Local time", Action: () => { ReportTime.SetUtc(false); return Task.CompletedTask; }, Icon: "clock", Checked: !ReportTime.Utc),
+                        new MenuItem("UTC", Action: () => { ReportTime.SetUtc(true); return Task.CompletedTask; }, Icon: "clock", Checked: ReportTime.Utc),
+                    ]),
                     new MenuItem("Full screen", "F11", FullScreen, Icon: "expand"),
                 ]),
                 new Menu("Session",

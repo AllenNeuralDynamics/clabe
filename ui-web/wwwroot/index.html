@@ -19,6 +19,8 @@
             var dark = t === "dark" || (t === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
             document.documentElement.dataset.theme = dark ? "dark" : "light";
         })();
+        // the browser's offset from UTC at an instant, in minutes (the app has no time zone data)
+        window.clabeTime = { offset: function (ms) { return -new Date(ms).getTimezoneOffset(); } };
     </script>
     <script type="importmap"></script>
 </head>

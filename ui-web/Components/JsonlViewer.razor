@@ -3,6 +3,7 @@
    pretty-printed. Virtualized: thousands of lines scroll smoothly. *@
 @using System.Globalization
 @using Microsoft.AspNetCore.Components.Web.Virtualization
+@implements IDisposable
 
 <div class="jx">
     <div class="jx-bar">
@@ -31,7 +32,10 @@
                 @switch (_mode)
                 {
                     case "events":
-                        <span role="columnheader">Time</span>
+                        <span role="columnheader">
+                            <button type="button" class="col-zone" @onclick="() => ReportTime.SetUtc(!ReportTime.Utc)"
+                                    title="Shown in @ReportTime.ZoneName (stored in UTC). Click to switch.">Time · @(ReportTime.Utc ? "UTC" : "local")</button>
+                        </span>
                         <span role="columnheader">Type</span>
                         <span role="columnheader">Step</span>
                         <span role="columnheader">Summary</span>
@@ -57,7 +61,7 @@
                         @switch (_mode)
                         {
                             case "events":
-                                <span role="cell" class="c-time" title="@row.Time">@ShortTime(row.Time)</span>
+                                <span role="cell" class="c-time" title="@TimeTitle(row.Time)">@ShortTime(row.Time)</span>
                                 <span role="cell"><span class="type-tag @TypeTone(row.Type)">@ReportSearch.Marked(row.Type ?? "", null, _query)</span></span>
                                 <span role="cell" class="c-step truncate">@ReportSearch.Marked(row.Step ?? "", null, _query)</span>
                                 <span role="cell" class="c-sum truncate">@ReportSearch.Marked(row.Summary, null, _query)</span>
@@ -242,10 +246,20 @@
         }
     }
 
-    private static string ShortTime(string? time) =>
+    private static DateTimeOffset? ParseTime(string? time) =>
         time is not null && DateTimeOffset.TryParse(time, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var parsed)
-            ? ReportTime.Local(parsed).ToString("HH:mm:ss.fff")
-            : time ?? "";
+            ? parsed
+            : null;
+
+    private static string ShortTime(string? time) => ParseTime(time) is { } t ? ReportTime.Clock(t, milliseconds: true) : time ?? "";
+
+    private static string? TimeTitle(string? time) => ParseTime(time) is { } t ? ReportTime.Both(t) : time;
+
+    protected override void OnInitialized() => ReportTime.Changed += Redraw;
+
+    private void Redraw() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => ReportTime.Changed -= Redraw;
 
     /// <summary>A tone for an event type: failures red, prompts accent, completions green.</summary>
     private static string TypeTone(string? type) => type switch

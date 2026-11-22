@@ -4,6 +4,7 @@ import logging
 import logging.handlers
 import os
 import sys
+import time
 from pathlib import Path
 
 from pydantic import Field
@@ -18,6 +19,15 @@ logger = logging.getLogger(__name__)
 def _token(settings: DaemonSettings) -> str | None:
     """The daemon's token (``DAEMON_CLABE_TOKEN``)."""
     return (settings.token.get_secret_value() if settings.token else None) or None
+
+
+def _utc_formatter() -> logging.Formatter:
+    """The daemon log's format, its times in UTC (``2026-11-23T00:39:17.867Z``), like the launcher's log."""
+    formatter = logging.Formatter(
+        "%(asctime)s.%(msecs)03dZ %(levelname)s %(name)s: %(message)s", datefmt="%Y-%m-%dT%H:%M:%S"
+    )
+    formatter.converter = time.gmtime
+    return formatter
 
 
 def _send_logs_to_otel(endpoint: str | None) -> None:
@@ -56,7 +66,7 @@ class _RunDaemonCli(DaemonSettings, cli_kebab_case=True):
         if self.log_file is not None:
             self.log_file.parent.mkdir(parents=True, exist_ok=True)
             handler = logging.handlers.RotatingFileHandler(self.log_file, maxBytes=5_000_000, backupCount=3)
-            handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+            handler.setFormatter(_utc_formatter())
             logging.getLogger().addHandler(handler)
             logging.getLogger().setLevel(logging.INFO)
         token = _token(self)

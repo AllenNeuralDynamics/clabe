@@ -170,6 +170,7 @@
     {
         var tab = System.Web.HttpUtility.ParseQueryString(new Uri(Navigation.Uri).Query)["tab"];
         _tab = tab == "reports" ? "reports" : "rigs";
+        ReportTime.Changed += TimeChanged;
         await Refresh();
         _timer = new Timer(_ => InvokeAsync(async () => { await Refresh(); StateHasChanged(); }), null, 2000, 2000);
     }
@@ -180,10 +181,7 @@
         {
             return;
         }
-        var report = await JS.InvokeAsync<IJSObjectReference>("import", "./js/report.js");
-        ReportTime.Offset = TimeSpan.FromMinutes(await report.InvokeAsync<int>("utcOffsetMinutes"));
-        await report.DisposeAsync();
-        _ui = await JS.InvokeAsync<IJSObjectReference>("import", "./js/ui.js");
+        _ui =await JS.InvokeAsync<IJSObjectReference>("import", "./js/ui.js");
         _self = DotNetObjectReference.Create(this);
         _shortcuts = await _ui.InvokeAsync<IJSObjectReference>("listenShortcuts", _self);
         StateHasChanged();
@@ -253,8 +251,11 @@
         }
     }
 
+    private void TimeChanged() => InvokeAsync(StateHasChanged);
+
     public async ValueTask DisposeAsync()
     {
+        ReportTime.Changed -= TimeChanged;
         _timer?.Dispose();
         try
         {
