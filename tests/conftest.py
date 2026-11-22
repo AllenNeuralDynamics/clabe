@@ -160,6 +160,16 @@ def mock_client():
 
 
 @pytest.fixture(autouse=True)
+def no_runnable_timing():
+    """A debug-mode launcher turns on timed notifications for the process; tests start without them."""
+    from clabe.runnable import set_include_timing
+
+    set_include_timing(False)
+    yield
+    set_include_timing(False)
+
+
+@pytest.fixture(autouse=True)
 def isolated_cache_manager(tmp_path, monkeypatch):
     """Isolate the CacheManager singleton from the real on-disk cache.
 

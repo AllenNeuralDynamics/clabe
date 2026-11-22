@@ -104,7 +104,7 @@ class ByAnimalModifier(abc.ABC, Generic[TRig]):
             raise
 
 
-def recursive_setattr(obj, attr, val):
+def recursive_setattr(obj: Any, attr: str, val: Any) -> None:
     """
     Sets an attribute value using a dot-separated path.
 
@@ -112,9 +112,6 @@ def recursive_setattr(obj, attr, val):
         obj: The object to modify
         attr: Dot-separated attribute path (e.g., "nested.field.value")
         val: The value to set
-
-    Returns:
-        The result of setattr on the final attribute
 
     Example:
         ```python
@@ -133,7 +130,7 @@ def recursive_setattr(obj, attr, val):
     return setattr(rgetattr(obj, pre) if pre else obj, post, val)
 
 
-def rgetattr(obj, attr, *args):
+def rgetattr(obj: Any, attr: str, *args: Any) -> Any:
     """
     Gets an attribute value using a dot-separated path.
 

@@ -228,6 +228,13 @@ class TestConsoleInteractive:
         request = PathRequest(label="Rig", start=str(tmp_path) + os.sep, kind="file", extensions=[".json"])
         assert terminal_client.ask(request) == pickme / "alpha.json"
 
+    def test_a_rejected_path_is_asked_again_from_what_was_typed(self, terminal_client, tmp_path, monkeypatch):
+        (tmp_path / "ab.json").write_text("{}")
+        keys = ("a", "b", ".", "j", "s", _keys.ENTER, "o", "n", _keys.ENTER)  # ab.js is rejected; "on" completes it
+        monkeypatch.setattr(_keys, "read_key", _keys_returning(*keys))
+        request = PathRequest(label="Rig", start=str(tmp_path) + os.sep, kind="file")
+        assert ClientSession(terminal_client).ask(request) == tmp_path / "ab.json"
+
     def test_path_empty_query_falls_back_to_default(self, terminal_client, monkeypatch):
         default = "x.json"
         keys = tuple([_keys.BACKSPACE] * len(default)) + (_keys.ENTER,)

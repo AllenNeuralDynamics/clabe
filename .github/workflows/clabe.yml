@@ -89,6 +89,22 @@ jobs:
           uv run --with playwright playwright install --with-deps chromium
           uv run --with playwright pytest tests/server tests/daemon tests/hub -p no:cacheprovider
 
+  docs:
+    name: Docs build (strict)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: astral-sh/setup-uv@v8.1.0
+        with:
+          enable-cache: true
+
+      - name: Build the docs, failing on any warning
+        run: |
+          uv sync --group docs
+          uv run docs/build.py
+          uv run mkdocs build --strict
+
   hub-image:
     name: Hub Docker image
     runs-on: ubuntu-latest

@@ -217,3 +217,20 @@ class TestCallSiteRewrap:
         assert runnable(free)(21) == 42
         assert calls == [21]
         assert frontend.levels() == [MessageLevel.INFO, MessageLevel.SUCCESS]
+
+
+def test_debug_timing_is_read_when_the_runnable_finishes(frontend, indicator):
+    from clabe.runnable import set_include_timing
+
+    @runnable(name="Timed")
+    def work() -> None:
+        pass
+
+    work()
+    set_include_timing(True)
+    try:
+        work()
+    finally:
+        set_include_timing(False)
+    finished = [message for level, message in frontend.messages if level is MessageLevel.SUCCESS]
+    assert finished[0] == "Timed finished" and finished[1].startswith("Timed finished in ")

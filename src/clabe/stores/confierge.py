@@ -17,14 +17,14 @@ logger = logging.getLogger(__name__)
 #: Scope keys absent from the mapping are not sent to ficus.
 ScopeMapping = Mapping[str, str]
 
-#: The scopes ficus is keyed on today. Extend it by passing ``{**DEFAULT_SCOPE_MAPPING, "rig": "rig_id"}``
-#: to :class:`ConfiergeStore`.
 DEFAULT_SCOPE_MAPPING: ScopeMapping = MappingProxyType(
     {
         "computer_name": "hostname",
         "subject": "subject_id",
     }
 )
+"""The scopes ficus is keyed on today. Extend it by passing ``{**DEFAULT_SCOPE_MAPPING, "rig": "rig_id"}`` to
+:class:`ConfiergeStore`."""
 
 
 class ConfiergeSettings(ServiceSettings):

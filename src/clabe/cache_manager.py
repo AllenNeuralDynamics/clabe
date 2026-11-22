@@ -33,11 +33,12 @@ class CachedSettings(BaseModel, Generic[T]):
         max_history: Maximum number of items to retain in cache
 
     Example:
-        >>> cache = CachedSettings[str](max_history=3)
-        >>> cache.add("first")
-        >>> cache.add("second")
-        >>> cache.get_all()
-        ['second', 'first']
+        ```python
+        cache = CachedSettings[str](max_history=3)
+        cache.add("first")
+        cache.add("second")
+        cache.get_all()  # ['second', 'first']
+        ```
     """
 
     values: list[T] = Field(default_factory=list)

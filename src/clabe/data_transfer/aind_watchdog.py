@@ -282,7 +282,6 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
             settings: Configuration for the watchdog service
             session: The session data from aind-behavior-services
             validate: Whether to validate the project name
-            session_name: Name of the session
             email_from_experimenter_builder: Function to build email from experimenter name. Defaults to
                 looking up the email via Active Directory, raising ``ValueError`` if it cannot be
                 determined.

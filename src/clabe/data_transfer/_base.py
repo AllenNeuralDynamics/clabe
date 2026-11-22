@@ -17,8 +17,7 @@ class DataTransfer(Service, abc.ABC, Generic[TSettings]):
     a consistent API for different transfer mechanisms such as file copying, cloud
     uploads, or network transfers.
 
-    Type Parameters:
-        TSettings: Type of the service settings
+    ``TSettings`` is the type of the service's settings.
 
     Properties:
         settings: The service settings

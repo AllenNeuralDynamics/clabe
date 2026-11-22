@@ -283,3 +283,14 @@ def test_ui_calls_in_a_step_reach_the_run():
     note = events_of(run, Notify)[0]
     assert (note.message, note.level) == ("hello", "warning")
     assert events_of(run, Header)[0].text == "Title"
+
+
+def test_secrets_inside_containers_are_found_for_masking():
+    from clabe.workflow._run import _contains_secret
+
+    class _Nested(BaseModel):
+        keys: list[SecretStr]
+
+    assert _contains_secret([SecretStr("a")]) and _contains_secret({"x": (1, SecretStr("b"))})
+    assert _contains_secret(_Nested(keys=[SecretStr("c")]))
+    assert not _contains_secret(["a", {"b": 1}]) and not _contains_secret(_Fields(trials=3))

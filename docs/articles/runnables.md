@@ -7,8 +7,8 @@ gives it, for free:
 - a live **activity spinner** while it runs (a no-op on non-interactive
   consoles),
 - structured **log lines** on start/finish/failure,
-- user-facing **notifications** to the active frontend, and
-- a seam for **OpenTelemetry** spans in the future.
+- user-facing **notifications** to whoever is asking (the run, or the launcher's client), and
+- an **OpenTelemetry** span (nested under the step's span inside a run).
 
 Instead of hand-writing `notify(...)` calls and start/finish logging inside each
 operation, decorate the method and let the shared lifecycle handle it.
@@ -16,7 +16,7 @@ operation, decorate the method and let the shared lifecycle handle it.
 ## Decorating a method
 
 ```python
-from clabe.runnable import ReportTier, runnable
+from clabe.runnable import runnable
 
 
 class ResourceMonitor(Service):
@@ -38,59 +38,39 @@ class _DefaultExecutorMixin:
         return self.command.execute(LocalExecutor(**(executor_kwargs or {})))
 ```
 
-## Reporting tiers
+## What it reports
 
-How much a runnable reports is set by a `ReportTier`. Higher tiers are strictly
-louder; each expands into the granular flags below.
+By default a runnable shows a spinner, notifies when it starts (`"<name>…"`), when it finishes and when it fails,
+and logs all three. Turn each off with a flag, or set the start message:
 
-| Tier | Spinner | Log | Notify on failure | Notify start/success |
-| --- | --- | --- | --- | --- |
-| `SILENT` | yes | debug | – | – |
-| `FAILURES` *(default)* | yes | info | yes | – |
-| `LIFECYCLE` | yes | info | yes | yes |
-| `VERBOSE` | yes | info | yes | yes (with timing) |
-
-Pin a tier (and an optional start message) on operations that always matter:
+| Flag | Default | Effect |
+| --- | --- | --- |
+| `show_activity` | `True` | Spinner (an activity) while it runs |
+| `notify_start` | `True` | `"<name>…"`, or the `notify=` message |
+| `notify_success` | `True` | `"<name> finished"` (with the elapsed time under `--debug-mode`) |
+| `notify_fail` | `True` | `"<name> failed: <exception>"` |
+| `notify` | — | Custom start message |
 
 ```python
-@runnable(name="Transfer (watchdog)", tier=ReportTier.LIFECYCLE, notify="Transferring data…")
+@runnable(name="Transfer (watchdog)", notify="Transferring data…")
 def transfer(self) -> None: ...
+
+
+@runnable(notify_start=False, notify_success=False)   # only speak up on failure
+def check(self) -> bool: ...
 ```
 
-The spinner is always suppressed automatically when the console is not an
-interactive terminal (e.g. piped output or CI).
-
-## Configuring the house style
-
-The global default is a [`RunnableSettings`][clabe.runnable.RunnableSettings],
-loaded like any other service settings from the `runnable` section of the known
-config files (or the environment):
-
-```yaml
-runnable:
-  tier: LIFECYCLE      # everything announces start/success by default
-  notify_success: false  # ...except keep success quiet
-```
-
-Resolution is most-specific-wins, per field:
-
-```text
-built-in tier defaults  ◁  RunnableSettings  ◁  @runnable(...) spec  ◁  call-site override
-```
-
-The launcher maps its verbosity flags onto the tier: `--debug-mode` → `VERBOSE`,
-`--verbose` → `LIFECYCLE`, `--quiet` → `SILENT`. With no flag the configured
-default is left untouched.
+Which notifications reach the screen is then the user's choice: the UI shows messages at or above its verbosity
+(`--verbose` shows everything, `--quiet` only errors); everything is logged and recorded regardless.
 
 ## Overriding at the call site
 
-`runnable` can also rewrap an existing callable to override its settings for one
-call — useful for an orchestrator bumping a step's verbosity without editing the
-adapter:
+`runnable` can also rewrap an existing callable to override its flags for one
+call — useful for a step quieting or renaming an app's run without editing the
+app:
 
 ```python
-runnable(monitor.run, tier=ReportTier.VERBOSE)()  # one verbose run
-runnable(monitor.run, tier=ReportTier.SILENT)()  # squelch one run
+runnable(monitor.run, notify_start=False, notify_success=False)()  # quiet unless it fails
 runnable(monitor.run, name="Disk check")()  # rename for one run
 ```
 
@@ -106,7 +86,7 @@ means an inner failure that the outer handles stays quiet, while a failure that
 propagates all the way out is announced exactly once.
 
 ```python
-@runnable(name="Transfer (robocopy)", tier=ReportTier.LIFECYCLE, notify="Transferring data…")
+@runnable(name="Transfer (robocopy)", notify="Transferring data…")
 def transfer(self) -> None:
     self.run()  # the mixin's run() is also a runnable, but folds in here
 ```

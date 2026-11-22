@@ -80,6 +80,7 @@ class LocalExecutor(Executor):
             cwd=self.cwd,
             env=self.env,
             text=True,
+            stdin=subprocess.DEVNULL,  # apps read no input; an inherited console/pipe could block their start-up
             capture_output=True,
             check=False,
             timeout=self.timeout,
@@ -167,6 +168,7 @@ class AsyncLocalExecutor(AsyncExecutor):
             *command.cmd,
             cwd=self.cwd,
             env=self.env,
+            stdin=asyncio.subprocess.DEVNULL,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
@@ -263,6 +265,7 @@ class LocalDetachedExecutor(Executor):
             command.cmd,
             cwd=self.cwd,
             env=self.env,
+            stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             shell=False,

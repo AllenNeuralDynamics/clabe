@@ -2,7 +2,7 @@ import logging
 import os
 import shutil
 from pathlib import Path
-from typing import Self
+from typing import Any, Self
 from urllib.parse import urlsplit, urlunsplit
 
 from git import Repo
@@ -18,7 +18,7 @@ _HAS_GIT = shutil.which("git") is not None
 def _strip_credentials(url: str) -> str:
     """``url`` without embedded credentials.
 
-    http(s) URLs lose their whole userinfo (a token is often passed as the user name); other URLs with a scheme
+    http(s) URLs (also ``git+http(s)``) lose their whole userinfo (a token is often passed as the user name); other URLs with a scheme
     (e.g. ``ssh://``) lose only a password. scp-like addresses (``git@host:org/repo``) and paths are unchanged.
     """
     try:
@@ -28,7 +28,7 @@ def _strip_credentials(url: str) -> str:
     if not parts.scheme or "@" not in parts.netloc:
         return url
     userinfo, _, host = parts.netloc.rpartition("@")
-    if parts.scheme.lower() in ("http", "https"):
+    if parts.scheme.lower().removeprefix("git+") in ("http", "https"):
         netloc = host
     elif ":" in userinfo:
         netloc = f"{userinfo.partition(':')[0]}@{host}"
@@ -80,7 +80,7 @@ class GitRepository(Repo):
         try_prompt_full_reset: Prompts the user to perform a full reset
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         """
         Initializes the GitRepository instance and validates the presence of Git.
 

@@ -178,6 +178,21 @@ def _jsonable(value: Any) -> Any:
 _SECRET_TYPES = (SecretStr, SecretBytes, Secret)
 
 
+def _contains_secret(value: Any, depth: int = 0) -> bool:
+    """Whether ``value`` is, or holds (in containers or model fields), a pydantic secret."""
+    if isinstance(value, _SECRET_TYPES):
+        return True
+    if depth > 8:
+        return False
+    if isinstance(value, dict):
+        return any(_contains_secret(v, depth + 1) for v in value.values())
+    if isinstance(value, list | tuple | set | frozenset):
+        return any(_contains_secret(v, depth + 1) for v in value)
+    if isinstance(value, BaseModel):
+        return any(_contains_secret(v, depth + 1) for v in value.__dict__.values())
+    return False
+
+
 def _raise_in_thread(thread_id: int, exc_type: type[BaseException]) -> None:
     """Raises ``exc_type`` asynchronously in thread ``thread_id`` (CPython only)."""
     ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_ulong(thread_id), ctypes.py_object(exc_type))
@@ -732,7 +747,7 @@ class Run:
             logger.debug("Answer %r to prompt %s broke its validator", value, prompt_id, exc_info=True)
             return Rejected(f"Invalid answer: {exc}")
         # The primitive answer is recorded (it replays the prompt), except a secret: then only its mask is.
-        recorded = _jsonable(result if isinstance(result, _SECRET_TYPES) else coerced)  # outside the lock: may be slow
+        recorded = _jsonable(result if _contains_secret(result) else coerced)  # outside the lock: may be slow
         with self._lock:
             if self._prompt is not prompt:
                 return Rejected("This prompt is no longer open.")

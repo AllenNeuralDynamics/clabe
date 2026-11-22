@@ -236,6 +236,7 @@ def test_relative_path_falls_back_to_absolute_across_drives(tmp_path: Path, monk
         ("https://user:token@github.com/org/repo.git", "https://github.com/org/repo.git"),
         ("https://ghp_token@github.com/org/repo.git", "https://github.com/org/repo.git"),
         ("http://user:pw@host:8080/repo", "http://host:8080/repo"),
+        ("git+https://ghp_token@github.com/org/repo.git", "git+https://github.com/org/repo.git"),
         ("ssh://git:secret@host/org/repo.git", "ssh://git@host/org/repo.git"),
         ("ssh://git@host/org/repo.git", "ssh://git@host/org/repo.git"),
         ("git@github.com:org/repo.git", "git@github.com:org/repo.git"),

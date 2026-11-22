@@ -161,6 +161,8 @@ class ConsoleClient:
 
             console = clabe_console
         self._console = console
+        # The last path submitted, by request: a rejected path is asked again starting from what was typed.
+        self._last_path: tuple[int, str] | None = None
         self._cancel = threading.Event()
 
     # --- Client -------------------------------------------------------------
@@ -359,7 +361,7 @@ class ConsoleClient:
         in). Enter submits the query text as-is; whoever drives the client
         validates it and asks again if it doesn't satisfy the request.
         """
-        query = str(request.start or request.default or "") or (str(Path.cwd()) + os.sep)
+        query = self._typed_before(request) or str(request.start or request.default or "") or (str(Path.cwd()) + os.sep)
         index = 0
         suggestions = self._path_completions(query, request)
 
@@ -391,6 +393,7 @@ class ConsoleClient:
         if not query and request.default is not None:
             query = request.default
         self._console.print(Text(f"{request.label} ", style="bold").append(query, style="cyan"))
+        self._last_path = (id(request), query)
         return Path(query) if query else None
 
     @staticmethod
@@ -453,7 +456,7 @@ class ConsoleClient:
                 self._console.print(
                     Text(f"Contents of {start}: ", style="dim").append(", ".join(entries), style="cyan")
                 )
-        default_text = str(request.start) if request.start else (request.default or "")
+        default_text = self._typed_before(request) or (str(request.start) if request.start else (request.default or ""))
         raw = Prompt.ask(
             Text(request.label, style="bold"),
             console=self._console,
@@ -461,7 +464,14 @@ class ConsoleClient:
             default=default_text,
             show_default=bool(default_text),
         )
+        self._last_path = (id(request), raw)
         return Path(raw) if raw else None
+
+    def _typed_before(self, request: PathRequest) -> str | None:
+        """What was submitted for ``request`` last time, when it is being asked again."""
+        if self._last_path is not None and self._last_path[0] == id(request):
+            return self._last_path[1] or None
+        return None
 
     @staticmethod
     def _filter(suggestions: list[str], query: str) -> list[str]:

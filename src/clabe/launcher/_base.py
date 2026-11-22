@@ -94,10 +94,10 @@ class Launcher:
             root_logger = logging.getLogger()
             _logger = clabe_logging.add_file_handler(root_logger, self.temp_dir / "launcher.log")
 
-        # Map verbosity flags to the console log level.
+        # Map verbosity flags to the console log level; debug mode also times every runnable's notification.
+        set_include_timing(settings.debug_mode)
         if settings.debug_mode:
             display_level = logging.DEBUG
-            set_include_timing(True)
         elif settings.verbose:
             display_level = logging.INFO
         elif settings.quiet:
