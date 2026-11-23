@@ -1,7 +1,6 @@
 """Branches of a step: run together, fail, retry and stop independently."""
 
 import asyncio
-import contextlib
 import sys
 import time
 from pathlib import Path
@@ -82,91 +81,6 @@ def test_continuing_without_a_branch_gives_none():
     run = _run(wf, MockClient({"pick": ["skip"]}))
     assert run.output("acquire") == {"behavior": "ok", "video": None}
     assert ("branch_ended", "video", 1, "skipped") in _branch_events(run)
-
-
-def _recorder(log: list[str], failures: int = 0):
-    """An `around`: records while the branches run; fails to start ``failures`` times."""
-    attempts = []
-
-    @contextlib.asynccontextmanager
-    async def recording():
-        attempts.append(1)
-        if len(attempts) <= failures:
-            raise RuntimeError("Open Ephys did not start")
-        log.append("start")
-        try:
-            yield
-        finally:
-            log.append("stop")
-
-    return recording
-
-
-def _two_apps(log: list[str], fail: bool = False) -> dict:
-    async def app(name: str):
-        log.append(f"{name} begins")
-        await asyncio.sleep(0.05)
-        if fail and name == "fip":
-            raise RuntimeError("fip crashed")
-        log.append(f"{name} ends")
-        return name
-
-    return {"behavior": lambda: app("behavior"), "fip": lambda: app("fip")}
-
-
-def test_around_starts_before_the_branches_and_stops_after_all_of_them():
-    log: list[str] = []
-    wf = Workflow("demo")
-
-    @wf.step
-    async def acquire() -> dict:
-        return await concurrently(**_two_apps(log), around=_recorder(log))
-
-    run = _run(wf, MockClient({}))
-    assert run.output("acquire") == {"behavior": "behavior", "fip": "fip"}
-    assert log[0] == "start" and log[-1] == "stop" and len(log) == 6
-    assert ("branch_ended", "recording", 1, "done") in _branch_events(run)
-
-
-def test_around_failing_to_start_can_be_retried_or_left_out():
-    log: list[str] = []
-    wf = Workflow("demo")
-
-    @wf.step
-    async def acquire() -> dict:
-        return await concurrently(**_two_apps(log), around=_recorder(log, failures=1))
-
-    client = MockClient({"pick": ["retry"]})
-    _run(wf, client)
-    assert "recording failed: Open Ephys did not start" in client.asked[0].label
-    assert log[0] == "start" and log[-1] == "stop"
-
-    log.clear()
-    run = _run(wf, MockClient({"pick": ["skip"]}))  # continue without: the apps run alone, no deadlock
-    assert run.output("acquire") == {"behavior": "behavior", "fip": "fip"}
-    assert "start" not in log and "stop" not in log
-    assert ("branch_ended", "recording", 1, "skipped") in _branch_events(run)
-
-
-def test_around_stops_when_the_branches_are_stopped():
-    log: list[str] = []
-    wf = Workflow("demo")
-
-    @wf.step
-    async def acquire() -> dict:
-        return await concurrently(**_two_apps(log, fail=True), around=_recorder(log))
-
-    run = _run(wf, MockClient({"pick": ["stop", "abort"]}))
-    assert run.status is RunStatus.FAILED
-    assert log[0] == "start" and log[-1] == "stop"
-    assert ("branch_ended", "recording", 1, "failed") in _branch_events(run)
-
-
-def test_outside_a_run_around_failing_to_start_raises():
-    log: list[str] = []
-    with pytest.raises(RuntimeError, match="did not start"):
-        asyncio.run(concurrently(**_two_apps(log), around=_recorder(log, failures=1)))
-    assert log == []
 
 
 def test_stopping_all_cancels_the_others_cleanly_and_fails_the_step():

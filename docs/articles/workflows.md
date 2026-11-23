@@ -126,8 +126,8 @@ async def acquire(rig: MyRig) -> dict[str, Any]:
 - A failed branch offers **Retry**, **Continue without** (result `None`) or **Stop all**.
 - A cancelled branch has 30 s to run its `finally` block.
 
-To record for as long as the branches run, pass `around=`: it starts before them and stops once they have all
-ended, also on failure, stop or abort.
+To record for as long as the branches run, wrap them in `async with`: the recording starts before them and stops
+once they have all ended, also on failure, stop or abort.
 
 ```python
 from contextlib import asynccontextmanager
@@ -146,12 +146,11 @@ async def recording():
 
 @wf.step(title="Acquire", cancellable=True)
 async def acquire(rig: MyRig) -> dict[str, Any]:
-    return await concurrently(behavior=lambda: bonsai_app.run_async(), around=recording)
+    async with recording():
+        return await concurrently(behavior=lambda: bonsai_app.run_async(), fip=lambda: fip_app.run_async())
 ```
 
-- If `recording` fails to start, the user picks **Retry**, **Continue without** (the branches run without it) or
-  **Stop all**.
-- No branch can be named `around`.
+- If the recording fails to start, the step fails: Retry / Go back / Abort.
 
 ## 7. Run it
 
