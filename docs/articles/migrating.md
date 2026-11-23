@@ -129,6 +129,8 @@ The package was reorganized. AIND-specific modules are now under `clabe.aind`, a
 | `clabe.resource_monitor` | `clabe.checks` and `steps.preflight` (see [Reusable steps and checks](reusable_steps.md)) |
 
 - `clabe.git_manager`, `clabe.cache_manager` and `clabe.services` still import, with a deprecation warning.
+- `ByAnimalModifier.inject(rig)` returns a modified copy and no longer changes `rig`: use its return value
+  (`rig = modifier.inject(rig)`).
 - The terminal UI and the browser page are in the `frontend` extra: depend on `aind-clabe[frontend]`.
 
 ## 6. Update the command line

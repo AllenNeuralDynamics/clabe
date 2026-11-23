@@ -198,7 +198,7 @@ class ManipulatorModifier(ByAnimalModifier[MyRig]):
 
 
 modifier = ManipulatorModifier(session.subject, store)
-rig = modifier.inject(rig)  # unchanged if nothing is stored
+rig = modifier.inject(rig)  # a copy, with the stored position; the rig passed in is never modified
 ...
 modifier.update()
 ```

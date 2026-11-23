@@ -72,14 +72,15 @@ class ByAnimalModifier(abc.ABC, Generic[TRig]):
 
     def inject(self, rig: TRig) -> TRig:
         """
-        Injects the stored record into the rig, leaving the rig untouched if there is none.
+        Returns a copy of the rig with the stored record injected; the given rig is never modified.
 
         Args:
-            rig: The rig model to modify.
+            rig: The rig model.
 
         Returns:
-            The rig, modified in place.
+            A copy of the rig, with the record injected (an unchanged copy if there is none).
         """
+        rig = rig.model_copy(deep=True)
         records = self._store.list(self._kind)
         if not records:
             logger.warning(

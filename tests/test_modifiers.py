@@ -48,6 +48,14 @@ class TestByAnimalModifier:
         store.write(NESTED, NestedModel(foo="Loaded", bar=99), scope={"subject": "123"})
         modified = CustomModifier(store).inject(sample_model)
         assert (modified.nested.foo, modified.nested.bar, modified.nested.nested2) == ("Loaded", 99, None)
+        assert sample_model.nested.foo == "Original" and modified is not sample_model  # a copy: the input stays
+
+    def test_inject_never_modifies_the_given_rig_even_deep_inside(self, store, sample_model):
+        store.write(NESTED, NestedModel(foo="Loaded", bar=99), scope={"subject": "123"})
+        before = sample_model.model_dump()
+        modified = CustomModifier(store).inject(sample_model)
+        modified.something = 0.0
+        assert sample_model.model_dump() == before
 
     def test_inject_leaves_the_rig_alone_when_nothing_is_stored(self, store, sample_model):
         modified = CustomModifier(store).inject(sample_model)
