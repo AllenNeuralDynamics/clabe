@@ -1,5 +1,6 @@
 """Declaring workflows: ordered steps wired together by parameter name."""
 
+import enum
 import inspect
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
@@ -12,6 +13,26 @@ from .codecs import Codec
 BUILTINS = frozenset({"launcher", "run"})
 
 OnError = Literal["raise", "warn"]
+
+
+class OnFailure(enum.Flag):
+    """The choices a failed step offers (``on_failure=``); combine them with ``|``.
+
+    Example:
+        ```python
+        @wf.step(on_failure=OnFailure.RETRY | OnFailure.ABORT)  # no going back from here
+        async def acquire(...): ...
+        ```
+    """
+
+    RETRY = enum.auto()
+    """Run the step again."""
+    GO_BACK = enum.auto()
+    """Go back to the previous step that can run again (only shown when there is one)."""
+    ABORT = enum.auto()
+    """End the run."""
+    ALL = RETRY | GO_BACK | ABORT
+    """Every choice (the default)."""
 
 
 class WorkflowDefinitionError(ValueError):
@@ -30,6 +51,8 @@ class Step:
         barrier: Once completed, neither this step nor any before it can run again.
         on_error: ``"raise"`` pauses the run with Retry/Go back/Abort; ``"warn"`` notifies and continues
             with ``None`` as the step's output.
+        on_failure: Which of Retry / Go back / Abort a failure offers (`OnFailure`; all by default). Aborting from
+            the menu or with Ctrl+C always works.
         optional: When set, the run asks this question first and skips the step on "no".
         optional_default: The answer the ``optional`` question suggests (``True``: run the step).
         when: A condition on earlier outputs (taken by parameter name, like a step's inputs): the step runs only
@@ -55,6 +78,7 @@ class Step:
     when: Callable[..., Any] | None = None
     when_params: tuple[str, ...] = ()
     optional_default: bool = True
+    on_failure: OnFailure = OnFailure.ALL
 
     @property
     def deps(self) -> tuple[str, ...]:
@@ -73,6 +97,7 @@ class Step:
             "cancellable": self.cancellable,
             "codec": self.codec,
             "when": self.when,
+            "on_failure": self.on_failure,
         }
 
 
@@ -120,6 +145,7 @@ def _build_step(
     cancellable: bool = False,
     codec: Codec | None = None,
     when: Callable[..., Any] | None = None,
+    on_failure: OnFailure = OnFailure.ALL,
 ) -> Step:
     """Builds a `Step` from a function, checking the options that do not depend on other steps."""
     step_name = name if name is not None else getattr(func, "__name__", None)
@@ -138,6 +164,7 @@ def _build_step(
         raise WorkflowDefinitionError(f"Step {step_name!r} cannot be both a barrier and undoable.")
     if on_error not in ("raise", "warn"):
         raise WorkflowDefinitionError(f"Step {step_name!r}: on_error must be 'raise' or 'warn', got {on_error!r}.")
+    _check_on_failure(step_name, on_failure, on_error)
     if cancellable and not inspect.iscoroutinefunction(func):
         raise WorkflowDefinitionError(f"Step {step_name!r}: only async steps can be cancellable.")
     if undo is not None:
@@ -161,7 +188,20 @@ def _build_step(
         codec=codec,
         when=when,
         when_params=tuple(when_params),
+        on_failure=on_failure,
     )
+
+
+def _check_on_failure(step_name: str, on_failure: Any, on_error: OnError) -> None:
+    """``on_failure`` must offer at least one choice, and only matters when a failure pauses the run."""
+    if not isinstance(on_failure, OnFailure) or not on_failure:
+        raise WorkflowDefinitionError(
+            f"Step {step_name!r}: on_failure must offer at least one of OnFailure.RETRY, GO_BACK or ABORT."
+        )
+    if on_error == "warn" and on_failure != OnFailure.ALL:
+        raise WorkflowDefinitionError(
+            f"Step {step_name!r}: on_failure has no effect with on_error='warn' (a failure only warns)."
+        )
 
 
 def _param_names(func: Callable[..., Any], what: str) -> list[str]:

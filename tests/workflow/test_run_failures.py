@@ -1,4 +1,6 @@
-from clabe.workflow import GoBack, Rejected, Run, RunStatus, StepStatus, Workflow
+import pytest
+
+from clabe.workflow import GoBack, OnFailure, Rejected, Run, RunStatus, StepStatus, Workflow, WorkflowDefinitionError
 from clabe.workflow._run import _Command
 from clabe.workflow.events import Notify, RunFinished, StepFailed, StepSkipped
 
@@ -145,6 +147,45 @@ def test_go_back_to_the_step_itself_runs_it_again():
     assert run.output("first") == "ok"
     assert len(attempts) == 2
     assert events_of(run, StepFailed) == [] and client.prompts == []
+
+
+def _failing_once(**options) -> tuple[Workflow, list[str]]:
+    calls: list[str] = []
+    wf = Workflow("demo")
+    wf.step(lambda: calls.append("a"), name="a")
+
+    def b():
+        calls.append("b")
+        if calls.count("b") == 1:
+            raise RuntimeError("boom")
+
+    wf.step(b, **options)
+    return wf, calls
+
+
+def test_on_failure_limits_the_choices_of_a_failed_step():
+    wf, calls = _failing_once(on_failure=OnFailure.RETRY | OnFailure.ABORT)
+    run, client = execute(wf, ["retry"])
+    assert run.status is RunStatus.COMPLETED and calls == ["a", "b", "b"]
+    assert [o["value"] for o in client.prompts[0].spec["options"]] == ["retry", "abort"]
+
+    wf, _ = _failing_once()  # default: all of them
+    _, client = execute(wf, ["retry"])
+    assert [o["value"] for o in client.prompts[0].spec["options"]] == ["retry", "back", "abort"]
+
+    wf, _ = _failing_once(on_failure=OnFailure.GO_BACK)
+    _, client = execute(wf, ["back"])
+    assert [o["value"] for o in client.prompts[0].spec["options"]] == ["back"]
+
+
+def test_on_failure_is_checked_when_declared():
+    wf = Workflow("demo")
+    with pytest.raises(WorkflowDefinitionError, match="at least one"):
+        wf.step(lambda: 1, name="a", on_failure=OnFailure(0))
+    with pytest.raises(WorkflowDefinitionError, match="on_error='warn'"):
+        wf.step(lambda: 1, name="a", on_error="warn", on_failure=OnFailure.RETRY)
+    wf.step(lambda: 1, name="a", on_failure=OnFailure.ABORT)
+    assert wf.variant("v").replace("a", lambda: 2).get("a").on_failure is OnFailure.ABORT
 
 
 def test_go_back_is_rejected_while_a_failed_run_is_finishing():

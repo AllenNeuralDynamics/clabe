@@ -18,7 +18,7 @@ from ._local import LocalClient
 from ._records import export_artifact
 from ._replay import ReplayClient, ReplayMismatch
 from ._run import Ack, ClosingState, Rejected, Run, RunState, RunStatus, StepState, StepStatus
-from ._workflow import Step, Workflow, WorkflowDefinitionError, step_defaults
+from ._workflow import OnFailure, Step, Workflow, WorkflowDefinitionError, step_defaults
 
 __all__ = [
     "Abort",
@@ -31,6 +31,7 @@ __all__ = [
     "GoBack",
     "Issue",
     "LocalClient",
+    "OnFailure",
     "Rejected",
     "ReplayClient",
     "ReplayMismatch",

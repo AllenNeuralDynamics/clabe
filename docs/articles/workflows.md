@@ -73,6 +73,7 @@ def qc(launcher: Launcher) -> QcReport: ...
 | `optional="question?"` | Asks first; a skipped step outputs `None`. Add `optional_default=False` to suggest "no" |
 | `when=lambda mode: mode == 1` | Runs only when the condition on earlier outputs holds; otherwise skipped, output `None` |
 | `on_error="warn"` | Warns and continues with `None` instead of pausing with Retry / Go back / Abort |
+| `on_failure=OnFailure.RETRY \| OnFailure.ABORT` | Which choices a failure offers (default `OnFailure.ALL`); aborting from the menu or Ctrl+C always works |
 | `cancellable=True` | Going back may interrupt the busy async step (abort always does) |
 | `codec=` | How the output is recorded (see [Run records](records.md#choosing-how-an-output-is-recorded)) |
 | `name=` | Store the output under another name |

@@ -57,7 +57,7 @@ from ._events import (
     StepStarted,
 )
 from ._records import ACTIVE_STEP, _StepContext, encode_output, output_line, write_artifact
-from ._workflow import Step, Workflow
+from ._workflow import OnFailure, Step, Workflow
 
 if TYPE_CHECKING:
     from ..launcher import Launcher
@@ -1166,11 +1166,13 @@ class Run:
         if warn_only:
             self.notify(f"{step.title} failed: {exc}", MessageLevel.WARNING)
             return
-        back = self._default_back_target(step)
-        options = [Choice("retry", "Retry")]
+        allowed = step.on_failure
+        back = self._default_back_target(step) if OnFailure.GO_BACK in allowed else None
+        options = [Choice("retry", "Retry")] if OnFailure.RETRY in allowed else []
         if back is not None:
             options.append(Choice("back", f"Go back to {self.workflow.get(back).title}"))
-        options.append(Choice("abort", "Abort"))
+        if OnFailure.ABORT in allowed or not options:  # e.g. only GO_BACK, with nothing to go back to
+            options.append(Choice("abort", "Abort"))
         request = PickRequest(
             label=f"{step.title} failed: {exc}", options=options, allow_none=False, field=f"{step.name}.failed"
         )
