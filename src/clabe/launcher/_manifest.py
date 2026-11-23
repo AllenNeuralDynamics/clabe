@@ -145,6 +145,10 @@ class RunManifest(BaseModel):
     machine: MachineInfo | None = None
     config: ConfigInfo | None = None
     workers: list[WorkerRecord] = Field(default_factory=list)
+    extra_session_directories: list[str] = Field(
+        default_factory=list,
+        description="This machine's other session folders, besides the launcher's (Launcher.add_session_directory)",
+    )
     outcome: Outcome | None = None
     errors: list[str] = Field(default_factory=list)
 

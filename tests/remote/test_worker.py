@@ -308,7 +308,9 @@ def test_the_run_manifest_lists_the_workers_and_their_jobs(worker_url, repositor
 
     from clabe.launcher import Launcher
 
-    here = SimpleNamespace(session_directory=Path("C:/data/s1"), _manifest=launcher.manifest)
+    here = SimpleNamespace(
+        session_directory=Path("C:/data/s1"), _extra_session_directories=[], _manifest=launcher.manifest
+    )
     assert Launcher.session_directories.fget(here) == [Path("C:/data/s1"), remote.session_directory_unc]
 
 

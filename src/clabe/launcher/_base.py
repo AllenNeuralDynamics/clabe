@@ -114,6 +114,7 @@ class Launcher:
         self._logger = _logger
 
         self._session: Session | None = None
+        self._extra_session_directories: list[Path] = []  # see add_session_directory
         self._has_copied_logs = False
         self._manifest: RunManifest | None = None
         self._manifest_lock = threading.Lock()
@@ -159,20 +160,51 @@ class Launcher:
 
     @property
     def session_directories(self) -> list[Path | PureWindowsPath]:
-        """This machine's session folder, then every other machine's in this run, through its network share.
+        """Every session folder of this run: this machine's, then its others, then every other machine's through its
+        network share.
 
-        Another machine's folder is listed once it was registered with
-        [`RemoteRepository.register_session`][clabe.remote.RemoteRepository.register_session] in a step of this
-        run. Give it to the watchdog to upload the data of every machine:
+        - This machine's other folders are the ones added with `add_session_directory`, in that order.
+        - Another machine's folder is listed once it was registered with
+          [`RemoteRepository.register_session`][clabe.remote.RemoteRepository.register_session] in a step of this
+          run.
+
+        Give it to the watchdog to upload the data of every folder:
         ``WatchdogDataTransferService(source=launcher.session_directories, ...)``.
 
         Raises:
             ValueError: If session_name is not set in the session schema
         """
-        directories: list[Path | PureWindowsPath] = [self.session_directory]
+        directories: list[Path | PureWindowsPath] = [self.session_directory, *self._extra_session_directories]
         workers = self._manifest.workers if self._manifest is not None else []
         directories += [PureWindowsPath(w.session_directory_unc) for w in workers if w.session_directory_unc]
         return directories
+
+    def add_session_directory(self, path: os.PathLike | str) -> Path:
+        """Adds another session folder on this machine to `session_directories`, e.g. where an app on this PC records
+        to its own data folder. The folder is created if missing (an existing one, e.g. found after a crash, is fine).
+
+        It is recorded in the run's ``run.json`` (``extra_session_directories``). Logs are still copied to
+        `session_directory` only. Adding the session folder, or a folder already added, does nothing.
+
+        Args:
+            path: The folder, e.g. ``Path(rig.data_directory) / session.session_name``.
+
+        Returns:
+            The folder, as given.
+
+        Raises:
+            ValueError: If no session is registered yet.
+        """
+        folder = Path(path)
+        known = [self.session_directory, *self._extra_session_directories]  # raises without a session
+        if any(os.path.normcase(os.path.abspath(folder)) == os.path.normcase(os.path.abspath(k)) for k in known):
+            return folder
+        folder.mkdir(parents=True, exist_ok=True)
+        self._extra_session_directories.append(folder)
+        logger.info("Added session directory %s", folder)
+        if self._manifest is not None:
+            self.update_manifest(lambda manifest: manifest.extra_session_directories.append(str(folder)))
+        return folder
 
     def register_session(self, session: Session, data_directory: os.PathLike) -> Self:
         """
@@ -298,6 +330,7 @@ class Launcher:
         """Executes ``workflow`` (with the preflight step) with this launcher, driven by its client."""
         run = Run(self._with_preflight(workflow), launcher=self, record_dir=self.temp_dir)
         self._manifest = collect_manifest(self, run.workflow, run_id=run.id, directory=self.temp_dir)
+        self._manifest.extra_session_directories = [str(folder) for folder in self._extra_session_directories]
         self._write_manifest()
         # The server stays up after the run, for its closing screen, until the launcher exits (see _exit).
         self._serving.enter_context(self._served(run))

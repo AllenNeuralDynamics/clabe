@@ -118,9 +118,12 @@ watchdog = WatchdogDataTransferService(
 watchdog.transfer()
 ```
 
-- `launcher.session_directories` lists this PC's session folder, then every other PC whose session was registered
-  with `remote.register_session` in this run. A list written by hand works too: `None` entries are skipped, e.g. a
-  PC an optional step did not use.
+- `launcher.session_directories` lists this PC's session folder, then this PC's other folders, then every other PC
+  whose session was registered with `remote.register_session` in this run. A list written by hand works too: `None`
+  entries are skipped, e.g. a PC an optional step did not use.
+- An app on this PC that records to its own data folder (e.g. Open Ephys to `D:\ephys`) adds it with
+  `launcher.add_session_directory(Path(rig.data_directory) / session.session_name)`. The folder is created if
+  missing, and an existing one is fine (e.g. found after a crash). It is recorded in `run.json`.
 - One manifest covers both machines. Modality folders with the same name are merged.
 - Every source must be reachable. Otherwise `transfer()` fails and lists the unreachable sources.
 - The watchdog copies the data later, under its own account. That account needs access to the share, and the PC must

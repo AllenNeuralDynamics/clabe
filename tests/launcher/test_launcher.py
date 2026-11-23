@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+import datetime
 import json
 import logging
 import threading
@@ -112,6 +113,27 @@ def test_a_second_session_in_an_existing_data_directory_gets_its_folder(mock_bas
     mock_base_launcher.repository.get_metadata.return_value.model_dump_json.return_value = "{}"
     mock_base_launcher.register_session(mock_session, data_directory=tmp_path / "data")
     assert mock_base_launcher.session_directory.is_dir()
+
+
+def test_other_session_folders_on_this_machine_join_session_directories(mock_base_launcher, mock_session, tmp_path):
+    from clabe.launcher._manifest import RunManifest
+
+    with pytest.raises(ValueError):
+        mock_base_launcher.add_session_directory(tmp_path / "ephys" / "s")  # no session yet
+    mock_base_launcher.repository.get_metadata.return_value.model_dump_json.return_value = "{}"
+    mock_base_launcher.register_session(mock_session, data_directory=tmp_path / "data")
+    ephys = mock_base_launcher.add_session_directory(tmp_path / "ephys" / mock_session.session_name)
+    assert ephys.is_dir()
+    found = tmp_path / "recovered"
+    found.mkdir()
+    mock_base_launcher.add_session_directory(found)  # an existing folder
+    mock_base_launcher.add_session_directory(ephys)  # already there: no duplicate
+    mock_base_launcher.add_session_directory(mock_base_launcher.session_directory)
+    assert mock_base_launcher.session_directories == [mock_base_launcher.session_directory, ephys, found]
+
+    mock_base_launcher._manifest = RunManifest(run_id="r", started_at=datetime.datetime.now(datetime.UTC))
+    later = mock_base_launcher.add_session_directory(tmp_path / "later")
+    assert mock_base_launcher.manifest.extra_session_directories == [str(later)]
 
 
 def test_register_session_saves_repository_state(mock_base_launcher, mock_session, tmp_path: Path):

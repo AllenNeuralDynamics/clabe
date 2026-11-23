@@ -87,13 +87,15 @@ watchdog:
       delete_modalities_source_after_success: true
 ```
 
-## Data recorded on another machine
+## Data in several folders or on another machine
 
-Pass the other machine's session folder through its share, and give its modalities their own group:
+Pass `launcher.session_directories`, and give the other folders' modalities their own group. It lists this PC's
+session folder, the other folders added with `launcher.add_session_directory` (e.g. Open Ephys's data folder on this
+PC), and every other PC's folder registered with `remote.register_session`, through its share:
 
 ```python
 transfer_service = WatchdogDataTransferService(
-    [launcher.session_directory, remote.session_directory_unc],
+    launcher.session_directories,
     settings=WatchdogSettings(
         destination=r"\\allen\aind\scratch\vr-foraging\data",
         project_name="Cognitive flexibility in patch foraging",
