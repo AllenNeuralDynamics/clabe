@@ -105,14 +105,52 @@ jobs:
           uv run docs/build.py
           uv run zensical build --strict --clean
 
+  # Builds the hub image once and smoke-tests it; that same image is pushed to ghcr.io/allenneuraldynamics/clabe-hub
+  # as `main` and `sha-<commit>` on a push to main, and as the release's tag (plus `latest`, unless it is a pre-release)
+  # on a published release. On a release it waits for prepare-release, which moves the tag to the commit that sets the
+  # version, so the image carries the release's version.
   hub-image:
     name: Hub Docker image
     runs-on: ubuntu-latest
+    needs: [ tests, prepare-release ]
+    if: >-
+      always() && needs.tests.result == 'success'
+      && (needs.prepare-release.result == 'success' || needs.prepare-release.result == 'skipped')
+    permissions:
+      contents: read
+      packages: write
+    env:
+      PUBLISH: ${{ github.event_name == 'release' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event_name == 'release' && github.event.release.tag_name || '' }}
+
+      - id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/allenneuraldynamics/clabe-hub
+          flavor: latest=false
+          tags: |
+            type=raw,value=${{ github.event.release.tag_name }},enable=${{ github.event_name == 'release' }}
+            type=raw,value=latest,enable=${{ github.event_name == 'release' && !github.event.release.prerelease }}
+            type=raw,value=main,enable=${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+            type=sha,enable=${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+
+      - uses: docker/setup-buildx-action@v4
 
       - name: Build the hub image
-        run: docker build -f docker/hub/Dockerfile -t clabe-hub .
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: docker/hub/Dockerfile
+          load: true
+          tags: |
+            clabe-hub
+            ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Smoke test it
         run: |
@@ -121,6 +159,17 @@ jobs:
           test "$(curl -s -o /dev/null -w '%{http_code}' localhost:8080/api/hub/rigs)" = 401
           curl -sf -H 'Authorization: Bearer ci' localhost:8080/api/hub/rigs
           curl -sf localhost:8080/ | grep -q '<title>clabe</title>'
+
+      - if: env.PUBLISH == 'true'
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push the tested image
+        if: env.PUBLISH == 'true'
+        run: docker push --all-tags ghcr.io/allenneuraldynamics/clabe-hub
 
   # ╔───────────────────────────────────────────────────────────╗
   # │    ____ ___ ____ ____    ____      _                      │
