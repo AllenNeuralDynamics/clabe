@@ -1,3 +1,4 @@
+import datetime
 import logging
 from collections.abc import Callable
 from pathlib import Path
@@ -69,11 +70,18 @@ class CommandError(Exception):
 
 
 class CommandResult(BaseModel):
-    """Represents the result of a process execution."""
+    """Represents the result of a process execution.
+
+    ``started_at`` and ``ended_at`` are when the command was handed to its executor and when its result came back,
+    as timezone-aware UTC times of the machine running the launcher (also for a command run on another machine).
+    They are set by `Command.execute` / `execute_async`, and are ``None`` for a result built by hand.
+    """
 
     stdout: str | None
     stderr: str | None
     exit_code: int
+    started_at: datetime.datetime | None = None
+    ended_at: datetime.datetime | None = None
 
     @property
     def ok(self) -> bool:
@@ -279,7 +287,8 @@ class Command(Generic[TOutput]):
         """Execute using a synchronous executor."""
         logger.info("Executing command: %s", self._cmd)
         with recorded(self, executor):
-            self._set_result(executor.run(self))
+            started_at = _utc_now()
+            self._set_result(_timed(executor.run(self), started_at))
         logger.info("Command execution completed.")
         return self._parse_output(self.result)
 
@@ -287,7 +296,8 @@ class Command(Generic[TOutput]):
         """Execute using an async executor."""
         logger.info("Executing command asynchronously: %s", self._cmd)
         with recorded(self, executor):
-            self._set_result(await executor.run_async(self))
+            started_at = _utc_now()
+            self._set_result(_timed(await executor.run_async(self), started_at))
         logger.info("Command execution completed.")
         return self._parse_output(self.result)
 
@@ -318,6 +328,18 @@ class StdCommand(Command[CommandResult]):
 
     def __init__(self, cmd: list[str]) -> None:
         super().__init__(cmd, identity_parser)
+
+
+def _utc_now() -> datetime.datetime:
+    """The current time, timezone-aware, in UTC."""
+    return datetime.datetime.now(datetime.UTC)
+
+
+def _timed(result: CommandResult, started_at: datetime.datetime) -> CommandResult:
+    """``result`` with its start and end times (those an executor already set are kept)."""
+    return result.model_copy(
+        update={"started_at": result.started_at or started_at, "ended_at": result.ended_at or _utc_now()}
+    )
 
 
 def identity_parser(result: CommandResult) -> CommandResult:

@@ -16,8 +16,9 @@ In the session folder, under `Behavior/Logs/.launcher/`:
 | `uv.lock` | The lockfile the run used |
 | `launcher.log`, `repository-state.json` | The diagnostic log, and the state of the repository and its submodules |
 
-`events.jsonl` includes `command_finished` (each app command, with hashes) and `record_resolved` (each store record
-used, copied under `artifacts/<step>/<attempt>/stores/`).
+`events.jsonl` includes `command_finished` (each app command, with hashes, and its `started_at` / `ended_at` in UTC)
+and `record_resolved` (each store record used, copied under `artifacts/<step>/<attempt>/stores/`). A step's
+`CommandResult` output carries the same `started_at` / `ended_at`.
 
 ## Replaying a session
 

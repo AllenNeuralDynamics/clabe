@@ -156,9 +156,11 @@ class TestCommand:
         cmd = Command[CommandResult](cmd=["echo", "hello"], output_parser=identity_parser)
         result = cmd.execute(executor)
 
-        assert result == expected_result
+        untimed = {"started_at", "ended_at"}
+        assert result.model_dump(exclude=untimed) == expected_result.model_dump(exclude=untimed)
+        assert result.started_at is not None and result.ended_at is not None  # set by the command, in UTC
         assert ["echo", "hello"] in executor.executed_commands
-        assert cmd.result == expected_result
+        assert cmd.result == result
 
     @pytest.mark.asyncio
     async def test_command_execute_async_with_mock_executor(self):
@@ -169,9 +171,11 @@ class TestCommand:
         cmd = Command[CommandResult](cmd=["echo", "hello"], output_parser=identity_parser)
         result = await cmd.execute_async(executor)
 
-        assert result == expected_result
+        untimed = {"started_at", "ended_at"}
+        assert result.model_dump(exclude=untimed) == expected_result.model_dump(exclude=untimed)
+        assert result.started_at is not None and result.ended_at is not None  # set by the command, in UTC
         assert ["echo", "hello"] in executor.executed_commands
-        assert cmd.result == expected_result
+        assert cmd.result == result
 
     def test_command_custom_output_parser(self):
         """Test command with a custom output parser."""

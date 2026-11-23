@@ -407,6 +407,19 @@
             "title": "Duration S",
             "type": "number"
           },
+          "ended_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When it ended (UTC)",
+            "title": "Ended At"
+          },
           "error": {
             "anyOf": [
               {
@@ -478,6 +491,19 @@
             "default": 0,
             "title": "Seq",
             "type": "integer"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When it started (UTC)",
+            "title": "Started At"
           },
           "step": {
             "title": "Step",

@@ -1,5 +1,6 @@
 """Recording what each command an app runs was, for provenance (``command_finished`` events in a run)."""
 
+import datetime
 import hashlib
 import logging
 import os
@@ -97,6 +98,7 @@ def recorded(command: "Command[Any]", executor: Any) -> Iterator[None]:
 
     context = ACTIVE_STEP.get()
     started = time.monotonic()
+    started_at = datetime.datetime.now(datetime.UTC)
     error: BaseException | None = None
     try:
         yield
@@ -106,18 +108,26 @@ def recorded(command: "Command[Any]", executor: Any) -> Iterator[None]:
     finally:
         if context is not None:
             try:
-                _record(context, command, executor, time.monotonic() - started, error)
+                _record(context, command, executor, time.monotonic() - started, error, started_at)
             except Exception:
                 logger.warning("Could not record the provenance of %s", command.cmd[:1], exc_info=True)
 
 
-def _record(context: Any, command: "Command[Any]", executor: Any, duration: float, error: BaseException | None) -> None:
+def _record(
+    context: Any,
+    command: "Command[Any]",
+    executor: Any,
+    duration: float,
+    error: BaseException | None,
+    started_at: datetime.datetime,
+) -> None:
     """Appends the event."""
     from ..launcher._manifest import _mask_argv
     from ..workflow.events import CommandFinished
 
     result = command._result
     exit_code = result.exit_code if result is not None else getattr(error, "exit_code", None)
+    times = (result.started_at, result.ended_at) if result is not None and result.started_at else (None, None)
     context.run.events.append(
         CommandFinished(
             step=context.step.name,
@@ -128,6 +138,8 @@ def _record(context: Any, command: "Command[Any]", executor: Any, duration: floa
             exit_code=exit_code,
             duration_s=round(duration, 3),
             error=None if error is None else f"{type(error).__name__}: {error}",
+            started_at=times[0] or started_at,
+            ended_at=times[1] or datetime.datetime.now(datetime.UTC),
             **describe(command),
         )
     )

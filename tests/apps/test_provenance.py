@@ -1,5 +1,6 @@
 """Every command an app runs inside a run is recorded: program, files, exit code (command_finished events)."""
 
+import datetime
 import hashlib
 import sys
 
@@ -38,8 +39,17 @@ def test_commands_run_by_a_step_are_recorded(tmp_path):
     )
     assert (second.step, second.exit_code) == ("failing", 3) and "CommandError" in second.error
     assert second.duration_s >= 0
+    for event in (first, second):  # always UTC
+        assert event.started_at.tzinfo is datetime.UTC and event.started_at <= event.ended_at
 
 
 def test_commands_outside_a_run_are_not_recorded():
     result = Command([sys.executable, "-c", "print(1)"], identity_parser).execute(LocalExecutor())
     assert result.exit_code == 0
+
+
+def test_a_command_result_has_its_start_and_end_in_utc():
+    before = datetime.datetime.now(datetime.UTC)
+    result = Command([sys.executable, "-c", "print(1)"], identity_parser).execute(LocalExecutor())
+    assert result.started_at.tzinfo is datetime.UTC and result.ended_at.tzinfo is datetime.UTC
+    assert before <= result.started_at <= result.ended_at <= datetime.datetime.now(datetime.UTC)

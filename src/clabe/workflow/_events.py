@@ -217,6 +217,8 @@ class CommandFinished(_Event):
     exit_code: int | None = None
     duration_s: float
     error: str | None = None
+    started_at: datetime.datetime | None = Field(default=None, description="When it started (UTC)")
+    ended_at: datetime.datetime | None = Field(default=None, description="When it ended (UTC)")
 
 
 class RecordResolved(_Event):
