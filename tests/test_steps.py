@@ -291,6 +291,7 @@ class TestCurriculum:
         from clabe.stores import MemoryStore, Store
 
         wf = Workflow("demo")
+
         @wf.step
         def session() -> Session:
             return Session(subject="1", experiment="demo")
