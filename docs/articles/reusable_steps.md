@@ -20,6 +20,7 @@ wf.step(steps.register())
 | `steps.preflight(*checks)` | what the checks take | Runs every [check](#checks); fails once, listing each failure | |
 | `steps.free_space(bytes)` | `rig` | Fails when the data drive is short of space | |
 | `steps.register()` | `launcher`, `session`, `rig` | Creates the session's data directory | barrier |
+| `steps.remote(computer_name)` | what `computer_name` takes | Connects to another rig PC: starts its daemon, checks its checkout; `None` when it is this PC (see [Run on two PCs](remote_execution.md)) | name `remote` |
 | `steps.waterlog(earned_water)` | `launcher`, `session` | Logs the water earned | `on_error="warn"` |
 
 Options passed to `wf.step(...)` override the defaults.

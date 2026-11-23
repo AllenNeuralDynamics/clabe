@@ -8,6 +8,7 @@ import pytest
 from pydantic import BaseModel
 
 from clabe import steps
+from clabe.remote import RemoteRepository
 from clabe.workflow import LocalClient, Run, RunStatus, Workflow, check_workflow, step_defaults
 from tests.conftest import MockClient
 
@@ -153,3 +154,48 @@ def test_mappers_report_the_environment_the_run_manifest_recorded():
     run.start()
     assert run.wait(10) and run.output("environment") == {"aind-clabe": "9.9.9"}
     assert "pydantic" in snapshot_python_environment()  # outside a run: the live environment
+
+
+class TestRemote:
+    def _wf(self, **options):
+        wf = Workflow("demo")
+        wf.step(lambda: "", name="mode")
+
+        @wf.step(when=lambda mode: mode == "ephys")
+        def ephys_rig() -> _Rig:
+            return _Rig(name="rig-b", data_directory=Path("D:/data"))
+
+        wf.step(steps.remote(lambda ephys_rig: ephys_rig.name, **options), when=lambda mode: mode == "ephys")
+
+        @wf.step(when=lambda mode: mode == "ephys")
+        def acquire(remote: RemoteRepository | None) -> None: ...
+
+        return wf
+
+    def test_it_connects_starts_and_verifies_the_other_computer(self, monkeypatch):
+        from clabe import utils
+
+        made = []
+
+        def connect(cls, host, **kwargs):
+            other = MagicMock(spec=RemoteRepository)
+            made.append((host, kwargs, other))
+            return other
+
+        monkeypatch.setattr(RemoteRepository, "from_computer_name", classmethod(connect))
+        monkeypatch.setattr(utils, "is_this_computer", lambda name: False)
+        step = steps.remote(lambda rig: rig.name, allow_dirty=True, repository="Aind.Experiment.VrForaging")
+        other = step(rig=_Rig(name="rig-b", data_directory=Path(".")))
+        host, kwargs, mock = made[0]
+        assert other is mock and host == "rig-b" and kwargs["repository"] == "Aind.Experiment.VrForaging"
+        mock.ensure_running.assert_called_once_with()
+        mock.verify.assert_called_once_with(allow_dirty=True)
+
+        monkeypatch.setattr(utils, "is_this_computer", lambda name: True)
+        assert steps.remote(lambda rig: rig.name)(rig=_Rig(name="here", data_directory=Path("."))) is None
+
+    def test_it_is_wired_by_the_function_s_parameters_and_checks_cleanly(self):
+        wf = self._wf()
+        step = wf.get("remote")
+        assert step.deps == ("ephys_rig", "mode") and step.title == "Other computer"
+        assert check_workflow(wf, strict=True) == []

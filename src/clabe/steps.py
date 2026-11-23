@@ -18,7 +18,8 @@ wf.step(steps.register())                   # barrier: nothing before it can run
 
 import inspect
 import os
-from collections.abc import Callable
+import typing
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -32,7 +33,7 @@ from .launcher import Launcher
 from .session import SessionBuilder
 from .workflow import GoBack, step_defaults
 
-__all__ = ["free_space", "preflight", "register", "review", "session", "waterlog"]
+__all__ = ["free_space", "preflight", "register", "remote", "review", "session", "waterlog"]
 
 
 def session(
@@ -149,6 +150,62 @@ def register(*, directory: Callable[[Any], os.PathLike] | None = None) -> Callab
         return launcher.session_directory
 
     return register
+
+
+def remote(
+    computer_name: Callable[..., str],
+    *,
+    name: str = "remote",
+    title: str = "Other computer",
+    allow_dirty: bool = False,
+    repository: str | None = None,
+    data_roots: Mapping[str, str] | None = None,
+) -> Callable[..., Any]:
+    """A step connecting to another rig PC through its daemon; returns its
+    [`RemoteRepository`][clabe.remote.RemoteRepository], or ``None`` when the computer is this one.
+
+    It starts the other PC's daemon if it is down (`ensure_running`) and checks that its checkout matches this one
+    (`verify`). The step takes what ``computer_name`` takes, by name (as checks do):
+
+    ```python
+    wf.step(steps.remote(lambda ephys_rig: ephys_rig.computer_name))
+    ```
+
+    Args:
+        computer_name: Gives the other PC's name from earlier outputs, e.g. a rig's ``computer_name``.
+        name: The step's name.
+        title: The step's title.
+        allow_dirty: Accept uncommitted changes in the other PC's checkout.
+        repository: The daemon's name for the checkout (default: this repository's folder name).
+        data_roots: Maps data folders there to the share that exposes them (see `RemoteRepository`).
+    """
+    from .remote import RemoteRepository
+    from .utils import is_this_computer
+
+    names = _checks.inputs(computer_name)
+
+    def remote(**outputs: Any) -> RemoteRepository | None:
+        host = computer_name(**outputs)
+        if is_this_computer(host):
+            return None
+        other = RemoteRepository.from_computer_name(host, repository=repository, data_roots=data_roots)
+        other.ensure_running()
+        other.verify(allow_dirty=allow_dirty)
+        return other
+
+    hints = typing.get_type_hints(computer_name) if not _is_lambda(computer_name) else {}
+    remote.__signature__ = inspect.Signature(  # type: ignore[attr-defined]
+        [inspect.Parameter(n, inspect.Parameter.KEYWORD_ONLY, annotation=hints.get(n, Any)) for n in names],
+        return_annotation=RemoteRepository | None,
+    )
+    remote.__annotations__ = {**{n: hints.get(n, Any) for n in names}, "return": RemoteRepository | None}
+    remote.__name__ = remote.__qualname__ = name
+    return step_defaults(title=title)(remote)
+
+
+def _is_lambda(func: Callable[..., Any]) -> bool:
+    """Whether ``func`` is a lambda (its annotations, if any, are not worth resolving)."""
+    return getattr(func, "__name__", "") == "<lambda>"
 
 
 def waterlog(earned_water: Callable[[Launcher], float]) -> Callable[..., None]:

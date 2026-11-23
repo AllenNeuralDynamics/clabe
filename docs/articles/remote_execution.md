@@ -42,6 +42,9 @@ remote.verify()  # checks the other checkout: same origin, commit and submodules
 | `data_roots` | Optional. Maps data folders there to the share that exposes them, overriding what the daemon reports (see [step 4](#4-give-it-a-session-folder)). |
 | `detach_on_abort` | Keep remote commands running when the run aborts ([`RemoteRepository`][clabe.remote.RemoteRepository] constructor only). |
 
+- As a step: `wf.step(steps.remote(lambda ephys_rig: ephys_rig.computer_name))` does the three lines above and
+  outputs the `RemoteRepository` as `remote`, or `None` when the rig's computer is this one. It takes
+  `allow_dirty=`, `repository=` and `data_roots=`.
 - `ensure_running()` needs admin rights on that PC to start its task (`schtasks /run /s <host>`).
 - `verify(allow_dirty=True)` accepts uncommitted changes on the other PC.
 - `is_this_computer(rig.computer_name)` tells you whether to run a rig's app locally instead.
