@@ -54,8 +54,16 @@ class RunServer:
 
     @property
     def url(self) -> str:
-        """Where the run is served (with the token, when one is set)."""
-        host = "localhost" if self.host in ("127.0.0.1", "0.0.0.0", "::") else self.host
+        """Where the run is served (with the token, when one is set).
+
+        Open to the LAN (``0.0.0.0`` or ``::``), it names this computer, so the address also works from other PCs.
+        """
+        if self.host in ("0.0.0.0", "::"):
+            import socket
+
+            host = socket.gethostname()
+        else:
+            host = "localhost" if self.host == "127.0.0.1" else self.host
         suffix = f"/?token={self.token}" if self.token else "/"
         return f"http://{host}:{self.port}{suffix}"
 

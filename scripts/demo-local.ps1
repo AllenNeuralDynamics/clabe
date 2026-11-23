@@ -17,9 +17,15 @@
     -NoBrowser opens no tab (the address is printed); -Frontend headless answers only in the browser (no terminal
     UI), console a plain console, tui the terminal UI.
     The web UI is built first when it is missing or older than ui-web/ (needs the .NET SDK; -SkipBuild skips that).
+
+    -Lan opens the run to other PCs on the network (port 8090, or the next free one). Anyone who can reach the port
+    could answer, so it then requires a token made for this demo, which is in the printed address. Windows Firewall
+    may still block the port: allow it when asked, or as admin
+        New-NetFirewallRule -DisplayName "clabe demo" -Direction Inbound -Protocol TCP -LocalPort 8090-8099 -Action Allow
 #>
 param(
     [switch]$NoBrowser,
+    [switch]$Lan,
     [switch]$SkipBuild,
     [ValidateSet('auto', 'tui', 'console', 'headless')]
     [string]$Frontend = 'auto'
@@ -66,6 +72,7 @@ function Test-PortFree([int]$Port) {
 # nothing answers. Announcing is best effort, so the run just goes on unseen, as on a PC without a daemon.
 $daemonPort = if ($env:DAEMON_CLABE_PORT) { [int]$env:DAEMON_CLABE_PORT } else { 24070 }
 $saved = $env:DAEMON_CLABE_PORT
+$savedToken = $env:CLABE_TOKEN
 if (-not (Test-PortFree $daemonPort)) {
     $unused = 24170
     while (-not (Test-PortFree $unused)) { $unused++ }
@@ -79,8 +86,17 @@ try {
     $arguments = @('run', 'clabe', 'run', 'examples/demo/main.py', '--allow-dirty', '--skip-hardware-validation')
     $arguments += @('--frontend', $Frontend)
     if (-not $NoBrowser) { $arguments += '--open-browser' }
+    if ($Lan) {
+        # Open to the network: anyone reaching the port could answer, so require a token made for this demo.
+        $bytes = New-Object byte[] 18
+        [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
+        $env:CLABE_TOKEN = 'demo' + [Convert]::ToBase64String($bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_')
+        $arguments += @('--host', '0.0.0.0')
+        Write-Host "==> Open to the LAN: from another PC, use the address the run prints (it has the token)"
+    }
     & uv @arguments
 } finally {
     $env:DAEMON_CLABE_PORT = $saved
+    $env:CLABE_TOKEN = $savedToken
     Pop-Location
 }
