@@ -96,8 +96,11 @@ def step_defaults(**options: Any) -> Callable[[_F], _F]:
     return mark
 
 
-def make_step(func: Callable[..., Any], /, **options: Any) -> Step:
-    """Builds a `Step` from a function: its `step_defaults`, overridden by ``options``."""
+def make_step(func: "Callable[..., Any] | Step", /, **options: Any) -> Step:
+    """Builds a `Step` from a function (its `step_defaults`, overridden by ``options``), or from a `Step` of another
+    workflow (its name and options, overridden by ``options``)."""
+    if isinstance(func, Step):
+        return _build_step(func.func, **{"name": func.name, **func.options(), **options})
     return _build_step(func, **{**getattr(func, STEP_DEFAULTS, {}), **options})
 
 
@@ -229,13 +232,17 @@ class Workflow:
         """The declared steps, in order."""
         return self._steps
 
-    def step(self, func: Callable[..., Any] | None = None, /, **options: Any) -> Any:
+    def step(self, func: "Callable[..., Any] | Step | None" = None, /, **options: Any) -> Any:
         """Declares a step. Use as ``@wf.step`` or ``@wf.step(title=..., barrier=True, ...)``.
 
         The decorated function is returned unchanged, so steps stay testable as plain functions.
         Every parameter must name an earlier step or a built-in (``launcher``, ``run``), even one with a
         default value: a misspelled input fails here rather than silently falling back to its default.
         See `Step` for the options.
+
+        To reuse a step of another workflow with its name and options, pass it: ``wf.step(vr.get("qc"))``, or
+        ``wf.step(vr.get("qc"), optional=None)`` to change some. `insert_before`, `insert_after` and `replace` take
+        a `Step` too.
         """
 
         def register(f: Callable[..., Any]) -> Callable[..., Any]:
@@ -306,29 +313,33 @@ class Workflow:
         combined._set_steps([*self._steps, *other.steps])
         return combined
 
-    def insert_before(self, anchor: str, func: Callable[..., Any], /, **options: Any) -> Self:
+    def insert_before(self, anchor: str, func: "Callable[..., Any] | Step", /, **options: Any) -> Self:
         """Inserts a new step right before ``anchor``. See `Step` for the options."""
         steps = list(self._steps)
         steps.insert(self.index(anchor), make_step(func, **options))
         self._set_steps(steps)
         return self
 
-    def insert_after(self, anchor: str, func: Callable[..., Any], /, **options: Any) -> Self:
+    def insert_after(self, anchor: str, func: "Callable[..., Any] | Step", /, **options: Any) -> Self:
         """Inserts a new step right after ``anchor``. See `Step` for the options."""
         steps = list(self._steps)
         steps.insert(self.index(anchor) + 1, make_step(func, **options))
         self._set_steps(steps)
         return self
 
-    def replace(self, name: str, func: Callable[..., Any], /, **options: Any) -> Self:
+    def replace(self, name: str, func: "Callable[..., Any] | Step", /, **options: Any) -> Self:
         """Replaces step ``name`` with ``func``, keeping its name and (unless overridden) its options.
 
         Inherited options (notably ``undo``, ``codec``, ``cancellable``) describe the old function; override them
-        if the new one differs.
+        if the new one differs. A `Step` of another workflow brings its own options instead (its name becomes
+        ``name``).
         """
         position = self.index(name)
         steps = list(self._steps)
-        steps[position] = make_step(func, name=name, **{**steps[position].options(), **options})
+        if isinstance(func, Step):  # a step of another workflow brings its own options
+            steps[position] = make_step(func, **{**options, "name": name})
+        else:
+            steps[position] = make_step(func, name=name, **{**steps[position].options(), **options})
         self._set_steps(steps)
         return self
 

@@ -169,6 +169,8 @@ recovery = wf.variant("recovery", order=10).remove("qc")
 ```
 
 - `variant` keeps `order` and `exit_prompt_timeout` unless given.
+- To reuse one step of another workflow with its options, pass the step: `recovery.step(wf.get("qc"))`, with keyword
+  overrides if needed (`insert_before`, `insert_after` and `replace` take a step too).
 - `remove` refuses a step whose output a later step takes: remove or `replace` that one first.
 
 ## 9. Concatenate a shared block

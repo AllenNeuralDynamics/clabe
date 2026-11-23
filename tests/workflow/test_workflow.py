@@ -189,6 +189,23 @@ def test_remove_drops_a_step_nothing_takes():
     assert recovery.remove("rig").remove("session").steps == ()
 
 
+def test_a_step_of_another_workflow_is_reused_with_its_options():
+    vr = _vr()
+    recovery = Workflow("recovery")
+    recovery.step(vr.get("session"))
+    recovery.step(vr.get("qc"), title="QC again")
+    qc = recovery.get("qc")
+    assert (qc.func, qc.barrier, qc.title) == (vr.get("qc").func, True, "QC again")
+    recovery.insert_before("qc", vr.get("rig"))
+    assert [s.name for s in recovery.steps] == ["session", "rig", "qc"]
+
+    other = Workflow("other")
+    other.step(lambda: 1, name="session")
+    other.step(lambda: None, name="qc", title="Placeholder")
+    other.replace("qc", vr.get("qc"))
+    assert other.get("qc").title == "Quality control" and other.get("qc").barrier
+
+
 def test_replace_keeps_the_original_options_unless_overridden():
     fip = _vr().variant("x").replace("qc", my_qc)
     assert fip.get("qc").barrier and fip.get("qc").title == "Quality control"
