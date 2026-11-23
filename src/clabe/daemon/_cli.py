@@ -127,6 +127,31 @@ class _RestartCli(DaemonSettings, cli_kebab_case=True):
         _report(lambda: _install.restart(self.port, _token(self), force=self.force, timeout=self.timeout))
 
 
+class _StopCli(DaemonSettings, cli_kebab_case=True):
+    """Stop the daemon (end its task) and wait until nothing answers on its port, e.g. before updating clabe.
+
+    Refuses while it runs an experiment or is leased by another machine's run, unless --force. It starts again at the
+    next logon, or with `clabe daemon start`.
+    """
+
+    force: CliImplicitFlag[bool] = Field(default=False, description="Stop even if a session would be interrupted")
+    timeout: float = Field(default=15.0, description="Seconds to wait for the daemon to stop answering")
+
+    def cli_cmd(self):
+        """Stop and report."""
+        _report(lambda: _install.stop(self.port, _token(self), force=self.force, timeout=self.timeout))
+
+
+class _StartCli(DaemonSettings, cli_kebab_case=True):
+    """Start the daemon from its task and wait until it answers."""
+
+    timeout: float = Field(default=60.0, description="Seconds to wait for the daemon to answer")
+
+    def cli_cmd(self):
+        """Start and report."""
+        _report(lambda: _install.start(self.port, _token(self), timeout=self.timeout))
+
+
 class _StatusCli(DaemonSettings, cli_kebab_case=True):
     """Show the daemon's scheduled task, whether the daemon answers, and the issue reports waiting for the hub."""
 
@@ -153,7 +178,10 @@ class _UninstallCli(BaseSettings):
 
 
 class _UpgradeCli(BaseSettings):
-    """Upgrade the `uv tool` installation of clabe; restart the daemon afterwards (the installer does both)."""
+    """Deprecated: on Windows, run the installer instead (it stops the daemon, installs and starts it again).
+
+    Elsewhere it runs `uv tool upgrade aind-clabe`.
+    """
 
     def cli_cmd(self):
         """Upgrade the tool installation."""
@@ -174,6 +202,8 @@ class DaemonCli(BaseSettings, cli_kebab_case=True):
 
     run: CliSubCommand[_RunDaemonCli]
     install: CliSubCommand[_InstallCli]
+    start: CliSubCommand[_StartCli]
+    stop: CliSubCommand[_StopCli]
     restart: CliSubCommand[_RestartCli]
     status: CliSubCommand[_StatusCli]
     uninstall: CliSubCommand[_UninstallCli]

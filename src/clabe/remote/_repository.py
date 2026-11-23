@@ -16,8 +16,7 @@ from aind_behavior_services import Session
 
 from .. import __version__
 from ..apps import Command, CommandResult, identity_parser
-from ..daemon._install import TASK_NAME
-from ..daemon._install import start as start_task
+from ..daemon._install import TASK_NAME, start_task
 from ..repository import GitRepository, GitRepositoryMetadata
 from ._client import WorkerClient, WorkerClientSettings
 from ._executor import RemoteExecutor

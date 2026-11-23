@@ -54,15 +54,18 @@ setx DAEMON_CLABE_OTEL_ENDPOINT "collector:4317"               :: where to send 
 |---|---|
 | `clabe daemon run [--open-browser]` | Run in the foreground, e.g. to try it |
 | `clabe daemon install` | Register the `clabe-daemon` logon task (restarts on failure) and start it |
-| `clabe daemon restart [--force] [--timeout 60]` | Restart from the task and wait; refused during a session unless `--force` |
+| `clabe daemon stop [--force] [--timeout 15]` | End the task and wait until the port is free; refused during a session unless `--force` |
+| `clabe daemon start [--timeout 60]` | Start the task and wait until the daemon answers |
+| `clabe daemon restart [--force] [--timeout 60]` | `stop`, then `start`; refused during a session unless `--force` |
 | `clabe daemon status` | The task, whether the daemon answers, and the reports waiting |
-| `clabe daemon upgrade` | Upgrade the uv tool install; restart afterwards |
+| `clabe daemon upgrade` | Deprecated. On Windows, run [the installer](deployment.md#3-install) instead |
 | `clabe daemon uninstall` | Stop it and remove the task |
 
 - It runs as the logged-on user (not as a service), so experiments can open windows.
 - Logs go to `%LOCALAPPDATA%\clabe\daemon.log`. They are also sent through OpenTelemetry when
   `DAEMON_CLABE_OTEL_ENDPOINT` is set.
-- After reinstalling or upgrading, run `clabe daemon restart` to load the new version.
+- To update, run [the installer](deployment.md#3-install): it stops the daemon before replacing clabe (on Windows the
+  running daemon locks its files) and starts it again.
 
 ## Starting a run
 

@@ -268,6 +268,74 @@ class TestDeployment:
         monkeypatch.setattr(_install, "probe", lambda port, token, timeout=2.0: None)
         assert "logs on" in _install.restart(8070, None, timeout=0)
 
+    @pytest.mark.parametrize("status", ["busy", "leased"])
+    def test_stop_refuses_to_interrupt_a_session_unless_forced(self, scheduler, monkeypatch, status):
+        calls, _ = scheduler
+        monkeypatch.setattr(_install, "task_state", lambda: "Running")
+        monkeypatch.setattr(
+            _install, "probe", lambda port, token, timeout=2.0: {"status": status, "leased_by": "rig-1"}
+        )
+        with pytest.raises(OSError, match="runs an experiment" if status == "busy" else "leased by rig-1"):
+            _install.stop(8070, None)
+        assert calls == []
+
+    def test_stop_waits_until_the_port_is_free(self, scheduler, monkeypatch):
+        calls, _ = scheduler
+        answers = iter([{"status": "busy"}, {"status": "busy"}, None])
+        monkeypatch.setattr(_install, "task_state", lambda: "Ready" if calls else "Running")
+        monkeypatch.setattr(_install, "probe", lambda port, token, timeout=2.0: next(answers))
+        assert "stopped" in _install.stop(8070, None, force=True)
+        assert calls == ["/End"]
+
+    def test_stop_fails_while_the_old_daemon_still_answers(self, scheduler, monkeypatch):
+        monkeypatch.setattr(_install, "task_state", lambda: "Ready")
+        monkeypatch.setattr(_install, "probe", lambda port, token, timeout=2.0: {"status": "idle"})
+        with pytest.raises(OSError, match="still runs"):
+            _install.stop(8070, None, timeout=0)
+
+    def test_stop_and_start_need_the_task(self, scheduler, monkeypatch):
+        monkeypatch.setattr(_install, "task_state", lambda: None)
+        for action in (_install.stop, _install.start):
+            with pytest.raises(OSError, match="not installed"):
+                action(8070, None)
+
+    def test_start_waits_for_the_daemon(self, scheduler, monkeypatch):
+        calls, _ = scheduler
+        answers = iter([None, {"status": "idle", "clabe_version": "9"}])
+        monkeypatch.setattr(_install, "task_state", lambda: "Running")
+        monkeypatch.setattr(_install, "probe", lambda port, token, timeout=2.0: next(answers))
+        assert _install.start(8070, None) == "The clabe daemon answers on port 8070 (clabe 9)."
+        assert calls == ["/Run"]
+
+    def test_start_explains_a_user_who_is_not_logged_on(self, scheduler, monkeypatch):
+        monkeypatch.setattr(_install, "task_state", lambda: "Ready")
+        monkeypatch.setattr(_install, "probe", lambda port, token, timeout=2.0: None)
+        assert "logs on" in _install.start(8070, None, timeout=0)
+
+    def test_restart_is_stop_then_start(self, scheduler, monkeypatch):
+        done = []
+        monkeypatch.setattr(_install, "task_state", lambda: "Running")
+        monkeypatch.setattr(_install, "probe", lambda port, token, timeout=2.0: {"status": "idle"})
+        monkeypatch.setattr(_install, "stop", lambda port, token, **kw: done.append(("stop", kw)))
+        monkeypatch.setattr(_install, "start", lambda port, token, **kw: done.append(("start", kw)) or "up")
+        assert _install.restart(8070, None, timeout=5) == "up"
+        assert done == [("stop", {"force": True}), ("start", {"timeout": 5})]
+
+    def test_restart_fails_while_the_old_daemon_still_answers(self, scheduler, monkeypatch):
+        """With IgnoreNew, /Run would not start a new daemon: answering would be the old one."""
+        calls, _ = scheduler
+        monkeypatch.setattr(_install, "task_state", lambda: "Running")
+        monkeypatch.setattr(_install, "probe", lambda port, token, timeout=2.0: {"status": "idle"})
+        monkeypatch.setattr(_install.time, "monotonic", iter(range(0, 1000, 10)).__next__)
+        with pytest.raises(OSError, match="still runs"):
+            _install.restart(8070, None)
+        assert "/Run" not in calls
+
+    def test_upgrade_is_refused_on_windows(self, monkeypatch):
+        monkeypatch.setattr(_install.sys, "platform", "win32")
+        with pytest.raises(OSError, match="installer"):
+            _install.upgrade()
+
 
 def test_probe_reads_the_daemon(daemon):
     base, _ = daemon

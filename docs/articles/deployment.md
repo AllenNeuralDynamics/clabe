@@ -26,14 +26,23 @@ As the rig's user, in PowerShell or `cmd`:
 powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/AllenNeuralDynamics/clabe/main/scripts/install.ps1 | iex"
 ```
 
-The installer sets `DAEMON_CLABE_TOKEN` and `%PROGRAMDATA%\clabe.yml` (when given) and installs clabe as a uv tool
-(`clabe.exe`). This is the daemon's own install: experiments still run in their repository's environment. It then
-registers the `clabe-daemon` logon task, restarts the daemon and prints its status. It stops immediately if uv is
-missing.
+What the installer does, in order:
 
+1. Stops if uv is missing, or if the daemon runs a session (busy or leased) and `-Force` is not set. Nothing has
+   changed at that point.
+2. Sets `DAEMON_CLABE_TOKEN` and `%PROGRAMDATA%\clabe.yml`, when given.
+3. If the requested clabe (version or git commit, and extras) is already installed, it only re-registers the
+   `clabe-daemon` task, restarts the daemon and prints its status.
+4. Otherwise it stops the daemon, installs clabe as a uv tool (`clabe.exe`), registers the task and starts the daemon.
+   On Windows the running daemon locks the files uv replaces, so it has to stop first.
+5. If the install fails (e.g. no network), it reinstalls the previous clabe and starts it again, then exits non-zero.
+   If that fails too, the error says the daemon is down.
+
+- This is the daemon's own install: experiments still run in their repository's environment.
 - Running it again is safe: the same command installs, updates and repairs.
-- It never interrupts a running session unless you pass `-Force`. Without it, the install fails instead.
-- It exits non-zero on any failure.
+- An unpinned request (no `-Version`) always installs, because the installer cannot tell whether the installed clabe
+  is the latest.
+- `-DryRun` prints the decision ("restart only" or "stop, install, start") and why.
 
 | Parameter | Variable | Meaning |
 |---|---|---|
@@ -41,8 +50,9 @@ missing.
 | `-Package` | `DAEMON_CLABE_PACKAGE` | Any uv spec instead of `aind-clabe[frontend,otel]`, e.g. `aind-clabe[frontend,otel,agents]==0.18.0` |
 | `-Token` | `DAEMON_CLABE_TOKEN` | Daemon token, saved as the user's `DAEMON_CLABE_TOKEN` |
 | `-Config` | `DAEMON_CLABE_CONFIG` | The experiments' `clabe.yml` to install as `%PROGRAMDATA%\clabe.yml`; `-` reads it from standard input |
-| `-Force` | `DAEMON_CLABE_FORCE=1` | Restart even during a session |
-| `-DryRun` | `DAEMON_CLABE_DRY_RUN=1` | Print the commands only |
+| `-Force` | `DAEMON_CLABE_FORCE=1` | Stop the daemon even during a session (it is interrupted) |
+| `-Reinstall` | `DAEMON_CLABE_REINSTALL=1` | Install even when the requested clabe is already installed |
+| `-DryRun` | `DAEMON_CLABE_DRY_RUN=1` | Print the decision and the commands only |
 | `-Timeout` | | Seconds to wait for the daemon (default 120) |
 
 ```powershell
@@ -70,6 +80,7 @@ ssh rig-3 'powershell -NoProfile -ExecutionPolicy ByPass -c "& ([scriptblock]::C
 ```bash
 ssh rig-3 clabe daemon status      # the task, and whether the daemon answers (idle, busy, leased)
 ssh rig-3 clabe daemon restart     # refused during a session; --force interrupts it
+ssh rig-3 clabe daemon stop        # same; it starts again at logon or with `clabe daemon start`
 ssh rig-3 clabe daemon uninstall   # stop the daemon and remove the task
 ssh rig-3 type %LOCALAPPDATA%\clabe\daemon.log
 ```
@@ -101,5 +112,6 @@ To update, pull and run the same command. See [The hub](hub.md).
 | Cannot download clabe | Give the rig internet (or a uv index mirror) while installing. |
 | Daemon answers with no repositories | Each needs a `main.py` and a `pyproject.toml` depending on `aind-clabe` in a folder right under a root (default `C:/git`); or list it under `repositories`. |
 | 401 from the hub or a browser | Token differs from the rig's `DAEMON_CLABE_TOKEN`; restart the daemon after changing it. |
-| `... restarting would interrupt it` (busy or leased) | Deploy later, or `-Force`. |
+| `... would interrupt it` (busy or leased) | Deploy later, or `-Force`. |
+| `ModuleNotFoundError: No module named 'clabe'` | An install failed while the daemon ran (installers before this fix). Run the installer again. |
 | `The clabe-daemon task is not installed` | Run the installer (or `clabe daemon install`). |

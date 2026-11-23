@@ -140,29 +140,51 @@ def probe(port: int, token: str | None, timeout: float = 2.0) -> dict | None:
         return None
 
 
-def restart(port: int, token: str | None, *, force: bool = False, timeout: float = 60.0) -> str:
-    """Stops the daemon and starts it again from its task (e.g. after a new install), then waits until it answers.
+def _refuse_if_busy(port: int, token: str | None, doing: str) -> None:
+    """Raises when the daemon runs an experiment or is leased by another machine's run."""
+    info = probe(port, token)
+    if info is not None and info.get("status") in ("busy", "leased"):
+        what = "runs an experiment" if info["status"] == "busy" else f"is leased by {info.get('leased_by')}"
+        raise OSError(f"The daemon {what}: {doing} would interrupt it. Wait, or pass --force.")
+
+
+def stop(port: int, token: str | None, *, force: bool = False, timeout: float = 15.0) -> str:
+    """Ends the daemon's task and waits until the task no longer runs and nothing answers on ``port``.
 
     Args:
         port: The daemon's port (from its settings).
         token: The daemon's token, to read whether it is busy.
-        force: Restart even while it runs an experiment or is leased by another machine's run (that session's
+        force: Stop even while it runs an experiment or is leased by another machine's run (that session's
             processes may be stopped).
-        timeout: Seconds to wait for the restarted daemon to answer.
+        timeout: Seconds to wait for the daemon to stop answering.
 
     Raises:
-        OSError: The daemon is busy (without ``force``), the task is missing, or the daemon did not come back.
+        OSError: The task is missing, the daemon is busy (without ``force``), or it still answers after ``timeout``.
     """
     if task_state() is None:
         raise OSError(f"The {TASK_NAME} task is not installed: run `clabe daemon install` first.")
-    info = probe(port, token)
-    if info is not None and info.get("status") in ("busy", "leased") and not force:
-        what = "runs an experiment" if info["status"] == "busy" else f"is leased by {info.get('leased_by')}"
-        raise OSError(f"The daemon {what}: restarting would interrupt it. Wait, or pass --force.")
+    if not force:
+        _refuse_if_busy(port, token, "stopping it")
     _schtasks("/End", "/TN", TASK_NAME)
-    deadline = time.monotonic() + 15
-    while time.monotonic() < deadline and (task_state() == "Running" or probe(port, token, timeout=0.5) is not None):
+    deadline = time.monotonic() + timeout
+    while task_state() == "Running" or probe(port, token, timeout=0.5) is not None:
+        if time.monotonic() >= deadline:
+            raise OSError(
+                f"The daemon still runs (or something still answers on port {port}) {timeout:g} s after ending the "
+                f"{TASK_NAME} task."
+            )
         time.sleep(0.5)
+    return f"The clabe daemon is stopped (nothing answers on port {port})."
+
+
+def start(port: int, token: str | None, *, timeout: float = 60.0) -> str:
+    """Starts the daemon from its task and waits until it answers on ``port``.
+
+    Raises:
+        OSError: The task is missing or refused to start, or it runs but nothing answers after ``timeout``.
+    """
+    if task_state() is None:
+        raise OSError(f"The {TASK_NAME} task is not installed: run `clabe daemon install` first.")
     started = _schtasks("/Run", "/TN", TASK_NAME)
     if started.returncode != 0:
         raise OSError(f"Could not start the {TASK_NAME} task: {started.stderr.strip() or started.stdout.strip()}")
@@ -180,6 +202,28 @@ def restart(port: int, token: str | None, *, force: bool = False, timeout: float
         f"The task runs but nothing answers on port {port} after {timeout:g} s. See the daemon's log: "
         f"{default_working_directory() / 'daemon.log'}"
     )
+
+
+def restart(port: int, token: str | None, *, force: bool = False, timeout: float = 60.0) -> str:
+    """Stops the daemon and starts it again from its task (e.g. after a new install), then waits until it answers.
+
+    Args:
+        port: The daemon's port (from its settings).
+        token: The daemon's token, to read whether it is busy.
+        force: Restart even while it runs an experiment or is leased by another machine's run (that session's
+            processes may be stopped).
+        timeout: Seconds to wait for the restarted daemon to answer.
+
+    Raises:
+        OSError: The daemon is busy (without ``force``), the task is missing, the old daemon did not stop, or the new
+            one did not come back.
+    """
+    if task_state() is None:
+        raise OSError(f"The {TASK_NAME} task is not installed: run `clabe daemon install` first.")
+    if not force:
+        _refuse_if_busy(port, token, "restarting")
+    stop(port, token, force=True)
+    return start(port, token, timeout=timeout)
 
 
 def status(port: int | None = None, token: str | None = None) -> str:
@@ -207,17 +251,30 @@ def uninstall() -> str:
 
 
 def upgrade() -> str:
-    """Upgrades the ``uv tool`` installation of clabe; restart the daemon afterwards (the installer does both)."""
+    """Deprecated: upgrades the ``uv tool`` installation of clabe (not on Windows; use the installer there).
+
+    On Windows the running ``clabe.exe`` (this command's own, and the daemon's) locks the tool's files, so
+    ``uv tool upgrade`` fails part-way and leaves the tool without clabe. The installer stops the daemon first.
+
+    Raises:
+        OSError: On Windows, or when uv is missing or fails.
+    """
+    if sys.platform == "win32":
+        raise OSError(
+            "`clabe daemon upgrade` is deprecated: on Windows it cannot replace the clabe.exe it runs from. Run the "
+            "installer instead (see the Deploying docs): it stops the daemon, installs, and starts it again."
+        )
     uv = shutil.which("uv")
     if uv is None:
         raise OSError("uv is required to upgrade clabe (it is installed with `uv tool install aind-clabe`).")
     done = subprocess.run([uv, "tool", "upgrade", "aind-clabe"], capture_output=True, text=True, check=False)
     if done.returncode != 0:
         raise OSError(done.stderr.strip() or done.stdout.strip())
-    return (done.stdout + done.stderr).strip()
+    note = "`clabe daemon upgrade` is deprecated: use `uv tool upgrade aind-clabe`."
+    return f"{(done.stdout + done.stderr).strip()}\n{note}"
 
 
-def start(host: str | None = None) -> None:
+def start_task(host: str | None = None) -> None:
     """Starts the daemon's scheduled task, here or on ``host`` (needs rights there, typically administrator).
 
     Raises:
