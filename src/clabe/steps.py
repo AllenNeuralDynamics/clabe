@@ -32,6 +32,7 @@ from .aind.validators import validate_username
 from .launcher import Launcher
 from .session import SessionBuilder
 from .workflow import GoBack, step_defaults
+from .workflow._workflow import BACK_TARGETS
 
 __all__ = ["free_space", "preflight", "register", "remote", "review", "session", "waterlog"]
 
@@ -91,6 +92,7 @@ def review(*names: str, back_to: str | None = None, title: str = "Confirm sessio
         return_annotation=None,
     )
     review.__annotations__ = {**dict.fromkeys(names, Any), "return": None}
+    setattr(review, BACK_TARGETS, (target,))  # for clabe check
     return step_defaults(title=title)(review)
 
 

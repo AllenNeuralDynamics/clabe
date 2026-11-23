@@ -78,6 +78,8 @@ def qc(launcher: Launcher) -> QcReport: ...
 | `name=` | Store the output under another name |
 
 Going back (from the web UI, or with `raise GoBack("session")`) reruns that step and every step that depends on it.
+`GoBack` also takes the step's function (`raise GoBack(session)`), and `clabe check` reports a literal target that is
+not an earlier step, including `steps.review(back_to=...)`.
 
 ## 5. Run a step only in some cases
 

@@ -79,6 +79,9 @@ class Step:
 #: Attribute holding the default options a step function carries (see `step_defaults`).
 STEP_DEFAULTS = "__clabe_step_defaults__"
 
+#: Attribute naming the steps a built step may go back to (e.g. ``steps.review``'s ``back_to``), for ``clabe check``.
+BACK_TARGETS = "__clabe_back_targets__"
+
 _F = TypeVar("_F", bound=Callable[..., Any])
 
 
@@ -257,6 +260,21 @@ class Workflow:
             if step.name == name:
                 return step
         raise KeyError(f"No step named {name!r} in workflow {self.name!r}.")
+
+    def step_named_by(self, target: "str | Callable[..., Any] | Step | None") -> tuple[str | None, str | None]:
+        """The name of the step ``target`` designates (a name, a step, or a step's function, found by identity),
+        and why none could be found (``None`` when found). A name or ``None`` is returned as is."""
+        if target is None or isinstance(target, str):
+            return target, None
+        if isinstance(target, Step):
+            target = target.func
+        names = [step.name for step in self._steps if step.func is target]
+        what = getattr(target, "__name__", repr(target))
+        if not names:
+            return None, f"Cannot go back to {what}: it is not a step of {self.name!r}."
+        if len(names) > 1:
+            return None, f"Cannot go back to {what}: steps {', '.join(map(repr, names))} run it; give a name."
+        return names[0], None
 
     def index(self, name: str) -> int:
         """Returns the position of the step called ``name``."""

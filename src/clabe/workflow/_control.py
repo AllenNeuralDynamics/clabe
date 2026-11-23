@@ -1,5 +1,8 @@
 """Exceptions a step raises to steer its run."""
 
+from collections.abc import Callable
+from typing import Any
+
 
 class GoBack(Exception):
     """Raised by a step to go back to an earlier step.
@@ -8,11 +11,12 @@ class GoBack(Exception):
     first will loop.
 
     Args:
-        to: Name of the step to go back to. ``None`` goes back to the nearest earlier step that has run and
-            is not locked by a completed barrier.
+        to: The step to go back to: its name, or its function (``GoBack(subject)``; found by identity, so it works
+            for a step declared with ``name=``). ``None`` goes back to the nearest earlier step that has run and is
+            not locked by a completed barrier.
     """
 
-    def __init__(self, to: str | None = None) -> None:
+    def __init__(self, to: str | Callable[..., Any] | None = None) -> None:
         super().__init__(to)
         self.to = to
 

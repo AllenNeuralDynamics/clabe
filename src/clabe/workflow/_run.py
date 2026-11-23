@@ -494,9 +494,13 @@ class Run:
             result = self._call(step)
         except GoBack as exc:
             self._end(step, StepStatus.PENDING)
-            if exc.to == step.name:
+            to, rejection = self.workflow.step_named_by(exc.to)
+            if rejection is None and to == step.name:
                 return  # going back to itself: run it again
-            rejection = self._go_back_from(step, exc.to)
+            if rejection is None:
+                rejection = self._go_back_from(step, to)
+            else:
+                self.notify(rejection, MessageLevel.WARNING)
             if rejection is not None:
                 error = GoBackRejected(rejection)
                 error.__cause__ = exc  # the failure's traceback shows where the step raised GoBack

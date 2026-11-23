@@ -1,7 +1,9 @@
 """Static checks of workflows — wiring and types — without running any step (for CI)."""
 
+import ast
 import dataclasses
 import inspect
+import textwrap
 import types
 import typing
 from collections.abc import Callable
@@ -9,7 +11,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from ._discovery import collect_workflows, load_module
-from ._workflow import Step, Workflow, WorkflowDefinitionError
+from ._workflow import BACK_TARGETS, Step, Workflow, WorkflowDefinitionError
 
 Severity = Literal["error", "warning"]
 
@@ -191,7 +193,43 @@ def check_workflow(workflow: Workflow, *, strict: bool = False) -> list[Issue]:
             elif verdict is None and strict:
                 report("warning", f"cannot decide whether {_name(given)} fits {_name(expected)} for {dep!r}.")
         declared[step.name] = hints.get("return", _UNKNOWN)
+    issues += _check_back_targets(workflow)
     return issues
+
+
+def _check_back_targets(workflow: Workflow) -> list[Issue]:
+    """Reports ``GoBack`` targets found statically that are not an earlier step (or the step itself)."""
+    position = {step.name: index for index, step in enumerate(workflow.steps)}
+    issues = []
+    for index, step in enumerate(workflow.steps):
+        for target in _back_targets(step.func):
+            if target not in position:
+                message = f"goes back to {target!r}, which is not a step of this workflow."
+            elif position[target] > index:
+                message = f"goes back to {target!r}, which comes after it."
+            else:
+                continue
+            issues.append(Issue("error", message, workflow=workflow.name, step=step.name))
+    return issues
+
+
+def _back_targets(func: Callable[..., Any]) -> list[str]:
+    """The step names ``func`` may go back to, as far as can be told without running it: those a built step declares
+    (`BACK_TARGETS`), and the literal names in its ``GoBack("...")`` calls."""
+    targets = list(getattr(func, BACK_TARGETS, ()))
+    try:
+        tree = ast.parse(textwrap.dedent(inspect.getsource(func)))
+    except (OSError, TypeError, SyntaxError):  # no source (built-in, lambda in a REPL, ...)
+        return targets
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        name = node.func.id if isinstance(node.func, ast.Name) else getattr(node.func, "attr", None)
+        if name != "GoBack":
+            continue
+        arguments = [*node.args[:1], *(k.value for k in node.keywords if k.arg == "to")]
+        targets += [a.value for a in arguments if isinstance(a, ast.Constant) and isinstance(a.value, str)]
+    return targets
 
 
 def _may_receive_none(producer: Step, consumer: Step) -> bool:
