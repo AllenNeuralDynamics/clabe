@@ -370,6 +370,9 @@ class Launcher:
         run.keep_open()
         self._served_run = run
         ui.notify(f"Run served at {url}", MessageLevel.INFO)
+        if not getattr(self.client, "interactive", True):
+            # a headless client only logs its messages: print the address, so a closed tab can be reopened
+            print(f"Run served at {url}", flush=True)
         if self.settings.open_browser:
             import webbrowser
 
