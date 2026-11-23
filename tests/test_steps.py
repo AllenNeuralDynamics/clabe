@@ -1,10 +1,14 @@
 """The reusable steps of clabe.steps, alone and wired into a workflow."""
 
+import asyncio
 from collections import namedtuple
 from pathlib import Path
+from typing import Literal
 from unittest.mock import MagicMock
 
 import pytest
+from aind_behavior_curriculum import Stage, TrainerState
+from aind_behavior_services.task import Task
 from pydantic import BaseModel
 
 from clabe import steps
@@ -13,6 +17,13 @@ from clabe.workflow import LocalClient, Run, RunStatus, Workflow, check_workflow
 from tests.conftest import MockClient
 
 _Usage = namedtuple("_Usage", "total used free")
+
+
+class _Task(Task):
+    """A task for trainer states."""
+
+    name: Literal["Task"] = "Task"
+    version: Literal["0.0.0"] = "0.0.0"
 
 
 class _Rig(BaseModel):
@@ -198,4 +209,103 @@ class TestRemote:
         wf = self._wf()
         step = wf.get("remote")
         assert step.deps == ("ephys_rig", "mode") and step.title == "Other computer"
+        assert check_workflow(wf, strict=True) == []
+
+
+class TestCurriculum:
+    @pytest.fixture
+    def fake_app(self, monkeypatch):
+        """A CurriculumApp that suggests the next stage without running anything."""
+        from aind_behavior_curriculum import Metrics
+
+        from clabe import apps
+
+        ran = []
+
+        class FakeCurriculumApp:
+            def __init__(self, settings):
+                self.settings = settings
+
+            async def run_async(self):
+                ran.append(self.settings)
+
+            def process_suggestion(self):
+                state = TrainerState.model_validate_json(Path(self.settings.input_trainer_state).read_text())
+                next_state = state.model_copy(update={"stage": state.stage.model_copy(update={"name": "Next"})})
+                return apps.CurriculumSuggestion(
+                    trainer_state=next_state, metrics=Metrics(), version="1", dsl_version="1"
+                )
+
+        monkeypatch.setattr(apps, "CurriculumApp", FakeCurriculumApp)
+        return ran
+
+    @staticmethod
+    def _state(on_curriculum: bool = True) -> TrainerState:
+        return TrainerState.model_construct(
+            curriculum=None, is_on_curriculum=on_curriculum, stage=Stage(name="First", task=_Task(task_parameters={}))
+        )
+
+    def _run(self, step, tmp_path, state, store):
+        launcher = MagicMock(session_directory=tmp_path)
+        return asyncio.run(step(launcher=launcher, session="s", store=store, trainer_state=state))
+
+    def test_it_runs_saves_and_uploads_the_suggestion(self, fake_app, tmp_path):
+        from clabe.stores import Kind, MemoryStore
+
+        store, hooked = MemoryStore(), []
+        outcome = self._run(
+            steps.curriculum(before=lambda session: hooked.append(session)), tmp_path, self._state(), store
+        )
+        assert hooked == ["s"] and outcome.uploaded
+        assert (tmp_path / "behavior" / "trainer_state.json").is_file()
+        assert (
+            outcome.suggestion_path == tmp_path / "Behavior" / "Logs" / "suggestion.json"
+            and outcome.suggestion_path.is_file()
+        )
+        assert fake_app[0].data_directory == tmp_path
+        assert store.list(Kind.from_trainer_state())[0].stage.name == "Next"
+
+    def test_upload_can_be_declined_and_off_curriculum_does_nothing(self, fake_app, tmp_path):
+        from clabe.stores import Kind, MemoryStore
+
+        store = MemoryStore()
+        outcome = self._run(steps.curriculum(upload=lambda: False), tmp_path, self._state(), store)
+        assert not outcome.uploaded and store.list(Kind.from_trainer_state()) == []
+        assert self._run(steps.curriculum(), tmp_path / "other", self._state(on_curriculum=False), store) is None
+        assert fake_app and len(fake_app) == 1
+
+    def test_an_existing_starting_trainer_state_is_kept(self, fake_app, tmp_path):
+        from clabe.stores import MemoryStore
+
+        saved = tmp_path / "behavior" / "trainer_state.json"
+        saved.parent.mkdir(parents=True)
+        original = self._state().model_copy(update={"stage": Stage(name="Original", task=_Task(task_parameters={}))})
+        saved.write_text(original.model_dump_json())
+        outcome = self._run(steps.curriculum(upload=False), tmp_path, self._state(), MemoryStore())
+        assert outcome.input_trainer_state == saved and "Original" in saved.read_text()
+
+    def test_it_checks_cleanly_in_a_workflow(self):
+        from aind_behavior_services.session import Session
+
+        from clabe.apps import CurriculumOutcome
+        from clabe.stores import MemoryStore, Store
+
+        wf = Workflow("demo")
+        @wf.step
+        def session() -> Session:
+            return Session(subject="1", experiment="demo")
+
+        @wf.step
+        def store() -> Store:
+            return MemoryStore()
+
+        @wf.step
+        def trainer_state() -> TrainerState:
+            return self._state()
+
+        wf.step(steps.curriculum())
+
+        @wf.step
+        def mappers(curriculum: CurriculumOutcome | None) -> None: ...
+
         assert check_workflow(wf, strict=True) == []

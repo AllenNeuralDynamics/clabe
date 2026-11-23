@@ -16,6 +16,7 @@ wf.step(steps.register())                   # barrier: nothing before it can run
 ```
 """
 
+import asyncio
 import inspect
 import os
 import typing
@@ -34,7 +35,7 @@ from .session import SessionBuilder
 from .workflow import GoBack, step_defaults
 from .workflow._workflow import BACK_TARGETS
 
-__all__ = ["free_space", "preflight", "register", "remote", "review", "session", "waterlog"]
+__all__ = ["curriculum", "free_space", "preflight", "register", "remote", "review", "session", "waterlog"]
 
 
 def session(
@@ -152,6 +153,100 @@ def register(*, directory: Callable[[Any], os.PathLike] | None = None) -> Callab
         return launcher.session_directory
 
     return register
+
+
+#: Where `curriculum` saves the trainer state the session started from, in the session folder.
+TRAINER_STATE_PATH = Path("behavior") / "trainer_state.json"
+#: Where `curriculum` saves the suggestion, in the session folder.
+SUGGESTION_PATH = Path("Behavior") / "Logs" / "suggestion.json"
+
+
+def curriculum(
+    *,
+    before: Callable[..., Any] | None = None,
+    upload: bool | Callable[[], bool] = True,
+    settings: Mapping[str, Any] | None = None,
+    title: str = "Curriculum",
+) -> Callable[..., Any]:
+    """A ``curriculum`` step suggesting the animal's next stage from this session's data; returns a
+    [`CurriculumOutcome`][clabe.apps.CurriculumOutcome], or ``None`` when the animal is not on a curriculum.
+
+    It takes ``launcher``, ``session``, ``store`` and ``trainer_state`` by name, and needs a registered session.
+    When the trainer state is on a curriculum (``is_on_curriculum`` and a ``stage``), it:
+
+    1. saves the trainer state the session started from to ``<session>/behavior/trainer_state.json`` (an existing
+       file, e.g. when recovering a session, is kept);
+    2. calls ``before``, if given, e.g. to write the past sessions' metrics a curriculum reads;
+    3. runs [`CurriculumApp`][clabe.apps.CurriculumApp] on the session folder, and saves its suggestion to
+       ``<session>/Behavior/Logs/suggestion.json``;
+    4. writes the suggested trainer state to the store (`Kind.from_trainer_state`), unless ``upload`` says not to.
+
+    ```python
+    wf.step(steps.curriculum(before=write_past_metrics))
+    recovery.step(steps.curriculum(upload=lambda: ui.confirm("Upload the suggestion?")))
+    ```
+
+    Args:
+        before: Called before the curriculum runs, with what it takes of ``launcher``, ``session``, ``store`` and
+            ``trainer_state`` (by name); sync or async. An error it raises fails the step.
+        upload: Whether to write the suggestion to the store, or a function asked when there is one (e.g. a
+            confirmation).
+        settings: Other [`CurriculumSettings`][clabe.apps.CurriculumSettings] fields, e.g. ``{"curriculum": ...}``.
+        title: The step's title.
+    """
+    from aind_behavior_curriculum import TrainerState
+
+    from .apps import CurriculumApp, CurriculumOutcome, CurriculumSettings
+    from .stores import Kind, Store
+
+    @step_defaults(title=title)
+    async def curriculum(
+        launcher: Launcher, session: Session, store: Store, trainer_state: TrainerState
+    ) -> CurriculumOutcome | None:
+        """Runs the curriculum on this session, when the animal is on one."""
+        if not (trainer_state.is_on_curriculum and trainer_state.stage is not None):
+            ui.notify("The animal is not on a curriculum; no suggestion.", ui.MessageLevel.INFO)
+            return None
+        directory = launcher.session_directory
+        input_trainer_state = directory / TRAINER_STATE_PATH
+        if not input_trainer_state.exists():
+            input_trainer_state.parent.mkdir(parents=True, exist_ok=True)
+            input_trainer_state.write_text(trainer_state.model_dump_json(indent=2), encoding="utf-8")
+        if before is not None:
+            available = {"launcher": launcher, "session": session, "store": store, "trainer_state": trainer_state}
+            wanted = inspect.signature(before).parameters
+            await _call(before, **{name: value for name, value in available.items() if name in wanted})
+        run_settings = CurriculumSettings(
+            **{**(settings or {}), "input_trainer_state": input_trainer_state.resolve(), "data_directory": directory}
+        )
+        app = CurriculumApp(settings=run_settings)
+        await app.run_async()
+        suggestion = app.process_suggestion()
+        suggestion_path = directory / SUGGESTION_PATH
+        suggestion_path.parent.mkdir(parents=True, exist_ok=True)
+        suggestion_path.write_text(suggestion.model_dump_json(indent=2), encoding="utf-8")
+        uploaded = bool(await _call(upload)) if callable(upload) else upload
+        if uploaded:
+            store.write(Kind.from_trainer_state(), suggestion.trainer_state)
+        else:
+            ui.notify("The curriculum suggestion was not uploaded.", ui.MessageLevel.WARNING)
+        return CurriculumOutcome(
+            suggestion=suggestion,
+            suggestion_path=suggestion_path,
+            input_trainer_state=input_trainer_state,
+            settings=run_settings,
+            uploaded=uploaded,
+        )
+
+    return curriculum
+
+
+async def _call(func: Callable[..., Any], **kwargs: Any) -> Any:
+    """Calls a hook from an async step: an async one on the loop, a sync one in a thread (it may ask the user or wait
+    on the network)."""
+    if inspect.iscoroutinefunction(func):
+        return await func(**kwargs)
+    return await asyncio.to_thread(func, **kwargs)
 
 
 def remote(

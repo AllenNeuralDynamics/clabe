@@ -34,6 +34,16 @@ class CurriculumSuggestion(pydantic.BaseModel):
     dsl_version: str
 
 
+class CurriculumOutcome(pydantic.BaseModel):
+    """What [`steps.curriculum`][clabe.steps.curriculum] did: the suggestion, where it was saved, how it was run."""
+
+    suggestion: CurriculumSuggestion
+    suggestion_path: Path
+    input_trainer_state: Path
+    settings: "CurriculumSettings"
+    uploaded: bool = pydantic.Field(description="Whether the suggested trainer state was written to the store")
+
+
 class CurriculumSettings(ServiceSettings):
     """
     Settings for the CurriculumApp.
@@ -189,3 +199,6 @@ class CurriculumApp(ExecutableApp, _DefaultExecutorMixin):
     def command(self) -> Command:
         """Get the command to execute."""
         return self._python_script_app.command
+
+
+CurriculumOutcome.model_rebuild()
