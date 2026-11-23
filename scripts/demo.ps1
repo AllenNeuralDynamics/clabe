@@ -17,6 +17,7 @@
     -HubPort picks the hub's port (the next free one is used if it is taken); -KeepHub leaves the hub running
     afterwards (-StopHub stops it later); -NoBrowser opens nothing; -Frontend headless answers only in the browser
     (no terminal UI). The hub's issue reports are kept in a Docker volume between demos.
+    The web UI is built first when it is missing (needs the .NET SDK; -SkipBuild skips that).
 #>
 param(
     [int]$HubPort = 24080,
@@ -24,6 +25,7 @@ param(
     [switch]$KeepHub,
     [switch]$StopHub,
     [switch]$NoBrowser,
+    [switch]$SkipBuild,
     [ValidateSet('auto', 'tui', 'console', 'headless')]
     [string]$Frontend = 'auto'
 )
@@ -76,6 +78,21 @@ if ($StopHub) {
 
 foreach ($tool in 'uv', 'docker') {
     if (-not (Get-Command $tool -ErrorAction SilentlyContinue)) { throw "The demo needs $tool on PATH." }
+}
+
+# The run's browser tab and the daemon's page need the built web UI (gitignored, so a fresh checkout lacks it).
+if (-not $SkipBuild -and -not (Test-Path (Join-Path $root 'src/clabe/server/static/index.html'))) {
+    if (-not (Get-Command 'dotnet' -ErrorAction SilentlyContinue)) {
+        throw 'The web UI is not built and the .NET SDK (dotnet) is needed to build it: install it, or pass -SkipBuild to run without the web UI.'
+    }
+    Write-Host '==> Building the web UI (first run only; scripts/build_web.py)'
+    Push-Location $root
+    try {
+        & uv run python scripts/build_web.py
+        if ($LASTEXITCODE -ne 0) { throw 'Building the web UI failed.' }
+    } finally {
+        Pop-Location
+    }
 }
 
 # A token for this demo only: the hub, the daemon and the run all require it.
