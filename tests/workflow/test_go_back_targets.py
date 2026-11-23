@@ -59,7 +59,7 @@ def test_a_function_used_by_two_steps_needs_a_name():
 def test_the_check_reports_go_back_targets_that_are_no_earlier_step():
     wf = Workflow("demo")
     wf.step(lambda: 1, name="session")
-    wf.step(steps.review("session", back_to="sesion"))  # a typo
+    wf.step(steps.review("session", back_to="no-such-step"))  # a name that is no step
 
     @wf.step
     def confirm(session: int) -> None:
@@ -70,6 +70,6 @@ def test_the_check_reports_go_back_targets_that_are_no_earlier_step():
     wf.step(lambda: None, name="register")
     messages = [(i.step, i.message) for i in check_workflow(wf) if i.severity == "error"]
     assert messages == [
-        ("review", "goes back to 'sesion', which is not a step of this workflow."),
+        ("review", "goes back to 'no-such-step', which is not a step of this workflow."),
         ("confirm", "goes back to 'register', which comes after it."),
     ]
