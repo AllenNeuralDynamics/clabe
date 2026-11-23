@@ -74,7 +74,8 @@ wf.step(steps.register())  # a barrier; creates the session folder
 
 @wf.step(title="Acquire", cancellable=True)
 async def acquire(launcher: Launcher, trials: float) -> dict:
-    return await concurrently(behavior=run_bonsai, ephys=run_open_ephys)  # each branch is retried or stopped on its own
+    async with open_ephys_recording():  # records from before the apps start until they have all ended
+        return await concurrently(behavior=run_bonsai, fip=run_fip)  # each branch is retried or stopped on its own
 ```
 
 ```bash

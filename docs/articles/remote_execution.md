@@ -50,12 +50,12 @@ remote.verify()  # checks the other checkout: same origin, commit and submodules
 
 ## 3. Run an app there
 
-Build the app as usual, then pass `executor=remote`:
+Build the app as usual, then pass `executor=remote`. Here FIP runs on rig-b while behavior runs here:
 
 ```python
 from clabe.workflow import concurrently
 
-ephys_app = AindBehaviorServicesBonsaiApp(
+fip_app = AindBehaviorServicesBonsaiApp(
     workflow=Path("./Aind.Physiology.Fip/src/main.bonsai"),
     executable=Path("./Aind.Physiology.Fip/.bonsai/bonsai.exe"),
     temp_directory=launcher.temp_dir,
@@ -64,8 +64,34 @@ ephys_app = AindBehaviorServicesBonsaiApp(
 )
 results = await concurrently(
     behavior=lambda: behavior_app.run_async(),
-    ephys=lambda: ephys_app.run_async(executor=remote),
+    fip=lambda: fip_app.run_async(executor=remote),
 )
+```
+
+A recording that lasts as long as the session, such as Open Ephys, is not a branch: wrap the branches in it. It
+starts before them and stops once they have all ended, also on failure or abort:
+
+```python
+from contextlib import asynccontextmanager
+
+from clabe.apps.open_ephys import OpenEphysApp, OpenEphysAppSettings
+
+open_ephys = OpenEphysApp(OpenEphysAppSettings(signal_chain="./signal_chain.xml"))
+
+
+@asynccontextmanager
+async def recording():
+    await open_ephys.launch(executor=remote)  # opens the GUI on rig-b; the client talks to rig-b's port
+    try:
+        open_ephys.start()
+        yield
+    finally:
+        open_ephys.stop()
+        await open_ephys.close()
+
+
+async with recording():
+    results = await concurrently(behavior=lambda: behavior_app.run_async(), fip=lambda: fip_app.run_async())
 ```
 
 - The first command leases the machine. Other runs get `423` until this run ends.

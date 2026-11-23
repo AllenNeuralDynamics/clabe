@@ -55,7 +55,8 @@ wf.step(steps.register())  # creates the session folder; the steps above are loc
 
 @wf.step(title="Acquire", cancellable=True)
 async def acquire(launcher: Launcher, trials: float) -> dict:
-    return await concurrently(behavior=run_bonsai, ephys=run_open_ephys)
+    async with open_ephys_recording():  # records while the apps run
+        return await concurrently(behavior=run_bonsai, fip=run_fip)
 ```
 
 ```bash
