@@ -10,7 +10,7 @@
     <TokenPrompt What="This run" />
     return;
 }
-<div class="run-shell @(_drawerOpen ? "drawer-open" : null)">
+<div class="run-shell @(_drawerOpen ? "drawer-open" : null) @(_logOpen ? "log-open" : null)">
     <header class="run-header">
         <div class="brand run-brand">
             <img src="logo.svg" alt="clabe" />
@@ -41,6 +41,13 @@
                 </button>
             </div>
             <button type="button" class="abort" @onclick="Abort">Abort</button>
+        }
+        @if (Connection.State is not null && Connection.ClosedEvent is null)
+        {
+            @* while the session is open (running or on its closing screen): the server is there to take the report *@
+            <button type="button" class="report" title="Report an issue (Ctrl+Shift+R)" @onclick="OpenReport">
+                <RunIcon Name="flag" Size="15" /> <span class="report-label">Report</span>
+            </button>
         }
     </header>
 

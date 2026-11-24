@@ -49,3 +49,11 @@ export function follow(url, receiver) {
   }
   return { close: () => { over = true; source.close(); } };
 }
+
+// Follows the run process' log records (`log` events) and hands each one to .NET (OnLogLine). EventSource resumes
+// after the last line it saw; the page closes this stream when the run's event stream ends.
+export function followLogs(url, receiver) {
+  const source = new EventSource(url);
+  source.addEventListener("log", (message) => receiver.invokeMethodAsync("OnLogLine", message.data));
+  return { close: () => source.close() };
+}

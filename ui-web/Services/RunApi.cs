@@ -29,6 +29,9 @@ public sealed class RunApi(HttpClient http)
     /// <summary>The event stream's URL.</summary>
     public string EventsUrl => BrowserUrl("api/events");
 
+    /// <summary>The stream of the run process' log records (the Log pane's Logs tab).</summary>
+    public string LogsUrl => BrowserUrl("api/logs");
+
     /// <summary>Where the browser loads a media prompt's local file.</summary>
     public string MediaUrl(string promptId) => BrowserUrl($"api/prompts/{Uri.EscapeDataString(promptId)}/media");
 

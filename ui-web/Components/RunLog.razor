@@ -1,23 +1,55 @@
-@* View → Log (F2): the run's events, newest first, in a panel sliding over the page. *@
+@* View → Log (F2): a pane docked at the bottom of the page (the page stays usable), newest first. Logs: the run
+   process' Python log records (info and above, as the TUI's Logs pane); Events: the run's events. *@
+@using Clabe.Web.Api.Run
 
-<div class="log-scrim" @onclick="() => OnClose.InvokeAsync()"></div>
-<aside class="log-panel" role="dialog" aria-label="Log" data-escape>
+<aside class="log-panel" role="region" aria-label="Log" data-escape>
     <header class="log-head">
-        <h2><RunIcon Name="terminal" Size="16" /> Log <span class="count">@Connection.Log.Count</span></h2>
+        <h2><RunIcon Name="terminal" Size="16" /> Log</h2>
+        <div class="log-tabs" role="tablist" aria-label="What the log shows">
+            <button type="button" role="tab" aria-selected="@(_tab == "logs" ? "true" : "false")"
+                    class="log-tab @(_tab == "logs" ? "on" : null)" @onclick='() => _tab = "logs"'>
+                Logs <span class="count">@Connection.LogLines.Count</span>
+            </button>
+            <button type="button" role="tab" aria-selected="@(_tab == "events" ? "true" : "false")"
+                    class="log-tab @(_tab == "events" ? "on" : null)" @onclick='() => _tab = "events"'>
+                Events <span class="count">@Connection.Log.Count</span>
+            </button>
+        </div>
+        <span class="log-grow"></span>
         <input class="log-filter" placeholder="Filter…" aria-label="Filter the log" value="@_filter"
                @oninput="e => _filter = e.Value?.ToString() ?? string.Empty" />
         <button type="button" class="ghost icon" aria-label="Close the log" title="Close (F2)" @onclick="() => OnClose.InvokeAsync()"><RunIcon Name="x" /></button>
     </header>
-    <ol class="log-list">
-        @foreach (var e in Shown)
-        {
-            <li class="log-row @Level(e)">
-                <time title="@ReportTime.Both(e.Ts)">@ReportTime.Clock(e.Ts)</time>
-                <code class="log-type">@e.Type</code>
-                <span class="log-text">@Describe(e)</span>
-            </li>
-        }
-    </ol>
+    @if (_tab == "logs")
+    {
+        <ol class="log-list">
+            @foreach (var line in ShownLines)
+            {
+                <li class="log-row @LineLevel(line)">
+                    <time title="@ReportTime.Both(line.Ts)">@ReportTime.Clock(line.Ts)</time>
+                    <code class="log-type" title="@line.Logger">@line.Level · @line.Logger</code>
+                    <span class="log-text">@line.Message</span>
+                </li>
+            }
+            @if (Connection.LogLines.Count == 0)
+            {
+                <li class="log-empty subtle">Nothing logged yet (info and above).</li>
+            }
+        </ol>
+    }
+    else
+    {
+        <ol class="log-list">
+            @foreach (var e in ShownEvents)
+            {
+                <li class="log-row @Level(e)">
+                    <time title="@ReportTime.Both(e.Ts)">@ReportTime.Clock(e.Ts)</time>
+                    <code class="log-type">@e.Type</code>
+                    <span class="log-text">@Describe(e)</span>
+                </li>
+            }
+        </ol>
+    }
 </aside>
 
 @code {
@@ -25,11 +57,24 @@
     [Parameter] public EventCallback OnClose { get; set; }
 
     private string _filter = "";
+    private string _tab = "logs";
 
-    private IEnumerable<RunEvent> Shown => Enumerable.Reverse(Connection.Log)
-        .Where(e => _filter == "" || e.Type.Contains(_filter, StringComparison.OrdinalIgnoreCase)
-                    || Describe(e).Contains(_filter, StringComparison.OrdinalIgnoreCase))
+    private bool Matches(string text) => _filter == "" || text.Contains(_filter, StringComparison.OrdinalIgnoreCase);
+
+    private IEnumerable<LogLine> ShownLines => Enumerable.Reverse(Connection.LogLines)
+        .Where(l => Matches(l.Message) || Matches(l.Logger) || Matches(l.Level))
         .Take(500);
+
+    private IEnumerable<RunEvent> ShownEvents => Enumerable.Reverse(Connection.Log)
+        .Where(e => Matches(e.Type) || Matches(Describe(e)))
+        .Take(500);
+
+    private static string? LineLevel(LogLine line) => line.Level switch
+    {
+        "error" or "critical" => "level-error",
+        "warning" => "level-warning",
+        _ => null,
+    };
 
     private static string? Level(RunEvent e) => e.Type switch
     {

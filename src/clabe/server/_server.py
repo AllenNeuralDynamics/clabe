@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 
 from .._extras import require_web
 from ..workflow import Run
+from ._logs import LogBuffer
 
 if TYPE_CHECKING:
     import uvicorn
@@ -51,6 +52,7 @@ class RunServer:
         self.token = token
         self._server: uvicorn.Server | None = None
         self._thread: threading.Thread | None = None
+        self._logs: LogBuffer | None = None
 
     @property
     def url(self) -> str:
@@ -79,8 +81,10 @@ class RunServer:
         from ._app import create_app
 
         self.port = free_port(self.host, self.port)
+        self._logs = LogBuffer()  # the process' log records, for the web UI's Log pane (as the TUI's Logs pane)
+        self._logs.attach()
         config = uvicorn.Config(
-            create_app(self.run, token=self.token),
+            create_app(self.run, token=self.token, logs=self._logs),
             host=self.host,
             port=self.port,
             log_level="warning",
@@ -92,6 +96,7 @@ class RunServer:
         deadline = time.monotonic() + timeout
         while not self._server.started:
             if not self._thread.is_alive() or time.monotonic() > deadline:
+                self._detach_logs()
                 raise RuntimeError(f"The run server did not start on {self.host}:{self.port}.")
             time.sleep(0.02)
         logger.info("Serving run %s at %s", self.run.id, self.url)
@@ -101,6 +106,7 @@ class RunServer:
 
     def stop(self, timeout: float = 5.0) -> None:
         """Stops serving; open event streams are closed."""
+        self._detach_logs()
         if self._server is None:
             return
         self._server.should_exit = True
@@ -108,3 +114,9 @@ class RunServer:
             self._thread.join(timeout)
         self._server = None
         self._thread = None
+
+    def _detach_logs(self) -> None:
+        """Stops keeping the process' log records."""
+        if self._logs is not None:
+            self._logs.detach()
+            self._logs = None

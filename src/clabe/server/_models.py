@@ -32,6 +32,16 @@ class ReportBody(BaseModel):
     client: str = Field(default="remote", description="Who reports; recorded as the report's ``reported_from``.")
 
 
+class LogLine(BaseModel):
+    """A Python log record of the run's process (info and above), as the web UI's Log pane shows it."""
+
+    id: int = Field(description="Increasing number of the line; follow the stream after it.")
+    ts: datetime.datetime = Field(description="When it was logged (UTC).")
+    level: str = Field(description="debug, info, warning, error or critical.")
+    logger: str = Field(description="The logger's name (e.g. ``clabe.launcher``).")
+    message: str = Field(description="The message, with the traceback when an exception was logged.")
+
+
 class CommandResult(BaseModel):
     """Outcome of an answer or a command: accepted, or rejected with a reason to show the user."""
 

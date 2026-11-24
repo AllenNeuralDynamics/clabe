@@ -53,6 +53,14 @@ public sealed record ListDirBody(
     [property: JsonPropertyName("kind")] string Kind = "any",
     [property: JsonPropertyName("extensions")] List<string>? Extensions = null);
 
+/// <summary>A Python log record of the run's process (info and above), as the web UI's Log pane shows it.</summary>
+public sealed record LogLine(
+    [property: JsonPropertyName("id")] long Id,
+    [property: JsonPropertyName("ts")] DateTimeOffset Ts,
+    [property: JsonPropertyName("level")] string Level,
+    [property: JsonPropertyName("logger")] string Logger,
+    [property: JsonPropertyName("message")] string Message);
+
 /// <summary>Reports an issue with the run (saved on this machine for the hub to collect).</summary>
 public sealed record ReportBody(
     [property: JsonPropertyName("comment")] string Comment = "",

@@ -706,6 +706,46 @@
         "title": "ListDirBody",
         "type": "object"
       },
+      "LogLine": {
+        "description": "A Python log record of the run's process (info and above), as the web UI's Log pane shows it.",
+        "properties": {
+          "id": {
+            "description": "Increasing number of the line; follow the stream after it.",
+            "title": "Id",
+            "type": "integer"
+          },
+          "level": {
+            "description": "debug, info, warning, error or critical.",
+            "title": "Level",
+            "type": "string"
+          },
+          "logger": {
+            "description": "The logger's name (e.g. ``clabe.launcher``).",
+            "title": "Logger",
+            "type": "string"
+          },
+          "message": {
+            "description": "The message, with the traceback when an exception was logged.",
+            "title": "Message",
+            "type": "string"
+          },
+          "ts": {
+            "description": "When it was logged (UTC).",
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "ts",
+          "level",
+          "logger",
+          "message"
+        ],
+        "title": "LogLine",
+        "type": "object"
+      },
       "Notify": {
         "description": "A message for the user. ``level`` is a [`MessageLevel`][clabe.ui.MessageLevel] value.",
         "properties": {
@@ -2440,6 +2480,93 @@
           }
         },
         "summary": "Info"
+      }
+    },
+    "/api/logs": {
+      "get": {
+        "description": "The process' log records (info and above) as Server-Sent Events (``log``), the latest kept ones first, then\nlive ones; ends when the run's session is over or the client leaves.",
+        "operationId": "log_lines_api_logs_get",
+        "parameters": [
+          {
+            "description": "Only lines after this id.",
+            "in": "query",
+            "name": "after",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only lines after this id.",
+              "title": "After"
+            }
+          },
+          {
+            "in": "header",
+            "name": "last-event-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Last-Event-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "itemSchema": {
+                  "properties": {
+                    "data": {
+                      "contentMediaType": "application/json",
+                      "contentSchema": {
+                        "$ref": "#/components/schemas/LogLine"
+                      },
+                      "type": "string"
+                    },
+                    "event": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Log Lines"
       }
     },
     "/api/prompts/{prompt_id}/answer": {

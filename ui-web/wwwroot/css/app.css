@@ -59,6 +59,7 @@ button.ghost-danger:hover:not(:disabled) { background: var(--err-soft); }
 .nav-buttons button.icon:disabled { opacity: 0.35; }
 .run-header .abort { height: 32px; }
 .run-header .abort:hover:not(:disabled) { color: var(--err); border-color: var(--err); background: var(--err-soft); }
+.run-header .report { height: 32px; display: inline-flex; align-items: center; gap: 6px; }
 
 /* menu bar (design.css has the primitives) */
 .menubar { position: relative; z-index: 60; }
@@ -363,20 +364,29 @@ table.review td.bool { color: var(--info); font-family: var(--mono); font-size: 
 .timeline .error .dot, .timeline .critical .dot { background: var(--err); }
 .timeline .error p, .timeline .critical p { color: var(--err); }
 
-/* ---------- log slide-over ---------- */
-.log-scrim { position: fixed; inset: 0; z-index: 80; background: color-mix(in srgb, #000 18%, transparent); }
+/* ---------- log pane, docked at the bottom of the shell ---------- */
+.run-shell.log-open {
+    grid-template-rows: var(--header-height) var(--menubar-height) minmax(0, 1fr) min(38vh, 360px);
+}
 .log-panel {
-    position: fixed; top: 0; right: 0; bottom: 0; z-index: 90; width: min(640px, 100vw);
+    grid-row: 4; min-height: 0;
     display: grid; grid-template-rows: auto minmax(0, 1fr);
-    background: var(--surface); border-left: 1px solid var(--border); box-shadow: var(--shadow);
-    animation: slide-in 140ms ease-out;
+    background: var(--surface); border-top: 1px solid var(--border);
 }
 @keyframes slide-in { from { transform: translateX(24px); opacity: 0; } }
 .log-head { display: flex; align-items: center; gap: var(--s3); padding: var(--s3) var(--s3) var(--s3) var(--s4); border-bottom: 1px solid var(--border); }
-.log-head h2 { display: flex; align-items: center; gap: var(--s2); font-size: var(--text-lg); margin-right: auto; }
+.log-head { padding-top: var(--s2); padding-bottom: var(--s2); }
+.log-head h2 { display: flex; align-items: center; gap: var(--s2); font-size: var(--text-md); }
+.log-grow { flex: 1; }
+.log-tabs { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2); }
+.log-tab { height: 26px; padding: 0 var(--s3); border: 0; background: transparent; font-size: var(--text-sm); color: var(--text-2); }
+.log-tab.on { background: var(--surface); color: var(--text); font-weight: 600; }
+.log-tab .count { color: var(--text-3); font-weight: 400; margin-left: 4px; font-variant-numeric: tabular-nums; }
+.log-empty { padding: var(--s3) var(--s4); }
+.log-row .log-text { white-space: pre-wrap; }
 .log-filter { width: 200px; height: 32px; font-size: var(--text-sm); }
 .log-list { list-style: none; margin: 0; padding: var(--s2) 0; overflow: auto; font-size: var(--text-xs); }
-.log-row { display: grid; grid-template-columns: 64px 130px minmax(0, 1fr); gap: var(--s2); padding: 3px var(--s4); }
+.log-row { display: grid; grid-template-columns: 64px 200px minmax(0, 1fr); gap: var(--s2); padding: 3px var(--s4); }
 .log-row:hover { background: var(--surface-2); }
 .log-row time { color: var(--text-3); font-variant-numeric: tabular-nums; }
 .log-type { color: var(--accent); font-size: 0.6875rem; overflow: hidden; text-overflow: ellipsis; }
@@ -472,7 +482,8 @@ table.review td.bool { color: var(--info); font-family: var(--mono); font-size: 
     .run-header { gap: var(--s2); padding: 0 var(--s3); }
     .run-host, .run-elapsed { display: none; }
     .run-name { font-size: var(--text-md); }
-    .run-header .abort { padding: 0 var(--s3); }
+    .run-header .abort, .run-header .report { padding: 0 var(--s3); }
+    .run-header .report-label { display: none; }
     .run-body { display: block; overflow: auto; }
     .run-strip {
         position: sticky; top: 0; z-index: 20;

@@ -29,6 +29,8 @@ public sealed class RunConnection(RunApi api, IJSRuntime js, NavigationManager n
     private DotNetObjectReference<RunConnection>? _self;
     private IJSObjectReference? _module;
     private IJSObjectReference? _stream;
+    private IJSObjectReference? _logStream;
+    private long _lastLogId;
     private bool _refreshing;
     private bool _refreshAgain;
     private int _lastSeq;
@@ -42,6 +44,11 @@ public sealed class RunConnection(RunApi api, IJSRuntime js, NavigationManager n
     public string Status { get; private set; } = "connecting";
     public string? Error { get; private set; }
     public List<RunEvent> Log { get; } = [];
+
+    /// <summary>The run process' log records (info and above), oldest first; the latest <see cref="MaxLogLines"/>.</summary>
+    public List<LogLine> LogLines { get; } = [];
+
+    public const int MaxLogLines = 2000;
     public List<RunEvent> Messages { get; } = [];
     public IEnumerable<RunEvent> Activities => _activities.Values;
 
@@ -102,10 +109,11 @@ public sealed class RunConnection(RunApi api, IJSRuntime js, NavigationManager n
         _self = DotNetObjectReference.Create(this);
         _module = await js.InvokeAsync<IJSObjectReference>("import", "./js/events.js");
         _stream = await _module.InvokeAsync<IJSObjectReference>("follow", api.EventsUrl, _self);
+        _logStream = await _module.InvokeAsync<IJSObjectReference>("followLogs", api.LogsUrl, _self);
     }
 
     [JSInvokable]
-    public void OnStatus(string status)
+    public async Task OnStatus(string status)
     {
         if (Status == "ended")
         {
@@ -113,6 +121,45 @@ public sealed class RunConnection(RunApi api, IJSRuntime js, NavigationManager n
         }
         Status = status;
         Changed?.Invoke();
+        if (status == "ended")
+        {
+            await CloseLogStreamAsync(); // the session is over: the server ends the log stream too
+        }
+    }
+
+    [JSInvokable]
+    public void OnLogLine(string data)
+    {
+        var line = JsonSerializer.Deserialize<LogLine>(data, Json.Options);
+        if (line is null || line.Id <= _lastLogId)
+        {
+            return;
+        }
+        _lastLogId = line.Id;
+        LogLines.Add(line);
+        if (LogLines.Count > MaxLogLines)
+        {
+            LogLines.RemoveRange(0, LogLines.Count - MaxLogLines);
+        }
+        Changed?.Invoke();
+    }
+
+    private async Task CloseLogStreamAsync()
+    {
+        if (_logStream is null)
+        {
+            return;
+        }
+        var stream = _logStream;
+        _logStream = null;
+        try
+        {
+            await stream.InvokeVoidAsync("close");
+            await stream.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+        }
     }
 
     /// <summary>The stream broke after the run finished: keep following only while a closing screen waits.</summary>
@@ -319,6 +366,7 @@ public sealed class RunConnection(RunApi api, IJSRuntime js, NavigationManager n
 
     public async ValueTask DisposeAsync()
     {
+        await CloseLogStreamAsync();
         if (_stream is not null)
         {
             await _stream.InvokeVoidAsync("close");

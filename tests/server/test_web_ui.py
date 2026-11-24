@@ -218,6 +218,53 @@ def test_the_closing_screen_closes_the_session(page):
     assert len(closed) == 1 and closed[0].closed_by.startswith("web-")
 
 
+def test_the_log_pane_shows_the_python_logs_and_report_is_next_to_abort(page):
+    import logging
+
+    logger = logging.getLogger("clabe.tests.web_logs")
+    root = logging.getLogger()
+    level, disabled = root.level, logging.root.manager.disable
+    logging.disable(logging.NOTSET)  # tests/__init__.py disables logging for the suite
+    root.setLevel(logging.INFO)
+    wf = Workflow("log-demo")
+
+    @wf.step
+    def subject():
+        logger.info("calibrated the rig in %d s", 3)
+        return ui.text("Subject")
+
+    run = Run(wf)
+    server = RunServer(run, port=18299)
+    url = server.start()
+    try:
+        run.start()
+        page.goto(url)
+        page.get_by_label("Subject").wait_for()
+        header = page.locator("header.run-header")
+        assert header.get_by_role("button", name="Abort").is_visible()
+        assert header.get_by_role("button", name="Report").is_visible()
+
+        page.keyboard.press("F2")
+        pane = page.get_by_role("region", name="Log")
+        pane.get_by_text("calibrated the rig in 3 s").wait_for()  # the Logs tab: Python log records
+        assert pane.get_by_text("clabe.tests.web_logs").first.is_visible()
+        box = pane.bounding_box()
+        assert box is not None and box["width"] > page.viewport_size["width"] * 0.9  # docked along the bottom
+        pane.get_by_role("tab", name="Events").click()
+        pane.get_by_text("prompt_opened").wait_for()
+
+        page.get_by_label("Subject").fill("mouse-7")  # the page stays usable with the pane open
+        page.get_by_role("button", name="Submit").click()
+        assert run.wait(15)
+    finally:
+        if not run.wait(0):
+            run.abort("test teardown")
+        server.stop()
+        root.setLevel(level)
+        logging.disable(disabled)
+    assert run.output("subject") == "mouse-7"
+
+
 _PNG = bytes.fromhex(  # 1x1 pixel
     "89504e470d0a1a0a0000000d4948445200000001000000010806000000"
     "1f15c4890000000d49444154789c6360f80f00000101000518d84e0000000049454e44ae426082"

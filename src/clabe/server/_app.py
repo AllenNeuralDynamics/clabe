@@ -21,6 +21,7 @@ from ..ui._requests import normalize_extensions
 from ..workflow import Ack, Rejected, Run, RunState
 from ..workflow.events import Event, PromptOpened, RunClosed, RunFinished, RunStarted
 from ._agui import RunAgentInput, agui_stream
+from ._logs import LogBuffer
 from ._models import (
     AbortBody,
     AnswerBody,
@@ -29,6 +30,7 @@ from ._models import (
     DirEntry,
     DirListing,
     ListDirBody,
+    LogLine,
     ReportBody,
     ServerInfo,
     SessionInfo,
@@ -58,14 +60,18 @@ def _result(outcome: Ack | Rejected) -> CommandResult:
     return CommandResult(ok=True)
 
 
-def create_app(run: Run, *, token: str | None = None, static_dir: Path | None = STATIC_DIR) -> FastAPI:
+def create_app(
+    run: Run, *, token: str | None = None, static_dir: Path | None = STATIC_DIR, logs: LogBuffer | None = None
+) -> FastAPI:
     """Builds the API serving ``run``.
 
     Args:
         run: The run to serve.
         token: When set, every API request must carry it (``Authorization: Bearer <token>`` or ``?token=``).
         static_dir: Directory of the web UI to serve at ``/`` (a placeholder page when it is missing).
+        logs: The process' log records to serve at ``/api/logs`` (attached by `RunServer`); none: an empty stream.
     """
+    logs = logs if logs is not None else LogBuffer()
     app = FastAPI(
         title="clabe run API",
         version=__version__,
@@ -105,6 +111,8 @@ def create_app(run: Run, *, token: str | None = None, static_dir: Path | None = 
         start = after if after is not None else int(last_event_id) if last_event_id and last_event_id.isdigit() else 0
         async for event in _event_stream(run, request, start):
             yield ServerSentEvent(data=event, id=str(event.seq), event=event.type)
+
+    _add_log_route(api, run, logs)
 
     @api.post("/prompts/{prompt_id}/answer", response_model=CommandResult)
     def answer(prompt_id: str, body: AnswerBody) -> CommandResult:
@@ -151,6 +159,22 @@ def create_app(run: Run, *, token: str | None = None, static_dir: Path | None = 
     app.include_router(api)
     _mount_ui(app, static_dir)
     return app
+
+
+def _add_log_route(api: APIRouter, run: Run, logs: LogBuffer) -> None:
+    """Adds the stream of the process' log records (the web UI's Log pane)."""
+
+    @api.get("/logs", response_class=EventSourceResponse)
+    async def log_lines(
+        request: Request,
+        after: int | None = Query(default=None, description="Only lines after this id."),
+        last_event_id: str | None = Header(default=None),
+    ) -> AsyncIterable[LogLine]:
+        """The process' log records (info and above) as Server-Sent Events (``log``), the latest kept ones first, then
+        live ones; ends when the run's session is over or the client leaves."""
+        start = after if after is not None else int(last_event_id) if last_event_id and last_event_id.isdigit() else 0
+        async for line in _log_stream(run, logs, request, start):
+            yield ServerSentEvent(data=line, id=str(line.id), event="log")
 
 
 def _add_navigation_and_session_routes(api: APIRouter, run: Run) -> None:
@@ -246,6 +270,42 @@ async def _event_stream(run: Run, request: Request, start: int) -> AsyncIterable
             yield event
             if _is_last(run, event):
                 return
+    finally:
+        unsubscribe()
+
+
+def _session_over(run: Run) -> bool:
+    """Whether the run's session is over: closed, or finished when not kept open for a closing screen."""
+    return run.closed or (run.status.value in ("completed", "aborted", "failed") and not run.kept_open)
+
+
+async def _log_stream(run: Run, logs: LogBuffer, request: Request, start: int) -> AsyncIterable[LogLine]:
+    """The log lines after ``start``: the kept ones, then live ones, until the session is over or the client leaves."""
+    loop = asyncio.get_running_loop()
+    queue: asyncio.Queue[LogLine] = asyncio.Queue()
+
+    def forward(line: LogLine) -> None:
+        """Hands a line from the logging thread to this stream's loop."""
+        with contextlib.suppress(RuntimeError):  # the server's loop is closing
+            loop.call_soon_threadsafe(queue.put_nowait, line)
+
+    unsubscribe = logs.subscribe(forward)  # subscribe before reading the backlog: no gap
+    try:
+        last = start
+        for line in logs.since(start):
+            last = line.id
+            yield line
+        while not await request.is_disconnected():
+            try:
+                line = await asyncio.wait_for(queue.get(), timeout=1.0)
+            except TimeoutError:
+                if _session_over(run):
+                    return
+                continue
+            if line.id <= last:
+                continue
+            last = line.id
+            yield line
     finally:
         unsubscribe()
 
