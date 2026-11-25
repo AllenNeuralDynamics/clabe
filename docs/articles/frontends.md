@@ -103,6 +103,7 @@ every action is also in the menu bar (Run, View, Session, Help), with its shortc
 | `r` | Retry the failed step |
 | `Esc` | Close a popup (never goes back or aborts) |
 | `F2` | Show or hide the log |
+| `F3` | Terminal UI: report an issue |
 | `Ctrl+K` | Browser: go to a step, run any command |
 | `Ctrl+S`, `Ctrl+Shift+R` | Browser: export logs, report an issue |
 | `?` | Browser: all shortcuts |
@@ -148,6 +149,8 @@ wf = Workflow("vr-foraging", exit_prompt_timeout=60)
   `launcher.log`, the daemon log's tail and `rig.json`.
 - **Report an issue** saves the same zip on the rig, with your comment and the session's details. The
   [hub](hub.md#issue-reports) collects it, then deletes it from the rig.
+- In the terminal, press `F3` (terminal UI, at any time during or after the run), or type `report` at the exit
+  prompt (any terminal client).
 
 ## Serving a run over HTTP
 

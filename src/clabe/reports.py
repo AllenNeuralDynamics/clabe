@@ -9,6 +9,7 @@ issue): a report is saved on this machine, under `reports_dir`, until the hub co
 import datetime
 import io
 import json
+import logging
 import os
 import platform
 import re
@@ -17,9 +18,14 @@ import socket
 import uuid
 import zipfile
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, Field
+
+if TYPE_CHECKING:
+    from .workflow import Run
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "REPORT_FILE",
@@ -27,10 +33,12 @@ __all__ = [
     "ReportInfo",
     "count_reports",
     "delete_report",
+    "describe_launcher",
     "list_reports",
     "make_bundle",
     "read_report_info",
     "report_path",
+    "report_run",
     "reports_dir",
     "rig_info",
     "save_report",
@@ -139,6 +147,46 @@ def save_report(record_dir: Path | None, info: dict[str, Any], *, directory: Pat
     partial.write_bytes(data)
     partial.replace(target / f"{report.report_id}.zip")  # the hub never sees a half-written report
     return report
+
+
+def describe_launcher(launcher: object) -> dict[str, object]:
+    """Session id, subject, experimenter, repository and commit, from a launcher's ``report_info`` (when it has one).
+
+    Never raises: a launcher that cannot describe itself gives nothing.
+    """
+    describe = getattr(launcher, "report_info", None)
+    if not callable(describe):
+        return {}
+    try:
+        return dict(describe())
+    except Exception:  # never fail a report because the launcher cannot describe itself
+        logger.warning("Could not describe the launcher", exc_info=True)
+        return {}
+
+
+def report_run(
+    run: "Run", comment: str = "", *, reported_from: str = "local", directory: Path | None = None
+) -> ReportInfo:
+    """Files an issue report about ``run``: its bundle, the comment, and what is known about the run and its launcher.
+
+    What every client files (the web UI through ``POST /api/report``, the terminal UI with F3, the exit prompt).
+
+    Args:
+        run: The run reported on (running or finished).
+        comment: What went wrong, in the user's words.
+        reported_from: The client the report is made from.
+        directory: Where to save it; by default `reports_dir`.
+    """
+    state = run.state()
+    info: dict[str, object] = {
+        "comment": comment,
+        "reported_from": reported_from,
+        "run_id": run.id,
+        "experiment": run.workflow.name,
+        "step": state.current_step or (state.prompt.step if state.prompt is not None else None),
+    }
+    info.update(describe_launcher(run.launcher))
+    return save_report(run.record_dir, info, directory=directory)
 
 
 def list_reports(directory: Path | None = None) -> list[ReportInfo]:

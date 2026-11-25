@@ -219,7 +219,8 @@ def _add_navigation_and_session_routes(api: APIRouter, run: Run) -> None:
     @api.post("/report", response_model=ReportInfo)
     def report(body: ReportBody | None = None) -> ReportInfo:
         """Files an issue report (the bundle and the comment), saved on this machine for the hub to collect."""
-        return reports.save_report(run.record_dir, _report_info(run, body or ReportBody()))
+        body = body or ReportBody()
+        return reports.report_run(run, body.comment, reported_from=body.client)
 
 
 def _mount_ui(app: FastAPI, static_dir: Path | None) -> None:
@@ -335,14 +336,7 @@ def _safe_name(text: str) -> str:
 
 def _launcher_info(run: Run) -> dict[str, object]:
     """Session id, subject, experimenter, repository and commit, from the run's launcher (when it has one)."""
-    describe = getattr(run.launcher, "report_info", None)
-    if not callable(describe):
-        return {}
-    try:
-        return dict(describe())
-    except Exception:  # never fail a request because the launcher cannot describe itself
-        logger.warning("Could not describe the launcher", exc_info=True)
-        return {}
+    return reports.describe_launcher(run.launcher)
 
 
 def _session_info(run: Run) -> SessionInfo:
@@ -371,21 +365,6 @@ def _session_info(run: Run) -> SessionInfo:
         clabe_version=__version__,
         **facts,
     )
-
-
-def _report_info(run: Run, body: ReportBody) -> dict[str, object]:
-    """The [`ReportInfo`][clabe.reports.ReportInfo] fields known about ``run`` (and its launcher, when it has one)."""
-    state = run.state()
-    step = state.current_step or (state.prompt.step if state.prompt is not None else None)
-    info: dict[str, object] = {
-        "comment": body.comment,
-        "reported_from": body.client,
-        "run_id": run.id,
-        "experiment": run.workflow.name,
-        "step": step,
-    }
-    info.update(_launcher_info(run))
-    return info
 
 
 def _media_file(run: Run, prompt_id: str) -> Path:

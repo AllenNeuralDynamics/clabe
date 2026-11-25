@@ -16,7 +16,7 @@ import git.exc
 import pydantic
 from aind_behavior_services import Session
 
-from .. import __version__, ui
+from .. import __version__, reports, ui
 from .. import logging as clabe_logging
 from ..logging.otel import bind_session, record_exception, run_span
 from ..repository import GitRepository
@@ -121,6 +121,7 @@ class Launcher:
         self._has_run = False
         self._serving = contextlib.ExitStack()  # the run server, kept up until the launcher exits (see _exit)
         self._served_run: Run | None = None
+        self._last_run: Run | None = None  # the run an issue report from the exit prompt is about
 
     @property
     def client(self) -> Client:
@@ -329,6 +330,7 @@ class Launcher:
     def _run_workflow(self, workflow: Workflow) -> Run:
         """Executes ``workflow`` (with the preflight step) with this launcher, driven by its client."""
         run = Run(self._with_preflight(workflow), launcher=self, record_dir=self.temp_dir)
+        self._last_run = run
         self._manifest = collect_manifest(self, run.workflow, run_id=run.id, directory=self.temp_dir)
         self._manifest.extra_session_directories = [str(folder) for folder in self._extra_session_directories]
         self._write_manifest()
@@ -579,26 +581,53 @@ class Launcher:
         if run is not None and not interactive and timeout:
             self._wait_for_close(run, timeout)  # headless: give browsers a chance to close the session
         elif not _force and timeout != 0:
-            label = "Press Enter to exit..."
-            if timeout is not None:
-                label = f"Press Enter to exit (closing automatically in {timeout:g} s)..."
             if run is not None:
                 run.begin_closing(_deadline(timeout))
             closed_by = "local"
-            with self._cancel_prompt_after(timeout, run=run):
-                try:
-                    ui.text(label, field="exit")
-                except KeyboardInterrupt:
-                    pass  # a second Ctrl+C at the exit prompt should just exit
-                except PromptCancelledError:
-                    closed_by = "timeout"
-                    logger.debug("Exit prompt closed: timed out after %s s, or closed by a remote client", timeout)
+            while True:
+                with self._cancel_prompt_after(timeout, run=run):
+                    try:
+                        answer = ui.text(self._exit_label(timeout), field="exit")
+                    except KeyboardInterrupt:
+                        break  # a second Ctrl+C at the exit prompt should just exit
+                    except PromptCancelledError:
+                        closed_by = "timeout"
+                        logger.debug("Exit prompt closed: timed out after %s s, or closed by a remote client", timeout)
+                        break
+                if self._last_run is None or str(answer).strip().lower() != "report":
+                    break
+                self._report_issue(self._last_run)
+                timeout = None  # someone is at the screen: wait for them to leave
             if run is not None:
                 run.close(client=closed_by)  # no-op when a remote client closed it first
         self._stop_serving()
         # Tear down the client (e.g. leave the persistent TUI) and stop asking through it.
         self.client.close()
         self._ui_binding.__exit__(None, None, None)
+
+    def _exit_label(self, timeout: float | None) -> str:
+        """The exit prompt: Enter exits; after a run, typing ``report`` reports an issue first."""
+        label = "Press Enter to exit"
+        if self._last_run is not None:
+            label += ", or type 'report' to report an issue"
+        if timeout is not None:
+            label += f" (closing automatically in {timeout:g} s)"
+        return label + "..."
+
+    @staticmethod
+    def _report_issue(run: Run) -> None:
+        """Asks what went wrong and files an issue report about ``run`` (the hub collects it from this machine)."""
+        try:
+            comment = ui.text("What went wrong? (the run's logs and records are attached)", field="report")
+        except (KeyboardInterrupt, PromptCancelledError):
+            return
+        try:
+            report = reports.report_run(run, comment, reported_from="local")
+        except Exception as exc:
+            logger.exception("Could not save the issue report")
+            ui.notify(f"Could not save the issue report: {exc}", MessageLevel.ERROR)
+            return
+        ui.notify(f"Issue reported ({report.report_id}); the hub collects it from this PC.", MessageLevel.SUCCESS)
 
     @staticmethod
     def _wait_for_close(run: Run, timeout: float) -> None:

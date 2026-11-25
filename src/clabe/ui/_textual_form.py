@@ -258,6 +258,58 @@ class _AcknowledgeScreen(ModalScreen):
         self.dismiss()
 
 
+_REPORT_CSS = """
+_ReportScreen { align: center middle; }
+#report-box {
+    width: 70; height: auto; max-width: 90%;
+    background: $surface; border: thick $error; padding: 1 2;
+}
+#report-title { color: $error; text-style: bold; margin-bottom: 1; }
+#report-help  { color: $text-muted; margin-bottom: 1; }
+#report-comment { width: 100%; }
+"""
+
+
+class _ReportScreen(ModalScreen[str | None]):
+    """The Report an issue dialog (F3): a comment, sent with Enter (``str``) or cancelled with Escape (``None``).
+
+    Its input's events stop here, so an open prompt underneath never takes the comment as its answer.
+    """
+
+    DEFAULT_CSS = _REPORT_CSS
+    BINDINGS: ClassVar[list[Binding]] = [
+        Binding("escape", "cancel", "Cancel", show=False),
+        Binding("f3", "cancel", "", show=False),
+    ]
+
+    def compose(self) -> ComposeResult:
+        """Build the report dialog layout."""
+        with Vertical(id="report-box"):
+            yield Label("Report an issue", id="report-title")
+            yield Label(
+                "What went wrong? The run's logs and records are attached.\nEnter sends the report, Esc cancels.",
+                id="report-help",
+            )
+            yield Input(placeholder="e.g. the camera froze at the second step", id="report-comment")
+
+    def on_mount(self) -> None:
+        """Focus the comment."""
+        self.query_one("#report-comment", Input).focus()
+
+    def on_input_changed(self, event: Input.Changed) -> None:
+        """Keep typing out of the prompt underneath (an autocomplete would filter on it)."""
+        event.stop()
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        """Send the comment."""
+        event.stop()
+        self.dismiss(event.value)
+
+    def action_cancel(self) -> None:
+        """Close without reporting."""
+        self.dismiss(None)
+
+
 def _cell(value: Any) -> str:
     """Render a cell value as display text (``None`` becomes an empty cell)."""
     return "" if value is None else str(value)

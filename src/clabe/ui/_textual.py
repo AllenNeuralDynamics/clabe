@@ -7,7 +7,7 @@ import platform as _platform
 import queue
 import re
 import threading
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -35,7 +35,7 @@ from ._requests import (
     TextRequest,
 )
 from ._session import NavigationRequested, PromptCancelledError
-from ._textual_form import _AcknowledgeScreen, _FormScreen, _ReadOnlyTableScreen, push_path_picker
+from ._textual_form import _AcknowledgeScreen, _FormScreen, _ReadOnlyTableScreen, _ReportScreen, push_path_picker
 
 logger = logging.getLogger(__name__)
 
@@ -195,6 +195,7 @@ class _LauncherApp(App):
     BINDINGS: ClassVar[list[Binding]] = [
         Binding("ctrl+c", "cancel", "Exit", priority=True),
         Binding("f2", "toggle_logs", "Toggle Logs"),
+        Binding("f3", "report", "Report issue"),
         Binding("alt+left", "back", "Back", priority=True),
         Binding("alt+right", "forward", "Forward", priority=True),
     ]
@@ -216,6 +217,8 @@ class _LauncherApp(App):
         self._auto_query = ""
         self._auto_timer: Any = None
         self._activity_count: int = 0
+        #: Files an issue report with a comment and returns its id (set by whoever drives a run, see `set_reporter`).
+        self.reporter: Callable[[str], str] | None = None
 
     def compose(self) -> ComposeResult:
         """Build the four-pane layout."""
@@ -465,6 +468,8 @@ class _LauncherApp(App):
     async def on_key(self, event) -> None:
         """Choice keys outside text inputs (1-9 pick an option, y/n confirm, r retries a failed step); arrow keys
         shuttle focus between the autocomplete input and its suggestion list."""
+        if isinstance(self.screen, _ReportScreen):
+            return  # keys typed in the report dialog never answer the prompt underneath
         if self._kind in ("pick", "confirm") and not isinstance(self.focused, Input):
             value = self._choice_for_key(event.key)
             if value is not _NO_CHOICE:
@@ -535,6 +540,35 @@ class _LauncherApp(App):
         """Go forward (Alt+Right): answers the waiting prompt with its earlier answer; the run decides."""
         if self._pending is not None:
             await self._release_pending(_FORWARD)
+
+    async def action_report(self) -> None:
+        """Report an issue (F3): asks for a comment, then files the report (the run's records and the comment)."""
+        if isinstance(self.screen, _ReportScreen):
+            return
+        reporter = self.reporter
+        if reporter is None:
+            self.write_user(
+                Text("Nothing to report on yet: an issue can be reported once a run starts.", style="yellow")
+            )
+            return
+
+        async def _on_dismiss(comment: str | None) -> None:
+            """Files the report off the app's thread and says where it went."""
+            if comment is None:
+                return
+            try:
+                report_id = await asyncio.to_thread(reporter, comment)
+            except Exception as exc:
+                logger.exception("Could not save the issue report")
+                self.write_user(Text(f"[{_local_time()}] Could not save the issue report: {exc}", style="bold red"))
+                return
+            self.write_user(
+                Text(
+                    f"[{_local_time()}] Issue reported ({report_id}); the hub collects it from this PC.", style="green"
+                )
+            )
+
+        await self.push_screen(_ReportScreen(), _on_dismiss)
 
     def action_toggle_logs(self) -> None:
         """Show or hide the Logs pane to reclaim vertical space."""
@@ -634,6 +668,14 @@ class TextualClient:
         self._thread: threading.Thread | None = None
         self._log_handler: _TuiLogHandler | None = None
         self._prev_console_level: int | None = None
+        self._reporter: Callable[[str], str] | None = None
+
+    def set_reporter(self, reporter: Callable[[str], str] | None) -> None:
+        """Lets the user report an issue (F3): ``reporter`` files a report with the user's comment and returns its
+        id. ``None`` turns reporting off."""
+        self._reporter = reporter
+        if self._app is not None:
+            self._app.reporter = reporter
 
     def _ensure(self) -> _LauncherApp:
         """Start the TUI app on a background thread (once) and return it."""
@@ -642,6 +684,7 @@ class TextualClient:
         from ..logging import rich_handler
 
         app = _LauncherApp(show_logs=rich_handler.level <= logging.DEBUG)
+        app.reporter = self._reporter
         self._app = app
         self._thread = threading.Thread(target=app.run, name="clabe-tui", daemon=True)
         self._thread.start()

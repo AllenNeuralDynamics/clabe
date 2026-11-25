@@ -67,6 +67,9 @@ class LocalClient:
     a client may raise [`NavigationRequested`][clabe.ui.NavigationRequested] to go back
     ([`Run.back`][clabe.workflow.Run.back]) or forward ([`Run.forward`][clabe.workflow.Run.forward]).
 
+    A client with a ``set_reporter`` hook (the terminal UI) is given one for the run, so its user can report an issue
+    (see [`report_run`][clabe.reports.report_run]); it stays set after the run, for the closing prompt.
+
     `drive` must run on the main thread (it is where Ctrl+C lands). The first Ctrl+C aborts the run;
     a second one propagates as ``KeyboardInterrupt``.
 
@@ -92,6 +95,9 @@ class LocalClient:
             KeyboardInterrupt: Ctrl+C was pressed a second time (the run is aborted, not awaited).
             Exception: Whatever the client raised; the run is aborted first so it never waits on this client.
         """
+        set_reporter = getattr(self._client, "set_reporter", None)
+        if callable(set_reporter):
+            set_reporter(self.report)
         unsubscribe = self._run.events.subscribe(self._on_event)
         interrupted = False
         started = False  # a run this client did not start is someone else's: never abort it
@@ -129,6 +135,12 @@ class LocalClient:
             with self._lock:  # an interrupt inside _answer's cleanup must not leave a cancel thread spinning
                 self._asking = None
         self._run.wait()
+
+    def report(self, comment: str) -> str:
+        """Files an issue report about the run with ``comment`` (from this client); returns the report's id."""
+        from ..reports import report_run  # lazily: clabe.reports is only needed when someone reports
+
+        return report_run(self._run, comment, reported_from=self._name).report_id
 
     def _on_event(self, event: Event) -> None:
         """Routes a run event: prompts go to the main thread, messages are rendered right away."""
