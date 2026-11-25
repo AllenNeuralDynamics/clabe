@@ -73,6 +73,9 @@ function Test-PortFree([int]$Port) {
 $daemonPort = if ($env:DAEMON_CLABE_PORT) { [int]$env:DAEMON_CLABE_PORT } else { 24070 }
 $saved = $env:DAEMON_CLABE_PORT
 $savedToken = $env:CLABE_TOKEN
+# The rig's name is the machine's aibs_comp_id (as on AIND rigs): give this PC one for the demo, unless it has one.
+$savedRig = $env:aibs_comp_id
+if (-not $env:aibs_comp_id) { $env:aibs_comp_id = 'DEMO-RIG' }
 if (-not (Test-PortFree $daemonPort)) {
     $unused = 24170
     while (-not (Test-PortFree $unused)) { $unused++ }
@@ -98,5 +101,6 @@ try {
 } finally {
     $env:DAEMON_CLABE_PORT = $saved
     $env:CLABE_TOKEN = $savedToken
+    $env:aibs_comp_id = $savedRig
     Pop-Location
 }

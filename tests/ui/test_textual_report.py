@@ -117,3 +117,21 @@ def test_the_client_hands_its_reporter_to_the_app():
 
     client.set_reporter(reporter)
     assert client._reporter is reporter
+
+
+@pytest.mark.asyncio
+async def test_the_context_bar_shows_what_the_run_is_about():
+    from textual.widgets import Static
+
+    from clabe.workflow import RunContext
+
+    app = _LauncherApp()
+    async with app.run_test() as pilot:
+        bar = app.query_one("#clabe-context", Static)
+        assert not bar.display  # nothing to show before a run
+        app.set_context(RunContext(workflow="vr-foraging", hostname="PC-1", subject="123456", experimenter=["Ana"]))
+        await pilot.pause()
+        text = str(bar.render())
+        assert bar.display
+        for part in ("vr-foraging", "Subject 123456", "Experimenters Ana", "Rig —", "Host PC-1"):
+            assert part in text

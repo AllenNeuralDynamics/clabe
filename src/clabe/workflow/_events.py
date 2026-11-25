@@ -240,6 +240,19 @@ class RecordResolved(_Event):
     artifact: str | None = None
 
 
+class ContextChanged(_Event):
+    """What the run is about changed (or became known): the workflow, the machine, the rig, the subject and the
+    experimenters. Every client shows the latest one prominently; see
+    [`RunContext`][clabe.workflow.RunContext]."""
+
+    type: Literal["context_changed"] = "context_changed"
+    workflow: str
+    hostname: str
+    rig: str | None = None
+    subject: str | None = None
+    experimenter: list[str] = Field(default_factory=list)
+
+
 class BranchStarted(_Event):
     """A branch of a step started (see [`concurrently`][clabe.workflow.concurrently]); ``attempt`` counts its retries."""
 
@@ -281,6 +294,7 @@ Event = Annotated[
     | ActivityOutput
     | CommandFinished
     | RecordResolved
+    | ContextChanged
     | BranchStarted
     | BranchEnded,
     Field(discriminator="type"),

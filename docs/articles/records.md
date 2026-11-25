@@ -18,7 +18,8 @@ In the session folder, under `Behavior/Logs/.launcher/`:
 
 `events.jsonl` includes `command_finished` (each app command, with hashes, and its `started_at` / `ended_at` in UTC)
 and `record_resolved` (each store record used, copied under `artifacts/<step>/<attempt>/stores/`). A step's
-`CommandResult` output carries the same `started_at` / `ended_at`.
+`CommandResult` output carries the same `started_at` / `ended_at`. `context_changed` records what the run is about
+whenever it changes: the workflow, the host, the rig, the subject and the experimenters.
 
 ## Replaying a session
 

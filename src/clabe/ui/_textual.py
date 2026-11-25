@@ -112,6 +112,7 @@ def _linkify(message: str, style: str) -> Text:
 
 _APP_CSS = """
 Screen { layout: vertical; }
+#clabe-context { height: auto; padding: 0 1; background: $primary-darken-2; color: $text; display: none; }
 #clabe-user { height: 2fr; border: round $accent; padding: 0 1; }
 #clabe-logo { height: auto; color: $accent; }
 #clabe-user-log { height: 1fr; display: none; }
@@ -223,6 +224,7 @@ class _LauncherApp(App):
     def compose(self) -> ComposeResult:
         """Build the four-pane layout."""
         yield Header()
+        yield Static("", id="clabe-context")
         with Vertical(id="clabe-user"):
             yield Static("", id="clabe-logo")
             yield RichLog(id="clabe-user-log", highlight=False, wrap=True, auto_scroll=True)
@@ -253,6 +255,12 @@ class _LauncherApp(App):
     def set_experiment(self, name: str) -> None:
         """Show the experiment name in the header subtitle."""
         self.sub_title = f"v{__version__} · {name}"
+
+    def set_context(self, context: Any) -> None:
+        """Shows what the run is about (a `RunContext`) in the bar under the header; ``—`` for what is not known yet."""
+        bar = self.query_one("#clabe-context", Static)
+        bar.update(_context_line(context))
+        bar.display = True
 
     def write_user(self, renderable: object) -> None:
         """Append a renderable to the Session pane, retiring the logo on first use."""
@@ -613,6 +621,23 @@ class _TuiLogHandler(logging.Handler):
         self._client._write_log(_linkify(message, _log_style(record.levelno)))
 
 
+def _context_line(context: Any) -> Text:
+    """The context bar: workflow, subject, experimenters, rig and host, each labelled; ``—`` when not known yet."""
+    experimenters = ", ".join(getattr(context, "experimenter", None) or [])
+    fields = (
+        ("Subject", getattr(context, "subject", None)),
+        ("Experimenters", experimenters or None),
+        ("Rig", getattr(context, "rig", None)),
+        ("Host", getattr(context, "hostname", None)),
+    )
+    line = Text(str(getattr(context, "workflow", "")), style="bold")
+    for label, value in fields:
+        line.append("  │  ", style="dim")
+        line.append(f"{label} ", style="dim")
+        line.append(value or "—", style="bold" if value else "dim")
+    return line
+
+
 def _options_for(request: AutoCompleteRequest, typed: str) -> list[str]:
     """The options a function returns for ``typed``; none (logged) when it fails."""
     try:
@@ -669,6 +694,11 @@ class TextualClient:
         self._log_handler: _TuiLogHandler | None = None
         self._prev_console_level: int | None = None
         self._reporter: Callable[[str], str] | None = None
+
+    def set_context(self, context: Any) -> None:
+        """Shows what the run is about (a [`RunContext`][clabe.workflow.RunContext]) in the bar under the header."""
+        app = self._ensure()
+        app.call_from_thread(app.set_context, context)
 
     def set_reporter(self, reporter: Callable[[str], str] | None) -> None:
         """Lets the user report an issue (F3): ``reporter`` files a report with the user's comment and returns its

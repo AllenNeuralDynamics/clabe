@@ -265,6 +265,50 @@ def test_the_log_pane_shows_the_python_logs_and_report_is_next_to_abort(page):
     assert run.output("subject") == "mouse-7"
 
 
+def test_the_summary_strip_shows_what_the_run_is_about(page, monkeypatch):
+    import dataclasses
+    import socket
+
+    from clabe.workflow._context import RIG_NAME_ENV_VAR
+
+    @dataclasses.dataclass
+    class _Session:
+        subject: str
+        experimenter: list[str]
+
+    monkeypatch.setenv(RIG_NAME_ENV_VAR, "RIG-3")
+    wf = Workflow("summary-demo")
+
+    @wf.step
+    def session():
+        return _Session(ui.text("Subject"), ["Ana", "Bo"])
+
+    @wf.step
+    def wait(session):
+        return ui.confirm("Done?")
+
+    run = Run(wf)
+    server = RunServer(run, port=18298)
+    url = server.start()
+    try:
+        run.start()
+        page.goto(url)
+        strip = page.get_by_role("group", name="Run summary")
+        page.get_by_label("Subject").wait_for()
+        assert "summary-demo" in strip.inner_text()
+        assert "RIG-3" in strip.inner_text() and socket.gethostname() in strip.inner_text()
+        assert strip.locator("[data-field=subject] .summary-value").inner_text() == "—"  # not known yet
+
+        page.get_by_label("Subject").fill("mouse-7")
+        page.get_by_role("button", name="Submit").click()
+        strip.get_by_text("mouse-7").wait_for()  # the strip follows the run
+        assert strip.locator("[data-field=experimenters] .summary-value").inner_text() == "Ana, Bo"
+    finally:
+        if not run.wait(0):
+            run.abort("test teardown")
+        server.stop()
+
+
 _PNG = bytes.fromhex(  # 1x1 pixel
     "89504e470d0a1a0a0000000d4948445200000001000000010806000000"
     "1f15c4890000000d49444154789c6360f80f00000101000518d84e0000000049454e44ae426082"

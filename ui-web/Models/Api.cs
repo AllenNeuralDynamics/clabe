@@ -52,6 +52,11 @@ public sealed class RunEvent
     [JsonPropertyName("exit_code")] public int? ExitCode { get; set; }
     public string? Label { get; set; }
     public string? Store { get; set; }
+    // context_changed
+    public string? Hostname { get; set; }
+    public string? Rig { get; set; }
+    public string? Subject { get; set; }
+    public List<string>? Experimenter { get; set; }
 
     /// <summary>The spec's field (e.g. <c>rig.failed</c>), naming what the prompt asks about.</summary>
     [JsonIgnore] public string? Field => Spec?["field"]?.GetValue<string>();

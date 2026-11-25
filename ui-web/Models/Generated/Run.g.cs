@@ -90,6 +90,14 @@ public sealed record RunAgentInput(
     [property: JsonPropertyName("messages")] List<System.Text.Json.Nodes.JsonObject>? Messages = null,
     [property: JsonPropertyName("forwardedProps")] System.Text.Json.Nodes.JsonObject? ForwardedProps = null);
 
+/// <summary>What a run is about, as far as known so far: every client shows it prominently (the TUI's header, the web</summary>
+public sealed record RunContext(
+    [property: JsonPropertyName("workflow")] string Workflow,
+    [property: JsonPropertyName("hostname")] string Hostname,
+    [property: JsonPropertyName("rig")] string? Rig = null,
+    [property: JsonPropertyName("subject")] string? Subject = null,
+    [property: JsonPropertyName("experimenter")] List<string>? Experimenter = null);
+
 /// <summary>Snapshot of a run, for clients attaching mid-run. Follow events after ``last_seq``.</summary>
 public sealed record RunState(
     [property: JsonPropertyName("run_id")] string RunId,
@@ -100,7 +108,8 @@ public sealed record RunState(
     [property: JsonPropertyName("prompt")] Clabe.Web.Models.RunEvent? Prompt,
     [property: JsonPropertyName("last_seq")] long LastSeq,
     [property: JsonPropertyName("back_target")] string? BackTarget = null,
-    [property: JsonPropertyName("closing")] ClosingState? Closing = null);
+    [property: JsonPropertyName("closing")] ClosingState? Closing = null,
+    [property: JsonPropertyName("context")] RunContext? Context = null);
 
 /// <summary>Identity of the server and the run it serves.</summary>
 public sealed record ServerInfo(
@@ -124,6 +133,7 @@ public sealed record SessionInfo(
     [property: JsonPropertyName("started_at")] DateTimeOffset? StartedAt = null,
     [property: JsonPropertyName("finished_at")] DateTimeOffset? FinishedAt = null,
     [property: JsonPropertyName("reason")] string? Reason = null,
+    [property: JsonPropertyName("rig")] string? Rig = null,
     [property: JsonPropertyName("session_id")] string? SessionId = null,
     [property: JsonPropertyName("subject")] string? Subject = null,
     [property: JsonPropertyName("experimenter")] List<string>? Experimenter = null,

@@ -82,6 +82,7 @@ public sealed record SessionInfo(
     [property: JsonPropertyName("started_at")] DateTimeOffset? StartedAt = null,
     [property: JsonPropertyName("finished_at")] DateTimeOffset? FinishedAt = null,
     [property: JsonPropertyName("reason")] string? Reason = null,
+    [property: JsonPropertyName("rig")] string? Rig = null,
     [property: JsonPropertyName("session_id")] string? SessionId = null,
     [property: JsonPropertyName("subject")] string? Subject = null,
     [property: JsonPropertyName("experimenter")] List<string>? Experimenter = null,

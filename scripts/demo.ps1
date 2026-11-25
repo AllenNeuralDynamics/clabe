@@ -105,6 +105,10 @@ $bytes = New-Object byte[] 18
 [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
 $token = 'demo' + [Convert]::ToBase64String($bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_')
 
+# The rig's name is the machine's aibs_comp_id (as on AIND rigs): give this PC one for the demo, unless it has one.
+$savedRig = $env:aibs_comp_id
+if (-not $env:aibs_comp_id) { $env:aibs_comp_id = 'DEMO-RIG' }
+
 Push-Location $root
 $daemon = $null
 $daemonPids = @()
@@ -160,5 +164,6 @@ try {
     } else {
         Write-Host "==> The hub stays at http://localhost:$HubPort/?token=$token (scripts/demo.ps1 -StopHub stops it)"
     }
+    $env:aibs_comp_id = $savedRig
     Pop-Location
 }

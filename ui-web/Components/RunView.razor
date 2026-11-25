@@ -16,10 +16,6 @@
             <img src="logo.svg" alt="clabe" />
             <span class="run-name truncate" title="@Workflow">@Workflow</span>
         </div>
-        @if (Connection.Info is not null)
-        {
-            <span class="run-host truncate" title="Where the run runs"><RunIcon Name="server" Size="14" /> @Where</span>
-        }
         @if (Connection.State is not null)
         {
             <span class="chip @StatusClass">@StatusText</span>
@@ -50,6 +46,8 @@
             </button>
         }
     </header>
+
+    <RunSummary Connection="Connection" />
 
     <MenuBar @ref="_menu" Menus="Menus" OnToggled="StateHasChanged">
         <span class="menubar-hint"><kbd>Ctrl</kbd><kbd>K</kbd> commands <span class="sep">·</span> <kbd>?</kbd> shortcuts</span>
@@ -222,9 +220,7 @@
     private RunEvent? OpenPrompt => State?.Prompt;
     private bool IsFailurePrompt => OpenPrompt?.Field is { } asked && asked.EndsWith(".failed");
 
-    private string? RigName => State?.Steps.FirstOrDefault(s => s.Name == "rig")?.Summary is { } summary
-        ? RunText.Field(summary, "name")
-        : null;
+    private string? RigName => State?.Context?.Rig;
 
     private string Where => RigName is { } rig && Connection.Info?.Hostname is { } host && rig != host
         ? $"{rig} · {host}"

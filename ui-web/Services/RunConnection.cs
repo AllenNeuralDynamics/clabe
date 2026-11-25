@@ -16,7 +16,7 @@ public sealed class RunConnection(RunApi api, IJSRuntime js, NavigationManager n
     private static readonly HashSet<string> StateChanging =
     [
         "run_started", "run_finished", "run_closing", "run_closed", "step_started", "step_finished", "step_failed",
-        "step_skipped", "steps_invalidated", "prompt_opened", "prompt_closed",
+        "step_skipped", "steps_invalidated", "prompt_opened", "prompt_closed", "context_changed",
     ];
 
     private readonly Dictionary<string, RunEvent> _activities = [];

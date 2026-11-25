@@ -74,6 +74,7 @@ class SessionInfo(BaseModel):
     reason: str | None = Field(default=None, description="Why it ended, when it did not complete")
     hostname: str
     clabe_version: str
+    rig: str | None = Field(default=None, description="The rig's name, once known")
     session_id: str | None = Field(default=None, description="The session's name, once registered")
     subject: str | None = None
     experimenter: list[str] = Field(default_factory=list)

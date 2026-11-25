@@ -102,6 +102,12 @@
         "artifact_exported" => e.Path ?? "",
         "command_finished" => $"{string.Join(' ', e.Command ?? [])} → exit {e.ExitCode}",
         "record_resolved" => $"{e.Kind} from {e.Label}",
+        "context_changed" => string.Join(" · ", new[]
+        {
+            e.Workflow, e.Subject is null ? null : $"subject {e.Subject}",
+            e.Experimenter is { Count: > 0 } names ? string.Join(", ", names) : null,
+            e.Rig is null ? null : $"rig {e.Rig}", e.Hostname is null ? null : $"on {e.Hostname}",
+        }.Where(part => part is not null)),
         "run_started" => e.Workflow ?? "",
         "run_finished" => $"{e.Status} {e.Reason}",
         "run_closing" => e.Deadline is { } deadline ? $"closes at {ReportTime.Clock(deadline)}" : "waits for Close session",

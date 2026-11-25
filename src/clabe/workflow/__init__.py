@@ -3,6 +3,7 @@
 from . import codecs
 from ._branches import BranchesStopped, concurrently
 from ._check import Issue, check_path, check_workflow
+from ._context import RunContext
 from ._control import Abort, GoBack
 from ._discovery import (
     ExperimentCallable,
@@ -36,6 +37,7 @@ __all__ = [
     "ReplayClient",
     "ReplayMismatch",
     "Run",
+    "RunContext",
     "RunState",
     "RunStatus",
     "Step",

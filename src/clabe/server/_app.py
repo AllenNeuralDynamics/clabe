@@ -350,6 +350,10 @@ def _session_info(run: Run) -> SessionInfo:
         elif isinstance(event, RunFinished):
             finished, reason = event.ts, event.reason
     facts = {k: v for k, v in _launcher_info(run).items() if k in SessionInfo.model_fields}
+    if state.context is not None:  # the subject and experimenters may be known before a session is registered
+        facts.setdefault("subject", state.context.subject)
+        facts.setdefault("experimenter", state.context.experimenter)
+        facts["rig"] = state.context.rig
     return SessionInfo(
         run_id=run.id,
         experiment=run.workflow.name,

@@ -85,14 +85,14 @@
     /// <summary>The step that made the session (a pydantic Session), when there is one.</summary>
     private StepState? SessionStep => State.Steps.FirstOrDefault(s => s.Summary is { } summary && RunText.Field(summary, "subject") is not null);
 
-    private string? Subject => SessionStep is { } step ? RunText.Field(step.Summary, "subject")
-        : Connection.AnswerOf("session", "subject")?.ToString();
+    private string? Subject => State.Context?.Subject ?? (SessionStep is { } step ? RunText.Field(step.Summary, "subject")
+        : Connection.AnswerOf("session", "subject")?.ToString());
 
-    private string? Experimenter => RunText.Experimenter(SessionStep?.Name ?? "session", Connection.AnswerOf);
+    private string? Experimenter => State.Context?.Experimenter is { Count: > 0 } names ? string.Join(", ", names)
+        : RunText.Experimenter(SessionStep?.Name ?? "session", Connection.AnswerOf);
 
     private string? SessionName => RunText.Field(SessionStep?.Summary, "session_name");
 
-    private string? RigName => State.Steps.FirstOrDefault(s => s.Name == "rig")?.Summary is { } summary
-        ? RunText.Field(summary, "name") ?? RunText.Field(summary, "rig_name")
-        : null;
+    /// <summary>The rig: the machine's <c>aibs_comp_id</c>, as the run's context tells it.</summary>
+    private string? RigName => State.Context?.Rig;
 }

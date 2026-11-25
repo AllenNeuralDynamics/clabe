@@ -34,12 +34,14 @@ from ..ui import (
     PromptCancelledError,
     Request,
 )
+from ._context import RunContext, describe_run
 from ._control import Abort, GoBack, GoBackRejected
 from ._events import (
     ActivityEnded,
     ActivityOutput,
     ActivityStarted,
     ArtifactExported,
+    ContextChanged,
     EventLog,
     Header,
     Notify,
@@ -124,7 +126,8 @@ class RunState(BaseModel):
     """Snapshot of a run, for clients attaching mid-run. Follow events after ``last_seq``.
 
     ``back_target`` is the step [`Run.back`][clabe.workflow.Run.back] would go back to (``None``: Back is not
-    available). ``closing`` is set once the finished run shows its closing screen.
+    available). ``closing`` is set once the finished run shows its closing screen. ``context`` is what the run is
+    about so far (the latest ``context_changed`` event).
     """
 
     run_id: str
@@ -136,6 +139,7 @@ class RunState(BaseModel):
     last_seq: int
     back_target: str | None = None
     closing: ClosingState | None = None
+    context: RunContext | None = None
 
 
 class _Stop(Exception):
@@ -360,6 +364,7 @@ class Run:
         self._kept_open = False
         self._closing: ClosingState | None = None
         self._closed = threading.Event()
+        self._context: RunContext | None = None  # the latest ContextChanged (see _update_context)
 
     # --- lifecycle --------------------------------------------------------
     def start(self) -> None:
@@ -406,6 +411,7 @@ class Run:
         remove_observer: Callable[[], None] | None = None
         try:
             self.events.append(RunStarted(workflow=self.workflow.name, steps=[s.name for s in self.workflow.steps]))
+            self._update_context()
             # After RunStarted, so no activity precedes it. Activities anywhere in the process (e.g. an app a step
             # launches) are recorded while the run lives.
             remove_observer = get_activity_indicator().observe(self.activity)
@@ -561,6 +567,22 @@ class Run:
             self.events.append(
                 StepFinished(step=step.name, summary=summary, attempt=attempt, inputs=inputs, output_sha256=sha256)
             )
+        self._update_context()  # the step may have registered the session, or returned it
+
+    def _update_context(self) -> None:
+        """Records ``ContextChanged`` when what the run is about changed (see `describe_run`); never raises."""
+        with self._lock:
+            outputs = [self._outputs[s.name] for s in self.workflow.steps if s.name in self._outputs]
+        try:
+            context = describe_run(self, outputs)
+        except Exception:  # cosmetic: never fail a run over its context
+            logger.warning("Could not describe the run's context", exc_info=True)
+            return
+        with self._lock:
+            if context == self._context:
+                return
+            self._context = context
+            self.events.append(ContextChanged(**context.model_dump()))
 
     def _record_output(self, step: Step, attempt: int, inputs: dict[str, int], result: Any) -> str | None:
         """Encodes ``result`` with the step's codec and appends its line to ``outputs.jsonl``; returns its hash.
@@ -1366,4 +1388,5 @@ class Run:
                 last_seq=self.events.last_seq,
                 back_target=self.back_target(),
                 closing=self._closing.model_copy() if self._closing is not None else None,
+                context=self._context.model_copy() if self._context is not None else None,
             )

@@ -86,6 +86,11 @@ clabe run my_experiment.py --frontend headless  # no local screen: answer from t
 | Agents | — | MCP and AG-UI; see [Agents](agents.md) |
 
 - Every prompt shows on every client. The run accepts the first valid answer.
+- The TUI's bar under its header and the web UI's strip under its top bar show what the run is about:
+  workflow, subject, experimenters, rig and host. A dash means the value is not known yet.
+  - Subject and experimenters: from `launcher.register_session`, or from a step that returns a session.
+  - Rig: the `aibs_comp_id` environment variable of the machine running the run, and nothing else (a workflow
+    cannot set it).
 - In code: `ui.make_client("auto" | "tui" | "console" | "headless")`, or `Launcher(client=...)`.
 
 ### Shortcuts

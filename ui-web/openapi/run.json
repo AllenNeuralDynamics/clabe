@@ -556,6 +556,75 @@
         "title": "CommandResult",
         "type": "object"
       },
+      "ContextChanged": {
+        "description": "What the run is about changed (or became known): the workflow, the machine, the rig, the subject and the\nexperimenters. Every client shows the latest one prominently; see\n[`RunContext`][clabe.workflow.RunContext].",
+        "properties": {
+          "experimenter": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Experimenter",
+            "type": "array"
+          },
+          "hostname": {
+            "title": "Hostname",
+            "type": "string"
+          },
+          "rig": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rig"
+          },
+          "run_id": {
+            "default": "",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "seq": {
+            "default": 0,
+            "title": "Seq",
+            "type": "integer"
+          },
+          "subject": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "type": {
+            "const": "context_changed",
+            "default": "context_changed",
+            "title": "Type",
+            "type": "string"
+          },
+          "workflow": {
+            "title": "Workflow",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workflow",
+          "hostname"
+        ],
+        "title": "ContextChanged",
+        "type": "object"
+      },
       "DirEntry": {
         "description": "One entry of a listed directory.",
         "properties": {
@@ -1268,6 +1337,57 @@
         "title": "RunClosing",
         "type": "object"
       },
+      "RunContext": {
+        "description": "What a run is about, as far as known so far: every client shows it prominently (the TUI's header, the web\nUI's summary strip).\n\nThe subject and experimenters are known once the session is (``launcher.register_session``, or a step returning\na session). The rig is the ``aibs_comp_id`` environment variable of the machine running the run, and only that:\na workflow cannot set it.",
+        "properties": {
+          "experimenter": {
+            "description": "The experimenters, once the session is known",
+            "items": {
+              "type": "string"
+            },
+            "title": "Experimenter",
+            "type": "array"
+          },
+          "hostname": {
+            "title": "Hostname",
+            "type": "string"
+          },
+          "rig": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The rig's name, once known",
+            "title": "Rig"
+          },
+          "subject": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The subject's id, once the session is known",
+            "title": "Subject"
+          },
+          "workflow": {
+            "title": "Workflow",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workflow",
+          "hostname"
+        ],
+        "title": "RunContext",
+        "type": "object"
+      },
       "RunFinished": {
         "description": "The run ended.",
         "properties": {
@@ -1363,7 +1483,7 @@
         "type": "object"
       },
       "RunState": {
-        "description": "Snapshot of a run, for clients attaching mid-run. Follow events after ``last_seq``.\n\n``back_target`` is the step [`Run.back`][clabe.workflow.Run.back] would go back to (``None``: Back is not\navailable). ``closing`` is set once the finished run shows its closing screen.",
+        "description": "Snapshot of a run, for clients attaching mid-run. Follow events after ``last_seq``.\n\n``back_target`` is the step [`Run.back`][clabe.workflow.Run.back] would go back to (``None``: Back is not\navailable). ``closing`` is set once the finished run shows its closing screen. ``context`` is what the run is\nabout so far (the latest ``context_changed`` event).",
         "properties": {
           "back_target": {
             "anyOf": [
@@ -1380,6 +1500,16 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/ClosingState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "context": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RunContext"
               },
               {
                 "type": "null"
@@ -1566,6 +1696,18 @@
               }
             ],
             "title": "Repository"
+          },
+          "rig": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The rig's name, once known",
+            "title": "Rig"
           },
           "run_id": {
             "title": "Run Id",
@@ -2243,6 +2385,7 @@
                             "branch_ended": "#/components/schemas/BranchEnded",
                             "branch_started": "#/components/schemas/BranchStarted",
                             "command_finished": "#/components/schemas/CommandFinished",
+                            "context_changed": "#/components/schemas/ContextChanged",
                             "header": "#/components/schemas/Header",
                             "notify": "#/components/schemas/Notify",
                             "prompt_closed": "#/components/schemas/PromptClosed",
@@ -2317,6 +2460,9 @@
                           },
                           {
                             "$ref": "#/components/schemas/RecordResolved"
+                          },
+                          {
+                            "$ref": "#/components/schemas/ContextChanged"
                           },
                           {
                             "$ref": "#/components/schemas/BranchStarted"

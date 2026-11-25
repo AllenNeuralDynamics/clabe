@@ -505,6 +505,18 @@
             ],
             "title": "Repository"
           },
+          "rig": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The rig's name, once known",
+            "title": "Rig"
+          },
           "run_id": {
             "title": "Run Id",
             "type": "string"

@@ -157,3 +157,24 @@ def _serve(app, port: int):
     while not server.started:
         time.sleep(0.02)
     return server, thread
+
+
+def test_a_run_tells_its_rig_and_subject_from_its_context(monkeypatch):
+    from dataclasses import dataclass
+
+    from clabe.workflow._context import RIG_NAME_ENV_VAR
+
+    @dataclass
+    class _Session:
+        subject: str
+        experimenter: list[str]
+
+    monkeypatch.setenv(RIG_NAME_ENV_VAR, "RIG-3")
+    wf = Workflow("demo")
+    wf.step(lambda: _Session("mouse-9", ["bo"]), name="session")
+    run = Run(wf)
+    client = TestClient(create_app(run, static_dir=None))
+    run.start()
+    assert run.wait(10)
+    session = client.get("/api/session").json()
+    assert (session["rig"], session["subject"], session["experimenter"]) == ("RIG-3", "mouse-9", ["bo"])

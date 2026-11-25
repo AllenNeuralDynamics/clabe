@@ -5,7 +5,7 @@ const TYPES = [
   "run_started", "run_finished", "run_closing", "run_closed", "step_started", "step_finished", "step_failed",
   "step_skipped", "steps_invalidated", "artifact_exported", "prompt_opened", "prompt_closed", "notify", "header",
   "activity_started", "activity_ended", "activity_output", "branch_started", "branch_ended",
-  "command_finished", "record_resolved",
+  "command_finished", "record_resolved", "context_changed",
 ];
 
 export function follow(url, receiver) {

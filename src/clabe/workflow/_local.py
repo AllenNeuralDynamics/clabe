@@ -23,7 +23,8 @@ from ..ui import (
     Request,
     TextRequest,
 )
-from ._events import Event, Header, Notify, PromptClosed, PromptOpened, RunFinished
+from ._context import RunContext
+from ._events import ContextChanged, Event, Header, Notify, PromptClosed, PromptOpened, RunFinished
 from ._run import Ack, Rejected, Run
 
 logger = logging.getLogger(__name__)
@@ -66,6 +67,9 @@ class LocalClient:
     the reason) and asked again. A prompt answered before is shown prefilled with that answer (see `prefill`), and
     a client may raise [`NavigationRequested`][clabe.ui.NavigationRequested] to go back
     ([`Run.back`][clabe.workflow.Run.back]) or forward ([`Run.forward`][clabe.workflow.Run.forward]).
+
+    A client with a ``set_context`` hook (the terminal UI) is given what the run is about
+    ([`RunContext`][clabe.workflow.RunContext]) whenever it changes, to show it prominently.
 
     A client with a ``set_reporter`` hook (the terminal UI) is given one for the run, so its user can report an issue
     (see [`report_run`][clabe.reports.report_run]); it stays set after the run, for the closing prompt.
@@ -148,6 +152,10 @@ class LocalClient:
             self._prompts.put(event)
         elif isinstance(event, PromptClosed):
             self._on_prompt_closed(event)
+        elif isinstance(event, ContextChanged):
+            set_context = getattr(self._client, "set_context", None)
+            if callable(set_context):
+                set_context(RunContext.model_validate(event.model_dump()))
         elif isinstance(event, Notify):
             self._client.notify(event.message, MessageLevel(event.level))
         elif isinstance(event, Header):
