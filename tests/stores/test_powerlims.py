@@ -18,12 +18,17 @@ from pydantic import ValidationError
 from clabe import ui
 from clabe.stores import CompositeStore, Kind, MemoryStore
 from clabe.stores.powerlims import (
+    BehaviorRow,
+    EventQuery,
+    FipRow,
+    InvalidSettingsError,
     InvalidTrainerStateError,
     PlannedEvent,
     PowerLimsClient,
     PowerLimsError,
     PowerLimsSettings,
     PowerLimsStore,
+    SettingsRow,
 )
 
 TASK = "AindVrForaging"
@@ -70,9 +75,14 @@ def behavior_row(row_id: str = "row-1", stage: str = "stage_a", trainer_state: A
 
 
 def event(
-    *, instrument: str = "RIG-01", start: str = "2026-11-20T17:00:00Z", source: str = "pinned", row: Any = ...
+    *,
+    instrument: str = "RIG-01",
+    start: str = "2026-11-20T17:00:00Z",
+    source: str = "pinned",
+    row: Any = ...,
+    task: str = TASK,
 ) -> dict:
-    """An item of /planned_events in the shape the API documents."""
+    """An item of /planned_events in the shape the API documents: settings keyed by kind."""
     return {
         "event_id": f"evt-{instrument}-{start}",
         "event_name": None,
@@ -80,12 +90,13 @@ def event(
         "instrument": instrument,
         "start": start,
         "status": "planned",
-        "event_types": [TASK, FIP],
+        "event_types": [task, FIP],
         "trainer": "Jane Doe",
         "scientific_contact": "Ann Smith",
         "settings": {
-            TASK: {"source": source, "row": behavior_row() if row is ... else row},
-            FIP: {
+            "behavior": {"event_type": task, "source": source, "row": behavior_row() if row is ... else row},
+            "fip": {
+                "event_type": FIP,
                 "source": "latest",
                 "row": {"id": "fip-1", "led_470nm": 40.0, "fibers": [{"fiber": 0, "enabled": True, "patch_cord": "0"}]},
             },
@@ -155,40 +166,44 @@ def answer_with(http: FakeHttp, *items: dict) -> None:
 
 
 class TestClient:
-    def test_omits_empty_filters_and_asks_for_trainer_state_only_when_told(self, client, http):
-        client.planned_events()
-        client.planned_events(mouse_id="789012", include_trainer_state=True)
+    def test_asks_for_the_day_and_only_the_filters_given(self, client, http):
+        client.events_on(datetime.date(2026, 11, 20))
+        client.events_on(mouse_id="789012", settings=[f"behavior:{TASK}", "fip"], expand_settings=True)
         first, second = (c["params"] for c in calls(http))
-        assert first == {"limit": 100, "offset": 0}
-        assert second == {"limit": 100, "offset": 0, "mouse_id": "789012", "include_trainer_state": "true"}
+        assert first.keys() == {"start_gte", "start_lte", "limit", "offset"}
+        assert first["start_gte"].startswith("2026-11-20T00:00:00")
+        assert first["start_lte"].startswith("2026-11-20T23:59:59.999999")
+        assert second["mouse_id"] == "789012" and second["expand_settings"] == "true"
+        assert second["settings"] == [f"behavior:{TASK}", "fip"]
 
-    def test_settings_are_kept_as_the_api_sends_them(self, client):
-        (planned,) = client.planned_events()
+    def test_settings_are_typed_by_kind(self, client):
+        (planned,) = client.events_on()
         assert isinstance(planned, PlannedEvent) and planned.scientific_contact == "Ann Smith"
-        assert planned.settings[FIP] == event()["settings"][FIP]
-        assert planned.settings[TASK]["source"] == "pinned"
-        assert planned.settings[TASK]["row"]["stage_name"] == "stage_a"
+        behavior, fip = planned.settings.behavior, planned.settings.fip
+        assert (behavior.event_type, behavior.source, behavior.row.stage_name) == (TASK, "pinned", "stage_a")
+        assert (fip.event_type, fip.row.led_470nm, fip.row.fibers[0].patch_cord) == (FIP, 40.0, "0")
 
-    def test_unknown_fields_are_ignored(self, http, client):
-        answer_with(http, {**event(), "brand_new_field": 1})
-        client.planned_events()
+    def test_unknown_fields_and_kinds_are_ignored(self, http, client):
+        answer_with(http, {**event(), "brand_new_field": 1, "settings": {"imaging": {"source": "none"}}})
+        (planned,) = client.events_on()
+        assert planned.settings.behavior is None and planned.settings.fip is None
 
     def test_http_errors_raise_lims_error(self, http, client):
         http.routes[("GET", "/planned_events")] = FakeResponse(403, {"message": "Forbidden"})
         with pytest.raises(PowerLimsError, match="HTTP 403"):
-            client.planned_events()
+            client.events_on()
 
     def test_connection_errors_raise_lims_error(self, http, client):
         http.routes[("GET", "/planned_events")] = requests.ConnectionError("no route")
         with pytest.raises(PowerLimsError, match="Could not reach"):
-            client.planned_events()
+            client.events_on()
 
     def test_follows_every_page(self, http, client):
         pages = {0: page({"mouse_id": "a"}, next_offset=1), 1: page({"mouse_id": "b"}, offset=1)}
         http.routes[("GET", "/planned_events")] = lambda kw: pages[kw["params"]["offset"]]
-        assert [e.mouse_id for e in client.planned_events(page_size=1)] == ["a", "b"]
+        assert [e.mouse_id for e in client.events_on()] == ["a", "b"]
 
-    def test_subjects_scheduled_today_are_ordered_by_start_and_unique(self, http, client):
+    def test_scheduled_subjects_are_ordered_by_start_and_unique(self, http, client):
         answer_with(
             http,
             {"mouse_id": "late", "start": "2026-11-20T23:00:00Z"},
@@ -196,13 +211,10 @@ class TestClient:
             {"mouse_id": "late", "start": "2026-11-21T00:00:00Z"},
             {"mouse_id": None, "start": "2026-11-20T18:00:00Z"},
         )
-        now = datetime.datetime(2026, 11, 20, 12, tzinfo=datetime.timezone(datetime.timedelta(hours=-8)))
-        assert client.subjects_scheduled_today("RIG-01", now=now) == ["early", "late"]
+        assert client.scheduled_subjects("RIG-01", datetime.date(2026, 11, 20)) == ["early", "late"]
         params = calls(http)[0]["params"]
-        assert params["instrument"] == "RIG-01"
-        assert params["start_gte"] == "2026-11-20T00:00:00-08:00"
-        assert params["start_lte"].startswith("2026-11-20T23:59:59")
-        assert "include_trainer_state" not in params
+        assert params["instrument"] == "RIG-01" and params["start_gte"].startswith("2026-11-20T00:00:00")
+        assert "expand_settings" not in params
 
 
 class TestRead:
@@ -211,7 +223,7 @@ class TestRead:
         assert isinstance(trainer_state, TrainerState)
         assert trainer_state.stage is not None and trainer_state.stage.name == "stage_a"
         params = calls(http)[0]["params"]
-        assert params["mouse_id"] == "789012" and params["include_trainer_state"] == "true"
+        assert params["mouse_id"] == "789012" and params["expand_settings"] == "true"
         assert "instrument" not in params  # filtered client-side, so a moved mouse is still found
 
     def test_events_on_this_rig_win(self, http, client):
@@ -313,18 +325,15 @@ class TestRead:
         with pytest.raises(InvalidTrainerStateError, match="bad-file-row"):
             make_store(client).resolve(TRAINER_STATE)
 
-    def test_the_task_is_matched_by_the_rows_task_name_not_the_event_type_name(self, http, client):
-        renamed = event()
-        renamed["settings"] = {"VR Foraging (renamed type)": renamed["settings"][TASK], FIP: renamed["settings"][FIP]}
-        answer_with(http, renamed)
-        assert make_store(client).resolve(TRAINER_STATE).stage.name == "stage_a"
-
-    def test_an_entry_named_like_the_task_that_is_not_a_behavior_row_is_ignored(self, http, client):
-        impostor = event()
-        impostor["settings"] = {TASK: impostor["settings"][FIP]}  # a FIP row: no task_name
-        answer_with(http, impostor)
+    def test_a_behavior_row_for_another_task_is_ignored(self, http, client):
+        other = {**behavior_row("df-row"), "task_name": "AindDynamicForaging"}
+        answer_with(http, event(task="AindDynamicForaging", row=other))
         with pytest.raises(LookupError):
             make_store(client).resolve(TRAINER_STATE)
+
+    def test_the_store_reads_the_day_it_is_given(self, client, http):
+        PowerLimsStore(client=client, scope={"subject": "789012"}, day=datetime.date(2026, 11, 20)).events()
+        assert calls(http)[0]["params"]["start_gte"].startswith("2026-11-20T00:00:00")
 
     def test_a_trainer_state_for_another_task_raises(self, http, client):
         other = TrainerState(curriculum=None, stage=Stage(name="s", task=_DynamicForagingTask()), is_on_curriculum=True)
@@ -346,6 +355,86 @@ class TestRead:
     def test_other_kinds_are_refused(self, client):
         with pytest.raises(LookupError, match="only serves"):
             make_store(client).resolve(Kind(PlannedEvent))
+
+
+class TestQuery:
+    def test_row_types_build_settings_filters(self):
+        query = EventQuery(settings=[FipRow.where(), BehaviorRow.where(TASK)])
+        assert list(query.settings) == ["fip", f"behavior:{TASK}"]
+        assert query.to_params() == {"settings": ["fip", f"behavior:{TASK}"]}
+
+    @pytest.mark.parametrize("bad", ["imaging", "fip:anything", "behavior:"])
+    def test_invalid_settings_filters_are_rejected_before_sending(self, bad):
+        with pytest.raises(ValidationError):
+            EventQuery(settings=[bad])
+
+    def test_a_kind_without_discriminator_cannot_be_narrowed(self):
+        with pytest.raises(ValueError, match="no discriminator"):
+            FipRow.where("x")
+
+    def test_matches_mirrors_the_server_filter(self):
+        planned = PlannedEvent.model_validate_json(json.dumps(event()))
+        assert EventQuery(settings=[FipRow.where(), BehaviorRow.where(TASK)]).matches(planned)
+        assert not EventQuery(settings=[BehaviorRow.where("AindDynamicForaging")]).matches(planned)
+
+    def test_naive_query_times_are_local(self):
+        query = EventQuery(start_gte=datetime.datetime(2026, 11, 20, 9))
+        assert query.start_gte.utcoffset() == datetime.datetime(2026, 11, 20, 9).astimezone().utcoffset()
+
+    def test_every_registered_kind_has_a_field_on_event_settings(self):
+        assert set(SettingsRow.registry) == {"behavior", "fip"}
+
+
+class TestTypedSettings:
+    def test_trainer_state_is_a_trainer_state(self, client, http):
+        (planned,) = client.events_on(expand_settings=True)
+        assert isinstance(planned.settings.row(BehaviorRow).trainer_state, TrainerState)
+
+    def test_rows_dispatch_by_type(self, client):
+        (planned,) = client.events_on()
+        seen = []
+        for row in planned.settings.rows():
+            match row:
+                case FipRow():
+                    seen.append(("fip", row.fibers[0].fiber))
+                case BehaviorRow():
+                    seen.append(("behavior", row.task_name))
+        assert seen == [("behavior", TASK), ("fip", 0)]
+        assert planned.kinds == ["behavior", "fip"]
+        assert planned.has(BehaviorRow, TASK) and not planned.has(BehaviorRow, "Other")
+
+    def test_an_invalid_fip_row_raises_naming_it(self, http, client):
+        bad = event()
+        bad["settings"]["fip"]["row"] = {"id": "fip-bad", "fibers": [{"fiber": "not a number"}]}
+        answer_with(http, bad)
+        with pytest.raises(InvalidSettingsError, match="fip settings row fip-bad") as raised:
+            client.events_on()
+        assert raised.value.kind == "fip" and not isinstance(raised.value, InvalidTrainerStateError)
+
+    def test_events_at_keeps_only_ongoing_events(self, http, client):
+        answer_with(
+            http,
+            {**event(start="2026-11-20T08:00:00Z"), "end": "2026-11-20T09:00:00Z", "mouse_id": "done"},
+            {**event(start="2026-11-20T09:30:00Z"), "end": "2026-11-20T11:00:00Z", "mouse_id": "now"},
+            {**event(start="2026-11-20T09:45:00Z"), "end": None, "mouse_id": "open"},
+        )
+        at = datetime.datetime(2026, 11, 20, 10, tzinfo=datetime.UTC)
+        assert [e.mouse_id for e in client.events_at(at, settings=[BehaviorRow.where(TASK)])] == ["now", "open"]
+        params = calls(http)[0]["params"]
+        assert params["settings"] == [f"behavior:{TASK}"]
+        assert datetime.datetime.fromisoformat(params["start_lte"]) == at
+
+
+class TestSettingsRowsFromTheStore:
+    def test_resolves_the_fip_row(self, client):
+        fip = make_store(client).resolve(Kind(FipRow))
+        assert isinstance(fip, FipRow) and fip.led_470nm == 40.0
+
+    def test_behavior_rows_are_narrowed_by_task_name_in_scope(self, http, client):
+        answer_with(http, event(row={**behavior_row("df"), "task_name": "AindDynamicForaging"}))
+        with pytest.raises(LookupError):
+            make_store(client).resolve(Kind(BehaviorRow))
+        assert make_store(client, task_name="AindDynamicForaging").resolve(Kind(BehaviorRow)).id == "df"
 
 
 class TestReadOnly:
