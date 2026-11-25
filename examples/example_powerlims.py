@@ -10,12 +10,15 @@ It walks through what a rig asks PowerLIMS:
 4. The path a launcher takes: pick a subject from the day's schedule, then resolve its trainer
    state and FIP settings through a ``CompositeStore``.
 
-Nothing is written. Run it against a local server (see the powerlims-api server README):
+Nothing is written. Run it against a local server reading the Dev environment (see the
+powerlims-api server README). The defaults are a Dev test session (Test_222222 on FRG.12-B,
+2026-11-19 09:30, VR foraging with FIP):
 
-    uv run python examples/example_powerlims.py --instrument FRG.12-B
-    uv run python examples/example_powerlims.py --instrument FRG.12-B --subject Test_333333
-    uv run python examples/example_powerlims.py --instrument FRG.3-D --task-name AindDynamicForaging
-    uv run python examples/example_powerlims.py --instrument FRG.12-A --at 2026-11-20T10:30
+    uv run python examples/example_powerlims.py
+    # A subject picked from FRG.12-A's schedule:
+    uv run python examples/example_powerlims.py --instrument FRG.12-A --subject "" --at 2026-12-03T10:45
+    # Dev's dynamic foraging trainer states are incomplete stubs, so this shows the INVALID path (exit 2):
+    uv run python examples/example_powerlims.py --instrument FRG.3-D --subject 614175 --task-name AindDynamicForaging --at 2026-12-03T14:45
 
 Exit code: 0 a trainer state was resolved, 1 none applies, 2 PowerLIMS holds invalid settings,
 3 the API could not be reached or answered with an error.
@@ -39,7 +42,6 @@ from clabe.stores.powerlims import (
     PowerLimsSettings,
     PowerLimsStore,
 )
-from clabe.utils import get_computer_name
 
 
 class ExampleArgs(BaseSettings):
@@ -47,12 +49,17 @@ class ExampleArgs(BaseSettings):
 
     model_config = SettingsConfigDict(cli_kebab_case=True, cli_implicit_flags=True)
 
+    # The defaults point at a test session in the PowerLIMS Dev environment that has a VR foraging
+    # trainer state and FIP settings, so the example fetches something when run without arguments.
     base_url: str = Field(default="http://127.0.0.1:8000", description="The PowerLIMS API's root URL.")
-    instrument: str = Field(default_factory=get_computer_name, description="The rig's instrument name.")
+    instrument: str = Field(default="FRG.12-B", description="The rig's instrument name, e.g. this machine's.")
     task_name: str = Field(default="AindVrForaging", description="The task whose trainer state to resolve.")
-    subject: str | None = Field(default=None, description="The subject. Picked from the schedule when omitted.")
+    subject: str | None = Field(
+        default="Test_222222", description="The subject. Pass an empty value to pick one from the schedule."
+    )
     at: datetime.datetime | None = Field(
-        default=None, description="The moment to treat as 'now', in local time. Its day is the day the store reads."
+        default=datetime.datetime(2026, 11, 19, 9, 30),
+        description="The moment to treat as 'now', in local time. Its day is the day the store reads.",
     )
     timeout: float = Field(default=120.0, description="Seconds to wait for each request.")
 
@@ -105,7 +112,7 @@ def run(args: ExampleArgs) -> int:
     powerlims = PowerLimsStore(client=client, scope={"instrument": args.instrument}, day=at.date())
     scheduled = powerlims.scheduled_subjects()
     print(f"\nScheduled on {args.instrument} on {at:%Y-%m-%d}: {scheduled or 'nobody'}")
-    subject = args.subject
+    subject = args.subject or None
     if subject is None and scheduled:
         subject = ui.prompt_pick(ui.PickRequest(label="Subject", options=scheduled, default=scheduled[0]))
     if subject is None:
