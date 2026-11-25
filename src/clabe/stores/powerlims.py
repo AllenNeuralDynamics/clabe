@@ -191,6 +191,7 @@ class FipRow(SettingsRow):
     led_565nm: float | None = None
     fibers: list[FipFiber] = Field(default_factory=list)
 
+
 class ResolvedSettings(_ApiModel, Generic[RowT]):
     """The settings row that applies to an event for one kind, and where it came from."""
 
