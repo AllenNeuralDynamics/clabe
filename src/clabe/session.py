@@ -42,7 +42,7 @@ class SessionBuilder:
                 or None to reject it. If ``None``, names are accepted as typed.
             use_cache: Whether to seed the prompts with previously entered values.
             subject_suggestions: Returns the subjects to pick from, e.g. the mice scheduled on this rig today
-                (``LimsStore.scheduled_subjects``). When it returns none or fails, the user types the subject.
+                (``PowerLimsStore.scheduled_subjects``). When it returns none or fails, the user types the subject.
         """
         self._launcher = launcher
         self._experimenter_validator = experimenter_validator

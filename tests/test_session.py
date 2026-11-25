@@ -116,7 +116,7 @@ class TestSessionBuilder:
         CacheManager.get_instance().add_to_cache("subjects", "111111")
 
         def broken() -> list[str]:
-            raise RuntimeError("LIMS is down")
+            raise RuntimeError("PowerLIMS is down")
 
         builder = SessionBuilder(launcher, experimenter_validator=None, subject_suggestions=broken)
         answer(mock_frontend, autocomplete=["111111"])
