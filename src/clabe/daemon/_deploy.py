@@ -55,6 +55,7 @@ def _extras(extras: str | list[str] | tuple[str, ...] | None) -> tuple[str, ...]
 
 
 def _extras_part(extras: tuple[str, ...]) -> str:
+    """The extras as a requirement's part: ``[frontend,otel]``, or nothing."""
     return f"[{','.join(extras)}]" if extras else ""
 
 
@@ -143,14 +144,17 @@ class Environment:
         return _scripts(self.path) / ("clabe.exe" if os.name == "nt" else "clabe")
 
     def describe(self) -> str:
+        """The environment's clabe, for messages: ``clabe 0.18.0`` (and its git commit, if any)."""
         return f"clabe {self.version}" + (f" (git {self.commit[:12]})" if self.commit else "")
 
 
 def _scripts(environment: Path) -> Path:
+    """An environment's executables folder (``Scripts`` on Windows, ``bin`` elsewhere)."""
     return environment / ("Scripts" if os.name == "nt" else "bin")
 
 
 def _python(environment: Path) -> Path:
+    """An environment's Python."""
     return _scripts(environment) / ("python.exe" if os.name == "nt" else "python")
 
 
@@ -213,6 +217,7 @@ print(json.dumps({"version": dist.version, "url": direct.get("url"),
 
 
 def _probe(environment: Path) -> dict:
+    """What is installed in ``environment``; raises when the daemon cannot start from it (no web server or UI)."""
     done = subprocess.run([str(_python(environment)), "-I", "-c", _PROBE], capture_output=True, text=True, check=False)
     if done.returncode != 0:
         raise OSError(f"The installed clabe cannot run the daemon: {(done.stderr or done.stdout).strip()[-2000:]}")
@@ -272,6 +277,7 @@ def _remove_stale_staging(root: Path, age: float = 3600.0) -> None:
 
 
 def _mark_activated(environment: Environment) -> None:
+    """Records that the daemon now runs ``environment`` (for :func:`prune`'s order)."""
     path = environment.path / MARKER
     try:
         marker = json.loads(path.read_text(encoding="utf-8"))
@@ -293,6 +299,7 @@ def prune(keep: int = KEEP, *, active: Path | None = None) -> list[Path]:
 
 
 def _same_path(a: Path | None, b: Path | None) -> bool:
+    """Whether ``a`` and ``b`` are the same path (case-insensitively on Windows); ``None`` is never the same."""
     if a is None or b is None:
         return False
     return os.path.normcase(os.path.abspath(a)) == os.path.normcase(os.path.abspath(b))
@@ -310,6 +317,7 @@ def _environment_of(executable: Path | None) -> Path | None:
 
 
 def _env_file() -> Path:
+    """The daemon's settings file (``daemon.env``), which ``DaemonSettings`` reads."""
     from ._settings import ENV_FILE
 
     return ENV_FILE
@@ -329,6 +337,7 @@ def _user_variable(name: str) -> str | None:
 
 
 def _remove_user_variable(name: str) -> None:
+    """Removes this user's persistent environment variable ``name`` (Windows only)."""
     import winreg
 
     with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment", 0, winreg.KEY_SET_VALUE) as key:
