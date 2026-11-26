@@ -11,15 +11,90 @@ import httpx
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
 
 from .. import __version__
 from ..server._app import STATIC_DIR
 from ..server._proxy import RequireToken, TokenCookies, forward, token_check
-from ._fleet import Fleet, RigStatus, rig_token
+from ._fleet import EnrollBody, Excluded, Fleet, RigStatus
+from ._registry import Exclusion, RigConfig
 from ._report_api import report_routes
 from ._reports import InspectCache
 
 logger = logging.getLogger(__name__)
+
+
+class ExcludeBody(BaseModel):
+    """An exclusion to add."""
+
+    pattern: str = Field(
+        description="A glob matched without case against a rig's name and host, e.g. BEH.* or rig-3", min_length=1
+    )
+    comment: str | None = Field(default=None, description="Why it is excluded")
+
+
+class TokenBody(BaseModel):
+    """A rig's own daemon token, or null to clear it."""
+
+    token: str | None = Field(description="The rig's DAEMON_CLABE_TOKEN; null or empty: use the hub's RIG_TOKEN")
+
+
+class ExcludeResult(BaseModel):
+    """The exclusion added, and the rigs it removed from the hub."""
+
+    exclusion: Exclusion
+    removed: list[str]
+
+
+def _enroll_routes(app: FastAPI, fleet: Fleet, enroll_token: str | None) -> None:
+    """``POST /api/hub/enroll``, checked against the enroll token (not the hub's): what a rig's daemon calls."""
+    enroll = APIRouter(prefix="/api/hub", dependencies=[Depends(token_check(enroll_token))])
+
+    @enroll.post("/enroll", response_model=RigConfig, responses={403: {"description": "The rig is excluded"}})
+    def enroll_rig(body: EnrollBody) -> RigConfig:
+        """A rig's daemon enrolls (again): the hub follows it at ``http://<host>:<port>`` from now on."""
+        try:
+            return fleet.enroll(body)
+        except Excluded as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+    app.include_router(enroll)
+
+
+def _rig_routes(api: APIRouter, fleet: Fleet) -> None:
+    """Removing rigs, their tokens, and the exclusions that keep rigs out."""
+
+    @api.delete("/rigs/{rig_id}", status_code=204)
+    def remove(rig_id: str) -> None:
+        """Removes a rig and its token. A rig whose daemon still enrolls with this hub comes back; exclude it to keep it
+        out."""
+        if not fleet.remove(rig_id):
+            raise HTTPException(status_code=404, detail=f"No rig {rig_id!r}.")
+
+    @api.put("/rigs/{rig_id}/token", status_code=204)
+    def set_token(rig_id: str, body: TokenBody) -> None:
+        """Sets the daemon token the hub uses for this rig (``null`` clears it: the hub's ``RIG_TOKEN``). It is never
+        shown back."""
+        token = (body.token or "").strip() or None
+        if not fleet.set_token(rig_id, token):
+            raise HTTPException(status_code=404, detail=f"No rig {rig_id!r}.")
+
+    @api.get("/exclusions", response_model=list[Exclusion])
+    def exclusions() -> list[Exclusion]:
+        """The patterns that keep rigs out, oldest first."""
+        return fleet.registry.exclusions()
+
+    @api.post("/exclusions", response_model=ExcludeResult)
+    def exclude(body: ExcludeBody) -> ExcludeResult:
+        """Keeps out the rigs matching a pattern: those followed now are removed, and they cannot enroll."""
+        exclusion, removed = fleet.exclude(body.pattern.strip(), (body.comment or "").strip() or None)
+        return ExcludeResult(exclusion=exclusion, removed=removed)
+
+    @api.delete("/exclusions", status_code=204)
+    def unexclude(pattern: str) -> None:
+        """Removes an exclusion: the rigs it kept out are followed again once they enroll (within minutes)."""
+        if not fleet.registry.unexclude(pattern):
+            raise HTTPException(status_code=404, detail=f"No exclusion {pattern!r}.")
 
 
 def create_hub_app(
@@ -29,12 +104,15 @@ def create_hub_app(
     static_dir: Path | None = STATIC_DIR,
     poll: bool = True,
     self_url: str | None = None,
+    enroll_token: str | None = None,
 ) -> FastAPI:
     """Builds the hub's app.
 
     Args:
         fleet: The rigs to follow.
         token: When set, every API call (the hub's and each rig's) must carry it.
+        enroll_token: When set, a rig's daemon must carry it to enroll (``POST /api/hub/enroll``); the hub's
+            ``token`` does not enroll a rig, and this one gives no other access.
         static_dir: The web UI, served at ``/`` (the fleet) and under each ``/rigs/<id>/``.
         poll: Whether to poll the rigs in the background while the app runs.
         self_url: Where the hub reaches itself (``http://127.0.0.1:8080``); with it (and the ``agents`` extra), an
@@ -58,7 +136,7 @@ def create_hub_app(
         title="clabe hub API",
         version=__version__,
         description="Follow a fleet of rigs: what each runs, which ones wait for an answer, and each rig's own API "
-        "under /rigs/<id>/.",
+        "under /rigs/<id>/. Rigs enroll themselves (POST /api/hub/enroll).",
         lifespan=lifespan,
     )
     app.add_middleware(TokenCookies, token=token)
@@ -83,6 +161,8 @@ def create_hub_app(
         return await asyncio.to_thread(fleet.statuses)
 
     report_routes(api, fleet, inspections)
+    _rig_routes(api, fleet)
+    _enroll_routes(app, fleet, enroll_token)
     app.include_router(api)
     client = httpx.AsyncClient(timeout=httpx.Timeout(30.0, read=None))
 
@@ -100,7 +180,7 @@ def create_hub_app(
             raise HTTPException(status_code=404, detail=f"No rig {rig_id!r}.")
         if "api/" in path:
             await check(request)
-        token = rig_token(rig)
+        token = fleet.rig_token(rig_id)
         return await forward(
             client, request, f"{rig.url.rstrip('/')}/{path}", token, unreachable=f"{rig_id} is not reachable"
         )

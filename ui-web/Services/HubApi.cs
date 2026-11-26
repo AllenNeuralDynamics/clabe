@@ -49,6 +49,34 @@ public sealed class HubApi(HttpClient http, RunApi run)
     public string RigUrl(string rig, bool runPage = false) =>
         WithToken(runPage ? $"rigs/{rig}/run/" : $"rigs/{rig}/");
 
+    // ---------- enrolled rigs and exclusions ----------
+
+    /// <summary>Removes a rig from the hub (it is followed again if its daemon enrolls again).</summary>
+    public async Task RemoveAsync(string rig) =>
+        await EnsureOk(await http.DeleteAsync($"api/hub/rigs/{Uri.EscapeDataString(rig)}"));
+
+    /// <summary>Sets the daemon token the hub uses for a rig; null clears it (the hub's RIG_TOKEN). Never read back.</summary>
+    public async Task SetTokenAsync(string rig, string? token) =>
+        await EnsureOk(await http.PutAsJsonAsync($"api/hub/rigs/{Uri.EscapeDataString(rig)}/token", new TokenBody(token), Json.Options));
+
+    public async Task<List<Exclusion>> ExclusionsAsync()
+    {
+        var response = await http.GetAsync("api/hub/exclusions");
+        await EnsureOk(response);
+        return (await response.Content.ReadFromJsonAsync<List<Exclusion>>(Json.Options))!;
+    }
+
+    /// <summary>Keeps out the rigs matching <paramref name="pattern"/>; the rigs it dropped.</summary>
+    public async Task<ExcludeResult> ExcludeAsync(string pattern, string? comment)
+    {
+        var response = await http.PostAsJsonAsync("api/hub/exclusions", new ExcludeBody(pattern, comment), Json.Options);
+        await EnsureOk(response);
+        return (await response.Content.ReadFromJsonAsync<ExcludeResult>(Json.Options))!;
+    }
+
+    public async Task UnexcludeAsync(string pattern) =>
+        await EnsureOk(await http.DeleteAsync($"api/hub/exclusions?pattern={Uri.EscapeDataString(pattern)}"));
+
     // ---------- reports ----------
 
     public async Task<ReportPage> ReportsAsync(ReportQuery query)

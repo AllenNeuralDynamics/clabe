@@ -304,3 +304,35 @@ def fake_open_ephys_gui(tmp_path: Path):
         return script, port
 
     return make
+
+
+@pytest.fixture
+def end_launched_run():
+    """A function ending the run a test's daemon launched (give it the daemon's ``Host``); call it in teardown."""
+    return _end_launched_run
+
+
+def _end_launched_run(host) -> None:
+    """Ends the run ``host`` launched, and waits until it lets go of clabe's single-session lock.
+
+    Stopping a daemon leaves its run going (as on a rig), and the run holds the machine-wide lock: a test that left it
+    running would make every later run on this machine refuse to start.
+    """
+    import time
+
+    from clabe.launcher._session_lock import SessionAlreadyRunningError, single_session_lock
+
+    current = host.current()
+    process = getattr(current, "process", None)
+    if process is not None and process.poll() is None:
+        process.kill()
+        process.wait(10)
+    deadline = time.monotonic() + 15
+    while True:
+        try:
+            with single_session_lock():
+                return
+        except SessionAlreadyRunningError:
+            if time.monotonic() >= deadline:
+                raise AssertionError("A clabe run still holds the session lock after its test ended") from None
+            time.sleep(0.1)

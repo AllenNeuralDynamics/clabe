@@ -6,9 +6,10 @@ services:
       dockerfile: docker/hub/Dockerfile
     image: clabe-hub
     ports: ["8080:8080"]
-    env_file: .env               # copy .env.example: the hub's token, the rigs' token and the rigs
-    volumes: ["hub-data:/data"]  # collected issue reports; `docker compose down -v` deletes them
+    env_file: .env
+    volumes: ["hub-data:/data"]  # hub.db (enrolled rigs, exclusions, reports) and the reports' zips
     restart: unless-stopped
 
 volumes:
   hub-data:
+    name: hub_hub-data  # fixed, so -p or another folder uses the same data; `down -v` deletes it

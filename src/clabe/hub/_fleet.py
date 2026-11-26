@@ -8,15 +8,16 @@ import re
 import sqlite3
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, ClassVar, Literal
+from typing import TYPE_CHECKING, ClassVar, Literal
 
 import httpx
-from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
-from pydantic_settings import NoDecode, SettingsConfigDict
+from pydantic import BaseModel, Field, SecretStr, field_validator
+from pydantic_settings import SettingsConfigDict
 
 from ..reports import REPORT_ID_PATTERN, read_report_info
 from ..server._models import SessionInfo
-from ..settings import EnvSettings, split_list
+from ..settings import EnvSettings
+from ._registry import RIG_ID_PATTERN, Exclusion, Registry, RigConfig
 
 if TYPE_CHECKING:
     from ._reports import ReportStore
@@ -24,23 +25,15 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class RigConfig(BaseModel):
-    """A rig the hub follows."""
-
-    id: str = Field(description="Short name used in the hub's URLs, e.g. rig-3", pattern=r"^[A-Za-z0-9_.-]+$")
-    url: str = Field(description="The rig's daemon, e.g. http://rig-3:24070")
-    token: SecretStr | None = Field(default=None, description="The rig daemon's token; defaults to the hub's rig_token")
-
-
 class HubSettings(EnvSettings):
     """Settings of ``clabe hub run``, from environment variables without a prefix (the hub runs in its own container)
-    or a ``.env`` file in the working directory (see ``docker/hub/.env.example``). Rigs are ``id=url`` items separated
-    by ``;`` (or a JSON list, for per-rig tokens):
+    or a ``.env`` file in the working directory (see ``docker/hub/.env.example``). Rigs are not listed here: each
+    rig's daemon enrolls itself (its ``DAEMON_CLABE_HUBS``), and the hub keeps them in its database:
 
     ```bash
     TOKEN=...                             # the hub's own
-    RIG_TOKEN=...                         # the rigs' daemon token (their DAEMON_CLABE_TOKEN)
-    RIGS=rig-3=http://rig-3:24070;rig-4=http://rig-4:24070
+    RIG_TOKEN=...                         # the daemon token of rigs without their own (set on the page)
+    ENROLL_TOKEN=...                      # what rigs present to enroll (their DAEMON_CLABE_ENROLL_TOKEN)
     ```
     """
 
@@ -51,8 +44,12 @@ class HubSettings(EnvSettings):
     host: str = Field(default="0.0.0.0", description="Interface to bind")
     port: int = Field(default=8080, description="Port of the hub")
     token: SecretStr | None = Field(default=None, description="Token required by the hub's API")
-    rig_token: SecretStr | None = Field(default=None, description="The rigs' daemon token, unless a rig has its own")
-    rigs: Annotated[list[RigConfig], NoDecode] = Field(default_factory=list, description="The rigs to follow")
+    rig_token: SecretStr | None = Field(
+        default=None, description="The daemon token (DAEMON_CLABE_TOKEN) of rigs without one of their own"
+    )
+    enroll_token: SecretStr | None = Field(
+        default=None, description="Token rigs present to enroll; any rig that reaches the hub can enroll when unset"
+    )
     poll_interval: float = Field(default=2.0, description="Seconds between polls of each rig")
     data_dir: Path = Field(
         default=Path("hub-data"), description="Where the hub keeps collected issue reports (hub.db and reports/)"
@@ -62,30 +59,32 @@ class HubSettings(EnvSettings):
         default=None, description="Collected reports older than this many days are deleted; kept forever if unset"
     )
 
-    @model_validator(mode="after")
-    def _shared_rig_token(self) -> "HubSettings":
-        """Rigs without their own token use ``rig_token``."""
-        for rig in self.rigs:
-            if rig.token is None:
-                rig.token = self.rig_token
-        return self
 
-    @field_validator("rigs", mode="before")
+class EnrollBody(BaseModel):
+    """What a rig's daemon sends to enroll: its name, and where the hub reaches it."""
+
+    id: str = Field(description="The rig's name in the hub (its URLs: /rigs/<id>/)", pattern=RIG_ID_PATTERN)
+    host: str = Field(description="Where the hub reaches the daemon: a hostname or an IP address", min_length=1)
+    port: int = Field(description="The daemon's port", ge=1, le=65535)
+    clabe_version: str | None = Field(default=None, description="The daemon's clabe")
+
+    @field_validator("host")
     @classmethod
-    def _rigs(cls, value: object) -> object:
-        """``rig-3=http://rig-3:24070;rig-4=...``, or a JSON list of ``{id, url, token}``."""
-        value = split_list(value)
-        if isinstance(value, list):
-            return [_rig(item) if isinstance(item, str) else item for item in value]
+    def _plain_host(cls, value: str) -> str:
+        """A host only: no scheme, port, path or credentials."""
+        if not re.fullmatch(r"[A-Za-z0-9_.-]+|\[[0-9A-Fa-f:.]+\]", value):
+            raise ValueError(f"Not a hostname or an IP address: {value!r}")
         return value
 
 
-def _rig(item: str) -> dict[str, str]:
-    """``id=url`` as a rig."""
-    rig_id, sep, url = item.partition("=")
-    if not sep:
-        raise ValueError(f"A rig is written id=url, got {item!r}.")
-    return {"id": rig_id.strip(), "url": url.strip()}
+class Excluded(Exception):
+    """A rig an exclusion keeps out."""
+
+    def __init__(self, exclusion: Exclusion) -> None:
+        super().__init__(
+            f"Excluded by {exclusion.pattern!r}" + (f" ({exclusion.comment})" if exclusion.comment else "")
+        )
+        self.exclusion = exclusion
 
 
 class Waiting(BaseModel):
@@ -122,18 +121,16 @@ class RigStatus(BaseModel):
     seen_at: datetime.datetime | None = None
     reports_waiting: int = Field(default=0, description="Issue reports on the rig, not collected yet")
     reports_stored: int = Field(default=0, description="Issue reports from this rig stored in the hub")
-
-
-def rig_token(rig: RigConfig) -> str | None:
-    """The token of a rig's daemon (its own, else the hub's ``rig_token``)."""
-    return (rig.token.get_secret_value() if rig.token else None) or None
+    has_token: bool = Field(default=False, description="Whether this rig's token is entered in the hub")
+    needs_token: bool = Field(default=False, description="Whether the rig answers but refuses the hub's token")
 
 
 class Fleet:
-    """Polls every rig's daemon (and, when it runs an experiment, the run) and keeps what it saw.
+    """Polls every enrolled rig's daemon (and, when it runs an experiment, the run) and keeps what it saw.
 
-    With a report store, it also collects each rig's issue reports (every ``report_interval`` seconds, when the rig
-    has some): downloads each, stores it, and only then deletes it on the rig.
+    Rigs enroll themselves (`enroll`); the registry keeps them, and the exclusions that keep rigs out, across
+    restarts. With a report store, the fleet also collects each rig's issue reports (every ``report_interval``
+    seconds, when the rig has some): downloads each, stores it, and only then deletes it on the rig.
     """
 
     def __init__(
@@ -141,10 +138,13 @@ class Fleet:
         settings: HubSettings,
         client: httpx.AsyncClient | None = None,
         reports: "ReportStore | None" = None,
+        registry: Registry | None = None,
     ) -> None:
         self.settings = settings
-        self.rigs = {rig.id: rig for rig in settings.rigs}
-        self.status = {rig.id: RigStatus(id=rig.id, url=rig.url) for rig in settings.rigs}
+        self.registry = registry if registry is not None else Registry()
+        self.rigs = {rig.id: rig for rig in self.registry.rigs()}
+        self.status = {rig.id: RigStatus(id=rig.id, url=rig.url) for rig in self.rigs.values()}
+        self._tokens = self.registry.tokens()
         self.reports = reports
         self._client = client or httpx.AsyncClient(timeout=5.0)
         self._task: asyncio.Task | None = None
@@ -156,11 +156,78 @@ class Fleet:
         """The rig called ``rig_id``."""
         return self.rigs.get(rig_id)
 
+    def rig_token(self, rig_id: str) -> str | None:
+        """The token the hub presents to a rig's daemon: the one entered for the rig, else the hub's ``rig_token``."""
+        own = self._tokens.get(rig_id)
+        if own is not None:
+            return own
+        token = self.settings.rig_token
+        return (token.get_secret_value() if token else None) or None
+
+    def set_token(self, rig_id: str, token: str | None) -> bool:
+        """Enters a rig's daemon token (its DAEMON_CLABE_TOKEN), or deletes it (None: the hub's ``rig_token``);
+        whether the rig is enrolled."""
+        if not self.registry.set_token(rig_id, token):
+            return False
+        if token is None:
+            self._tokens.pop(rig_id, None)
+        else:
+            self._tokens[rig_id] = token
+        return True
+
+    def enroll(self, body: EnrollBody) -> RigConfig:
+        """Adds a rig, or updates where it is (a rig enrolls again every few minutes, and after it moves).
+
+        Raises:
+            Excluded: An exclusion matches the rig's name or host.
+        """
+        exclusion = self.registry.excluded_by(body.id, body.host)
+        if exclusion is not None:
+            raise Excluded(exclusion)
+        now = datetime.datetime.now(datetime.UTC)
+        known = self.rigs.get(body.id)
+        rig = RigConfig(
+            id=body.id,
+            url=f"http://{body.host}:{body.port}",
+            clabe_version=body.clabe_version,
+            enrolled_at=known.enrolled_at if known is not None else now,
+            last_enrolled_at=now,
+        )
+        self.registry.save(rig)
+        if known is None:
+            logger.info("%s enrolled at %s", rig.id, rig.url)
+        elif known.url != rig.url:
+            logger.info("%s moved from %s to %s", rig.id, known.url, rig.url)
+        self.rigs[rig.id] = rig
+        if known is None or known.url != rig.url:
+            self.status[rig.id] = RigStatus(id=rig.id, url=rig.url)
+        return rig
+
+    def remove(self, rig_id: str) -> bool:
+        """Removes a rig and its token (it is followed again if its daemon enrolls again); whether it was followed."""
+        self.rigs.pop(rig_id, None)
+        self.status.pop(rig_id, None)
+        self._tokens.pop(rig_id, None)
+        return self.registry.remove(rig_id)
+
+    def exclude(self, pattern: str, comment: str | None = None) -> tuple[Exclusion, list[str]]:
+        """Keeps out the rigs matching ``pattern`` (now and when they enroll); the exclusion, and the rigs removed."""
+        exclusion = self.registry.exclude(pattern, comment)
+        excluded = self.registry.excluded_by
+        removed = [r.id for r in list(self.rigs.values()) if excluded(r.id, httpx.URL(r.url).host) is not None]
+        for rig_id in removed:
+            self.remove(rig_id)
+        return exclusion, removed
+
     def statuses(self, statuses: list[RigStatus] | None = None) -> list[RigStatus]:
-        """Every rig as last polled (or those given), with how many of its reports the hub stores."""
+        """Every rig as last polled (or those given), with how many of its reports the hub stores and whether it has
+        its own token."""
         statuses = list(self.status.values()) if statuses is None else statuses
         counts = self.reports.counts_by_rig() if self.reports is not None else {}
-        return [s.model_copy(update={"reports_stored": counts.get(s.id, 0)}) for s in statuses]
+        return [
+            s.model_copy(update={"reports_stored": counts.get(s.id, 0), "has_token": s.id in self._tokens})
+            for s in statuses
+        ]
 
     def inbox(self) -> list[RigStatus]:
         """The rigs waiting for an answer, longest-waiting first."""
@@ -170,7 +237,7 @@ class Fleet:
     async def poll_once(self, *, collect: bool = False) -> None:
         """Refreshes every rig's status, and collects reports where due (or everywhere, with ``collect``)."""
         await self._purge()
-        await asyncio.gather(*(self._poll(rig, collect) for rig in self.rigs.values()))
+        await asyncio.gather(*(self._poll(rig, collect) for rig in list(self.rigs.values())))
 
     async def _purge(self) -> None:
         """Deletes the reports older than ``report_retention_days``, at most once an hour."""
@@ -207,7 +274,7 @@ class Fleet:
 
     async def _request(self, rig: RigConfig, method: str, path: str, timeout: float | None = None) -> httpx.Response:
         """Sends ``method path`` to a rig's daemon, with its token; raises on an error status."""
-        token = rig_token(rig)
+        token = self.rig_token(rig.id)
         headers = {"Authorization": f"Bearer {token}"} if token else {}
         extra = {"timeout": timeout} if timeout is not None else {}
         response = await self._client.request(method, f"{rig.url.rstrip('/')}{path}", headers=headers, **extra)
@@ -229,11 +296,20 @@ class Fleet:
                 if run.get("status") == "running":
                     await self._poll_run(rig, status)
                     status.session = await self._session(rig)
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code == 401:
+                status.needs_token = True
+                status.error = "It refuses the hub's token: set this rig's token (its DAEMON_CLABE_TOKEN)"
+            else:
+                status.error = str(exc) or type(exc).__name__
         except (httpx.HTTPError, KeyError, ValueError) as exc:
             status.error = str(exc) or type(exc).__name__
+        if status.error is not None:
             previous = self.status.get(rig.id)
             if previous is not None and previous.reachable:
                 logger.warning("Lost %s: %s", rig.id, status.error)
+        if self.rigs.get(rig.id) is not rig:
+            return  # removed, excluded or moved while it was polled: what was seen is not this rig's any more
         self.status[rig.id] = status
         now = time.monotonic()
         due = collect or now - self._collected_at.get(rig.id, -math.inf) >= self.settings.report_interval

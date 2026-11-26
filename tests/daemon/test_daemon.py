@@ -43,7 +43,7 @@ def repository(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def daemon(repository: Path, tmp_path: Path):
+def daemon(repository: Path, tmp_path: Path, end_launched_run):
     settings = DaemonSettings(
         port=free_port("127.0.0.1", 18070),
         repository_roots=[],
@@ -63,9 +63,7 @@ def daemon(repository: Path, tmp_path: Path):
     while not server.started:
         time.sleep(0.02)
     yield f"http://127.0.0.1:{settings.port}", host
-    current = host.current()
-    if current is not None and hasattr(current, "process") and current.process.poll() is None:
-        current.process.kill()
+    end_launched_run(host)
     server.should_exit = True
     thread.join(5)
 

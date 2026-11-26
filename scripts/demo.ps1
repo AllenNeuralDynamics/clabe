@@ -7,8 +7,8 @@
 
         powershell -ExecutionPolicy ByPass -File scripts/demo.ps1
 
-    1. Starts the hub in Docker (docker/demo/compose.yml), following this computer.
-    2. Starts a daemon on this computer (stopped at the end).
+    1. Starts the hub in Docker (docker/demo/compose.yml).
+    2. Starts a daemon on this computer (stopped at the end); it enrolls with the hub as "this-pc".
     Everything is protected by a token made for this demo (printed, and in the links it opens): the daemon runs
     any command it is given, so a demo left running must not be open to the network.
     3. Opens the hub in the browser, then runs examples/demo/main.py here: the terminal UI in this window and the
@@ -16,7 +16,7 @@
 
     -HubPort picks the hub's port (the next free one is used if it is taken); -KeepHub leaves the hub running
     afterwards (-StopHub stops it later); -NoBrowser opens nothing; -Frontend headless answers only in the browser
-    (no terminal UI). The hub's issue reports are kept in a Docker volume between demos.
+    (no terminal UI). The hub's enrolled rigs and issue reports are kept in a Docker volume between demos.
     The web UI is built first when it is missing or older than ui-web/ (needs the .NET SDK; -SkipBuild skips that).
 #>
 param(
@@ -132,6 +132,11 @@ try {
         $env:DAEMON_CLABE_PORT = "$DaemonPort"
         $env:DAEMON_CLABE_TOKEN = $token
         $env:DAEMON_CLABE_REPOSITORIES = (Join-Path $root 'examples/demo')  # also startable from its page
+        # It enrolls with the demo's hub, which reaches it from its container at host.docker.internal.
+        $env:DAEMON_CLABE_HUBS = "http://127.0.0.1:$HubPort"
+        $env:DAEMON_CLABE_ENROLL_TOKEN = $token
+        $env:DAEMON_CLABE_ENROLL_NAME = 'this-pc'
+        $env:DAEMON_CLABE_ENROLL_HOST = 'host.docker.internal'
         $log = Join-Path ([IO.Path]::GetTempPath()) 'clabe-demo-daemon.log'
         $daemon = Start-Process -FilePath 'uv' -ArgumentList @('run', 'clabe', 'daemon', 'run', '--log-file', $log) `
             -WorkingDirectory $root -WindowStyle Hidden -PassThru

@@ -121,17 +121,31 @@
                     </div>
                     @if (_rigs is { Count: 0 })
                     {
-                        <div class="card calm muted">No rigs are followed. Set <code>RIGS=rig-3=http://rig-3:24070;…</code> in the hub's environment.</div>
+                        <div class="card calm muted">No rig has enrolled yet. A rig enrolls when its daemon has this hub's address in <code>DAEMON_CLABE_HUBS</code>.</div>
                     }
                     else
                     {
-                        <div class="grid">
-                            @foreach (var rig in OrderedRigs)
-                            {
-                                <HubRigCard Rig="rig" @key="rig.Id" />
-                            }
-                        </div>
+                        @if (OnlineRigs.Count > 0)
+                        {
+                            <div class="grid" aria-label="Online rigs">
+                                @foreach (var rig in OnlineRigs)
+                                {
+                                    <HubRigCard Rig="rig" @key="rig.Id" OnChanged="Refresh" />
+                                }
+                            </div>
+                        }
+                        @if (OfflineRigs.Count > 0)
+                        {
+                            <h3 class="group-head" id="offline-title">Offline <span class="chip offline">@OfflineRigs.Count</span></h3>
+                            <div class="grid" aria-labelledby="offline-title">
+                                @foreach (var rig in OfflineRigs)
+                                {
+                                    <HubRigCard Rig="rig" @key="rig.Id" OnChanged="Refresh" />
+                                }
+                            </div>
+                        }
                     }
+                    <HubExclusions OnChanged="Refresh" />
                 </section>
             </div>
         }
@@ -170,18 +184,29 @@
 
     private int Busy => _rigs?.Count(r => r.Reachable && r.Status == "busy") ?? 0;
     private int LiveCount => _rigs?.Count(r => r.Reachable && r.Session is not null) ?? 0;
-    private int Offline => _rigs?.Count(r => !r.Reachable) ?? 0;
+    private int Offline => OfflineRigs.Count;
     private long Reports => _rigs?.Sum(r => r.ReportsStored) ?? 0;
 
     /// <summary>The runs waiting for an answer, longest first.</summary>
     private List<RigStatus> Waiting => _rigs?.Where(r => r.Waiting is not null).OrderBy(r => r.Waiting!.Since).ToList() ?? [];
 
-    /// <summary>Waiting first, then busy, then the rest; offline last.</summary>
-    private IEnumerable<RigStatus> OrderedRigs => (_rigs ?? [])
-        .OrderBy(r => !r.Reachable)
-        .ThenBy(r => r.Waiting is null)
+    /// <summary>Whether a rig answers (one that refuses the hub's token answers too).</summary>
+    private static bool IsOnline(RigStatus rig) => rig.Reachable || rig.NeedsToken;
+
+    /// <summary>The rigs that answer: waiting first, then needing a token, then busy, then the rest, by name.</summary>
+    private List<RigStatus> OnlineRigs => (_rigs ?? [])
+        .Where(IsOnline)
+        .OrderBy(r => r.Waiting is null)
+        .ThenBy(r => !r.NeedsToken)
         .ThenBy(r => r.Status != "busy")
-        .ThenBy(r => r.Id, StringComparer.OrdinalIgnoreCase);
+        .ThenBy(r => r.Id, StringComparer.OrdinalIgnoreCase)
+        .ToList();
+
+    /// <summary>The rigs that do not answer, by name.</summary>
+    private List<RigStatus> OfflineRigs => (_rigs ?? [])
+        .Where(r => !IsOnline(r))
+        .OrderBy(r => r.Id, StringComparer.OrdinalIgnoreCase)
+        .ToList();
 
     protected override async Task OnInitializedAsync()
     {

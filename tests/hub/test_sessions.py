@@ -13,7 +13,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from clabe import ui
-from clabe.hub import Fleet, HubSettings, create_hub_app
+from clabe.hub import EnrollBody, Fleet, HubSettings, create_hub_app
 from clabe.server import create_app, free_port
 from clabe.workflow import Run, Workflow
 
@@ -93,8 +93,9 @@ def test_the_hub_shows_each_rigs_live_session(tmp_path: Path):
             return httpx.Response(200, json=answers["session"])
         return httpx.Response(404)
 
-    settings = HubSettings(rigs="rig-3=http://rig-3:24070", data_dir=tmp_path)
+    settings = HubSettings(data_dir=tmp_path)
     fleet = Fleet(settings, client=httpx.AsyncClient(transport=httpx.MockTransport(rig)))
+    fleet.enroll(EnrollBody(id="rig-3", host="rig-3", port=24070))
     hub = TestClient(create_hub_app(fleet, static_dir=None, poll=False))
     asyncio.run(fleet.poll_once())
     assert hub.get("/api/hub/rigs").json()[0]["session"]["status"] == "running"
@@ -116,8 +117,9 @@ def test_the_hub_serves_mcp_for_every_rig(tmp_path: Path):
     rig.mount("/run", create_app(run, static_dir=None))  # a daemon serves its run under /run/
     rig_port, hub_port = free_port("127.0.0.1", 18610), free_port("127.0.0.1", 18640)
     servers = [_serve(rig, rig_port)]
-    settings = HubSettings(rigs=f"rig-3=http://127.0.0.1:{rig_port}", data_dir=tmp_path)
-    hub = create_hub_app(Fleet(settings), token="hub-secret", static_dir=None, poll=False,
+    fleet = Fleet(HubSettings(data_dir=tmp_path))
+    fleet.enroll(EnrollBody(id="rig-3", host="127.0.0.1", port=rig_port))
+    hub = create_hub_app(fleet, token="hub-secret", static_dir=None, poll=False,
                          self_url=f"http://127.0.0.1:{hub_port}")  # fmt: skip
     servers.append(_serve(hub, hub_port))
     run.start()

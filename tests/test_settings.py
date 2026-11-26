@@ -85,24 +85,34 @@ def test_the_daemon_and_the_hub_read_only_their_environment(_isolated_config, mo
     monkeypatch.setenv("DAEMON_CLABE_PORT", "5")
     monkeypatch.setenv("DAEMON_CLABE_REPOSITORY_ROOTS", "C:/a;D:/b")
     monkeypatch.setenv("DAEMON_CLABE_REPOSITORIES", '["C:/x", {"path": "C:/y", "name": "why"}]')
-    monkeypatch.setenv("RIGS", "rig-3=http://rig-3:8070;rig-4=http://rig-4:8070")
+    monkeypatch.setenv("DAEMON_CLABE_HUBS", "https://hub-vm/clabe;http://hub-2:8080")
     monkeypatch.setenv("RIG_TOKEN", "rigs")
+    monkeypatch.setenv("ENROLL_TOKEN", "join")
     daemon, hub = DaemonSettings(), HubSettings()
     assert daemon.port == 5 and [str(p) for p in daemon.repository_roots] == [str(Path("C:/a")), str(Path("D:/b"))]
     assert [r.display_name for r in daemon.repositories] == ["x", "why"]
-    assert [(r.id, r.url, r.token.get_secret_value()) for r in hub.rigs] == [
-        ("rig-3", "http://rig-3:8070", "rigs"),
-        ("rig-4", "http://rig-4:8070", "rigs"),
-    ]
+    assert daemon.hubs == ["https://hub-vm/clabe", "http://hub-2:8080"]
+    assert hub.rig_token.get_secret_value() == "rigs" and hub.enroll_token.get_secret_value() == "join"
 
 
 def test_the_hub_reads_a_dot_env_file(tmp_path, monkeypatch):
     from clabe.hub._fleet import HubSettings
 
-    (tmp_path / ".env").write_text("TOKEN=from-file\nRIGS=rig-9=http://rig-9:8070\n")
+    (tmp_path / ".env").write_text("TOKEN=from-file\nENROLL_TOKEN=join\n")
     monkeypatch.chdir(tmp_path)
     hub = HubSettings()
-    assert hub.token.get_secret_value() == "from-file" and hub.rigs[0].id == "rig-9"
+    assert hub.token.get_secret_value() == "from-file" and hub.enroll_token.get_secret_value() == "join"
+
+
+def test_the_daemon_reads_its_env_file_under_the_environment(tmp_path, monkeypatch):
+    from clabe.daemon import DaemonSettings
+
+    env_file = tmp_path / "daemon.env"
+    env_file.write_text("DAEMON_CLABE_HUBS=http://hub-vm:8080\nDAEMON_CLABE_ENROLL_NAME=from-file\n")
+    monkeypatch.setitem(DaemonSettings.model_config, "env_file", env_file)
+    monkeypatch.setenv("DAEMON_CLABE_ENROLL_NAME", "from-env")
+    daemon = DaemonSettings()
+    assert daemon.hubs == ["http://hub-vm:8080"] and daemon.enroll_name == "from-env"
 
 
 def test_init_kwargs_beat_in_memory():

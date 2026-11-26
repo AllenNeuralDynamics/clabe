@@ -15,6 +15,29 @@ public sealed record DeleteBody(
 public sealed record DeleteResult(
     [property: JsonPropertyName("deleted")] long Deleted);
 
+/// <summary>What a rig's daemon sends to enroll: its name, and where the hub reaches it.</summary>
+public sealed record EnrollBody(
+    [property: JsonPropertyName("id")] string Id,
+    [property: JsonPropertyName("host")] string Host,
+    [property: JsonPropertyName("port")] long Port,
+    [property: JsonPropertyName("clabe_version")] string? ClabeVersion = null);
+
+/// <summary>An exclusion to add.</summary>
+public sealed record ExcludeBody(
+    [property: JsonPropertyName("pattern")] string Pattern,
+    [property: JsonPropertyName("comment")] string? Comment = null);
+
+/// <summary>The exclusion added, and the rigs it removed from the hub.</summary>
+public sealed record ExcludeResult(
+    [property: JsonPropertyName("exclusion")] Exclusion Exclusion,
+    [property: JsonPropertyName("removed")] List<string> Removed);
+
+/// <summary>A pattern that keeps rigs out of the hub.</summary>
+public sealed record Exclusion(
+    [property: JsonPropertyName("pattern")] string Pattern,
+    [property: JsonPropertyName("added_at")] DateTimeOffset AddedAt,
+    [property: JsonPropertyName("comment")] string? Comment = null);
+
 public sealed record HTTPValidationError(
     [property: JsonPropertyName("detail")] List<ValidationError>? Detail = null);
 
@@ -46,6 +69,14 @@ public sealed record ReportPage(
     [property: JsonPropertyName("total")] long Total,
     [property: JsonPropertyName("items")] List<StoredReport> Items);
 
+/// <summary>A rig the hub follows.</summary>
+public sealed record RigConfig(
+    [property: JsonPropertyName("id")] string Id,
+    [property: JsonPropertyName("url")] string Url,
+    [property: JsonPropertyName("clabe_version")] string? ClabeVersion = null,
+    [property: JsonPropertyName("enrolled_at")] DateTimeOffset? EnrolledAt = null,
+    [property: JsonPropertyName("last_enrolled_at")] DateTimeOffset? LastEnrolledAt = null);
+
 /// <summary>What the hub last saw of a rig.</summary>
 public sealed record RigStatus(
     [property: JsonPropertyName("id")] string Id,
@@ -66,7 +97,9 @@ public sealed record RigStatus(
     [property: JsonPropertyName("session")] SessionInfo? Session = null,
     [property: JsonPropertyName("seen_at")] DateTimeOffset? SeenAt = null,
     [property: JsonPropertyName("reports_waiting")] long ReportsWaiting = 0,
-    [property: JsonPropertyName("reports_stored")] long ReportsStored = 0);
+    [property: JsonPropertyName("reports_stored")] long ReportsStored = 0,
+    [property: JsonPropertyName("has_token")] bool HasToken = false,
+    [property: JsonPropertyName("needs_token")] bool NeedsToken = false);
 
 /// <summary>What a run is about, as far as known so far: the hub lists it as a session.</summary>
 public sealed record SessionInfo(
@@ -113,6 +146,10 @@ public sealed record StoredReport(
     [property: JsonPropertyName("repository")] string? Repository = null,
     [property: JsonPropertyName("commit")] string? Commit = null,
     [property: JsonPropertyName("status")] string Status = "new");
+
+/// <summary>A rig's own daemon token, or null to clear it.</summary>
+public sealed record TokenBody(
+    [property: JsonPropertyName("token")] string? Token);
 
 public sealed record ValidationError(
     [property: JsonPropertyName("loc")] List<System.Text.Json.Nodes.JsonNode> Loc,

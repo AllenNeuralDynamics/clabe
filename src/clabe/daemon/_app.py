@@ -14,6 +14,7 @@ from ..reports import REPORT_ID_PATTERN, ReportInfo, count_reports, delete_repor
 from ..server._app import STATIC_DIR
 from ..server._proxy import TokenCookies, forward, token_check
 from ..workflow import ExperimentListing
+from ._enroll import enrolling
 from ._host import AttachBody, Host, HostError, HostInfo, LaunchBody, RepositoryInfo, RunInfo
 from ._settings import DaemonSettings
 from ._worker import Worker, worker_router
@@ -84,12 +85,15 @@ def create_daemon_app(
         token: When set, every API call (the daemon's and the proxied run's) must carry it.
         worker: The worker role (jobs and files for runs hosted elsewhere), served under ``/api/worker``.
         static_dir: The web UI, served at ``/`` (the daemon's page) and ``/run/`` (the run's page).
+
+    While it serves, the daemon enrolls with the hubs of its settings (``hubs``), if any.
     """
     app = FastAPI(
         title="clabe daemon API",
         version=__version__,
         description="Run experiments on this machine: list repositories and experiments, launch one, and reach the "
         "run's own API under /run/api.",
+        lifespan=lambda _: enrolling(host.settings),
     )
     app.add_middleware(TokenCookies, token=token)
     check = token_check(token)
