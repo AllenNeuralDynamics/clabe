@@ -2,13 +2,13 @@
 A read-only client and store over the PowerLIMS scheduling API.
 
 Everything comes from ``GET /planned_events``: the events planned for each mouse, and for each
-event the settings that apply to it, keyed by kind (``behavior``, ``fip``).
+event the settings that apply to it, keyed by settings type (``behavior``, ``fip``).
 
-Settings kinds are :class:`SettingsRow` subclasses. Each declares its API ``kind`` and, when one
-kind holds several configurations, its ``discriminator`` (behavior rows are told apart by
-``task_name``). To support a new kind:
+Settings types are :class:`SettingsRow` subclasses. Each declares its API ``settings_type`` and, when one
+settings type holds several configurations, its ``discriminator`` (behavior rows are told apart by
+``task_name``). To support a new settings type:
 
-1. Subclass :class:`SettingsRow`, setting ``kind`` (and ``discriminator`` if it has one).
+1. Subclass :class:`SettingsRow`, setting ``settings_type`` (and ``discriminator`` if it has one).
 2. Add a field of that name to :class:`EventSettings`.
 
 Queries (:class:`EventQuery`), event accessors (:meth:`EventSettings.row`, :meth:`PlannedEvent.has`)
@@ -64,10 +64,10 @@ class InvalidSettingsError(ValueError):
     pydantic error is the cause.
     """
 
-    def __init__(self, kind: str, row_id: str | None, reason: str, *, message: str | None = None) -> None:
-        self.kind = kind
+    def __init__(self, settings_type: str, row_id: str | None, reason: str, *, message: str | None = None) -> None:
+        self.settings_type = settings_type
         self.row_id = row_id
-        super().__init__(message or f"PowerLIMS {kind} settings row {row_id} is invalid: {reason}")
+        super().__init__(message or f"PowerLIMS {settings_type} settings row {row_id} is invalid: {reason}")
 
 
 class InvalidTrainerStateError(InvalidSettingsError):
@@ -90,23 +90,23 @@ class _ApiModel(BaseModel):
 
 
 # --------------------------------------------------------------------------------------------------
-# Settings kinds
+# Settings types
 # --------------------------------------------------------------------------------------------------
 
 
 class SettingsRow(_ApiModel):
     """
-    Base of every settings kind. Subclasses set ``kind`` to the API's key and register themselves.
+    Base of every settings type. Subclasses set ``settings_type`` to the API's key and register themselves.
 
     Attributes:
-        kind: The key of this kind in an event's ``settings``, and in ``settings=`` filters.
-        discriminator: The field that tells this kind's configurations apart, e.g. ``task_name``.
-            None when the kind has one configuration per mouse.
+        settings_type: The key of this settings type in an event's ``settings``, and in ``settings=`` filters.
+        discriminator: The field that tells this settings type's configurations apart, e.g. ``task_name``.
+            None when the settings type has one configuration per mouse.
     """
 
-    kind: ClassVar[str]
+    settings_type: ClassVar[str]
     discriminator: ClassVar[str | None] = None
-    #: Every registered kind, by its API key.
+    #: Every registered settings type, by its API key.
     registry: ClassVar[dict[str, type["SettingsRow"]]] = {}
 
     id: str | None = None
@@ -115,28 +115,28 @@ class SettingsRow(_ApiModel):
     @classmethod
     def __pydantic_init_subclass__(cls, **kwargs: Any) -> None:
         super().__pydantic_init_subclass__(**kwargs)
-        if "kind" in cls.__dict__:
-            SettingsRow.registry[cls.kind] = cls
+        if "settings_type" in cls.__dict__:
+            SettingsRow.registry[cls.settings_type] = cls
 
     @classmethod
     def where(cls, value: str | None = None) -> str:
         """
-        Returns the ``settings`` filter for this kind, optionally narrowed to one discriminator value.
+        Returns the ``settings`` filter for this settings type, optionally narrowed to one discriminator value.
 
         ``BehaviorRow.where("AindVrForaging")`` is ``"behavior:AindVrForaging"``.
 
         Raises:
-            ValueError: If a value is given for a kind without a discriminator.
+            ValueError: If a value is given for a settings type without a discriminator.
         """
         if value is None:
-            return cls.kind
+            return cls.settings_type
         if cls.discriminator is None:
-            raise ValueError(f"{cls.kind!r} settings have no discriminator to filter on.")
-        return f"{cls.kind}:{value}"
+            raise ValueError(f"{cls.settings_type!r} settings have no discriminator to filter on.")
+        return f"{cls.settings_type}:{value}"
 
     @property
     def discriminator_value(self) -> str | None:
-        """This row's discriminator value, or None if the kind has no discriminator."""
+        """This row's discriminator value, or None if the settings type has no discriminator."""
         return getattr(self, self.discriminator) if self.discriminator else None
 
     def matches(self, value: str | None = None) -> bool:
@@ -147,13 +147,13 @@ class SettingsRow(_ApiModel):
     def summary(self) -> str:
         """A short description to show an operator."""
         created = self.created_on.isoformat() if self.created_on else "unknown date"
-        return f"{self.kind} row {self.id} ({created})"
+        return f"{self.settings_type} row {self.id} ({created})"
 
 
 class BehaviorRow(SettingsRow):
     """A behavior curriculum settings row. ``task_name`` tells the configurations of different tasks apart."""
 
-    kind: ClassVar[str] = "behavior"
+    settings_type: ClassVar[str] = "behavior"
     discriminator: ClassVar[str | None] = "task_name"
 
     task_name: str | None = None
@@ -184,7 +184,7 @@ class FipFiber(_ApiModel):
 class FipRow(SettingsRow):
     """A FIP fiber photometry settings row. Every FIP row of a mouse applies to its FIP events."""
 
-    kind: ClassVar[str] = "fip"
+    settings_type: ClassVar[str] = "fip"
 
     led_415nm: float | None = None
     led_470nm: float | None = None
@@ -193,7 +193,7 @@ class FipRow(SettingsRow):
 
 
 class ResolvedSettings(_ApiModel, Generic[RowT]):
-    """The settings row that applies to an event for one kind, and where it came from."""
+    """The settings row that applies to an event for one settings type, and where it came from."""
 
     event_type: str
     source: Literal["pinned", "latest", "none"]
@@ -201,28 +201,28 @@ class ResolvedSettings(_ApiModel, Generic[RowT]):
 
 
 class EventSettings(_ApiModel):
-    """An event's settings, one field per kind, named after it. A field is None when the event has none of that kind."""
+    """An event's settings, one field per settings type, named after it. A field is None when the event has none of that settings type."""
 
     behavior: ResolvedSettings[BehaviorRow] | None = None
     fip: ResolvedSettings[FipRow] | None = None
 
     def entry(self, row_type: type[RowT]) -> ResolvedSettings[RowT] | None:
-        """Returns the event's settings of a kind, with their source, or None."""
-        return getattr(self, row_type.kind)
+        """Returns the event's settings of a settings type, with their source, or None."""
+        return getattr(self, row_type.settings_type)
 
     def row(self, row_type: type[RowT]) -> RowT | None:
-        """Returns the event's settings row of a kind, or None if it has none."""
+        """Returns the event's settings row of a settings type, or None if it has none."""
         entry = self.entry(row_type)
         return entry.row if entry is not None else None
 
     def rows(self) -> list[SettingsRow]:
-        """Every settings row of the event, one per kind present. Suited to ``match row: case FipRow(): ...``."""
+        """Every settings row of the event, one per settings type present. Suited to ``match row: case FipRow(): ...``."""
         return [r for row_type in SettingsRow.registry.values() if (r := self.row(row_type)) is not None]
 
 
 _unlisted = set(SettingsRow.registry) - set(EventSettings.model_fields)
 if _unlisted:
-    raise TypeError(f"Settings kinds {sorted(_unlisted)} have no field on EventSettings.")
+    raise TypeError(f"Settings types {sorted(_unlisted)} have no field on EventSettings.")
 
 
 # --------------------------------------------------------------------------------------------------
@@ -254,12 +254,12 @@ class PlannedEvent(_ApiModel):
     _normalize_times = field_validator("start", "end")(_aware)
 
     @property
-    def kinds(self) -> list[str]:
-        """The settings kinds this event has a row for."""
-        return [row.kind for row in self.settings.rows()]
+    def settings_types(self) -> list[str]:
+        """The settings types this event has a row for."""
+        return [row.settings_type for row in self.settings.rows()]
 
     def has(self, row_type: type[SettingsRow], value: str | None = None) -> bool:
-        """Whether the event has a row of this kind, with this discriminator value when one is given."""
+        """Whether the event has a row of this settings type, with this discriminator value when one is given."""
         row = self.settings.row(row_type)
         return row is not None and row.matches(value)
 
@@ -283,7 +283,7 @@ class EventQuery(BaseModel):
     start_lte: datetime.datetime | None = Field(default=None, description="Only events starting at or before this.")
     settings: Sequence[str] = Field(
         default=(),
-        description="Only events with these settings, each ``<kind>`` or ``<kind>:<value>``. Build them with "
+        description="Only events with these settings, each ``<settings_type>`` or ``<settings_type>:<value>``. Build them with "
         '``SettingsRow.where``, e.g. ``(FipRow.where(), BehaviorRow.where("AindVrForaging"))``.',
     )
     expand_settings: bool = Field(
@@ -294,14 +294,14 @@ class EventQuery(BaseModel):
     @field_validator("settings")
     @classmethod
     def _check_settings(cls, value: Sequence[str]) -> Sequence[str]:
-        """Rejects unknown kinds and values for kinds without a discriminator, which the server answers with 422."""
+        """Rejects unknown settings types and values for settings types without a discriminator, which the server answers with 422."""
         for item in value:
-            kind, sep, discriminator = item.partition(":")
-            row_type = SettingsRow.registry.get(kind)
+            settings_type, sep, discriminator = item.partition(":")
+            row_type = SettingsRow.registry.get(settings_type)
             if row_type is None:
-                raise ValueError(f"Unknown settings kind {kind!r}; known: {sorted(SettingsRow.registry)}.")
+                raise ValueError(f"Unknown settings type {settings_type!r}; known: {sorted(SettingsRow.registry)}.")
             if sep and (row_type.discriminator is None or not discriminator):
-                raise ValueError(f"{item!r}: {kind!r} settings cannot be filtered by value.")
+                raise ValueError(f"{item!r}: {settings_type!r} settings cannot be filtered by value.")
         return value
 
     @field_validator("start_gte", "start_lte")
@@ -325,8 +325,8 @@ class EventQuery(BaseModel):
     def matches(self, event: PlannedEvent) -> bool:
         """Whether an event passes the ``settings`` filters, as the server applies them."""
         for item in self.settings:
-            kind, _, value = item.partition(":")
-            if not event.has(SettingsRow.registry[kind], value or None):
+            settings_type, _, value = item.partition(":")
+            if not event.has(SettingsRow.registry[settings_type], value or None):
                 return False
         return True
 
@@ -360,12 +360,12 @@ def _parse_event(item: dict[str, Any]) -> PlannedEvent:
         for error in e.errors():
             loc = error["loc"]
             if len(loc) >= 3 and loc[0] == "settings" and loc[2] == "row":
-                kind = str(loc[1])
-                row = ((item.get("settings") or {}).get(kind) or {}).get("row") or {}
+                settings_type = str(loc[1])
+                row = ((item.get("settings") or {}).get(settings_type) or {}).get("row") or {}
                 reason = f"{e.error_count()} validation error(s)"
-                if kind == BehaviorRow.kind and "trainer_state" in loc:
+                if settings_type == BehaviorRow.settings_type and "trainer_state" in loc:
                     raise InvalidTrainerStateError(row.get("id"), row.get("task_name"), reason) from e
-                raise InvalidSettingsError(kind, row.get("id"), reason) from e
+                raise InvalidSettingsError(settings_type, row.get("id"), reason) from e
         raise PowerLimsError(f"PowerLIMS returned event {item.get('event_id')} in an unexpected shape: {e}") from e
 
 
@@ -494,7 +494,7 @@ class PowerLimsStore(StoreBase):
     Kinds served:
         ``Kind.from_trainer_state()``: The trainer state of the behavior row for ``task_name``.
         ``Kind(<SettingsRow subclass>)``: Settings rows of that kind, e.g. ``Kind(FipRow)``. When
-            the kind has a discriminator and the scope has a key of the same name (``task_name``
+            the settings type has a discriminator and the scope has a key of the same name (``task_name``
             for behavior), only rows with that value are offered.
 
     Scope:
@@ -602,7 +602,7 @@ class PowerLimsStore(StoreBase):
         )
 
     def _distinct_rows(self, row_type: type[RowT], scope: Scope, value: str | None) -> list[tuple[PlannedEvent, RowT]]:
-        """Each distinct row of a kind on the subject's events. A "latest" row applies to many events, so it comes once."""
+        """Each distinct row of a settings type on the subject's events. A "latest" row applies to many events, so it comes once."""
         found: list[tuple[PlannedEvent, RowT]] = []
         seen: set[str | None] = set()
         for event in self.events(scope=scope):
@@ -614,7 +614,7 @@ class PowerLimsStore(StoreBase):
         return found
 
     def _settings_rows(self, kind: Kind[RowT], scope: Scope) -> Sequence[Candidate[RowT]]:
-        """Each distinct row of the kind, narrowed by its discriminator when the scope has a key of that name."""
+        """Each distinct row of the settings type, narrowed by its discriminator when the scope has a key of that name."""
         row_type: type[RowT] = kind.model
         value = scope.get(row_type.discriminator) if row_type.discriminator else None
         candidates = [
@@ -622,7 +622,7 @@ class PowerLimsStore(StoreBase):
             for event, row in self._distinct_rows(row_type, scope, value)
         ]
         if not candidates:
-            logger.warning("PowerLIMS has no %s settings for %s.", row_type.kind, scope.get("subject"))
+            logger.warning("PowerLIMS has no %s settings for %s.", row_type.settings_type, scope.get("subject"))
         return candidates
 
     def _trainer_states(self, kind: Kind[T], scope: Scope) -> Sequence[Candidate[T]]:

@@ -82,7 +82,7 @@ def event(
     row: Any = ...,
     task: str = TASK,
 ) -> dict:
-    """An item of /planned_events in the shape the API documents: settings keyed by kind."""
+    """An item of /planned_events in the shape the API documents: settings keyed by settings type."""
     return {
         "event_id": f"evt-{instrument}-{start}",
         "event_name": None,
@@ -400,7 +400,7 @@ class TestTypedSettings:
                 case BehaviorRow():
                     seen.append(("behavior", row.task_name))
         assert seen == [("behavior", TASK), ("fip", 0)]
-        assert planned.kinds == ["behavior", "fip"]
+        assert planned.settings_types == ["behavior", "fip"]
         assert planned.has(BehaviorRow, TASK) and not planned.has(BehaviorRow, "Other")
 
     def test_an_invalid_fip_row_raises_naming_it(self, http, client):
@@ -409,7 +409,7 @@ class TestTypedSettings:
         answer_with(http, bad)
         with pytest.raises(InvalidSettingsError, match="fip settings row fip-bad") as raised:
             client.events_on()
-        assert raised.value.kind == "fip" and not isinstance(raised.value, InvalidTrainerStateError)
+        assert raised.value.settings_type == "fip" and not isinstance(raised.value, InvalidTrainerStateError)
 
     def test_events_at_keeps_only_ongoing_events(self, http, client):
         answer_with(

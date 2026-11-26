@@ -5,7 +5,7 @@ It walks through what a rig asks PowerLIMS:
 
 1. What is planned on this rig right now?
 2. What is planned on this rig right now *and* has a behavior row for the task?
-3. For a planned event, which kinds of settings does it have, and what are they? FIP settings
+3. For a planned event, which types of settings does it have, and what are they? FIP settings
    are used as they are; a behavior row's trainer state is deserialized and its stage read.
 4. The path a launcher takes: pick a subject from the day's schedule, then resolve its trainer
    state and FIP settings through a ``CompositeStore``.
@@ -65,11 +65,11 @@ class ExampleArgs(BaseSettings):
 
 
 def describe(event: PlannedEvent) -> None:
-    """Story 3: what kinds of settings an event has, and what they say."""
+    """Story 3: what types of settings an event has, and what they say."""
     start = f"{event.start.astimezone():%H:%M}" if event.start else "?"
     end = f"{event.end.astimezone():%H:%M}" if event.end else "?"
-    print(f"  {event.mouse_id}, {start}-{end} on {event.instrument}: kinds {event.kinds or 'none'}")
-    # One case per settings kind; a new kind is a new case.
+    print(f"  {event.mouse_id}, {start}-{end} on {event.instrument}: settings types {event.settings_types or 'none'}")
+    # One case per settings type; a new settings type is a new case.
     for row in event.settings.rows():
         match row:
             case FipRow():
