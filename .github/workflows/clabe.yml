@@ -68,6 +68,7 @@ jobs:
   web-ui:
     name: Web UI in a browser
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
 
@@ -84,10 +85,13 @@ jobs:
           uv sync
           uv run python scripts/build_web.py
 
-      - name: Run the browser tests
+      - name: Install Chromium
         run: |
-          uv run --with playwright playwright install --with-deps chromium
-          uv run --with playwright pytest tests/server tests/daemon tests/hub -p no:cacheprovider
+          uv run --with playwright playwright install --only-shell chromium
+          uv run --with playwright python -c "from playwright.sync_api import sync_playwright; p = sync_playwright().start(); p.chromium.launch().close(); p.stop()"
+
+      - name: Run the browser tests
+        run: uv run --with playwright pytest tests/server tests/daemon tests/hub -p no:cacheprovider
 
   docs:
     name: Docs build (strict)
