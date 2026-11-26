@@ -12,7 +12,7 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, CliApp, CliImplicitFlag, CliSubCommand
 
 from .._cli_base import CliCommand
-from . import _install
+from . import _deploy, _install
 from ._settings import DaemonSettings
 
 logger = logging.getLogger(__name__)
@@ -137,10 +137,80 @@ class _StopCli(DaemonSettings, cli_kebab_case=True):
 
     force: CliImplicitFlag[bool] = Field(default=False, description="Stop even if a session would be interrupted")
     timeout: float = Field(default=15.0, description="Seconds to wait for the daemon to stop answering")
+    if_installed: CliImplicitFlag[bool] = Field(
+        default=False, description="Not installed is not an error (nothing to stop), e.g. on a new rig"
+    )
 
     def cli_cmd(self):
         """Stop and report."""
-        _report(lambda: _install.stop(self.port, _token(self), force=self.force, timeout=self.timeout))
+        _report(
+            lambda: _install.stop(
+                self.port, _token(self), force=self.force, timeout=self.timeout, if_installed=self.if_installed
+            )
+        )
+
+
+class _DeployCli(CliCommand, cli_kebab_case=True):
+    """Install a clabe for the daemon (or update it, or go back to one) and switch the daemon to it. Safe to repeat.
+
+    Each clabe gets its own environment under %LOCALAPPDATA%\\clabe\\versions, installed while the daemon keeps
+    running; the daemon only restarts when its clabe or its hubs change, and refuses while it runs a session unless
+    --force. If the new clabe does not start, the previous one is started again. With none of --version, --lock or
+    --package: the latest release.
+    """
+
+    version: str | None = Field(default=None, description="A clabe release, e.g. 0.18.0")
+    lock: Path | None = Field(default=None, description="A repository (or its uv.lock): the clabe release it locks")
+    package: str | None = Field(default=None, description="Any uv requirement instead, e.g. aind-clabe[frontend]==0.18")
+    extras: str = Field(default=",".join(_deploy.DEFAULT_EXTRAS), description="aind-clabe's extras to install")
+    hubs: str | None = Field(
+        default=None, description="Hubs to enroll with, ';'-separated ('none': no hub); default: leave them as they are"
+    )
+    force: CliImplicitFlag[bool] = Field(default=False, description="Restart even if a session would be interrupted")
+    restart: CliImplicitFlag[bool] = Field(default=False, description="Restart even when nothing changed")
+    timeout: float = Field(default=120.0, description="Seconds to wait for the daemon to answer")
+    python: str | None = Field(default=None, description="Python for a new environment (default: this clabe's)")
+    dry_run: CliImplicitFlag[bool] = Field(default=False, description="Say what would be done, and do nothing")
+
+    def request(self) -> "_deploy.Request":
+        """The clabe asked for."""
+        given = [name for name in ("version", "lock", "package") if getattr(self, name)]
+        if len(given) > 1:
+            raise SystemExit(f"Pass one of --version, --lock and --package (got {', '.join(given)}).")
+        extras = _deploy._extras(self.extras)
+        if self.version:
+            return _deploy.request_version(self.version, extras)
+        if self.lock:
+            try:
+                return _deploy.request_lock(self.lock, extras)
+            except OSError as exc:
+                raise SystemExit(str(exc)) from None
+        if self.package:
+            return _deploy.request_package(self.package, extras)
+        return _deploy.request_latest(extras)
+
+    def cli_cmd(self):
+        """Deploy and report."""
+        from ..settings import split_list
+
+        request = self.request()
+        hubs = None
+        if self.hubs is not None:
+            hubs = [] if self.hubs.strip().lower() in ("none", "") else split_list(self.hubs)
+        settings = DaemonSettings()
+        _report(
+            lambda: _deploy.deploy(
+                request,
+                port=settings.port,
+                token=_token(settings),
+                hubs=hubs,
+                force=self.force,
+                restart=self.restart,
+                timeout=self.timeout,
+                python=self.python,
+                dry_run=self.dry_run,
+            )
+        )
 
 
 class _StartCli(DaemonSettings, cli_kebab_case=True):
@@ -231,6 +301,7 @@ class DaemonCli(BaseSettings, cli_kebab_case=True):
     """The clabe daemon: runs experiments on this machine for the web UI and the hub."""
 
     run: CliSubCommand[_RunDaemonCli]
+    deploy: CliSubCommand[_DeployCli]
     install: CliSubCommand[_InstallCli]
     start: CliSubCommand[_StartCli]
     stop: CliSubCommand[_StopCli]

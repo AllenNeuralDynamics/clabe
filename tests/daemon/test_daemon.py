@@ -331,7 +331,7 @@ class TestDeployment:
 
     def test_upgrade_is_refused_on_windows(self, monkeypatch):
         monkeypatch.setattr(_install.sys, "platform", "win32")
-        with pytest.raises(OSError, match="installer"):
+        with pytest.raises(OSError, match="clabe daemon deploy"):
             _install.upgrade()
 
 
