@@ -4,7 +4,7 @@ import pydantic
 import pytest
 import requests
 
-from clabe.utils import aind_validators
+from clabe.aind import validators as aind_validators
 
 
 @pytest.fixture
@@ -25,7 +25,7 @@ def mock_rig():
 
 def test_validate_username_valid():
     """Returns the canonical username when the metadata service finds the user."""
-    with patch("clabe.utils.aind_validators.requests.get") as mock_get:
+    with patch("clabe.aind.validators.requests.get") as mock_get:
         mock_response = MagicMock()
         mock_response.ok = True
         mock_response.json.return_value = {
@@ -44,7 +44,7 @@ def test_validate_username_valid():
 
 def test_validate_username_invalid():
     """Returns None when the metadata service does not find the user."""
-    with patch("clabe.utils.aind_validators.requests.get") as mock_get:
+    with patch("clabe.aind.validators.requests.get") as mock_get:
         mock_response = MagicMock()
         mock_response.raise_for_status.side_effect = requests.HTTPError("404")
         mock_get.return_value = mock_response
@@ -54,13 +54,13 @@ def test_validate_username_invalid():
 
 def test_validate_username_request_exception():
     """Returns None (with a logged warning) on a network error."""
-    with patch("clabe.utils.aind_validators.requests.get", side_effect=requests.RequestException("timeout")):
+    with patch("clabe.aind.validators.requests.get", side_effect=requests.RequestException("timeout")):
         assert aind_validators.validate_username("j.doe") is None
 
 
 def test_validate_username_custom_timeout():
     """Passes the timeout argument through to requests.get."""
-    with patch("clabe.utils.aind_validators.requests.get") as mock_get:
+    with patch("clabe.aind.validators.requests.get") as mock_get:
         mock_response = MagicMock()
         mock_response.ok = True
         mock_response.json.return_value = {"username": "j.doe"}
@@ -75,7 +75,7 @@ def test_validate_username_custom_timeout():
 
 def test_validate_username_encodes_special_chars():
     """URL-encodes special characters in the username."""
-    with patch("clabe.utils.aind_validators.requests.get") as mock_get:
+    with patch("clabe.aind.validators.requests.get") as mock_get:
         mock_response = MagicMock()
         mock_response.raise_for_status.side_effect = requests.HTTPError("404")
         mock_get.return_value = mock_response
@@ -92,7 +92,7 @@ def test_validate_username_encodes_special_chars():
 
 def test_get_active_directory_user_valid():
     """Returns the deserialized user record when the metadata service finds the user."""
-    with patch("clabe.utils.aind_validators.requests.get") as mock_get:
+    with patch("clabe.aind.validators.requests.get") as mock_get:
         mock_response = MagicMock()
         mock_response.ok = True
         mock_response.json.return_value = {
@@ -113,7 +113,7 @@ def test_get_active_directory_user_valid():
 
 def test_get_active_directory_user_invalid():
     """Raises when the metadata service does not find the user."""
-    with patch("clabe.utils.aind_validators.requests.get") as mock_get:
+    with patch("clabe.aind.validators.requests.get") as mock_get:
         mock_response = MagicMock()
         mock_response.raise_for_status.side_effect = requests.HTTPError("404")
         mock_get.return_value = mock_response
@@ -125,7 +125,7 @@ def test_get_active_directory_user_invalid():
 def test_get_active_directory_user_request_exception():
     """Propagates the network error."""
     with (
-        patch("clabe.utils.aind_validators.requests.get", side_effect=requests.RequestException("timeout")),
+        patch("clabe.aind.validators.requests.get", side_effect=requests.RequestException("timeout")),
         pytest.raises(requests.RequestException),
     ):
         aind_validators.get_active_directory_user("j.doe")
@@ -133,7 +133,7 @@ def test_get_active_directory_user_request_exception():
 
 def test_get_active_directory_user_malformed_payload():
     """Raises when the payload fails validation."""
-    with patch("clabe.utils.aind_validators.requests.get") as mock_get:
+    with patch("clabe.aind.validators.requests.get") as mock_get:
         mock_response = MagicMock()
         mock_response.ok = True
         mock_response.json.return_value = {"full_name": "Jane Doe"}  # missing required "username"

@@ -1,70 +1,13 @@
 import sys
 from pathlib import Path
 
+import pytest
+from pydantic_settings import CliApp
+
 from clabe import cli
 from clabe.apps import Command, LocalExecutor
-from clabe.git_manager import GitRepositoryMetadata
-
-
-class TestQuote:
-    def test_posix_quotes_spaces(self, monkeypatch):
-        monkeypatch.setattr(cli.sys, "platform", "linux")
-        assert cli._quote("no_spaces") == "no_spaces"
-        assert cli._quote("has space") == "'has space'"
-
-    def test_windows_quotes_spaces(self, monkeypatch):
-        monkeypatch.setattr(cli.sys, "platform", "win32")
-        assert cli._quote("no_spaces") == "no_spaces"
-        assert cli._quote("has space") == '"has space"'
-
-
-def _serve_cli(**overrides):
-    """Builds a _ServeCli with all fields _child_command reads, plus overrides."""
-    fields = {
-        "experiment_path": Path("exp.py"),
-        "host": "127.0.0.1",
-        "port": 8089,
-        "repository_directory": None,
-        "debug_mode": False,
-        "verbose": False,
-        "quiet": False,
-        "allow_dirty": False,
-        "skip_hardware_validation": False,
-        "clabe_yml": None,
-    }
-    fields.update(overrides)
-    return cli._ServeCli.model_construct(**fields)
-
-
-class TestServeChildCommand:
-    def test_runs_experiment_with_tui_frontend(self, monkeypatch):
-        monkeypatch.setattr(cli, "_quote", lambda arg: arg)
-        command = _serve_cli()._child_command()
-        assert "-m clabe.cli run exp.py" in command
-        assert "--frontend tui" in command
-        assert "--single-session" in command
-
-    def test_forwards_only_enabled_flags(self, monkeypatch):
-        monkeypatch.setattr(cli, "_quote", lambda arg: arg)
-        command = _serve_cli(allow_dirty=True, skip_hardware_validation=True)._child_command()
-        assert "--allow-dirty" in command
-        assert "--skip-hardware-validation" in command
-        assert "--debug-mode" not in command
-        assert "--verbose" not in command
-
-    def test_includes_repository_directory_when_set(self, monkeypatch):
-        monkeypatch.setattr(cli, "_quote", lambda arg: arg)
-        repo = Path("/repo")
-        command = _serve_cli(repository_directory=repo)._child_command()
-        assert "--repository-directory" in command
-        assert str(repo) in command
-
-    def test_forwards_clabe_yml_when_set(self, monkeypatch):
-        monkeypatch.setattr(cli, "_quote", lambda arg: arg)
-        assert "--clabe-yml" not in _serve_cli()._child_command()
-        clabe_yml = Path("/configs/clabe.yml")
-        command = _serve_cli(clabe_yml=clabe_yml)._child_command()
-        assert f"--clabe-yml {clabe_yml}" in command
+from clabe.repository import GitRepositoryMetadata
+from tests import REPO_ROOT
 
 
 def test_repository_state_cli_executes_with_local_executor():
@@ -77,5 +20,43 @@ def test_repository_state_cli_executes_with_local_executor():
 
     metadata = command.execute(LocalExecutor(cwd=repository_root))
 
-    assert metadata.name == "clabe"
+    assert metadata.name == repository_root.name  # the checkout's folder (clabe in CI)
     assert metadata.path == "."
+
+
+def test_check_cli_fails_on_errors(tmp_path, capsys):
+    bad = tmp_path / "_clabe_cli_check_bad.py"
+    bad.write_text(
+        "from clabe.workflow import Workflow\nwf = Workflow('w')\n"
+        "@wf.step\ndef a() -> int: ...\n@wf.step\ndef b(a: str) -> None: ...\n"
+    )
+    with pytest.raises(SystemExit) as exit_info:
+        CliApp.run(cli.CliAppSettings, cli_args=["check", str(bad)])
+    assert exit_info.value.code == 1
+    assert "expects str" in capsys.readouterr().out
+
+
+def test_check_cli_strict_fails_on_warnings(tmp_path, capsys):
+    loose = tmp_path / "_clabe_cli_check_loose.py"
+    loose.write_text(
+        "from clabe.workflow import Workflow\nwf = Workflow('w')\n@wf.step\ndef a(): ...\n@wf.step\ndef b(a): ...\n"
+    )
+    CliApp.run(cli.CliAppSettings, cli_args=["check", str(loose)])
+    assert "0 issue(s)" in capsys.readouterr().out
+    with pytest.raises(SystemExit) as exit_info:
+        CliApp.run(cli.CliAppSettings, cli_args=["check", str(loose), "--strict"])
+    assert exit_info.value.code == 1
+    assert "warning" in capsys.readouterr().out
+
+
+def test_list_cli_does_not_read_its_path_from_the_path_variable(tmp_path, monkeypatch, capsys):
+    (tmp_path / "main.py").write_text("from clabe.workflow import Workflow\nwf = Workflow('listed')\n")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("PATH", "not-a-file")
+    CliApp.run(cli.CliAppSettings, cli_args=["list"])
+    assert "listed" in capsys.readouterr().out
+
+
+def test_check_cli_passes_on_the_examples(capsys):
+    CliApp.run(cli.CliAppSettings, cli_args=["check", str(REPO_ROOT / "examples")])
+    assert "0 issue(s)" in capsys.readouterr().out

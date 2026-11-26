@@ -1,8 +1,8 @@
 import pydantic
 import pytest
 
+from clabe.aind.confierge import DEFAULT_SCOPE_MAPPING, ConfiergeSettings, ConfiergeStore
 from clabe.stores import CompositeStore, Kind, MemoryStore, Store
-from clabe.stores.confierge import DEFAULT_SCOPE_MAPPING, ConfiergeSettings, ConfiergeStore
 
 
 class Widget(pydantic.BaseModel):
@@ -42,7 +42,7 @@ class TestScopeMapping:
         assert client.gets[0]["scopes"] == {"hostname": "RIG-01", "subject_id": "123"}
 
     def test_computer_name_defaults_to_this_machine(self, client, monkeypatch):
-        monkeypatch.setattr("clabe.stores.confierge.get_computer_name", lambda: "HERE")
+        monkeypatch.setattr("clabe.aind.confierge.get_computer_name", lambda: "HERE")
         make_store(client).resolve(Widget)
         assert client.gets[0]["scopes"] == {"hostname": "HERE"}
 
@@ -151,6 +151,6 @@ class TestSettings:
                 super().__init__()
                 seen["base_url"] = base_url
 
-        monkeypatch.setattr("clabe.stores.confierge.Confierge", Recorder)
+        monkeypatch.setattr("clabe.aind.confierge.Confierge", Recorder)
         ConfiergeStore(ConfiergeSettings(namespace="demo", base_url="http://ficus.test"))
         assert seen["base_url"] == "http://ficus.test"

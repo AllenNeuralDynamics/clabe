@@ -233,3 +233,52 @@ def test_unwrap_prompt_cancelled_raises():
 
     with pytest.raises(PromptCancelledError):
         _unwrap(_PROMPT_CANCELLED)
+
+
+class TestTextualClient:
+    """Dispatch and echo of the TUI client, without starting the app."""
+
+    @pytest.fixture
+    def client(self, monkeypatch):
+        from clabe.ui import TextualClient
+
+        client = TextualClient()
+        written = []
+        monkeypatch.setattr(client, "_ensure", lambda: None)
+        monkeypatch.setattr(client, "_write_user", written.append)
+        client.written = written
+        return client
+
+    def test_ask_dispatches_on_the_prompt_kind_and_echoes(self, client, monkeypatch):
+        from clabe.ui import ConfirmRequest, TextRequest
+
+        monkeypatch.setattr(client, "_ask_text", lambda request: "mouse")
+        monkeypatch.setattr(client, "_ask_confirm", lambda request: True)
+        assert client.ask(TextRequest(label="Subject")) == "mouse"
+        assert client.ask(ConfirmRequest(label="Go?")) is True
+        echoed = [line.plain for line in client.written]
+        assert any("Subject: mouse" in line for line in echoed)
+
+    def test_number_is_asked_as_text(self, client, monkeypatch):
+        from clabe.ui import NumberRequest
+
+        seen = []
+        monkeypatch.setattr(client, "_ask_text", lambda request: seen.append(request) or "2.5")
+        assert client.ask(NumberRequest(label="Gain", default=1.0)) == "2.5"
+        assert (seen[0].label, seen[0].default) == ("Gain", "1")
+
+    def test_unresolved_field_requests_are_refused(self, client):
+        from pydantic import BaseModel
+
+        from clabe.ui import FieldRequest
+
+        class Model(BaseModel):
+            note: str = ""
+
+        with pytest.raises(ValueError, match="resolve"):
+            client.ask(FieldRequest(model=Model, field_name="note"))
+
+    def test_is_a_client(self):
+        from clabe.ui import Client, TextualClient
+
+        assert isinstance(TextualClient(), Client)

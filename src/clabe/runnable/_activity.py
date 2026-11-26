@@ -1,6 +1,6 @@
 import contextlib
 import threading
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from typing import Protocol
 
 from rich.console import Console
@@ -12,7 +12,7 @@ from ..logging._stdlib import clabe_console as _default_console
 class ActivitySink(Protocol):
     """An alternative destination for activity displays.
 
-    When a sink is registered on an :class:`ActivityIndicator`, activities are
+    When a sink is registered on an `ActivityIndicator`, activities are
     rendered through the sink instead of the rich console. This lets a live TUI
     own the terminal and show progress *inside* itself, rather than having a
     console-based spinner corrupt the TUI's display.
@@ -21,6 +21,10 @@ class ActivitySink(Protocol):
     def activity(self, description: str) -> contextlib.AbstractContextManager[None]:
         """Display activity for the duration of the returned context manager."""
         ...
+
+
+#: Called with an activity's description; returns a context manager spanning the activity.
+ActivityObserver = Callable[[str], contextlib.AbstractContextManager[None]]
 
 
 class ActivityIndicator:
@@ -72,6 +76,7 @@ class ActivityIndicator:
         self._progress: Progress | None = None
         self._active = 0
         self._sink: ActivitySink | None = None
+        self._observers: list[ActivityObserver] = []
 
     @property
     def enabled(self) -> bool:
@@ -89,6 +94,26 @@ class ActivityIndicator:
         with self._lock:
             self._sink = sink
 
+    def observe(self, observer: ActivityObserver) -> Callable[[], None]:
+        """
+        Registers ``observer`` to be entered around every activity, in addition to rendering.
+
+        Args:
+            observer: Called with the activity description; returns a context manager.
+
+        Returns:
+            A function that unregisters the observer.
+        """
+        with self._lock:
+            self._observers.append(observer)
+
+        def remove() -> None:
+            with self._lock:
+                if observer in self._observers:
+                    self._observers.remove(observer)
+
+        return remove
+
     def _build_progress(self) -> Progress:
         """Create the Progress instance used while activities are running."""
         return Progress(
@@ -104,13 +129,23 @@ class ActivityIndicator:
         """
         Display a spinner with elapsed time for the duration of the block.
 
-        Safe to nest and to use concurrently from multiple threads or
-        coroutines; all concurrent activities share a single display. When the
-        indicator is disabled, this is a no-op context manager.
+        Safe to nest and to use concurrently from multiple threads or coroutines. Registered observers are
+        entered around the block whether or not the display is enabled.
 
         Args:
             description: Text shown next to the spinner.
         """
+        with self._lock:
+            observers = list(self._observers)
+        with contextlib.ExitStack() as stack:
+            for observer in observers:
+                stack.enter_context(observer(description))
+            with self._render(description):
+                yield
+
+    @contextlib.contextmanager
+    def _render(self, description: str) -> Generator[None, None, None]:
+        """Render the activity through the sink or the shared Progress display; a no-op when disabled."""
         with self._lock:
             sink = self._sink
 
@@ -149,7 +184,7 @@ _default_indicator_lock = threading.Lock()
 
 def get_activity_indicator() -> ActivityIndicator:
     """
-    Return the process-wide shared :class:`ActivityIndicator`.
+    Return the process-wide shared `ActivityIndicator`.
 
     Using a single shared indicator guarantees that concurrent runnables
     cooperate on one live display rather than each trying to start its own

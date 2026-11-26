@@ -1,0 +1,17 @@
+@* Shows times in local time or in UTC (every page; remembered in the browser). Times are always stored in UTC. *@
+@implements IDisposable
+
+<button type="button" class="ghost sm time-toggle" aria-pressed="@ReportTime.Utc" @onclick="Flip"
+        title="Times are shown in @ReportTime.ZoneName. Click to show them in @(ReportTime.Utc ? "local time" : "UTC").">
+    <HubIcon Name="clock" Size="14" /> @(ReportTime.Utc ? "UTC" : "Local time")
+</button>
+
+@code {
+    protected override void OnInitialized() => ReportTime.Changed += Redraw;
+
+    private static void Flip() => ReportTime.SetUtc(!ReportTime.Utc);
+
+    private void Redraw() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => ReportTime.Changed -= Redraw;
+}

@@ -1,5 +1,6 @@
 import os
 import socket
+import threading
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -11,43 +12,167 @@ from clabe.launcher import Launcher
 from clabe.launcher._cli import LauncherCliArgs
 
 
-class MockFrontend(ui.FrontendBase):
-    """Non-interactive frontend for tests; primitives are mockable."""
+class MockFrontend:
+    """Non-interactive client for tests; each prompt kind is answered by a mockable ``_ask_*_mock``.
+
+    Raises after many consecutive asks of the same request, so a test whose scripted answer keeps being rejected
+    fails instead of hanging.
+    """
+
+    _MAX_REPEATS = 50
 
     def __init__(self):
-        super().__init__()
         self._render_mock = Mock()
         self._ask_text_mock = Mock(return_value="")
         self._ask_pick_mock = Mock(return_value="")
         self._ask_confirm_mock = Mock(return_value=True)
         self._ask_autocomplete_mock = Mock(return_value="")
         self._ask_path_mock = Mock(return_value=None)
+        self._ask_form_mock = Mock(return_value=None)
+        self._last_request = None
+        self._repeats = 0
 
-    def _render(self, message, level):
-        return self._render_mock(message, level)
+    def ask(self, request):
+        if request is self._last_request:
+            self._repeats += 1
+            if self._repeats > self._MAX_REPEATS:
+                raise AssertionError(f"{request!r} was asked {self._repeats} times: its scripted answer is rejected")
+        else:
+            self._last_request, self._repeats = request, 0
+        kind = request.prompt_kind
+        if kind in ("text", "number"):
+            return self._ask_text_mock(request)
+        if kind in ("confirm", "table"):
+            return self._ask_confirm_mock(request)
+        if kind in ("form", "group"):
+            return self._ask_form_mock(request)
+        if kind in ("acknowledge", "markdown", "media"):
+            return None
+        return getattr(self, f"_ask_{kind}_mock")(request)
 
-    def _ask_text(self, request):
-        return self._ask_text_mock(request)
+    def cancel(self):
+        self.cancel_prompt()
 
-    def _ask_pick(self, request):
-        return self._ask_pick_mock(request)
-
-    def _ask_path(self, request):
-        return self._ask_path_mock(request)
-
-    def _ask_confirm(self, request):
-        return self._ask_confirm_mock(request)
-
-    def _ask_autocomplete(self, request):
-        return self._ask_autocomplete_mock(request)
-
-    def _ask_acknowledge(self, request):
+    def cancel_prompt(self):
         pass
+
+    def notify(self, message, level=ui.MessageLevel.INFO):
+        self._render_mock(message, level)
+
+    def header(self, text):
+        self._render_mock(text, ui.MessageLevel.INFO)
+
+    def close(self):
+        pass
+
+
+#: Bindings made by :func:`use_client`, kept alive until the end of the test (a dropped one would unbind itself).
+_held_bindings: list = []
+
+
+def use_client(client):
+    """Binds a session over ``client`` for the rest of the test (the autouse fixture clears it)."""
+    binding = ui.bind(ui.ClientSession(client))
+    binding.__enter__()
+    _held_bindings.append(binding)
+    return client
 
 
 @pytest.fixture
 def mock_frontend():
     return MockFrontend()
+
+
+#: What :class:`MockClient` answers a prompt kind with when nothing is scripted for it.
+_MOCK_CLIENT_DEFAULTS = {
+    "text": "",
+    "autocomplete": "",
+    "number": 0.0,
+    "confirm": True,
+    "pick": None,
+    "path": None,
+    "form": None,
+    "table": True,
+    "acknowledge": None,
+}
+
+
+class MockClient:
+    """Non-interactive :class:`~clabe.ui.Client` for tests.
+
+    ``answers`` maps a prompt kind to its script: a list (one entry per ask, in order; running out fails the test),
+    a callable ``(request) -> answer``, or a single value answered every time. An entry that is an exception (class or
+    instance) is raised instead. Unscripted kinds get a harmless default.
+
+    Records every request asked, notification and header; ``cancelled`` is set (and ``cancels`` counted) by
+    :meth:`cancel`; ``on_notify``, when set, is called with each notification after it is recorded.
+    """
+
+    def __init__(self, answers=None):
+        self.answers = dict(answers or {})
+        self.asked: list = []
+        self.notifications: list = []
+        self.headers: list = []
+        self.cancelled = threading.Event()
+        self.cancels = 0
+        self.closed = False
+        self.on_notify = None
+
+    def ask(self, request):
+        self.asked.append(request)
+        kind = request.prompt_kind
+        script = self.answers.get(kind, _MOCK_CLIENT_DEFAULTS.get(kind))
+        if isinstance(script, list):
+            assert script, f"MockClient: no scripted {kind!r} answer left"
+            answer = script.pop(0)
+        elif callable(script) and not (isinstance(script, type) and issubclass(script, BaseException)):
+            answer = script(request)
+        else:
+            answer = script
+        if isinstance(answer, BaseException) or (isinstance(answer, type) and issubclass(answer, BaseException)):
+            raise answer
+        return answer
+
+    def cancel(self):
+        self.cancels += 1
+        self.cancelled.set()
+
+    def notify(self, message, level=ui.MessageLevel.INFO):
+        self.notifications.append((message, level))
+        if self.on_notify is not None:
+            self.on_notify(message, level)
+
+    def header(self, text):
+        self.headers.append(text)
+
+    def close(self):
+        self.closed = True
+
+    @property
+    def messages(self) -> list:
+        """The text of every notification, in order."""
+        return [message for message, _ in self.notifications]
+
+
+@pytest.fixture
+def mock_client():
+    return MockClient()
+
+
+@pytest.fixture(autouse=True)
+def no_runnable_timing():
+    """A debug-mode launcher turns on timed notifications for the process; tests start without them."""
+    from clabe.runnable import set_include_timing
+
+    set_include_timing(False)
+    yield
+    set_include_timing(False)
+
+
+@pytest.fixture(autouse=True)
+def isolated_reports(tmp_path, monkeypatch):
+    """Issue reports go to a temporary folder, never this machine's real one (a running hub would collect them)."""
+    monkeypatch.setattr("clabe.reports.reports_dir", lambda: tmp_path / "reports")
 
 
 @pytest.fixture(autouse=True)
@@ -60,7 +185,7 @@ def isolated_cache_manager(tmp_path, monkeypatch):
     contents flaky. This points the default at a per-test temp dir and resets
     the singleton around each test so the on-disk cache never matters.
     """
-    from clabe import cache_manager
+    from clabe import cache as cache_manager
 
     monkeypatch.setattr(cache_manager, "TMP_DIR", str(tmp_path))
     cache_manager.CacheManager._instance = None
@@ -70,11 +195,13 @@ def isolated_cache_manager(tmp_path, monkeypatch):
 
 @pytest.fixture(autouse=True)
 def reset_global_frontend():
-    """Clear the process-wide frontend registration after each test."""
+    """Clear the process-wide frontend registration and session binding after each test."""
     yield
-    from clabe import ui
+    from clabe.ui import _session
 
-    ui.set_current_frontend(None)
+    with _session._bindings_lock:  # a run left unfinished by a failed test must not stay bound
+        _session._bindings.clear()
+    _held_bindings.clear()
 
 
 @pytest.fixture
@@ -112,7 +239,7 @@ def mock_base_launcher(mock_rig, mock_session, mock_task, mock_frontend, tmp_pat
     ):
         mock_git.return_value.working_dir = tmp_path / "repo"
         launcher = Launcher(
-            frontend=mock_frontend,
+            client=mock_frontend,
             settings=launcher_args,
         )
         launcher.temp_dir.mkdir(parents=True, exist_ok=True)

@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 410" width="820" height="410" role="img"
+     aria-label="A session on two PCs: the experiment runs on PC 1 and starts apps on PC 2 through PC 2's daemon">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#141d28"/>
+    </marker>
+    <marker id="arrow-purple" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#8146e1"/>
+    </marker>
+    <style>
+      text { font-family: "Segoe UI", system-ui, -apple-system, Helvetica, Arial, sans-serif; fill: #141d28; }
+      .h { font-size: 14px; font-weight: 700; fill: #ffffff; }
+      .b { font-size: 13px; font-weight: 600; }
+      .s { font-size: 11.5px; fill: #3f3f46; }
+      .m { font-size: 11px; font-family: Consolas, "Cascadia Mono", Menlo, monospace; fill: #3f3f46; }
+      .l { font-size: 11px; fill: #52525b; font-style: italic; }
+      .p { font-size: 11.5px; fill: #6d28d9; font-weight: 600; }
+      .line { stroke: #141d28; stroke-width: 1.6; fill: none; }
+      .back { stroke: #8146e1; stroke-width: 1.6; fill: none; stroke-dasharray: 5 4; }
+    </style>
+  </defs>
+
+  <rect x="1" y="1" width="818" height="408" rx="14" fill="#ffffff" stroke="#e4e4e7"/>
+
+  <!-- PC 1 -->
+  <rect x="24" y="24" width="300" height="300" rx="10" fill="#f6f9e1" stroke="#141d28"/>
+  <path d="M24 34a10 10 0 0 1 10-10h280a10 10 0 0 1 10 10v18H24z" fill="#141d28"/>
+  <text x="38" y="43" class="h">PC 1 · runs the experiment</text>
+  <rect x="38" y="66" width="272" height="164" rx="8" fill="#ffffff" stroke="#a1a1aa"/>
+  <text x="50" y="87" class="b">clabe run main.py</text>
+  <text x="50" y="108" class="s">session · rig · register</text>
+  <text x="50" y="130" class="s">acquire:</text>
+  <text x="62" y="148" class="s">• Bonsai, here</text>
+  <text x="62" y="166" class="s">• Open Ephys, on PC 2 (executor=remote)</text>
+  <text x="50" y="186" class="s">transfer: one watchdog manifest</text>
+  <text x="62" y="202" class="s">for the data of both PCs</text>
+  <text x="50" y="222" class="l">(no daemon needed on this PC)</text>
+  <rect x="38" y="244" width="272" height="64" rx="8" fill="#ffffff" stroke="#a1a1aa"/>
+  <text x="50" y="264" class="b">Session folder</text>
+  <text x="50" y="283" class="m">C:\data\&lt;session&gt;</text>
+  <text x="50" y="299" class="s">+ run.json: both PCs, every command</text>
+
+  <!-- PC 2 -->
+  <rect x="496" y="24" width="300" height="300" rx="10" fill="#f6f9e1" stroke="#141d28"/>
+  <path d="M496 34a10 10 0 0 1 10-10h280a10 10 0 0 1 10 10v18H496z" fill="#141d28"/>
+  <text x="510" y="43" class="h">PC 2 · rig-b</text>
+  <rect x="510" y="66" width="272" height="100" rx="8" fill="#cceb05" stroke="#141d28"/>
+  <text x="522" y="87" class="b">Daemon :24070</text>
+  <text x="522" y="106" class="s">runs the commands in its copy of the</text>
+  <text x="522" y="122" class="s">repository, with its environment:</text>
+  <text x="522" y="140" class="m">C:\git\&lt;repo&gt;\.venv</text>
+  <text x="522" y="157" class="s">held by this run until it ends</text>
+  <rect x="510" y="178" width="272" height="52" rx="8" fill="#ffffff" stroke="#a1a1aa"/>
+  <text x="522" y="199" class="b">Open Ephys</text>
+  <text x="522" y="217" class="s">keeps running if PC 1's run crashes</text>
+  <rect x="510" y="244" width="272" height="64" rx="8" fill="#ffffff" stroke="#a1a1aa"/>
+  <text x="522" y="264" class="b">Session folder, same name</text>
+  <text x="522" y="283" class="m">D:\data\&lt;session&gt;</text>
+  <text x="522" y="299" class="s">shared on the network as</text>
+  <text x="655" y="299" class="m">\\rig-b\data</text>
+
+  <!-- PC 1 -> PC 2 -->
+  <path d="M310 92H508" class="line" marker-end="url(#arrow)"/>
+  <text x="336" y="84" class="s">1. verify: same commit</text>
+  <path d="M310 124H508" class="line" marker-end="url(#arrow)"/>
+  <text x="336" y="116" class="s">2. start the app; copy the</text>
+  <text x="336" y="140" class="s">rig, session, task JSON</text>
+  <path d="M508 200H310" class="back" marker-end="url(#arrow-purple)"/>
+  <text x="336" y="192" class="p">3. its output, live</text>
+  <path d="M310 276H508" class="back" marker-start="url(#arrow-purple)"/>
+  <text x="336" y="268" class="p">4. data read over the share</text>
+  <text x="336" y="296" class="l">(watchdog, data mappers)</text>
+
+  <!-- assumptions -->
+  <text x="24" y="350" class="b">Assumes</text>
+  <text x="24" y="370" class="s">• same network; PC 2's name resolves; port 24070 open   • a user logged on to PC 2 (its daemon is a logon task)</text>
+  <text x="24" y="388" class="s">• the repository cloned under C:/git on PC 2, synced (uv sync), same commit   • PC 2's data folder shared, readable by PC 1</text>
+</svg>

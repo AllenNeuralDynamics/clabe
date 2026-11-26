@@ -1,0 +1,12 @@
+.git
+.venv
+**/__pycache__
+local
+tests
+docs
+examples
+knowledge
+dist
+ui-web/bin
+ui-web/obj
+src/clabe/server/static

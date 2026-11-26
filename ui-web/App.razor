@@ -1,0 +1,33 @@
+@* The page is a run's (served by the run, by a daemon under /run/, or a hub under /rigs/<id>/run/), a machine's
+   (served by its daemon), or the fleet's (served by a hub). *@
+@inject RunApi Api
+@inject DaemonApi Daemon
+@inject HubApi Hub
+@inject NavigationManager Navigation
+
+@switch (_mode)
+{
+    case "daemon":
+        <DaemonView />
+        break;
+    case "hub":
+        <HubView />
+        break;
+    case "run":
+        <RunView />
+        break;
+    default:
+        <p class="loading">Loading clabe…</p>
+        break;
+}
+
+@code {
+    private string? _mode;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var token = System.Web.HttpUtility.ParseQueryString(new Uri(Navigation.Uri).Query)["token"];
+        Api.UseToken(token);
+        _mode = await Daemon.IsDaemonAsync() ? "daemon" : await Hub.IsHubAsync() ? "hub" : "run";
+    }
+}

@@ -1,0 +1,194 @@
+@* A report's files: a tree on the left, the open file on the right (JSON, JSON Lines, logs and text, each with its
+   viewer), and a download per file. ↑/↓ in the tree move between files. *@
+@inject HubApi Hub
+
+<div class="fx">
+    <nav class="tree" aria-label="Files">
+        <div class="tree-head">
+            <span>Files</span>
+            <span class="subtle">@Files.Count</span>
+        </div>
+        <ul role="listbox" aria-label="Files" @onkeydown="OnTreeKey">
+            @foreach (var (folder, entries) in Folders())
+            {
+                @if (folder.Length > 0)
+                {
+                    <li class="folder" role="presentation"><HubIcon Name="folder" Size="14" /> @folder</li>
+                }
+                @foreach (var entry in entries)
+                {
+                    var selected = entry.Path == _path;
+                    <li role="presentation">
+                        <button type="button" role="option" aria-selected="@selected" class="file @(selected ? "selected" : "") @(folder.Length > 0 ? "nested" : "")"
+                                id="@ItemId(entry.Path)" @onclick="() => Open(entry.Path)" title="@entry.Path">
+                            <span class="ficon @Kind(entry.Path)"><HubIcon Name="@Icon(entry.Path)" Size="14" /></span>
+                            <span class="fname truncate">@Name(entry.Path)</span>
+                            <span class="fsize">@ReportTime.Size(entry.Size)</span>
+                        </button>
+                    </li>
+                }
+            }
+        </ul>
+    </nav>
+    <section class="pane" aria-label="@(_path ?? "File")">
+        @if (_path is null)
+        {
+            <div class="placeholder subtle">This report has no files.</div>
+        }
+        else
+        {
+            <header class="pane-head">
+                <span class="ficon @Kind(_path)"><HubIcon Name="@Icon(_path)" Size="14" /></span>
+                <span class="fpath mono truncate">@_path</span>
+                @if (Files.FirstOrDefault(f => f.Path == _path) is { } open)
+                {
+                    <span class="subtle tiny">@ReportTime.Size(open.Size)</span>
+                }
+                <span class="grow"></span>
+                <a class="btn ghost sm" href="@Hub.FileUrl(Source, _path)" download="@Name(_path)" aria-label="Download @Name(_path)">
+                    <HubIcon Name="download" Size="14" /> Download
+                </a>
+            </header>
+            <div class="pane-body">
+                @if (_loading)
+                {
+                    <div class="placeholder subtle"><span class="spinner"></span> Opening @Name(_path)…</div>
+                }
+                else if (_error is not null)
+                {
+                    <div class="placeholder"><div class="alert error">@_error</div></div>
+                }
+                else if (_text is not null)
+                {
+                    @switch (Kind(_path))
+                    {
+                        case "json":
+                            <JsonViewer Text="@_text" Fill="true" @key="_path" />
+                            break;
+                        case "jsonl":
+                            <JsonlViewer Text="@_text" @key="_path" />
+                            break;
+                        default:
+                            <LogViewer Text="@_text" @key="_path" />
+                            break;
+                    }
+                }
+            </div>
+        }
+    </section>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public ReportSource Source { get; set; } = default!;
+    [Parameter, EditorRequired] public List<ZipEntry> Files { get; set; } = [];
+
+    /// <summary>Opened first, when there: the run's events tell the most.</summary>
+    private static readonly string[] Preferred = ["events.jsonl", "run.json", "launcher.log", "report.json"];
+
+    private ReportSource? _source;
+    private string? _path;
+    private string? _text;
+    private string? _error;
+    private bool _loading;
+    private int _version;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Source == _source)
+        {
+            return;
+        }
+        _source = Source;
+        var first = Preferred.FirstOrDefault(p => Files.Any(f => f.Path == p)) ?? Ordered().FirstOrDefault()?.Path;
+        if (first is not null)
+        {
+            await Open(first);
+        }
+        else
+        {
+            _path = null;
+        }
+    }
+
+    private IEnumerable<ZipEntry> Ordered() => Folders().SelectMany(f => f.Entries);
+
+    /// <summary>The files by folder: the top level first, then each folder, each sorted by name.</summary>
+    private List<(string Folder, List<ZipEntry> Entries)> Folders() =>
+        Files.Where(f => !f.Path.EndsWith('/'))
+            .GroupBy(f => f.Path.Contains('/') ? f.Path[..f.Path.LastIndexOf('/')] : "")
+            .OrderBy(g => g.Key.Length > 0).ThenBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(g => (g.Key, g.OrderBy(f => f.Path, StringComparer.OrdinalIgnoreCase).ToList()))
+            .ToList();
+
+    private async Task Open(string path)
+    {
+        if (path == _path && _text is not null)
+        {
+            return;
+        }
+        var version = ++_version;
+        _path = path;
+        _loading = true;
+        _error = null;
+        _text = null;
+        StateHasChanged();
+        try
+        {
+            var text = await Hub.FileTextAsync(Source, path);
+            if (version == _version)
+            {
+                _text = text;
+            }
+        }
+        catch (HttpRequestException exc)
+        {
+            if (version == _version)
+            {
+                _error = exc.Message;
+            }
+        }
+        finally
+        {
+            if (version == _version)
+            {
+                _loading = false;
+            }
+        }
+    }
+
+    private async Task OnTreeKey(KeyboardEventArgs e)
+    {
+        if (e.Key is not ("ArrowDown" or "ArrowUp"))
+        {
+            return;
+        }
+        var files = Ordered().Select(f => f.Path).ToList();
+        var at = _path is null ? -1 : files.IndexOf(_path);
+        var next = Math.Clamp(at + (e.Key == "ArrowDown" ? 1 : -1), 0, files.Count - 1);
+        if (files.Count > 0 && next != at)
+        {
+            await Open(files[next]);
+        }
+    }
+
+    private static string ItemId(string path) => "file-" + Convert.ToHexString(System.Text.Encoding.UTF8.GetBytes(path));
+
+    private static string Name(string path) => path.Contains('/') ? path[(path.LastIndexOf('/') + 1)..] : path;
+
+    private static string Kind(string path)
+    {
+        var lower = path.ToLowerInvariant();
+        return lower.EndsWith(".jsonl") || lower.EndsWith(".ndjson") ? "jsonl"
+            : lower.EndsWith(".json") ? "json"
+            : lower.EndsWith(".log") ? "log"
+            : "text";
+    }
+
+    private static string Icon(string path) => Kind(path) switch
+    {
+        "json" => "json",
+        "jsonl" => "list",
+        "log" => "log",
+        _ => "file",
+    };
+}

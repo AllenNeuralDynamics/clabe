@@ -1,0 +1,24 @@
+@* The top bar of the hub's and the daemon's pages: the brand and where you are, status chips, actions, theme. *@
+
+<header class="topbar">
+    <a class="brand" href="@Home" aria-label="clabe @Context">
+        <img src="logo.svg" alt="" />
+        <span class="where">@Context</span>
+    </a>
+    @if (Chips is not null)
+    {
+        <div class="chips">@Chips</div>
+    }
+    <span class="grow"></span>
+    @Actions
+    <TimeToggle />
+    <HubThemeMenu />
+</header>
+
+@code {
+    /// <summary>Where you are: "fleet", a hostname…</summary>
+    [Parameter] public string Context { get; set; } = "";
+    [Parameter] public string Home { get; set; } = "./";
+    [Parameter] public RenderFragment? Chips { get; set; }
+    [Parameter] public RenderFragment? Actions { get; set; }
+}

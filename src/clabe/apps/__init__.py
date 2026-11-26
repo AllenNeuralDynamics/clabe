@@ -10,7 +10,7 @@ from ._base import (
     identity_parser,
 )
 from ._bonsai import AindBehaviorServicesBonsaiApp, BonsaiApp
-from ._curriculum import CurriculumApp, CurriculumSettings, CurriculumSuggestion
+from ._curriculum import CurriculumApp, CurriculumOutcome, CurriculumSettings, CurriculumSuggestion
 from ._executors import AsyncLocalExecutor, LocalDetachedExecutor, LocalExecutor
 from ._python_script import PythonScriptApp
 
@@ -23,6 +23,7 @@ __all__ = [
     "CommandError",
     "CommandResult",
     "CurriculumApp",
+    "CurriculumOutcome",
     "CurriculumSettings",
     "CurriculumSuggestion",
     "ExecutableApp",

@@ -3,16 +3,16 @@ import os
 import pytest
 from aind_behavior_services import Session
 
-from clabe import ui
-from clabe.cache_manager import CacheManager
+from clabe.cache import CacheManager
 from clabe.session import SessionBuilder
+from tests.conftest import use_client
 
 COMMIT = "0123456789abcdef0123456789abcdef01234567"
 
 
 @pytest.fixture
 def launcher(mock_base_launcher, mock_frontend):
-    ui.set_current_frontend(mock_frontend)
+    use_client(mock_frontend)
     mock_base_launcher.repository.head.commit.hexsha = COMMIT
     return mock_base_launcher
 

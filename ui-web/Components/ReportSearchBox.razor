@@ -1,0 +1,102 @@
+@* A search field for the report viewers: debounced, with a match count and, optionally, previous / next
+   (Enter / Shift+Enter). Esc clears it. *@
+@implements IDisposable
+
+<div class="search @(Wide ? "wide" : "")" role="search">
+    <HubIcon Name="search" Size="14" />
+    <input type="search" value="@_text" placeholder="@Placeholder" aria-label="@Placeholder" spellcheck="false"
+           autocomplete="off" @oninput="OnInput" @onkeydown="OnKey" @ref="_input" />
+    @if (!string.IsNullOrEmpty(_text) && Count is { } count)
+    {
+        <span class="hits" aria-live="polite">@(count == 0 ? "No matches" : Navigable ? $"{Current + 1} of {count}" : $"{count:N0} {Unit}")</span>
+    }
+    @if (Navigable)
+    {
+        <button type="button" class="ghost icon sm" aria-label="Previous match (Shift+Enter)" title="Previous match (Shift+Enter)"
+                disabled="@(Count is null or 0)" @onclick="() => OnPrevious.InvokeAsync()"><HubIcon Name="up" Size="14" /></button>
+        <button type="button" class="ghost icon sm" aria-label="Next match (Enter)" title="Next match (Enter)"
+                disabled="@(Count is null or 0)" @onclick="() => OnNext.InvokeAsync()"><HubIcon Name="down" Size="14" /></button>
+    }
+</div>
+
+@code {
+    [Parameter] public string? Value { get; set; }
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+    [Parameter] public string Placeholder { get; set; } = "Search";
+    /// <summary>Matches (shown when there is a query); null hides the count.</summary>
+    [Parameter] public int? Count { get; set; }
+    [Parameter] public int Current { get; set; }
+    /// <summary>Shows previous / next and "n of m"; else "m <see cref="Unit"/>".</summary>
+    [Parameter] public bool Navigable { get; set; }
+    [Parameter] public string Unit { get; set; } = "matches";
+    [Parameter] public EventCallback OnNext { get; set; }
+    [Parameter] public EventCallback OnPrevious { get; set; }
+    [Parameter] public int Debounce { get; set; } = 180;
+    [Parameter] public bool Wide { get; set; }
+
+    private string _text = "";
+    private string? _last;
+    private CancellationTokenSource? _pending;
+    private ElementReference _input;
+
+    protected override void OnParametersSet()
+    {
+        if (Value != _last)
+        {
+            _last = Value;
+            _text = Value ?? "";
+        }
+    }
+
+    public ValueTask FocusAsync() => _input.FocusAsync();
+
+    private async Task OnInput(ChangeEventArgs e)
+    {
+        _text = e.Value?.ToString() ?? "";
+        _pending?.Cancel();
+        var pending = _pending = new CancellationTokenSource();
+        try
+        {
+            await Task.Delay(Debounce, pending.Token);
+        }
+        catch (TaskCanceledException)
+        {
+            return;
+        }
+        await Commit();
+    }
+
+    private async Task Commit()
+    {
+        _pending?.Cancel();
+        if (_text == (_last ?? ""))
+        {
+            return;
+        }
+        _last = _text;
+        await ValueChanged.InvokeAsync(_text);
+    }
+
+    private async Task OnKey(KeyboardEventArgs e)
+    {
+        switch (e.Key)
+        {
+            case "Enter":
+                if (_text != (_last ?? ""))
+                {
+                    await Commit();
+                }
+                else if (Navigable)
+                {
+                    await (e.ShiftKey ? OnPrevious : OnNext).InvokeAsync();
+                }
+                break;
+            case "Escape":
+                _text = "";
+                await Commit();
+                break;
+        }
+    }
+
+    public void Dispose() => _pending?.Cancel();
+}

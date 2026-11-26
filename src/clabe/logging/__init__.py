@@ -1,6 +1,5 @@
 from ._stdlib import (
     _DEFAULT_CONSOLE_LEVEL,
-    _TRANSCRIPT_LOGGER_NAME,
     add_file_handler,
     clabe_console,
     close_file_handlers,
@@ -14,7 +13,6 @@ from ._stdlib import (
 
 __all__ = [
     "_DEFAULT_CONSOLE_LEVEL",
-    "_TRANSCRIPT_LOGGER_NAME",
     "add_file_handler",
     "clabe_console",
     "close_file_handlers",

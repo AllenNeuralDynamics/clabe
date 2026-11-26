@@ -46,12 +46,25 @@ def snapshot_python_environment() -> dict[str, str]:
     Captures a snapshot of the current Python environment.
 
     Creates a record of all currently installed Python packages and their versions,
-    useful for reproducibility and debugging purposes.
+    useful for reproducibility and debugging purposes. Inside a run, these are the distributions the run's
+    manifest (``run.json``) recorded, so the mapped metadata and the manifest agree.
 
     Returns:
         A dictionary of package names and their versions
     """
+    manifest = _current_manifest()
+    if manifest is not None and manifest.environment is not None:
+        return dict(manifest.environment.distributions)
     return {dist.name: dist.version for dist in metadata.distributions()}
+
+
+def _current_manifest():
+    """The manifest of the run going on (through the running step's launcher), if any."""
+    from ..workflow._records import ACTIVE_STEP
+
+    context = ACTIVE_STEP.get()
+    launcher = getattr(context.run, "launcher", None) if context is not None else None
+    return getattr(launcher, "manifest", None)
 
 
 def snapshot_bonsai_environment(

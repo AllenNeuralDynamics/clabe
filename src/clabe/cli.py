@@ -1,51 +1,46 @@
 import logging
-import shlex
 import sys
 from pathlib import Path
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, CliApp, CliImplicitFlag, CliPositionalArg, CliSubCommand
 
-from clabe.launcher._experiments import _select_experiment
-
-from .cache_manager import _CacheManagerCli
-from .git_manager import GitRepository
+from ._cli_base import CliCommand
+from .agents._cli import McpCli
+from .cache import _CacheManagerCli
+from .daemon._cli import DaemonCli
+from .hub._cli import HubCli
 from .launcher import Launcher, LauncherCliArgs
-from .xml_rpc._server import _XmlRpcServerCli
+from .repository import GitRepository
+from .workflow import select_workflow
 
 logger = logging.getLogger(__name__)
-
-
-def _quote(arg: str) -> str:
-    """Quotes a command-line argument for the platform's shell."""
-    if sys.platform == "win32":
-        return f'"{arg}"' if " " in arg else arg
-    return shlex.quote(arg)
 
 
 class _RunCli(LauncherCliArgs):
     """CLI arguments for running a CLABE experiment from a Python file."""
 
     experiment_path: CliPositionalArg[Path] = Field(
-        description="Path to the Python file containing the CLABE experiment to run"
+        default=Path("main.py"), description="The Python file declaring the workflows"
     )
     single_session: CliImplicitFlag[bool] = Field(
         default=False,
-        description="Refuse to start if another CLABE session is already running (used when serving the web UI)",
+        description="Refuse to start if another CLABE session is already running on this machine",
+    )
+    serve: CliImplicitFlag[bool] = Field(
+        default=True, description="Serve the run over HTTP (web UI and API) while it executes; --no-serve to disable"
     )
     experiment_name: str | None = Field(
         default=None,
-        description="Name of the @experiment to run when the file defines more than one. "
+        description="Name of the workflow to run when the file defines more than one. "
         "If omitted, prompts interactively (or runs the only one found).",
     )
 
     def _run(self):
-        """Builds the launcher, selects the experiment and runs it."""
+        """Builds the launcher, selects the workflow and runs it."""
         launcher = Launcher(settings=self)
-        experiment_metadata = _select_experiment(
-            self.experiment_path, frontend=launcher.frontend, experiment_name=self.experiment_name
-        )
-        launcher.run_experiment(experiment_metadata.func)
+        workflow = select_workflow(self.experiment_path, name=self.experiment_name)
+        launcher.run_experiment(workflow)
 
     def cli_cmd(self):
         """Run the specified experiment, optionally under a single-session lock."""
@@ -65,55 +60,24 @@ class _RunCli(LauncherCliArgs):
         return
 
 
-class _ServeCli(LauncherCliArgs):
-    """CLI arguments for serving a CLABE experiment's TUI over the web."""
+class _ReplayCli(LauncherCliArgs):
+    """Run an experiment answering its prompts with a recorded session's answers (its events.jsonl)."""
 
-    experiment_path: CliPositionalArg[Path] = Field(
-        description="Path to the Python file containing the CLABE experiment to run"
-    )
-    host: str = Field(
-        default="127.0.0.1",
-        description="Interface to bind. Keep localhost and use SSH port forwarding (ssh -L) for remote access.",
-    )
-    port: int = Field(default=8089, description="TCP port to serve the web UI on")
-    open_browser: CliImplicitFlag[bool] = Field(
-        default=False, description="Open the web UI in the local browser once the server is ready"
-    )
-
-    def _child_command(self) -> str:
-        """Builds the command serving the experiment with the TUI frontend."""
-        parts = [
-            _quote(sys.executable),
-            "-m",
-            "clabe.cli",
-            "run",
-            _quote(str(self.experiment_path)),
-            "--frontend",
-            "tui",
-            "--single-session",
-        ]
-        if self.repository_directory is not None:
-            parts += ["--repository-directory", _quote(str(self.repository_directory))]
-        if self.clabe_yml is not None:
-            parts += ["--clabe-yml", _quote(str(self.clabe_yml))]
-        forwarded = (
-            ("--debug-mode", self.debug_mode),
-            ("--verbose", self.verbose),
-            ("--quiet", self.quiet),
-            ("--allow-dirty", self.allow_dirty),
-            ("--skip-hardware-validation", self.skip_hardware_validation),
-        )
-        parts += [flag for flag, enabled in forwarded if enabled]
-        return " ".join(parts)
+    events: CliPositionalArg[Path] = Field(description="The recorded session's events.jsonl")
+    experiment_path: CliPositionalArg[Path] = Field(description="Path to the Python file containing the experiment")
+    experiment_name: str | None = Field(default=None, description="Name of the experiment, when the file has several")
 
     def cli_cmd(self):
-        """Serve the experiment's TUI over a local web port."""
-        from .web import serve
+        """Replay the session; exit with status 1 if the run asks something the recording did not answer."""
+        from .workflow import ReplayClient
 
-        serve(self._child_command(), host=self.host, port=self.port, open_browser=self.open_browser)
+        client = ReplayClient(self.events)
+        launcher = Launcher(settings=self, client=client)
+        launcher.run_experiment(select_workflow(self.experiment_path, name=self.experiment_name))
+        print(f"Replayed {client.replayed} answer(s); {client.remaining} recorded answer(s) left unused.")
 
 
-class _RepositoryStateCli(BaseSettings):
+class _RepositoryStateCli(CliCommand):
     """Print the current Git repository state as JSON."""
 
     path: CliPositionalArg[Path] = Field(description="Path to the Git repository to inspect")
@@ -124,14 +88,82 @@ class _RepositoryStateCli(BaseSettings):
         print(metadata.model_dump_json(indent=2))
 
 
+class _CheckCli(CliCommand):
+    """Statically check the workflows of an experiment file or directory without running them."""
+
+    path: CliPositionalArg[Path] = Field(description="Experiment file, or a directory of experiment files")
+    strict: CliImplicitFlag[bool] = Field(
+        default=False, description="Also fail on unannotated or undecidable wiring (reported as warnings)"
+    )
+
+    def cli_cmd(self):
+        """Print the issues found and exit with status 1 if any fail the check."""
+        from .workflow import check_path
+
+        issues = check_path(self.path, strict=self.strict)
+        for issue in issues:
+            print(issue)
+        print(f"{len(issues)} issue(s) in {self.path}")
+        if any(issue.severity == "error" or self.strict for issue in issues):
+            raise SystemExit(1)
+
+
+class _ListCli(CliCommand):
+    """List the workflows of an experiment file or directory (as JSON with --json)."""
+
+    path: CliPositionalArg[Path] = Field(
+        default=Path("main.py"), description="Experiment file, or a directory of experiment files"
+    )
+    json_output: CliImplicitFlag[bool] = Field(default=False, alias="json", description="Print JSON")
+
+    def cli_cmd(self):
+        """Print the workflows found; exit with status 1 if a file failed to import."""
+        from .workflow import list_experiments
+
+        listing = list_experiments(self.path)
+        if self.json_output:
+            print(listing.model_dump_json(indent=2))
+        else:
+            for experiment in listing.experiments:
+                print(f"{experiment.name}  ({experiment.file}): {', '.join(s.name for s in experiment.steps)}")
+            for error in listing.errors:
+                print(f"error: {error.file}: {error.error}", file=sys.stderr)
+        if listing.errors:
+            raise SystemExit(1)
+
+
+class _ShortcutCli(CliCommand, cli_kebab_case=True):
+    """Put an icon on the desktop that runs an experiment of this repository (its main.py) in a terminal."""
+
+    experiment_name: str | None = Field(default=None, description="The workflow to run, when main.py offers several")
+    name: str | None = Field(default=None, description="The icon's name (default: the experiment's)")
+    repository: Path = Field(default=Path("."), description="The experiment repository")
+
+    def cli_cmd(self):
+        """Create the shortcut and print where it is."""
+        from ._shortcut import create_shortcut
+
+        try:
+            path = create_shortcut(self.repository, experiment=self.experiment_name, name=self.name)
+        except (OSError, RuntimeError) as exc:
+            print(exc, file=sys.stderr)
+            raise SystemExit(1) from exc
+        print(f"Created {path}")
+
+
 class CliAppSettings(BaseSettings, cli_prog_name="clabe", cli_kebab_case=True):
     """CLI application settings."""
 
-    xml_rpc_server: CliSubCommand[_XmlRpcServerCli]
     cache: CliSubCommand[_CacheManagerCli]
     run: CliSubCommand[_RunCli]
-    serve: CliSubCommand[_ServeCli]
     repository_state: CliSubCommand[_RepositoryStateCli]
+    check: CliSubCommand[_CheckCli]
+    list: CliSubCommand[_ListCli]
+    replay: CliSubCommand[_ReplayCli]
+    shortcut: CliSubCommand[_ShortcutCli]
+    daemon: CliSubCommand[DaemonCli]
+    hub: CliSubCommand[HubCli]
+    mcp: CliSubCommand[McpCli]
 
     def cli_cmd(self):
         """Run the selected subcommand."""

@@ -4,7 +4,7 @@ from typing import Any, Generic, TypeVar, final
 
 from clabe.runnable._core import runnable
 
-from ..services import Service
+from ..settings import Service
 
 logger = logging.getLogger(__name__)
 

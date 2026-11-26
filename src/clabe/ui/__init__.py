@@ -1,128 +1,126 @@
-from ._console import ConsoleFrontend
-from ._current import (
-    NoFrontendError,
-    activity,
-    cancel_prompt,
-    current_frontend,
-    header,
-    notify,
-    prompt_acknowledge,
-    prompt_autocomplete,
-    prompt_confirm,
-    prompt_field,
-    prompt_form,
-    prompt_number,
-    prompt_path,
-    prompt_pick,
-    prompt_read_only_table,
-    prompt_text,
-    require_frontend,
-    set_current_frontend,
-    use_frontend,
-)
-from ._frontend import Frontend, FrontendBase, PromptCancelledError
+"""How clabe talks to the user: requests that describe and validate themselves, a session API to ask them
+(``ui.ask``, ``ui.confirm``, ``ui.group``, ...), and clients (console, TUI) that render and collect answers."""
+
+from typing import TYPE_CHECKING
+
+from ._client import Client, ClientSession, HeadlessClient, make_client
+from ._console import ConsoleClient
 from ._messages import MessageLevel
 from ._requests import (
     AcknowledgeRequest,
+    AnswerRejected,
     AutoCompleteRequest,
     Choice,
     ConfirmRequest,
     FieldRequest,
     FormRequest,
+    GroupRequest,
+    MarkdownRequest,
+    MediaKind,
+    MediaRequest,
     NumberRequest,
+    OptionsFunction,
     PathRequest,
     PickRequest,
     ReadOnlyTable,
+    Request,
     TextRequest,
     Validator,
 )
-from ._textual import TextualFrontend
+from ._session import (
+    NavigationRequested,
+    NoSessionError,
+    PromptCancelledError,
+    Session,
+    acknowledge,
+    activity,
+    ask,
+    autocomplete,
+    bind,
+    confirm,
+    current_session,
+    field,
+    form,
+    group,
+    header,
+    html,
+    image,
+    markdown,
+    notify,
+    number,
+    path,
+    pick,
+    table,
+    text,
+    url,
+)
 
-#: The default frontend class used across the launcher.
-DefaultFrontend = TextualFrontend
+if TYPE_CHECKING:
+    from ._textual import TextualClient
 
 
-def default_frontend() -> Frontend:
-    """
-    Returns the frontend to use by default.
+def __getattr__(name: str):
+    """Loads the terminal UI (``TextualClient``) only when it is used: it needs the ``frontend`` extra."""
+    if name == "TextualClient":
+        from .._extras import require_tui
 
-    Uses the interactive Textual TUI when attached to a real terminal, and
-    falls back to the plain console frontend otherwise (e.g. output piped to a
-    file or running in CI), where a full TUI cannot run.
+        require_tui()
+        from ._textual import TextualClient
 
-    Returns:
-        Frontend: A ready-to-use frontend instance.
-    """
-    from ..logging import clabe_console
-
-    if clabe_console.is_terminal:
-        return TextualFrontend()
-    return ConsoleFrontend()
-
-
-def make_frontend(backend: str = "auto") -> Frontend:
-    """
-    Builds a frontend for the requested backend.
-
-    Args:
-        backend: One of ``"auto"`` (TUI when on a terminal, else console),
-            ``"tui"`` or ``"console"``.
-
-    Returns:
-        Frontend: A ready-to-use frontend instance.
-
-    Raises:
-        ValueError: If ``backend`` is not a recognized option.
-    """
-    backend = (backend or "auto").lower()
-    if backend == "auto":
-        return default_frontend()
-    if backend == "tui":
-        return TextualFrontend()
-    if backend == "console":
-        return ConsoleFrontend()
-    raise ValueError(f"Unknown UI backend: {backend!r}")
+        return TextualClient
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 __all__ = [
     "AcknowledgeRequest",
+    "AnswerRejected",
     "AutoCompleteRequest",
     "Choice",
+    "Client",
+    "ClientSession",
     "ConfirmRequest",
-    "ConsoleFrontend",
-    "DefaultFrontend",
+    "ConsoleClient",
     "FieldRequest",
     "FormRequest",
-    "Frontend",
-    "FrontendBase",
+    "GroupRequest",
+    "HeadlessClient",
+    "MarkdownRequest",
+    "MediaKind",
+    "MediaRequest",
     "MessageLevel",
-    "NoFrontendError",
+    "NavigationRequested",
+    "NoSessionError",
     "NumberRequest",
+    "OptionsFunction",
     "PathRequest",
     "PickRequest",
     "PromptCancelledError",
     "ReadOnlyTable",
+    "Request",
+    "Session",
     "TextRequest",
-    "TextualFrontend",
+    "TextualClient",
     "Validator",
+    "acknowledge",
     "activity",
-    "cancel_prompt",
-    "current_frontend",
-    "default_frontend",
+    "ask",
+    "autocomplete",
+    "bind",
+    "confirm",
+    "current_session",
+    "field",
+    "form",
+    "group",
     "header",
-    "make_frontend",
+    "html",
+    "image",
+    "make_client",
+    "markdown",
     "notify",
-    "prompt_acknowledge",
-    "prompt_autocomplete",
-    "prompt_confirm",
-    "prompt_field",
-    "prompt_form",
-    "prompt_number",
-    "prompt_path",
-    "prompt_pick",
-    "prompt_read_only_table",
-    "prompt_text",
-    "require_frontend",
-    "set_current_frontend",
-    "use_frontend",
+    "number",
+    "path",
+    "pick",
+    "table",
+    "text",
+    "url",
 ]

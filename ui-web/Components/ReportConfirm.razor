@@ -1,0 +1,62 @@
+@* A confirmation dialog: Enter confirms, Esc cancels; the confirm button has the focus. *@
+
+<div class="backdrop" @onclick="Cancel">
+    <div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-body"
+         @onclick:stopPropagation="true" @onkeydown="OnKey">
+        <h2 id="confirm-title">@Title</h2>
+        <p id="confirm-body" class="muted">@Message</p>
+        <div class="actions">
+            <button type="button" @onclick="Cancel">Cancel</button>
+            <button type="button" class="@(Danger ? "danger-solid" : "primary")" @ref="_confirm" @onclick="Confirm" disabled="@_busy">
+                @if (_busy)
+                {
+                    <span class="spinner"></span>
+                }
+                @ConfirmText
+            </button>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+    [Parameter] public string? Message { get; set; }
+    [Parameter] public string ConfirmText { get; set; } = "Confirm";
+    [Parameter] public bool Danger { get; set; }
+    [Parameter] public EventCallback OnConfirm { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private ElementReference _confirm;
+    private bool _busy;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await _confirm.FocusAsync();
+        }
+    }
+
+    private async Task Confirm()
+    {
+        _busy = true;
+        try
+        {
+            await OnConfirm.InvokeAsync();
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private Task Cancel() => _busy ? Task.CompletedTask : OnCancel.InvokeAsync();
+
+    private async Task OnKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            await Cancel();
+        }
+    }
+}

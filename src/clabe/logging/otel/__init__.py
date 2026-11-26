@@ -39,7 +39,7 @@ _atexit_installed = False
 def _abandon_run_span(reason: str, *_args: object) -> None:
     """End the root span as failed and drain telemetry, for a run that is being torn down.
 
-    Used by the interpreter-exit fallback (see :func:`_install_atexit_fallback`). A no-op when no
+    Used by the interpreter-exit fallback (see `_install_atexit_fallback`). A no-op when no
     run span is open, so it is safe to call more than once.
 
     Args:
@@ -76,10 +76,10 @@ def _install_atexit_fallback() -> None:
 def run_span(launcher: "Launcher", experiment_name: str | None = None) -> Generator[Span, None, None]:
     """Instrument a launcher run: install telemetry if enabled, then open the root span.
 
-    Reads :class:`AindOtelSettings` from clabe.yml. When enabled, the SDK is configured
+    Reads `AindOtelSettings` from clabe.yml. When enabled, the SDK is configured
     before the span opens (so ``@runnable`` app spans nest under it) and the OTLP log bridge
     is attached. The run's attribute bag is seeded from the profile's config-and-defaults
-    (:meth:`~clabe.logging.otel._settings.OtelSettings.initial_attributes`) before the root span
+    ([`initial_attributes`][clabe.logging.otel._settings.OtelSettings.initial_attributes]) before the root span
     starts, so the root span and every child carry it. Telemetry is best effort — a missing
     SDK or bad config is logged and the run proceeds untraced. The span is ended and exported
     on exit, before the caller's cleanup, so a caller that then blocks (or is killed) cannot
@@ -88,9 +88,8 @@ def run_span(launcher: "Launcher", experiment_name: str | None = None) -> Genera
 
     Args:
         launcher: The launcher being instrumented.
-        experiment_name: Name derived from the experiment callable, used when
-            :attr:`~clabe.logging.otel.OtelSettings.run_name` is not set in config.
-            Pass the result of :func:`~clabe.launcher.get_experiment_name`.
+        experiment_name: Name of the workflow being run, used when
+            `run_name` is not set in config.
 
     Yields:
         The root span for the run.
@@ -137,7 +136,7 @@ def run_span(launcher: "Launcher", experiment_name: str | None = None) -> Genera
 def bind_session(session: "Session") -> None:
     """Enrich the active run with the session identity, as soon as it is registered.
 
-    Called by the launcher from :meth:`~clabe.launcher.Launcher.register_session`, this is
+    Called by the launcher from [`register_session`][clabe.launcher.Launcher.register_session], this is
     the first point the session (subject, experimenter, ...) is known — stage 3 of attribute
     population. A no-op outside a run or when telemetry is off.
 

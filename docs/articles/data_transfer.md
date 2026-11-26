@@ -1,15 +1,16 @@
 # Uploading data with the watchdog
 
-[`WatchdogDataTransferService`][clabe.data_transfer.aind_watchdog.WatchdogDataTransferService] writes a *manifest* to
-the [aind-watchdog-service](https://github.com/AllenNeuralDynamics/aind-watchdog-service) flag directory. At the
-manifest's `schedule_time`, the watchdog copies the session to `destination` and submits its upload job.
+[`WatchdogDataTransferService`][clabe.aind.watchdog.WatchdogDataTransferService] hands a session to
+[aind-watchdog-service](https://github.com/AllenNeuralDynamics/aind-watchdog-service), which copies it to
+`destination` and submits the upload job at `schedule_time`.
 
-By default a session is one upload job with every modality. Upload groups split it into several jobs that land in the
-**same asset**, so slow modalities (e.g. video compression) no longer hold back the rest.
+- Needs the `WATCHDOG_EXE` and `WATCHDOG_CONFIG` environment variables.
+- Settings come from the `watchdog` section of `clabe.yml`, or from code.
 
 ## Upload groups
 
-In `clabe.yml`:
+Split a session into several jobs that upload to the same asset, so slow modalities (e.g. videos) do not delay the
+others.
 
 ```yaml
 watchdog:
@@ -23,14 +24,13 @@ watchdog:
     - name: videos
       job_type: vr_foraging_async_videos_1
       modalities: [behavior-videos]
-      schedule_time: "20:00"         # the default; can be left out
       delete_modalities_source_after_success: true
 ```
 
 Or in code:
 
 ```python
-from clabe.data_transfer.aind_watchdog import UploadGroup, WatchdogDataTransferService, WatchdogSettings
+from clabe.aind.watchdog import UploadGroup, WatchdogDataTransferService, WatchdogSettings
 
 settings = WatchdogSettings(
     destination=r"\\allen\aind\scratch\vr-foraging\data",
@@ -49,23 +49,34 @@ transfer_service = WatchdogDataTransferService(launcher.session_directory, setti
 transfer_service.transfer()
 ```
 
-Each group is written as its own manifest:
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `name` | required | Group name; also names its manifest |
+| `job_type` | required | Transfer service job type |
+| `modalities` | `"*"` | Modality folders, or `"*"` for every modality no other group claims |
+| `creates_record` | `false` | Exactly one group: creates the metadata record and gets the `*.json` metadata and tags |
+| `schedule_time` | `20:00` | When to submit; `null` = now |
+| `delete_modalities_source_after_success` | `false` | Delete this group's folders once submitted |
+| `upload_tasks` | `None` | Extra transfer service tasks |
 
-- **`creates_record`**: exactly one group. It creates the metadata record and gets the `*.json` metadata files and data
-  description tags. Manifest: `manifest_<session>.yaml`.
-- **Other groups** append to that record, so their job types must support appending. Manifest:
-  `manifest_<session>__<name>.yaml`.
-- **`modalities`**: modality folder names, or `"*"` (default) for every modality no other group claims. A modality
-  claimed by no group is an error.
-- **`job_type`** is required. `schedule_time` (default 20:00, `null` = now), `delete_modalities_source_after_success`
-  and `upload_tasks` are optional.
-- A group that finds none of its modalities is skipped with a warning. Listed modalities a group doesn't find are logged
-  at info level.
+- Each group is its own manifest: `manifest_<session>.yaml` for the record group, `manifest_<session>__<name>.yaml`
+  for the others.
+- Non-record groups append to the record, so their job types must support appending.
+- A modality that no group claims is an error. A group that finds none of its modalities is skipped with a warning.
+- The record group must be submitted first. An appending group with `schedule_time: null` is refused when the record
+  group is scheduled later. An appending group scheduled at an earlier time of day only logs a warning.
 
-The top-level `job_type`, `schedule_time`, `delete_modalities_source_after_success` and `upload_tasks` are deprecated.
-Without `upload_groups` they still describe a single group, with a warning. With `upload_groups` they are ignored and a
-warning is logged, including when code changes them after the settings are loaded. To migrate, move them into one
-group:
+Preview the manifests without writing them:
+
+```python
+for planned in transfer_service.plan():
+    print(planned.group, planned.filename, list(planned.manifest.modalities))
+```
+
+### Migrating from single-job settings
+
+The top-level `job_type`, `schedule_time`, `delete_modalities_source_after_success` and `upload_tasks` are deprecated
+(ignored, with a warning, when `upload_groups` is set). Move them into one group:
 
 ```yaml
 watchdog:
@@ -76,28 +87,15 @@ watchdog:
       delete_modalities_source_after_success: true
 ```
 
-Code that overrides these fields (e.g. `settings.job_type = "upload_only_v2"`) must pass its own `upload_groups`
-instead.
+## Data in several folders or on another machine
 
-**Order.** The group that creates the record is written first. A group that appends can't be submitted before it:
-`schedule_time: null` while the record is scheduled later is refused, and an earlier time of day only warns (it may
-run after midnight).
-
-To check the manifests without writing them:
-
-```python
-for planned in transfer_service.plan():
-    print(planned.group, planned.filename, list(planned.manifest.modalities))
-```
-
-## Data recorded on another machine
-
-Pass the other machine's session folder through its share. The launcher's watchdog reads it over the network, and its
-modalities can get their own group:
+Pass `launcher.session_directories`, and give the other folders' modalities their own group. It lists this PC's
+session folder, the other folders added with `launcher.add_session_directory` (e.g. Open Ephys's data folder on this
+PC), and every other PC's folder registered with `remote.register_session`, through its share:
 
 ```python
 transfer_service = WatchdogDataTransferService(
-    [launcher.session_directory, remote.session_directory_unc],
+    launcher.session_directories,
     settings=WatchdogSettings(
         destination=r"\\allen\aind\scratch\vr-foraging\data",
         project_name="Cognitive flexibility in patch foraging",
@@ -110,6 +108,6 @@ transfer_service = WatchdogDataTransferService(
 )
 ```
 
-- The data crosses the launcher's network on its way to `destination`, so schedule large modalities at night.
-- The watchdog's account needs read access to the share, and write access if it deletes the sources. Prefer a share of
-  the data folder over the administrative share (`D$`).
+- The data crosses the launcher's network, so schedule large modalities at night.
+- The watchdog's account needs read access to the share, and write access if it deletes sources. Share a data folder
+  rather than using `D$`.

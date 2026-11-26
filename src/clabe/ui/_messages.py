@@ -6,7 +6,7 @@ class MessageLevel(enum.Enum):
     """
     Severity/intent of a message surfaced to the user by a frontend.
 
-    This is intentionally separate from :mod:`logging` levels: it describes how
+    This is intentionally separate from `logging` levels: it describes how
     a message should be *presented* to the user, not how it should be recorded.
     The frontend maps each level to an appropriate logging level when writing
     the message to the persistent transcript.

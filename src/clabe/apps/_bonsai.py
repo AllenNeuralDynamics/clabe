@@ -9,7 +9,7 @@ from pathlib import Path
 import pydantic
 from aind_behavior_services import Rig, Session, Task
 
-from ..constants import TMP_DIR
+from ..settings import TMP_DIR
 from ._base import Command, CommandResult, ExecutableApp, identity_parser
 from ._executors import _DefaultExecutorMixin
 

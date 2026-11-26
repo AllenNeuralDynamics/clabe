@@ -9,7 +9,7 @@ from typing import Any, Literal
 import requests
 from pydantic import BaseModel, Field
 
-from ..services import ServiceSettings
+from ..settings import ServiceSettings
 from ._base import AsyncExecutor, Command, CommandResult, ExecutableApp, identity_parser
 from ._executors import _DefaultExecutorMixin
 
@@ -112,11 +112,11 @@ class OpenEphysApp(ExecutableApp, _DefaultExecutorMixin):
     ) -> "_OpenEphysGuiClient":
         """Starts the GUI in the background and waits until its HTTP API responds.
 
-        Call :meth:`close` when done, e.g. in a ``finally`` block, to quit the GUI. If launching
+        Call `close` when done, e.g. in a ``finally`` block, to quit the GUI. If launching
         fails, the GUI is closed before the error is raised.
 
         When ``executor`` runs commands on another machine (it has a ``host``, like
-        ``clabe.xml_rpc.RemoteRepository``) and ``settings.address`` is a loopback address, the client
+        ``clabe.remote.RemoteRepository``) and ``settings.address`` is a loopback address, the client
         is pointed at that machine instead. The GUI's port must then be reachable from this machine.
 
         Args:
@@ -173,8 +173,8 @@ class OpenEphysApp(ExecutableApp, _DefaultExecutorMixin):
     def set_recording_directory(self, directory: os.PathLike | str) -> "RecordingResponse":
         """Makes every Record Node record to exactly ``directory``, e.g. ``<data directory>/<session>/ecephys``.
 
-        The path is as the machine running the GUI sees it. Call it after :meth:`launch` and before :meth:`start`.
-        Its parent must already exist, e.g. created by :meth:`clabe.xml_rpc.RemoteRepository.register_session`.
+        The path is as the machine running the GUI sees it. Call it after `launch` and before `start`.
+        Its parent must already exist, e.g. created by [`clabe.remote.RemoteRepository.register_session`][clabe.remote.RemoteRepository.register_session].
         The directory itself must not: the GUI creates it when recording starts, and if it already exists, records
         to a new sibling instead (e.g. ``ecephys (1)``). So do not create it, or anything inside it, beforehand.
 
@@ -516,7 +516,7 @@ class _OpenEphysGuiClient:
 
         Note:
             In GUI v1.1, changing ``parent_directory`` also moves the Record Nodes that use the default. To set
-            the directory of every Record Node, use :meth:`OpenEphysApp.set_recording_directory`.
+            the directory of every Record Node, use `OpenEphysApp.set_recording_directory`.
         """
         request = RecordingRequest(
             parent_directory=parent_directory,

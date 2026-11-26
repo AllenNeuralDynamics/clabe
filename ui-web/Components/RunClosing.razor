@@ -1,0 +1,202 @@
+@* The end of the run: its outcome, duration and step counts, the session folder, and Close session (the first client
+   to close wins); a countdown when the session closes on its own. Then "Session closed", and the tab closes itself
+   after a few seconds (when the browser allows it). *@
+@inject IJSRuntime JS
+@implements IDisposable
+
+<section class="closing @Outcome" aria-live="polite">
+    <div class="closing-icon">
+        @switch (Outcome)
+        {
+            case "completed":
+                <RunIcon Name="check-circle" Size="40" Stroke="1.6" />
+                break;
+            case "aborted":
+                <RunIcon Name="stop" Size="40" Stroke="1.6" />
+                break;
+            default:
+                <RunIcon Name="x-circle" Size="40" Stroke="1.6" />
+                break;
+        }
+    </div>
+    <h2 class="closing-title">Run @Outcome</h2>
+    @if (Connection.FinishedEvent?.Reason is { Length: > 0 } reason)
+    {
+        <p class="closing-reason">@reason</p>
+    }
+
+    <dl class="closing-stats">
+        <div><dt>Duration</dt><dd>@(Duration is { } d ? RunText.Duration(d) : "—")</dd></div>
+        <div><dt>Done</dt><dd>@Count("done")</dd></div>
+        <div><dt>Skipped</dt><dd>@Count("skipped")</dd></div>
+        <div class="@(Count("failed") > 0 ? "bad" : null)"><dt>Failed</dt><dd>@Count("failed")</dd></div>
+    </dl>
+
+    @if (SessionFolder is { } folder)
+    {
+        <div class="closing-folder">
+            <RunIcon Name="folder" Size="16" />
+            <div>
+                <span class="label-sm">Session folder</span>
+                <code title="@folder">@folder</code>
+            </div>
+        </div>
+    }
+
+    @if (Closed)
+    {
+        <div class="alert ok closing-closed" role="status">
+            <RunIcon Name="check" Size="16" Class="alert-icon" />
+            @if (_tabLeft is { } left)
+            {
+                <span>@ClosedBy — this tab closes in <strong>@left s</strong>.</span>
+                <span class="grow"></span>
+                <button type="button" class="ghost sm" @onclick="KeepTab">Keep it open</button>
+            }
+            else
+            {
+                <span>@ClosedBy — you can close this tab.</span>
+            }
+        </div>
+        <div class="actions closing-actions">
+            <button type="button" @onclick="OnExport"><RunIcon Name="download" Size="15" /> Export logs</button>
+        </div>
+    }
+    else
+    {
+        @if (State.Closing?.Deadline is { } deadline)
+        {
+            var total = Math.Max(1, (deadline - State.Closing.Since).TotalSeconds);
+            var left = Math.Max(0, (deadline - Now).TotalSeconds);
+            <div class="countdown" role="timer" aria-live="off">
+                <span>Closing in <strong>@Math.Ceiling(left) s</strong></span>
+                <div class="countdown-bar"><span style="width: @((left / total * 100).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture))%"></span></div>
+            </div>
+        }
+        <div class="actions closing-actions">
+            @if (State.Closing is not null)
+            {
+                <button type="button" class="primary lg" disabled="@_closing" @onclick="Close">
+                    <RunIcon Name="power" Size="16" /> Close session <kbd>↵</kbd>
+                </button>
+            }
+            <button type="button" class="lg" @onclick="OnExport"><RunIcon Name="download" Size="15" /> Export logs</button>
+            <button type="button" class="lg" @onclick="OnReport"><RunIcon Name="flag" Size="15" /> Report an issue</button>
+        </div>
+        @if (_error is not null)
+        {
+            <div class="alert error small" role="alert">@_error</div>
+        }
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired] public RunConnection Connection { get; set; } = default!;
+    [Parameter, EditorRequired] public RunState State { get; set; } = default!;
+    [Parameter] public DateTimeOffset Now { get; set; } = DateTimeOffset.UtcNow;
+    [Parameter] public EventCallback OnExport { get; set; }
+    [Parameter] public EventCallback OnReport { get; set; }
+
+    private bool _closing;
+    private string? _error;
+
+    private string Outcome => State.Status is "completed" or "aborted" or "failed" ? State.Status : "finished";
+
+    private TimeSpan? Duration => Connection.StartedAt is { } start ? (Connection.FinishedEvent?.Ts ?? Now) - start : null;
+
+    private int Count(string status) => State.Steps.Count(s => s.Status == status);
+
+    /// <summary>The session folder, from the register step's output.</summary>
+    private string? SessionFolder => State.Steps.FirstOrDefault(s => s.Name == "register" && s.Status == "done")?.Summary
+        is { } summary && RunText.LooksLikePath(summary) ? summary : null;
+
+    /// <summary>Whether the session is over: closed by someone, or the server went away while the screen waited.</summary>
+    public bool Closed => Connection.ClosedEvent is not null || State.Closing?.Closed == true
+                          || (State.Closing is not null && Connection.Status == "ended");
+
+    private string ClosedBy
+    {
+        get
+        {
+            var by = Connection.ClosedEvent?.ClosedBy ?? State.Closing?.ClosedBy;
+            return by switch
+            {
+                "local" => "Closed from the terminal",
+                "timeout" => "Closed automatically",
+                { } client when client.StartsWith("web-") && client != Connection.Api.ClientName
+                    => $"Closed from another browser ({client})",
+                _ => "Session closed",
+            };
+        }
+    }
+
+    /// <summary>Seconds before this tab closes itself once the session is closed (null: not counting down).</summary>
+    public const int TabCloseSeconds = 5;
+
+    private int? _tabLeft;
+    private bool _tabStarted;
+    private Timer? _tabTimer;
+
+    protected override void OnParametersSet()
+    {
+        if (Closed && !_tabStarted)
+        {
+            _tabStarted = true;
+            _tabLeft = TabCloseSeconds;
+            _tabTimer = new Timer(_ => InvokeAsync(TickTab), null, 1000, 1000);
+        }
+    }
+
+    private async Task TickTab()
+    {
+        if (_tabLeft is not { } left)
+        {
+            return;
+        }
+        if (left > 1)
+        {
+            _tabLeft = left - 1;
+            StateHasChanged();
+            return;
+        }
+        _tabTimer?.Dispose();
+        _tabLeft = null;
+        StateHasChanged();
+        // browsers only let a page close a tab that has a single page of history (e.g. one opened by clabe);
+        // otherwise this does nothing and the message stays
+        try
+        {
+            await JS.InvokeVoidAsync("close");
+        }
+        catch (JSException)
+        {
+        }
+    }
+
+    private void KeepTab()
+    {
+        _tabTimer?.Dispose();
+        _tabLeft = null;
+    }
+
+    public void Dispose() => _tabTimer?.Dispose();
+
+    /// <summary>Close session (the button, or Enter).</summary>
+    public async Task Close()
+    {
+        if (_closing || Closed || State.Closing is null)
+        {
+            return;
+        }
+        _closing = true;
+        _error = null;
+        StateHasChanged();
+        var result = await Connection.Api.CloseAsync();
+        _closing = false;
+        if (!result.Ok && !Closed)
+        {
+            _error = result.Reason;
+        }
+        StateHasChanged();
+    }
+}

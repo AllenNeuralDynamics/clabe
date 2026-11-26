@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>clabe</title>
+    <!-- relative: the UI works at the server's root and under a hub's per-rig prefix -->
+    <base href="./" />
+    <link rel="preload" id="webassembly" />
+    <link rel="icon" href="favicon.ico" />
+    <link rel="stylesheet" href="css/design.css" />
+    <link rel="stylesheet" href="css/app.css" />
+    <link rel="stylesheet" href="Clabe.Web#[.{fingerprint}].styles.css" />
+    <script>
+        // the theme before Blazor starts: no flash of the wrong colors
+        (function () {
+            var t = localStorage.getItem("clabe.theme") || "system";
+            var dark = t === "dark" || (t === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
+            document.documentElement.dataset.theme = dark ? "dark" : "light";
+        })();
+        // the browser's offset from UTC at an instant, in minutes (the app has no time zone data)
+        window.clabeTime = { offset: function (ms) { return -new Date(ms).getTimezoneOffset(); } };
+    </script>
+    <script type="importmap"></script>
+</head>
+
+<body>
+    <div id="app">
+        <p class="loading">Loading clabe…</p>
+    </div>
+
+    <div id="blazor-error-ui">
+        Something went wrong in the page.
+        <a href="" class="reload">Reload</a>
+        <span class="dismiss">✕</span>
+    </div>
+    <script src="_framework/blazor.webassembly#[.{fingerprint}].js"></script>
+</body>
+
+</html>

@@ -11,8 +11,9 @@ from typing import Any, TypeVar, overload
 from opentelemetry import trace
 
 from ..ui._messages import MessageLevel
+from . import _settings
 from ._activity import get_activity_indicator
-from ._settings import RunnableSpec, _include_timing
+from ._settings import RunnableSpec
 
 logger = logging.getLogger(__name__)
 _tracer = trace.get_tracer("clabe.runnable")
@@ -93,7 +94,7 @@ def _lifecycle(spec: RunnableSpec, name: str):
         logger.log(eff.log_level, "%s failed after %s", name, _elapsed(started))
         raise
     else:
-        timing = f" in {_elapsed(started)}" if _include_timing else ""
+        timing = f" in {_elapsed(started)}" if _settings._include_timing else ""  # read now: set by --debug-mode
         if not reentrant and eff.notify_success:
             _notify(f"{name} finished{timing}", MessageLevel.SUCCESS)
         logger.log(eff.log_level, "%s finished in %s", name, _elapsed(started))
@@ -163,15 +164,15 @@ def runnable(
 
 
 def runnable(
-    fn=None,
+    fn: Callable[..., Any] | None = None,
     *,
-    name=None,
-    notify=None,
-    show_activity=None,
-    notify_start=None,
-    notify_success=None,
-    notify_fail=None,
-):
+    name: str | None = None,
+    notify: str | None = None,
+    show_activity: bool | None = None,
+    notify_start: bool | None = None,
+    notify_success: bool | None = None,
+    notify_fail: bool | None = None,
+) -> Any:
     """Wrap a callable with the shared runnable lifecycle (logging, activity
     spinner, notifications, and an OpenTelemetry span).
 

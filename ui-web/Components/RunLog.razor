@@ -1,0 +1,117 @@
+@* View → Log (F2): a pane docked at the bottom of the page (the page stays usable), newest first. Logs: the run
+   process' Python log records (info and above, as the TUI's Logs pane); Events: the run's events. *@
+@using Clabe.Web.Api.Run
+
+<aside class="log-panel" role="region" aria-label="Log" data-escape>
+    <header class="log-head">
+        <h2><RunIcon Name="terminal" Size="16" /> Log</h2>
+        <div class="log-tabs" role="tablist" aria-label="What the log shows">
+            <button type="button" role="tab" aria-selected="@(_tab == "logs" ? "true" : "false")"
+                    class="log-tab @(_tab == "logs" ? "on" : null)" @onclick='() => _tab = "logs"'>
+                Logs <span class="count">@Connection.LogLines.Count</span>
+            </button>
+            <button type="button" role="tab" aria-selected="@(_tab == "events" ? "true" : "false")"
+                    class="log-tab @(_tab == "events" ? "on" : null)" @onclick='() => _tab = "events"'>
+                Events <span class="count">@Connection.Log.Count</span>
+            </button>
+        </div>
+        <span class="log-grow"></span>
+        <input class="log-filter" placeholder="Filter…" aria-label="Filter the log" value="@_filter"
+               @oninput="e => _filter = e.Value?.ToString() ?? string.Empty" />
+        <button type="button" class="ghost icon" aria-label="Close the log" title="Close (F2)" @onclick="() => OnClose.InvokeAsync()"><RunIcon Name="x" /></button>
+    </header>
+    @if (_tab == "logs")
+    {
+        <ol class="log-list">
+            @foreach (var line in ShownLines)
+            {
+                <li class="log-row @LineLevel(line)">
+                    <time title="@ReportTime.Both(line.Ts)">@ReportTime.Clock(line.Ts)</time>
+                    <code class="log-type" title="@line.Logger">@line.Level · @line.Logger</code>
+                    <span class="log-text">@line.Message</span>
+                </li>
+            }
+            @if (Connection.LogLines.Count == 0)
+            {
+                <li class="log-empty subtle">Nothing logged yet (info and above).</li>
+            }
+        </ol>
+    }
+    else
+    {
+        <ol class="log-list">
+            @foreach (var e in ShownEvents)
+            {
+                <li class="log-row @Level(e)">
+                    <time title="@ReportTime.Both(e.Ts)">@ReportTime.Clock(e.Ts)</time>
+                    <code class="log-type">@e.Type</code>
+                    <span class="log-text">@Describe(e)</span>
+                </li>
+            }
+        </ol>
+    }
+</aside>
+
+@code {
+    [Parameter, EditorRequired] public RunConnection Connection { get; set; } = default!;
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private string _filter = "";
+    private string _tab = "logs";
+
+    private bool Matches(string text) => _filter == "" || text.Contains(_filter, StringComparison.OrdinalIgnoreCase);
+
+    private IEnumerable<LogLine> ShownLines => Enumerable.Reverse(Connection.LogLines)
+        .Where(l => Matches(l.Message) || Matches(l.Logger) || Matches(l.Level))
+        .Take(500);
+
+    private IEnumerable<RunEvent> ShownEvents => Enumerable.Reverse(Connection.Log)
+        .Where(e => Matches(e.Type) || Matches(Describe(e)))
+        .Take(500);
+
+    private static string? LineLevel(LogLine line) => line.Level switch
+    {
+        "error" or "critical" => "level-error",
+        "warning" => "level-warning",
+        _ => null,
+    };
+
+    private static string? Level(RunEvent e) => e.Type switch
+    {
+        "step_failed" => "level-error",
+        "notify" when e.Level is "error" or "critical" => "level-error",
+        "notify" when e.Level == "warning" => "level-warning",
+        "activity_output" => "level-debug",
+        _ => null,
+    };
+
+    public static string Describe(RunEvent e) => e.Type switch
+    {
+        "step_started" or "step_skipped" => e.Step ?? "",
+        "step_finished" => e.Summary is null ? e.Step ?? "" : $"{e.Step}: {e.Summary}",
+        "step_failed" => $"{e.Step}: {e.Error}",
+        "steps_invalidated" => string.Join(", ", e.Steps ?? []),
+        "prompt_opened" => $"{e.Kind} {e.Spec?["label"] ?? e.Spec?["title"]}",
+        "prompt_closed" => e.Outcome == "answered" ? $"by {e.AnsweredBy}: {e.Answer?.ToJsonString() ?? "null"}" : "cancelled",
+        "notify" => $"[{e.Level}] {e.Message}",
+        "header" => e.Text ?? "",
+        "activity_started" => e.Description ?? "",
+        "activity_output" => string.Join(" ⏎ ", e.Lines ?? []),
+        "branch_started" => $"{e.Step} / {e.Branch}",
+        "branch_ended" => $"{e.Step} / {e.Branch}: {e.Outcome}{(e.Error is null ? "" : $" ({e.Error})")}",
+        "artifact_exported" => e.Path ?? "",
+        "command_finished" => $"{string.Join(' ', e.Command ?? [])} → exit {e.ExitCode}",
+        "record_resolved" => $"{e.Kind} from {e.Label}",
+        "context_changed" => string.Join(" · ", new[]
+        {
+            e.Workflow, e.Subject is null ? null : $"subject {e.Subject}",
+            e.Experimenter is { Count: > 0 } names ? string.Join(", ", names) : null,
+            e.Rig is null ? null : $"rig {e.Rig}", e.Hostname is null ? null : $"on {e.Hostname}",
+        }.Where(part => part is not null)),
+        "run_started" => e.Workflow ?? "",
+        "run_finished" => $"{e.Status} {e.Reason}",
+        "run_closing" => e.Deadline is { } deadline ? $"closes at {ReportTime.Clock(deadline)}" : "waits for Close session",
+        "run_closed" => $"by {e.ClosedBy}",
+        _ => "",
+    };
+}

@@ -52,8 +52,124 @@ jobs:
       - name: Run pytest
         run: uv run pytest --cov clabe -m "not network"
 
+      - name: Check example workflows
+        run: uv run clabe check examples --strict
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build the web UI
+        run: uv run python scripts/build_web.py
+
       - name: Build
         run: uv build
+
+  web-ui:
+    name: Web UI in a browser
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: astral-sh/setup-uv@v8.1.0
+        with:
+          enable-cache: true
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build the web UI
+        run: |
+          uv sync
+          uv run python scripts/build_web.py
+
+      - name: Run the browser tests
+        run: |
+          uv run --with playwright playwright install --with-deps chromium
+          uv run --with playwright pytest tests/server tests/daemon tests/hub -p no:cacheprovider
+
+  docs:
+    name: Docs build (strict)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: astral-sh/setup-uv@v8.1.0
+        with:
+          enable-cache: true
+
+      - name: Build the docs, failing on any warning
+        run: |
+          uv sync --group docs
+          uv run docs/build.py
+          uv run zensical build --strict --clean
+
+  # Builds the hub image once and smoke-tests it; that same image is pushed to ghcr.io/allenneuraldynamics/clabe-hub
+  # as `main` and `sha-<commit>` on a push to main, and as the release's tag (plus `latest`, unless it is a pre-release)
+  # on a published release. On a release it waits for prepare-release, which moves the tag to the commit that sets the
+  # version, so the image carries the release's version.
+  hub-image:
+    name: Hub Docker image
+    runs-on: ubuntu-latest
+    needs: [ tests, prepare-release ]
+    if: >-
+      always() && needs.tests.result == 'success'
+      && (needs.prepare-release.result == 'success' || needs.prepare-release.result == 'skipped')
+    permissions:
+      contents: read
+      packages: write
+    env:
+      PUBLISH: ${{ github.event_name == 'release' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event_name == 'release' && github.event.release.tag_name || '' }}
+
+      - id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/allenneuraldynamics/clabe-hub
+          flavor: latest=false
+          tags: |
+            type=raw,value=${{ github.event.release.tag_name }},enable=${{ github.event_name == 'release' }}
+            type=raw,value=latest,enable=${{ github.event_name == 'release' && !github.event.release.prerelease }}
+            type=raw,value=main,enable=${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+            type=sha,enable=${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Build the hub image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: docker/hub/Dockerfile
+          load: true
+          tags: |
+            clabe-hub
+            ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke test it
+        run: |
+          docker run -d --name hub -p 8080:8080 -e TOKEN=ci clabe-hub
+          for i in $(seq 1 30); do curl -sf localhost:8080/openapi.json > /dev/null && break; sleep 1; done
+          test "$(curl -s -o /dev/null -w '%{http_code}' localhost:8080/api/hub/rigs)" = 401
+          curl -sf -H 'Authorization: Bearer ci' localhost:8080/api/hub/rigs
+          curl -sf localhost:8080/ | grep -q '<title>clabe</title>'
+
+      - if: env.PUBLISH == 'true'
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push the tested image
+        if: env.PUBLISH == 'true'
+        run: docker push --all-tags ghcr.io/allenneuraldynamics/clabe-hub
 
   # ╔───────────────────────────────────────────────────────────╗
   # │    ____ ___ ____ ____    ____      _                      │
@@ -104,6 +220,13 @@ jobs:
       - name: Set version
         run: uv version ${{ steps.get_version.outputs.version }}
 
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build the web UI
+        run: uv run python scripts/build_web.py
+
       - name: Build
         run: uv build
 
@@ -149,40 +272,3 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           files: dist/*
-
-  # ╔─────────────────────────╗
-  # │   ____                  │
-  # │  |  _ \  ___   ___ ___  │
-  # │  | | | |/ _ \ / __/ __| │
-  # │  | |_| | (_) | (__\__ \ │
-  # │  |____/ \___/ \___|___/ │
-  # │                         │
-  # ╚─────────────────────────╝
-  build-docs:
-    name: Build and deploy documentation to GitHub Pages
-    runs-on: ubuntu-latest
-    needs: prepare-release
-    if: github.event_name == 'release' && !github.event.release.prerelease
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          ref: main
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v8.1.0
-        with:
-          enable-cache: true
-
-      - name: Install dependencies
-        run: uv sync --group docs
-
-      - name: Configure Git user
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Build & Deploy docs
-        run: |
-          uv run docs/build.py
-          uv run mkdocs gh-deploy --force

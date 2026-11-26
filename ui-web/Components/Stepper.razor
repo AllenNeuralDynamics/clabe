@@ -1,0 +1,165 @@
+@* The step rail: progress, then each step with its status, duration and a short summary. A finished step that is not
+   locked behind a barrier can be clicked (or focused and Enter) to go back to it; one divider marks the barrier. *@
+
+<nav class="rail" aria-label="Steps">
+    <div class="rail-head">
+        <span class="rail-label">Steps</span>
+        <span class="rail-count"><strong>@Completed</strong> / @State.Steps.Count</span>
+    </div>
+    <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="@State.Steps.Count" aria-valuenow="@Completed">
+        <span style="width: @(Percent)%"></span>
+    </div>
+    <ol class="steps">
+        @foreach (var step in State.Steps)
+        {
+            var current = step.Name == Current;
+            var waiting = current && State.Prompt is not null;
+            var canGoBack = !Finished && !step.Locked && !current && step.Status is "done" or "skipped" or "failed";
+            var summary = SummaryOf(step);
+            <li class="step @step.Status @(current ? "current" : null) @(waiting ? "waiting" : null) @(step.Locked ? "locked" : null)"
+                aria-current="@(current ? "step" : null)">
+                @if (canGoBack)
+                {
+                    <button type="button" class="step-row" title="@Tooltip(step, summary)" @onclick="() => OnGoBack.InvokeAsync(step.Name)">
+                        @Row(step, current, waiting, summary, true)
+                    </button>
+                }
+                else
+                {
+                    <div class="step-row" title="@Tooltip(step, summary)">@Row(step, current, waiting, summary, false)</div>
+                }
+                @if (Branches?.Invoke(step.Name) is { Count: > 0 } branches)
+                {
+                    <ul class="branches">
+                        @foreach (var branch in branches)
+                        {
+                            <li class="@branch.Status" title="@(branch.Error ?? branch.Status)">
+                                <span class="branch-icon">@BranchIcon(branch.Status)</span>
+                                @if (branch.Attempt > 1)
+                                {
+                                    <span class="tag">#@branch.Attempt</span>
+                                }
+                                <span class="branch-name">@branch.Name</span>
+                            </li>
+                        }
+                    </ul>
+                }
+            </li>
+            @if (step.Name == LastLocked)
+            {
+                <li class="locked-divider" title="A barrier step has run: the steps above cannot run again">
+                    <RunIcon Name="lock" Size="12" /> <span>Locked above</span>
+                </li>
+            }
+        }
+    </ol>
+</nav>
+
+@code {
+    [Parameter, EditorRequired] public RunState State { get; set; } = default!;
+    [Parameter, EditorRequired] public RunConnection Connection { get; set; } = default!;
+    [Parameter] public bool Finished { get; set; }
+    [Parameter] public DateTimeOffset Now { get; set; } = DateTimeOffset.UtcNow;
+    [Parameter] public EventCallback<string> OnGoBack { get; set; }
+    [Parameter] public Func<string, IReadOnlyList<BranchView>>? Branches { get; set; }
+
+    private string? Current => State.CurrentStep ?? State.Prompt?.Step;
+    private int Completed => State.Steps.Count(s => s.Status is "done" or "skipped");
+    private int Percent => State.Steps.Count == 0 ? 0 : (int)Math.Round(100.0 * Completed / State.Steps.Count);
+    private string? LastLocked => State.Steps.LastOrDefault(s => s.Locked)?.Name;
+
+    private RenderFragment Row(StepState step, bool current, bool waiting, string? summary, bool canGoBack) => @<text>
+        <span class="step-icon">@Icon(step, current, waiting)</span>
+        <span class="step-main">
+            <span class="step-title">
+                <span class="step-name">@RunText.Title(step)</span>
+                @if (step.Optional is not null && step.Status == "pending")
+                {
+                    <span class="tag">optional</span>
+                }
+                @if (step.Conditional && step.Status == "pending")
+                {
+                    <span class="tag" title="Runs only when its condition holds">conditional</span>
+                }
+            </span>
+            @if (summary is not null)
+            {
+                <span class="step-summary">@summary</span>
+            }
+        </span>
+        <span class="step-meta">
+            @if (Duration(step) is { } duration)
+            {
+                <span class="step-duration">@duration</span>
+            }
+            @if (canGoBack)
+            {
+                <span class="step-back" aria-hidden="true"><RunIcon Name="undo" Size="13" /></span>
+            }
+        </span>
+    </text>;
+
+    private string? SummaryOf(StepState step)
+    {
+        if (step.Status == "skipped")
+        {
+            return step.SkipReason switch
+            {
+                "condition" => "Skipped · condition not met",
+                "declined" => "Skipped · declined",
+                _ => "Skipped",
+            };
+        }
+        if (step.Status == "failed" && Connection.FailureOf(step.Name) is { Error: { } error })
+        {
+            return error;
+        }
+        if (step.Status == "running" && step.Name == Current && State.Prompt is not null)
+        {
+            return "Waiting for you";
+        }
+        return step.Status == "done" ? RunText.Short(step, Connection.AnswerOf) : null;
+    }
+
+    private string? Duration(StepState step)
+    {
+        if (step.Status is "pending" or "skipped" || Connection.TimingOf(step.Name) is not { } timing)
+        {
+            return null;
+        }
+        return RunText.Duration((timing.End ?? Now) - timing.Start);
+    }
+
+    private static RenderFragment BranchIcon(string status) => status switch
+    {
+        "running" => @<span class="spinner tiny-spinner"></span>,
+        "done" => @<RunIcon Name="check" Size="13" />,
+        "failed" => @<RunIcon Name="x" Size="13" />,
+        _ => @<RunIcon Name="skip" Size="13" />,
+    };
+
+    private static RenderFragment Icon(StepState step, bool current, bool waiting) => step.Status switch
+    {
+        "done" => @<RunIcon Name="check-circle" Size="18" />,
+        "failed" => @<RunIcon Name="x-circle" Size="18" />,
+        "skipped" => @<RunIcon Name="skip" Size="18" />,
+        "running" when waiting => @<span class="waiting-dot"></span>,
+        "running" => @<span class="spinner"></span>,
+        _ => current ? @<span class="waiting-dot"></span> : @<RunIcon Name="circle" Size="18" Stroke="1.5" />,
+    };
+
+    private static string Tooltip(StepState step, string? summary)
+    {
+        var skipped = step.SkipReason switch
+        {
+            "condition" => "Skipped: its condition did not hold.\n",
+            "declined" => "Skipped: declined.\n",
+            _ => "",
+        };
+        var full = step.Summary is { } text && step.Status == "done" ? $"{text}\n" : "";
+        var back = !step.Locked && step.Status is "done" or "skipped" or "failed"
+            ? $"Go back to {RunText.Title(step)}: it and the steps depending on it run again"
+            : step.Locked ? "Locked: a later barrier step has run" : step.Name;
+        return skipped + full + back;
+    }
+}

@@ -1,0 +1,1530 @@
+{
+  "components": {
+    "schemas": {
+      "DeleteBody": {
+        "description": "Reports to delete.",
+        "properties": {
+          "ids": {
+            "description": "Their ids",
+            "items": {
+              "type": "string"
+            },
+            "title": "Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "ids"
+        ],
+        "title": "DeleteBody",
+        "type": "object"
+      },
+      "DeleteResult": {
+        "description": "How many reports were deleted.",
+        "properties": {
+          "deleted": {
+            "title": "Deleted",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "deleted"
+        ],
+        "title": "DeleteResult",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "InspectResult": {
+        "description": "An export opened for a look (not stored): its id, its files, and its ``report.json`` if it has one.",
+        "properties": {
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/ZipEntry"
+            },
+            "title": "Files",
+            "type": "array"
+          },
+          "inspect_id": {
+            "title": "Inspect Id",
+            "type": "string"
+          },
+          "report": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReportInfo"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "inspect_id",
+          "files"
+        ],
+        "title": "InspectResult",
+        "type": "object"
+      },
+      "ReportInfo": {
+        "description": "What a report is about: who, where, when, and the user's comment. Stored as ``report.json`` in its zip.",
+        "properties": {
+          "clabe_version": {
+            "title": "Clabe Version",
+            "type": "string"
+          },
+          "comment": {
+            "default": "",
+            "description": "What the user wrote",
+            "title": "Comment",
+            "type": "string"
+          },
+          "commit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commit"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "experiment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Experiment"
+          },
+          "experimenter": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Experimenter",
+            "type": "array"
+          },
+          "hostname": {
+            "title": "Hostname",
+            "type": "string"
+          },
+          "report_id": {
+            "description": "Unique id of the report",
+            "title": "Report Id",
+            "type": "string"
+          },
+          "reported_from": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The client the report was made from",
+            "title": "Reported From"
+          },
+          "repository": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The experiment repository's name",
+            "title": "Repository"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The session's name, once registered",
+            "title": "Session Id"
+          },
+          "step": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The step the run was on",
+            "title": "Step"
+          },
+          "subject": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject"
+          }
+        },
+        "required": [
+          "report_id",
+          "created_at",
+          "hostname",
+          "clabe_version"
+        ],
+        "title": "ReportInfo",
+        "type": "object"
+      },
+      "ReportPage": {
+        "description": "A page of reports, and how many match in all.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/StoredReport"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "items"
+        ],
+        "title": "ReportPage",
+        "type": "object"
+      },
+      "RigStatus": {
+        "description": "What the hub last saw of a rig.",
+        "properties": {
+          "clabe_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Clabe Version"
+          },
+          "current_step": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Step"
+          },
+          "current_step_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Step Title"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "experiment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Experiment"
+          },
+          "header": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Header"
+          },
+          "hostname": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hostname"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "leased_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Leased By"
+          },
+          "reachable": {
+            "default": false,
+            "title": "Reachable",
+            "type": "boolean"
+          },
+          "reports_stored": {
+            "default": 0,
+            "description": "Issue reports from this rig stored in the hub",
+            "title": "Reports Stored",
+            "type": "integer"
+          },
+          "reports_waiting": {
+            "default": 0,
+            "description": "Issue reports on the rig, not collected yet",
+            "title": "Reports Waiting",
+            "type": "integer"
+          },
+          "repository": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repository"
+          },
+          "run_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Status"
+          },
+          "seen_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seen At"
+          },
+          "session": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SessionInfo"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The run's session so far (subject, experimenter, session id, progress), when it runs"
+          },
+          "status": {
+            "default": "offline",
+            "enum": [
+              "offline",
+              "idle",
+              "busy",
+              "leased"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "waiting": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Waiting"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "url"
+        ],
+        "title": "RigStatus",
+        "type": "object"
+      },
+      "SessionInfo": {
+        "description": "What a run is about, as far as known so far: the hub lists it as a session.",
+        "properties": {
+          "clabe_version": {
+            "title": "Clabe Version",
+            "type": "string"
+          },
+          "commit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commit"
+          },
+          "current_step": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Step"
+          },
+          "experiment": {
+            "title": "Experiment",
+            "type": "string"
+          },
+          "experimenter": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Experimenter",
+            "type": "array"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "hostname": {
+            "title": "Hostname",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why it ended, when it did not complete",
+            "title": "Reason"
+          },
+          "repository": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repository"
+          },
+          "rig": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The rig's name, once known",
+            "title": "Rig"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The session's name, once registered",
+            "title": "Session Id"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "description": "running, completed, aborted or failed",
+            "title": "Status",
+            "type": "string"
+          },
+          "steps_done": {
+            "default": 0,
+            "title": "Steps Done",
+            "type": "integer"
+          },
+          "steps_total": {
+            "default": 0,
+            "title": "Steps Total",
+            "type": "integer"
+          },
+          "subject": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject"
+          },
+          "waiting": {
+            "default": false,
+            "description": "Whether a prompt waits for an answer",
+            "title": "Waiting",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "run_id",
+          "experiment",
+          "status",
+          "hostname",
+          "clabe_version"
+        ],
+        "title": "SessionInfo",
+        "type": "object"
+      },
+      "StatusBody": {
+        "description": "A report's new status.",
+        "properties": {
+          "status": {
+            "enum": [
+              "new",
+              "looking",
+              "closed"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "StatusBody",
+        "type": "object"
+      },
+      "StoredReport": {
+        "description": "A report the hub collected: its `ReportInfo`, the rig it came from, and where it is in its triage.",
+        "properties": {
+          "clabe_version": {
+            "title": "Clabe Version",
+            "type": "string"
+          },
+          "comment": {
+            "default": "",
+            "description": "What the user wrote",
+            "title": "Comment",
+            "type": "string"
+          },
+          "commit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commit"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "experiment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Experiment"
+          },
+          "experimenter": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Experimenter",
+            "type": "array"
+          },
+          "hostname": {
+            "title": "Hostname",
+            "type": "string"
+          },
+          "received_at": {
+            "description": "When the hub collected it",
+            "format": "date-time",
+            "title": "Received At",
+            "type": "string"
+          },
+          "report_id": {
+            "description": "Unique id of the report",
+            "title": "Report Id",
+            "type": "string"
+          },
+          "reported_from": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The client the report was made from",
+            "title": "Reported From"
+          },
+          "repository": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The experiment repository's name",
+            "title": "Repository"
+          },
+          "rig_id": {
+            "description": "The rig it was collected from",
+            "title": "Rig Id",
+            "type": "string"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The session's name, once registered",
+            "title": "Session Id"
+          },
+          "size": {
+            "description": "Size of its zip, in bytes",
+            "title": "Size",
+            "type": "integer"
+          },
+          "status": {
+            "default": "new",
+            "enum": [
+              "new",
+              "looking",
+              "closed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "step": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The step the run was on",
+            "title": "Step"
+          },
+          "subject": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject"
+          }
+        },
+        "required": [
+          "report_id",
+          "created_at",
+          "hostname",
+          "clabe_version",
+          "rig_id",
+          "received_at",
+          "size"
+        ],
+        "title": "StoredReport",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
+      "Waiting": {
+        "description": "A prompt a rig's run is waiting on.",
+        "properties": {
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "prompt_id": {
+            "title": "Prompt Id",
+            "type": "string"
+          },
+          "since": {
+            "format": "date-time",
+            "title": "Since",
+            "type": "string"
+          },
+          "step": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step"
+          }
+        },
+        "required": [
+          "prompt_id",
+          "kind",
+          "label",
+          "step",
+          "since"
+        ],
+        "title": "Waiting",
+        "type": "object"
+      },
+      "ZipEntry": {
+        "description": "A file in a report's zip.",
+        "properties": {
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "size": {
+            "description": "Uncompressed size, in bytes",
+            "title": "Size",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "path",
+          "size"
+        ],
+        "title": "ZipEntry",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "Follow a fleet of rigs: what each runs, which ones wait for an answer, and each rig's own API under /rigs/<id>/.",
+    "title": "clabe hub API"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/hub/inbox": {
+      "get": {
+        "description": "The rigs whose run waits for an answer, longest-waiting first.",
+        "operationId": "inbox_api_hub_inbox_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RigStatus"
+                  },
+                  "title": "Response Inbox Api Hub Inbox Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Inbox"
+      }
+    },
+    "/api/hub/inspect": {
+      "post": {
+        "description": "Opens an export (or a report's zip) for a look, without storing it; kept for an hour after last use.",
+        "operationId": "inspect_api_hub_inspect_post",
+        "requestBody": {
+          "content": {
+            "application/zip": {
+              "schema": {
+                "format": "binary",
+                "type": "string"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "properties": {
+                  "file": {
+                    "format": "binary",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "file"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "description": "The zip: the raw body, or a multipart form's ``file``",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InspectResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Inspect"
+      }
+    },
+    "/api/hub/inspect/{inspect_id}/files/{path}": {
+      "get": {
+        "description": "A file of an opened export, as text; 413 beyond 20 MB.",
+        "operationId": "inspect_file_api_hub_inspect__inspect_id__files__path__get",
+        "parameters": [
+          {
+            "description": "The id the upload was given",
+            "in": "path",
+            "name": "inspect_id",
+            "required": true,
+            "schema": {
+              "description": "The id the upload was given",
+              "pattern": "^[0-9a-f]{32}$",
+              "title": "Inspect Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "path",
+            "required": true,
+            "schema": {
+              "title": "Path",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The file's text (UTF-8)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Inspect File"
+      }
+    },
+    "/api/hub/refresh": {
+      "post": {
+        "description": "Polls every rig now (and collects their reports).",
+        "operationId": "refresh_api_hub_refresh_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RigStatus"
+                  },
+                  "title": "Response Refresh Api Hub Refresh Post",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Refresh"
+      }
+    },
+    "/api/hub/reports": {
+      "get": {
+        "description": "The collected reports matching the filters, sorted, a page at a time (``total`` counts every match).",
+        "operationId": "reports_api_hub_reports_get",
+        "parameters": [
+          {
+            "description": "Only from this rig",
+            "in": "query",
+            "name": "rig",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only from this rig",
+              "title": "Rig"
+            }
+          },
+          {
+            "description": "Only of this experiment",
+            "in": "query",
+            "name": "experiment",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only of this experiment",
+              "title": "Experiment"
+            }
+          },
+          {
+            "description": "Only in this status",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "new",
+                    "looking",
+                    "closed"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only in this status",
+              "title": "Status"
+            }
+          },
+          {
+            "description": "Text found (any case) in any field",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Text found (any case) in any field",
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "default": "created_at",
+              "enum": [
+                "created_at",
+                "received_at",
+                "rig_id",
+                "hostname",
+                "experimenter",
+                "subject",
+                "session_id",
+                "experiment",
+                "repository",
+                "commit",
+                "step",
+                "clabe_version",
+                "reported_from",
+                "comment",
+                "status",
+                "size"
+              ],
+              "title": "Sort",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "order",
+            "required": false,
+            "schema": {
+              "default": "desc",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "title": "Order",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reports"
+      }
+    },
+    "/api/hub/reports/delete": {
+      "post": {
+        "description": "Deletes several reports; unknown ids are skipped.",
+        "operationId": "delete_many_api_hub_reports_delete_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Many"
+      }
+    },
+    "/api/hub/reports/{report_id}": {
+      "delete": {
+        "description": "Deletes a report (its row and its zip).",
+        "operationId": "delete_api_hub_reports__report_id__delete",
+        "parameters": [
+          {
+            "description": "The report's id (32 hex digits)",
+            "in": "path",
+            "name": "report_id",
+            "required": true,
+            "schema": {
+              "description": "The report's id (32 hex digits)",
+              "pattern": "^[0-9a-f]{32}$",
+              "title": "Report Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete"
+      },
+      "get": {
+        "description": "One collected report.",
+        "operationId": "report_api_hub_reports__report_id__get",
+        "parameters": [
+          {
+            "description": "The report's id (32 hex digits)",
+            "in": "path",
+            "name": "report_id",
+            "required": true,
+            "schema": {
+              "description": "The report's id (32 hex digits)",
+              "pattern": "^[0-9a-f]{32}$",
+              "title": "Report Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoredReport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Report"
+      },
+      "patch": {
+        "description": "Moves a report to ``new``, ``looking`` or ``closed``.",
+        "operationId": "set_status_api_hub_reports__report_id__patch",
+        "parameters": [
+          {
+            "description": "The report's id (32 hex digits)",
+            "in": "path",
+            "name": "report_id",
+            "required": true,
+            "schema": {
+              "description": "The report's id (32 hex digits)",
+              "pattern": "^[0-9a-f]{32}$",
+              "title": "Report Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StatusBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoredReport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Status"
+      }
+    },
+    "/api/hub/reports/{report_id}/files": {
+      "get": {
+        "description": "The files of a report's zip.",
+        "operationId": "files_api_hub_reports__report_id__files_get",
+        "parameters": [
+          {
+            "description": "The report's id (32 hex digits)",
+            "in": "path",
+            "name": "report_id",
+            "required": true,
+            "schema": {
+              "description": "The report's id (32 hex digits)",
+              "pattern": "^[0-9a-f]{32}$",
+              "title": "Report Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ZipEntry"
+                  },
+                  "title": "Response Files Api Hub Reports  Report Id  Files Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Files"
+      }
+    },
+    "/api/hub/reports/{report_id}/files/{path}": {
+      "get": {
+        "description": "A file of a report's zip, as text; 413 beyond 20 MB.",
+        "operationId": "file_api_hub_reports__report_id__files__path__get",
+        "parameters": [
+          {
+            "description": "The report's id (32 hex digits)",
+            "in": "path",
+            "name": "report_id",
+            "required": true,
+            "schema": {
+              "description": "The report's id (32 hex digits)",
+              "pattern": "^[0-9a-f]{32}$",
+              "title": "Report Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "path",
+            "required": true,
+            "schema": {
+              "title": "Path",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The file's text (UTF-8)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "File"
+      }
+    },
+    "/api/hub/reports/{report_id}/zip": {
+      "get": {
+        "description": "A report's zip, as collected.",
+        "operationId": "download_api_hub_reports__report_id__zip_get",
+        "parameters": [
+          {
+            "description": "The report's id (32 hex digits)",
+            "in": "path",
+            "name": "report_id",
+            "required": true,
+            "schema": {
+              "description": "The report's id (32 hex digits)",
+              "pattern": "^[0-9a-f]{32}$",
+              "title": "Report Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/zip": {}
+            },
+            "description": "The report's zip"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Download"
+      }
+    },
+    "/api/hub/rigs": {
+      "get": {
+        "description": "Every rig, as last polled.",
+        "operationId": "rigs_api_hub_rigs_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RigStatus"
+                  },
+                  "title": "Response Rigs Api Hub Rigs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Rigs"
+      }
+    }
+  }
+}

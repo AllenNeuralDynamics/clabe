@@ -1,0 +1,78 @@
+@* Help → Keyboard shortcuts (?): every key of the run page, in two columns. *@
+
+<div class="backdrop" data-escape @onclick="() => OnClose.InvokeAsync()">
+    <div class="dialog shortcuts-dialog" role="dialog" aria-modal="true" aria-labelledby="shortcuts-title" @onclick:stopPropagation="true">
+        <header class="dialog-head">
+            <h2 id="shortcuts-title">Keyboard shortcuts</h2>
+            <button type="button" class="ghost icon" aria-label="Close" @onclick="() => OnClose.InvokeAsync()"><RunIcon Name="x" /></button>
+        </header>
+        <div class="shortcuts-grid">
+            @foreach (var (group, keys) in Groups)
+            {
+                <section>
+                    <h3 class="section-title">@group</h3>
+                    <table class="shortcuts-table">
+                        <tbody>
+                            @foreach (var (what, combo) in keys)
+                            {
+                                <tr>
+                                    <td>@what</td>
+                                    <td class="keys">
+                                        @foreach (var part in combo.Split(' '))
+                                        {
+                                            @if (part == "/")
+                                            {
+                                                <span class="subtle"> / </span>
+                                            }
+                                            else
+                                            {
+                                                <kbd>@part</kbd>
+                                            }
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </section>
+            }
+        </div>
+        <p class="subtle small shortcuts-note">Letters and numbers act only outside text fields. Abort is never a single key.</p>
+    </div>
+</div>
+
+@code {
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private static readonly (string Group, (string What, string Keys)[] Keys)[] Groups =
+    [
+        ("Answering",
+        [
+            ("Submit, continue", "↵"),
+            ("Next field (last one submits)", "↵"),
+            ("Submit from anywhere", "Ctrl ↵ / F5"),
+            ("New line in a long text", "Shift ↵"),
+            ("Move between options", "↑ ↓"),
+            ("Pick option n", "1–9"),
+            ("Yes / no", "y / n"),
+            ("Next / previous field", "Tab / Shift Tab"),
+        ]),
+        ("Navigating",
+        [
+            ("Back to the previous step", "Alt ←"),
+            ("Forward (keep the earlier answer)", "Alt →"),
+            ("Retry a failed step", "r"),
+            ("Go to a step, run a command", "Ctrl K"),
+            ("Open the menu bar", "Alt"),
+            ("Close a menu or a dialog", "Esc"),
+        ]),
+        ("View and session",
+        [
+            ("Show or hide the log", "F2"),
+            ("Full screen", "F11"),
+            ("Export logs", "Ctrl S"),
+            ("Report an issue", "Ctrl Shift R"),
+            ("These shortcuts", "?"),
+        ]),
+    ];
+}

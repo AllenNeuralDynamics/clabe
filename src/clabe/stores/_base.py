@@ -11,13 +11,15 @@ from aind_behavior_services import Rig, Session, Task
 from pydantic.alias_generators import to_snake
 
 from .. import ui
-from .._typing import TRig, TTask
-from ..cache_manager import CacheManager
-from ..utils.aind_validators import validate_rig_computer_name
+from ..aind.validators import validate_rig_computer_name
+from ..cache import CacheManager
+from ._provenance import record_resolution
 
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
+TRig = TypeVar("TRig", bound=Rig)
+TTask = TypeVar("TTask", bound=Task)
 
 #: A set of key/value narrowings selecting which records a call addresses,
 #: e.g. ``{"subject": "789012", "computer_name": "RIG-01"}``.
@@ -47,7 +49,7 @@ _ValidatorsArg = _Validator | Iterable[_Validator] | None
 
 class PickRequestKwargs(TypedDict, total=False):
     """
-    Optional overrides forwarded to :class:`ui.PickRequest` by :meth:`StoreBase.resolve`.
+    Optional overrides forwarded to `ui.PickRequest` by `StoreBase.resolve`.
 
     All fields are optional; omitted fields fall back to ``resolve``'s own defaults.
     ``options`` is always computed from the store's candidates and cannot be overridden here.
@@ -84,8 +86,8 @@ class Kind(Generic[T]):
     The name routes the record to a backend and determines its storage layout;
     the model types the return value of every store call made with this kind.
 
-    Canonical kinds should be built through :meth:`from_rig`, :meth:`from_task`,
-    :meth:`from_session` or :meth:`from_trainer_state`, which fix the framework
+    Canonical kinds should be built through `from_rig`, `from_task`,
+    `from_session` or `from_trainer_state`, which fix the framework
     name. The bare constructor derives the name from the model class instead,
     so ``Kind(AindVrForagingRig)`` is named ``"aind_vr_foraging_rig"``, *not*
     ``"rig"`` -- it is for custom records only.
@@ -154,14 +156,14 @@ KindLike = Kind[T] | type[T]
 
 
 def as_kind(kind: KindLike[T]) -> Kind[T]:
-    """Normalizes a kind-or-model argument into a :class:`Kind`."""
+    """Normalizes a kind-or-model argument into a `Kind`."""
     return kind if isinstance(kind, Kind) else Kind(kind)
 
 
 @runtime_checkable
 class Store(Protocol):
     """
-    Reads, resolves and writes records of a given :class:`Kind`.
+    Reads, resolves and writes records of a given `Kind`.
 
     Which kinds a store actually serves is a deployment fact, not a type-level
     one: an unsupported kind raises when the call is made.
@@ -196,14 +198,16 @@ class Candidate(Generic[T]):
 
     label: str
     value: T
+    revision: str | None = None
+    """Which version of the record this is, when the backend knows (e.g. a modification time)."""
 
 
 class StoreBase(abc.ABC):
     """
     Base for stores, supplying scope narrowing and the default resolution policy.
 
-    Subclasses implement :meth:`_candidates` and :meth:`write`, and may override
-    :meth:`resolve` when their backend affords a better presentation than a flat
+    Subclasses implement `_candidates` and `write`, and may override
+    `resolve` when their backend affords a better presentation than a flat
     pick list.
     """
 
@@ -235,7 +239,7 @@ class StoreBase(abc.ABC):
 
     @abc.abstractmethod
     def write(self, kind: KindLike[T], value: T, *, scope: Scope | None = None) -> None:
-        """Persists a record. See :meth:`Store.write`."""
+        """Persists a record. See `Store.write`."""
 
     def list(self, kind: KindLike[T], *, scope: Scope | None = None) -> Sequence[T]:
         """Returns every record of this kind in scope, validated but unprompted."""
@@ -255,13 +259,13 @@ class StoreBase(abc.ABC):
         Args:
             kind: The kind of record to resolve.
             scope: Narrows which records are considered. Layered over the store's own scope.
-            pick_kwargs: Optional overrides for the :class:`ui.PickRequest` shown to the user.
+            pick_kwargs: Optional overrides for the `ui.PickRequest` shown to the user.
                 Any key present here takes precedence over ``resolve``'s own defaults.
                 ``options`` is always derived from the store's candidates and is not overridable.
 
         Raises:
             LookupError: If no record of this kind exists in scope, or the user declined to pick one.
-            ui.NoFrontendError: If a choice must be made and no frontend is registered.
+            ui.NoSessionError: If a choice must be made and nothing can ask the user.
         """
         _kind = as_kind(kind)
         candidates = self._candidates(_kind, self._merge_scope(scope))
@@ -269,7 +273,7 @@ class StoreBase(abc.ABC):
             raise LookupError(f"No {_kind.name!r} records found in {self}.")
         if len(candidates) == 1:
             ui.notify(f"Found a single {_kind.name}. Using {candidates[0].label}.")
-            return self._validated(_kind, candidates[0].value)
+            return self._resolved(_kind, candidates[0], scope)
         by_label = {c.label: c.value for c in candidates}
         _request_kwargs: dict[str, Any] = {
             "label": f"Choose a {_kind.name} for {_kind.model.__name__}:",
@@ -277,7 +281,7 @@ class StoreBase(abc.ABC):
             "field": _kind.name,
         }
         _request_kwargs.update(pick_kwargs or {})
-        picked = ui.prompt_pick(
+        picked = ui.ask(
             ui.PickRequest(
                 options=_recent_first(_kind.name, sorted(by_label)),
                 **_request_kwargs,
@@ -286,7 +290,13 @@ class StoreBase(abc.ABC):
         if picked is None:
             raise LookupError(f"No {_kind.name} was selected.")
         CacheManager.get_instance().add_to_cache(_kind.name, picked)
-        return self._validated(_kind, by_label[picked])
+        return self._resolved(_kind, next(c for c in candidates if c.label == picked), scope)
+
+    def _resolved(self, kind: Kind[T], candidate: Candidate[T], scope: Scope | None) -> T:
+        """The chosen record, validated, and recorded for provenance when a run is going."""
+        value = self._validated(kind, candidate.value)
+        record_resolution(self, kind, candidate, value, self._merge_scope(scope))
+        return value
 
     @staticmethod
     def _validated(kind: Kind[T], value: T) -> T:
@@ -306,7 +316,7 @@ class CompositeStore(StoreBase):
 
     Example:
         ```python
-        from clabe.stores.dataverse import DataverseStore
+        from clabe.aind.dataverse import DataverseStore
 
         store = CompositeStore(
             default=LocalFileStore(root=VR_LIB),
@@ -320,7 +330,7 @@ class CompositeStore(StoreBase):
         Args:
             default: Serves any kind not named in ``routes``. If ``None``,
                 unrouted kinds raise.
-            routes: Maps a :attr:`Kind.name` to the store serving it.
+            routes: Maps a `Kind.name` to the store serving it.
         """
         super().__init__()
         self._default = default

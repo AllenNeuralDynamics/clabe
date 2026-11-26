@@ -1,0 +1,67 @@
+@* Asks for the token when the server requires one (instead of a ?token= link): POST api/login keeps it in a cookie
+   (HttpOnly, 30 days), then the page reloads. Works on any page: a run, a daemon, a hub, or a rig through a hub. *@
+@using System.Net.Http.Json
+@inject HttpClient Http
+@inject NavigationManager Navigation
+
+<div class="token-gate">
+    <form class="token-card" @onsubmit="SignIn" @onsubmit:preventDefault>
+        <img src="logo.svg" alt="" class="token-logo" />
+        <h2>Sign in</h2>
+        <p class="muted">@What needs a token. Ask whoever set it up for it.</p>
+        <label for="token-input">Token</label>
+        <input id="token-input" type="password" autocomplete="current-password" spellcheck="false"
+               @bind="_token" @bind:event="oninput" @ref="_input" disabled="@_busy" />
+        @if (_error is not null)
+        {
+            <div class="alert error small" role="alert">@_error</div>
+        }
+        <button type="submit" class="primary" disabled="@(_busy || string.IsNullOrWhiteSpace(_token))">Sign in <kbd>↵</kbd></button>
+        <p class="subtle tiny">Kept in this browser for 30 days. It never goes in the address bar.</p>
+    </form>
+</div>
+
+@code {
+    /// <summary>What asks for it: "This hub", "This machine", "This run".</summary>
+    [Parameter] public string What { get; set; } = "This page";
+
+    private string _token = "";
+    private string? _error;
+    private bool _busy;
+    private ElementReference _input;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await _input.FocusAsync();
+        }
+    }
+
+    private async Task SignIn()
+    {
+        if (_busy || string.IsNullOrWhiteSpace(_token))
+        {
+            return;
+        }
+        _busy = true;
+        _error = null;
+        try
+        {
+            using var response = await Http.PostAsJsonAsync("api/login", new { token = _token.Trim() });
+            if (response.IsSuccessStatusCode)
+            {
+                Navigation.NavigateTo(Navigation.Uri, forceLoad: true);
+                return;
+            }
+            _error = "That token is not right.";
+        }
+        catch (HttpRequestException exc)
+        {
+            _error = $"Could not reach the server: {exc.Message}";
+        }
+        _busy = false;
+        await Task.Yield();
+        await _input.FocusAsync();
+    }
+}

@@ -1,0 +1,561 @@
+@* The open prompt, big and focused: rendered by kind, answered through the API. A prompt answered before is prefilled
+   with that answer (Forward re-submits it). A rejected answer shows the reason and the prompt stays open; a prompt
+   answered elsewhere disappears when the run moves on. Keys come from the page (HandleShortcut). *@
+@inject IJSRuntime JS
+
+<section class="prompt prompt-@Prompt.Kind @(IsFailure ? "prompt-failure" : null)" @key="Prompt.PromptId" aria-live="polite">
+    @if (Eyebrow is { } eyebrow)
+    {
+        <div class="prompt-eyebrow">
+            <span>@eyebrow</span>
+            @if (Prompt.CanForward)
+            {
+                <span class="chip plain accent" title="Prefilled with your earlier answer; Alt+→ keeps it">Answered before</span>
+            }
+        </div>
+    }
+    @if (IsFailure)
+    {
+        <h2 class="prompt-title">@FailureTitle</h2>
+        <div class="alert error failure" role="alert">
+            <RunIcon Name="alert" Size="18" Class="alert-icon" />
+            <div class="failure-body">
+                <p class="failure-message">@FailureMessage</p>
+                @if (Failure?.Traceback is { Length: > 0 } traceback)
+                {
+                    <details class="traceback">
+                        <summary>Traceback</summary>
+                        <pre class="code">@traceback</pre>
+                    </details>
+                }
+            </div>
+        </div>
+        <div class="actions prompt-actions">
+            @for (var i = 0; i < Choices.Count; i++)
+            {
+                var choice = Choices[i];
+                var first = i == 0;
+                var stop = choice.Value?.ToString() is "abort" or "stop";
+                <button type="button" class="@(first ? "primary lg" : stop ? "danger lg ghost-danger" : "lg")" disabled="@_busy"
+                        @onclick="() => PickChoice(choice)">
+                    @if (first)
+                    {
+                        <RunIcon Name="retry" Size="16" />
+                    }
+                    @choice.Label
+                    @if (first)
+                    {
+                        <kbd>r</kbd>
+                    }
+                </button>
+            }
+        </div>
+    }
+    else
+    {
+        @switch (Prompt.Kind)
+        {
+            case "confirm":
+            case "pick" when Options.Count <= ValueEditor.ComboboxThreshold:
+                <h2 class="prompt-title">@Label</h2>
+                @Help
+                <div class="choices" role="group" aria-label="@Label" data-arrows>
+                    @for (var i = 0; i < Choices.Count; i++)
+                    {
+                        var index = i;
+                        var choice = Choices[i];
+                        <button type="button" aria-current="@(index == _active ? "true" : null)"
+                                class="choice @(index == _active ? "active" : null) @(choice.Previous ? "previous" : null)"
+                                disabled="@_busy" @onclick="() => PickChoice(choice)" @onmouseenter="() => _active = index">
+                            <kbd class="choice-key">@choice.Key</kbd>
+                            <span class="choice-label">@choice.Label</span>
+                            @if (choice.Previous)
+                            {
+                                <span class="choice-hint">last time</span>
+                            }
+                            else if (choice.Default)
+                            {
+                                <span class="choice-hint">default</span>
+                            }
+                            <span class="choice-enter" aria-hidden="true"><kbd>↵</kbd></span>
+                        </button>
+                    }
+                </div>
+                break;
+            case "acknowledge":
+                <h2 class="prompt-title">@(Spec["title"]?.ToString() ?? "Please confirm")</h2>
+                <p class="prompt-message">@Spec["message"]</p>
+                <div class="actions prompt-actions">
+                    <button type="button" class="primary lg" disabled="@_busy" @onclick="() => Send(null)">@(Spec["button_label"]?.ToString() ?? "OK") <kbd>↵</kbd></button>
+                </div>
+                break;
+            case "markdown":
+                @if (Spec["title"]?.ToString() is { } markdownTitle)
+                {
+                    <h2 class="prompt-title">@markdownTitle</h2>
+                }
+                @* rendered by the run with raw HTML escaped *@
+                <div class="markdown">@((MarkupString)(Spec["html"]?.ToString() ?? ""))</div>
+                <div class="actions prompt-actions">
+                    <button type="button" class="primary lg" disabled="@_busy" @onclick="() => Send(null)">@(Spec["button_label"]?.ToString() ?? "Continue") <kbd>↵</kbd></button>
+                </div>
+                break;
+            case "media":
+                <div class="prompt-title-row">
+                    @if (Spec["title"]?.ToString() is { } mediaTitle)
+                    {
+                        <h2 class="prompt-title">@mediaTitle</h2>
+                    }
+                    @if (Spec["location"]?.ToString() != "inline")
+                    {
+                        <a class="btn ghost sm" href="@MediaSource" target="_blank" rel="noopener"><RunIcon Name="external" Size="14" /> Open in a new tab</a>
+                    }
+                </div>
+                <figure class="media @(_zoomed ? "zoomed" : null)">
+                    @switch ((Spec["media"]?.ToString(), Spec["location"]?.ToString()))
+                    {
+                        case ("image", _):
+                            <img src="@MediaSource" alt="@(Spec["caption"]?.ToString() ?? "")" title="Click to zoom" @onclick="() => _zoomed = !_zoomed" />
+                            break;
+                        case ("html", "inline"):
+                            <iframe sandbox="allow-scripts allow-popups" srcdoc="@Spec["source"]?.ToString()"></iframe>
+                            break;
+                        case ("html", _):
+                        case ("url", _):
+                            <iframe sandbox="allow-scripts allow-popups allow-forms" src="@MediaSource"></iframe>
+                            break;
+                        default:
+                            <div class="alert error">This page cannot show a "@Spec["media"]" media: @Spec["source"]</div>
+                            break;
+                    }
+                    @if (Spec["caption"]?.ToString() is { } caption)
+                    {
+                        <figcaption>@caption</figcaption>
+                    }
+                </figure>
+                <div class="actions prompt-actions">
+                    <button type="button" class="primary lg" disabled="@_busy" @onclick="() => Send(null)">@(Spec["button_label"]?.ToString() ?? "Continue") <kbd>↵</kbd></button>
+                </div>
+                break;
+            case "table":
+                <h2 class="prompt-title">@(Spec["title"]?.ToString() ?? "Review")</h2>
+                <div class="table-card">
+                    <table class="table review">
+                        <thead><tr>@foreach (var column in Spec["columns"]?.AsArray() ?? []) { <th>@column</th> }</tr></thead>
+                        <tbody>
+                            @foreach (var row in Spec["rows"]?.AsArray() ?? [])
+                            {
+                                <tr>@foreach (var cell in row?.AsArray() ?? []) { <td class="@CellClass(cell)">@Display(cell)</td> }</tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                @if (Spec["prompt"]?.ToString() is { } question)
+                {
+                    <p class="prompt-question">@question</p>
+                }
+                <div class="actions prompt-actions">
+                    <button type="button" class="primary lg" disabled="@_busy" @onclick="() => Send(JsonValue.Create(true))">@(Spec["confirm_label"]?.ToString() ?? "OK") <kbd>↵</kbd></button>
+                    <button type="button" class="lg" disabled="@_busy" @onclick="() => Send(JsonValue.Create(false))">@(Spec["cancel_label"]?.ToString() ?? "Cancel")</button>
+                </div>
+                break;
+            case "form":
+                <h2 class="prompt-title">@(Spec["title"]?.ToString() ?? FormSchema?["title"]?.ToString() ?? "Form")</h2>
+                @if (FormSchema is { } schema)
+                {
+                    <form id="@FormId" class="prompt-form" novalidate data-enter-next @onsubmit="() => Send(_value)">
+                        <SchemaField Root="true" Schema="schema" Defs="Defs" Value="_value" ValueChanged="v => _value = v" />
+                        @Rejection
+                        <div class="actions prompt-actions">
+                            <button type="submit" class="primary lg" disabled="@_busy">Submit <kbd>↵</kbd></button>
+                            @if (SchemaField.NullableSchema(Prompt.AnswerSchema!))
+                            {
+                                <button type="button" class="lg" disabled="@_busy" @onclick="() => Send(null)">Cancel</button>
+                            }
+                            <span class="hint">Enter moves to the next field · <kbd>Ctrl</kbd><kbd>↵</kbd> submits</span>
+                        </div>
+                    </form>
+                }
+                break;
+            case "group":
+                <h2 class="prompt-title">@(Spec["title"]?.ToString() ?? "")</h2>
+                <form id="@FormId" class="prompt-form" novalidate data-enter-next @onsubmit="() => Send(_value)">
+                    <fieldset class="root">
+                        @foreach (var (name, item) in Spec["items"]?.AsObject().Where(i => i.Value is JsonObject).Select(i => (i.Key, (JsonObject)i.Value!)) ?? [])
+                        {
+                            var key = name;
+                            var id = $"{FieldId}-{key}";
+                            @if (item["prompt_kind"]?.ToString() is "text" or "number" or "confirm" or "pick" or "autocomplete" or "path")
+                            {
+                                <div class="field">
+                                    @if (item["prompt_kind"]?.ToString() != "confirm")
+                                    {
+                                        <label for="@id">@(item["label"]?.ToString() ?? key)</label>
+                                    }
+                                    <ValueEditor Id="@id" Spec="item" Value="(_value as JsonObject)?[key]" ValueChanged="v => SetItem(key, v)"
+                                                 Fetch="q => Connection.Api.OptionsAsync(Prompt.PromptId!, q, key)" />
+                                    @if (item["help"]?.ToString() is { } help)
+                                    {
+                                        <p class="help">@help</p>
+                                    }
+                                </div>
+                            }
+                            else if (Prompt.AnswerSchema?["properties"]?[key] is JsonObject property)
+                            {
+                                @* a model field: edited from the group's compiled schema *@
+                                <SchemaField Schema="property" Defs="Defs" Name="@key" Value="(_value as JsonObject)?[key]" ValueChanged="v => SetItem(key, v)" />
+                            }
+                        }
+                    </fieldset>
+                    @Rejection
+                    <div class="actions prompt-actions">
+                        <button type="submit" class="primary lg" disabled="@_busy">Submit <kbd>↵</kbd></button>
+                        <span class="hint">Enter moves to the next field · <kbd>Ctrl</kbd><kbd>↵</kbd> submits</span>
+                    </div>
+                </form>
+                break;
+            default:
+                @* text, number, autocomplete, path, a long pick: one editor and a submit button *@
+                <form id="@FormId" class="prompt-form single" novalidate data-enter-next @onsubmit="() => Send(_value)">
+                    <label class="prompt-title" for="@FieldId">@Label</label>
+                    @Help
+                    <ValueEditor Id="@FieldId" Spec="EditorSpec" Value="_value" ValueChanged="v => _value = v"
+                                 Nullable="@(Prompt.Kind == "path")" Fetch="q => Connection.Api.OptionsAsync(Prompt.PromptId!, q)" />
+                    @Rejection
+                    <div class="actions prompt-actions">
+                        <button type="submit" class="primary lg" disabled="@_busy">Submit <kbd>↵</kbd></button>
+                        @if (Prompt.Kind == "text" && Spec["multiline"]?.GetValueKind() == JsonValueKind.True)
+                        {
+                            <span class="hint"><kbd>Shift</kbd><kbd>↵</kbd> new line</span>
+                        }
+                    </div>
+                </form>
+                break;
+        }
+    }
+    @if (_rejected is not null && !HasForm)
+    {
+        <div class="alert error rejection" role="alert"><RunIcon Name="alert" Size="16" Class="alert-icon" /><span>@_rejected</span></div>
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired] public RunEvent Prompt { get; set; } = default!;
+    [Parameter, EditorRequired] public RunConnection Connection { get; set; } = default!;
+
+    /// <summary>What the prompt belongs to, shown above its title (the step's title).</summary>
+    [Parameter] public string? Eyebrow { get; set; }
+
+    /// <summary>Asks the user to confirm (title, message, button) before a destructive answer (Abort).</summary>
+    [Parameter] public Func<string, string, string, Task<bool>>? Confirm { get; set; }
+
+    /// <summary>One numbered choice of a confirm or a short pick.</summary>
+    private sealed record Choice(string Key, string Label, JsonNode? Value, bool Default, bool Previous);
+
+    private JsonNode? _value;
+    private string? _rejected;
+    private bool _busy;
+    private string? _promptId;
+    private int _active;
+    private bool _zoomed;
+    private bool _focusPending;
+    private List<Choice> _choices = [];
+    private IJSObjectReference? _ui;
+
+    private JsonObject Spec => Prompt.Spec ?? [];
+    private string Label => Spec["label"]?.ToString() ?? "";
+    private string FieldId => $"p-{Prompt.PromptId}";
+    private string FormId => $"form-{Prompt.PromptId}";
+    private List<JsonObject> Options => Spec["options"]?.AsArray().OfType<JsonObject>().ToList() ?? [];
+    private List<Choice> Choices => _choices;
+    private bool HasForm => !IsFailure && Prompt.Kind is "form" or "group" or "text" or "number" or "autocomplete" or "path"
+                            || (Prompt.Kind == "pick" && !IsFailure && Options.Count > ValueEditor.ComboboxThreshold);
+    private bool IsChoice => !IsFailure && (Prompt.Kind == "confirm" || (Prompt.Kind == "pick" && Options.Count <= ValueEditor.ComboboxThreshold));
+
+    /// <summary>A failed step's (or branch's) Retry / Go back / Abort question.</summary>
+    private bool IsFailure => Prompt.Kind == "pick" && Prompt.Field is { } asked && asked.EndsWith(".failed");
+    private RunEvent? Failure => Prompt.Step is { } step && Prompt.Field == $"{step}.failed" ? Connection.FailureOf(step) : null;
+
+    private string FailureTitle
+    {
+        get
+        {
+            var cut = Label.IndexOf(" failed", StringComparison.Ordinal);
+            return cut > 0 ? Label[..(cut + 7)] : Label;
+        }
+    }
+
+    private string FailureMessage
+    {
+        get
+        {
+            if (Failure?.Error is { } error)
+            {
+                return error;
+            }
+            var cut = Label.IndexOf(" failed: ", StringComparison.Ordinal);
+            return cut > 0 ? Label[(cut + 9)..] : Label;
+        }
+    }
+
+    /// <summary>A media prompt's URL, or its local file served by the run.</summary>
+    private string MediaSource => Spec["location"]?.ToString() == "url"
+        ? Spec["source"]?.ToString() ?? ""
+        : Connection.Api.MediaUrl(Prompt.PromptId!);
+    private JsonObject? Defs => FormSchema?["$defs"] as JsonObject ?? Prompt.AnswerSchema?["$defs"] as JsonObject;
+    private JsonObject? FormSchema => Prompt.AnswerSchema is { } schema ? SchemaField.Unwrap(schema, schema["$defs"] as JsonObject) : null;
+
+    private JsonObject EditorSpec
+    {
+        get
+        {
+            var spec = (JsonObject)Spec.DeepClone();
+            spec["prompt_kind"] = Prompt.Kind;
+            return spec;
+        }
+    }
+
+    private RenderFragment? Help => Spec["help"]?.ToString() is { } help ? @<p class="prompt-help">@help</p> : null;
+
+    private RenderFragment? Rejection => _rejected is { } rejected
+        ? @<div class="alert error rejection" role="alert"><RunIcon Name="alert" Size="16" Class="alert-icon" /><span>@rejected</span></div>
+        : null;
+
+    protected override void OnParametersSet()
+    {
+        if (_promptId == Prompt.PromptId)
+        {
+            return;
+        }
+        _promptId = Prompt.PromptId;
+        _rejected = null;
+        _busy = false;
+        _zoomed = false;
+        _focusPending = true;
+        var previous = Prompt.CanForward ? Prompt.PreviousAnswer : null;
+        _value = Prompt.Kind switch
+        {
+            "form" => FormSchema is { } schema ? Initial(schema, Prompt.CanForward ? previous : Spec["initial"]) : null,
+            "group" => Prompt.CanForward && previous is JsonObject answered ? (JsonObject)answered.DeepClone() : GroupInitial(),
+            _ => Prompt.CanForward ? previous?.DeepClone() : Spec["default"]?.DeepClone(),
+        };
+        _choices = BuildChoices();
+        _active = Math.Max(0, _choices.FindIndex(c => c.Previous));
+        if (!_choices.Any(c => c.Previous))
+        {
+            _active = Math.Max(0, _choices.FindIndex(c => c.Default));
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_focusPending)
+        {
+            return;
+        }
+        _focusPending = false;
+        if (HasForm)
+        {
+            _ui ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/ui.js");
+            await _ui.InvokeVoidAsync("focus", $"#{FormId} input:not([type=hidden]):not([tabindex='-1']), #{FormId} select, #{FormId} textarea");
+        }
+    }
+
+    private List<Choice> BuildChoices()
+    {
+        if (Prompt.Kind == "confirm")
+        {
+            var fallback = Spec["default"]?.GetValueKind() == JsonValueKind.True;
+            var previous = Prompt.CanForward ? Prompt.PreviousAnswer?.GetValueKind() : null;
+            return
+            [
+                new Choice("Y", "Yes", JsonValue.Create(true), fallback, previous == JsonValueKind.True),
+                new Choice("N", "No", JsonValue.Create(false), !fallback, previous == JsonValueKind.False),
+            ];
+        }
+        if (Prompt.Kind != "pick")
+        {
+            return [];
+        }
+        var choices = new List<Choice>();
+        foreach (var option in Options)
+        {
+            var value = option["value"];
+            choices.Add(new Choice((choices.Count + 1).ToString(), ValueEditor.OptionLabel(option), value?.DeepClone(),
+                Spec["default"] is not null && JsonNode.DeepEquals(value, Spec["default"]),
+                Prompt.CanForward && JsonNode.DeepEquals(value, Prompt.PreviousAnswer)));
+        }
+        if (Spec["allow_none"]?.GetValueKind() == JsonValueKind.True && !IsFailure)
+        {
+            choices.Add(new Choice((choices.Count + 1).ToString(), Spec["none_label"]?.ToString() ?? "None", null,
+                false, Prompt.CanForward && Prompt.PreviousAnswer is null));
+        }
+        return choices;
+    }
+
+    /// <summary>A key from the page; true when the prompt used it.</summary>
+    public async Task<bool> HandleShortcut(string name, bool inField)
+    {
+        if (_busy)
+        {
+            return name is "Enter" or "Ctrl+Enter" or "F5";
+        }
+        if (IsFailure)
+        {
+            switch (name)
+            {
+                case "r" or "Enter" when Choices.Count > 0:
+                    await PickChoice(Choices.FirstOrDefault(c => c.Value?.ToString() == "retry") ?? Choices[0]);
+                    return true;
+                case { Length: 1 } when char.IsDigit(name[0]) && int.Parse(name) is var n && n >= 1 && n <= Choices.Count:
+                    await PickChoice(Choices[n - 1]);
+                    return true;
+            }
+            return false;
+        }
+        if (IsChoice)
+        {
+            switch (name)
+            {
+                case "ArrowDown" when !inField:
+                    _active = (_active + 1) % Choices.Count;
+                    StateHasChanged();
+                    return true;
+                case "ArrowUp" when !inField:
+                    _active = (_active - 1 + Choices.Count) % Choices.Count;
+                    StateHasChanged();
+                    return true;
+                case "Enter" or "Ctrl+Enter" or "F5":
+                    await PickChoice(Choices[Math.Clamp(_active, 0, Choices.Count - 1)]);
+                    return true;
+                case "y" or "n" when Prompt.Kind == "confirm":
+                    await PickChoice(Choices[name == "y" ? 0 : 1]);
+                    return true;
+                case { Length: 1 } when char.IsDigit(name[0]) && int.Parse(name) is var n && n >= 1 && n <= Choices.Count:
+                    _active = n - 1;
+                    await PickChoice(Choices[n - 1]);
+                    return true;
+            }
+            return false;
+        }
+        switch (Prompt.Kind)
+        {
+            case "markdown" or "media" or "acknowledge" when name is "Enter" or "Ctrl+Enter" or "F5":
+                await Send(null);
+                return true;
+            case "table" when name is "Enter" or "Ctrl+Enter" or "F5":
+                await Send(JsonValue.Create(true));
+                return true;
+        }
+        if (HasForm && name is "Ctrl+Enter" or "F5" or "Enter")
+        {
+            _ui ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/ui.js");
+            return await _ui.InvokeAsync<bool>("submitForm", $"#{FormId}");
+        }
+        return false;
+    }
+
+    private async Task PickChoice(Choice choice)
+    {
+        if (IsFailure && choice.Value?.ToString() is "abort" or "stop" && Confirm is not null)
+        {
+            var what = choice.Value?.ToString() == "abort" ? "Abort the run?" : "Stop all branches?";
+            if (!await Confirm(what, "The run stops here. Its records so far are kept.", choice.Label))
+            {
+                return;
+            }
+        }
+        await Send(choice.Value?.DeepClone());
+    }
+
+    private static string Display(JsonNode? cell) => cell switch
+    {
+        null => "—",
+        JsonValue value when value.GetValueKind() == JsonValueKind.String => value.ToString() is { Length: > 0 } text ? text : "—",
+        _ => cell.ToJsonString(),
+    };
+
+    private static string? CellClass(JsonNode? cell) => cell switch
+    {
+        null => "empty",
+        JsonValue value when value.GetValueKind() is JsonValueKind.Number => "num",
+        JsonValue value when value.GetValueKind() is JsonValueKind.True or JsonValueKind.False => "bool",
+        JsonValue value when value.GetValueKind() == JsonValueKind.String && value.ToString() == "" => "empty",
+        _ => null,
+    };
+
+    /// <summary>The form's starting values: the given model (an earlier answer, or the request's initial model), else
+    /// the schema's defaults. Secrets are never prefilled (their masked defaults would be sent back as the secret).</summary>
+    private JsonNode? Initial(JsonObject schema, JsonNode? initial)
+    {
+        if (schema["properties"] is not JsonObject properties)
+        {
+            return initial?.DeepClone() ?? schema["default"]?.DeepClone();
+        }
+        var given = initial as JsonObject ?? schema["default"] as JsonObject;
+        var result = new JsonObject();
+        foreach (var (name, node) in properties)
+        {
+            if (node is not JsonObject raw || SchemaField.Unwrap(raw, Defs) is not { } property)
+            {
+                continue;
+            }
+            if (property["writeOnly"]?.GetValueKind() == JsonValueKind.True || property["format"]?.ToString() == "password")
+            {
+                continue;
+            }
+            JsonNode? value = given is not null && given.ContainsKey(name) ? given[name] : null;
+            value = property["properties"] is JsonObject ? Initial(property, value) : value?.DeepClone() ?? property["default"]?.DeepClone();
+            if (value is not null)
+            {
+                result[name] = value;
+            }
+        }
+        return result;
+    }
+
+    private JsonObject GroupInitial()
+    {
+        var result = new JsonObject();
+        foreach (var (name, item) in Spec["items"]?.AsObject() ?? [])
+        {
+            if (item?["default"] is { } value)
+            {
+                result[name] = value.DeepClone();
+            }
+        }
+        return result;
+    }
+
+    private void SetItem(string name, JsonNode? value)
+    {
+        var updated = (JsonObject)((_value as JsonObject)?.DeepClone() ?? new JsonObject());
+        if (value is null)
+        {
+            updated.Remove(name);
+        }
+        else
+        {
+            updated[name] = value.DeepClone();
+        }
+        _value = updated;
+    }
+
+    private async Task Send(JsonNode? value)
+    {
+        if (_busy)
+        {
+            return;
+        }
+        _busy = true;
+        _rejected = null;
+        StateHasChanged();
+        var result = await Connection.Api.AnswerAsync(Prompt.PromptId!, value);
+        _busy = false;
+        if (!result.Ok)
+        {
+            _rejected = result.Reason ?? "The answer was rejected.";
+        }
+        StateHasChanged();
+    }
+}

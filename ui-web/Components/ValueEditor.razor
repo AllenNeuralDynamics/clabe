@@ -1,0 +1,201 @@
+@* Edits one value described by a prompt spec: text, number (input or slider), confirm (a checkbox), pick (a select;
+   searchable when long), autocomplete (a searchable combobox) or path (an input with a remote browser). Group items use it directly;
+   SchemaField maps primitive JSON Schemas onto the same specs. The editor is chosen by "prompt_kind" (a path's
+   "kind" is file, dir or any); extra spec keys understood here: "integer" and "secret". *@
+@using System.Globalization
+
+@switch (Kind)
+{
+    case "number":
+        @if (Widget == "slider" && Minimum is not null && Maximum is not null)
+        {
+            <div class="slider @(_text == "" ? "unset" : null)">
+                <input id="@Id" type="range" min="@Format(Minimum)" max="@Format(Maximum)" step="@SliderStep"
+                       value="@_text" @oninput="e => SetNumber(e.Value?.ToString())" />
+                <output>@(_text == "" ? "–" : _text)</output>
+            </div>
+        }
+        else
+        {
+            <input id="@Id" type="number" inputmode="decimal" aria-invalid="@(_invalid ? "true" : null)" min="@Format(Minimum)"
+                   max="@Format(Maximum)" step="@(Step is null ? (Integer ? "1" : "any") : Format(Step))"
+                   value="@_text" @oninput="e => SetNumber(e.Value?.ToString())" />
+        }
+        break;
+    case "confirm":
+        <label class="check">
+            <input id="@Id" type="checkbox" checked="@(Value?.GetValueKind() == JsonValueKind.True)"
+                   @onchange="e => Set(JsonValue.Create(e.Value is true))" />
+            @(Spec["label"]?.ToString())
+        </label>
+        break;
+    case "pick" when Options.Count > ComboboxThreshold:
+        <Combobox Id="@Id" Strict="true" Options="PickOptions" Value="Value" ValueChanged="Set" />
+        break;
+    case "pick":
+        <select id="@Id" @onchange="e => SetOption(e.Value?.ToString())">
+            @if (Value is null)
+            {
+                <option value="" selected disabled="@(!AllowNone)">@(AllowNone ? NoneLabel : "Choose…")</option>
+            }
+            else if (AllowNone)
+            {
+                <option value="">@NoneLabel</option>
+            }
+            @for (var i = 0; i < Options.Count; i++)
+            {
+                var option = Options[i];
+                <option value="@i" selected="@(JsonNode.DeepEquals(option["value"], Value))">@OptionLabel(option)</option>
+            }
+        </select>
+        break;
+    case "autocomplete":
+        <Combobox Id="@Id" Options="SuggestionOptions" Value="Value" ValueChanged="Set"
+                  Fetch="@(Spec["dynamic_options"]?.GetValueKind() == JsonValueKind.True ? Fetch : null)" />
+        break;
+    case "path":
+        <div class="path">
+            <input id="@Id" value="@(Value?.ToString())" placeholder="@PathPlaceholder" spellcheck="false"
+                   @oninput="e => SetText(e.Value?.ToString(), emptyIsNull: true)" />
+            <button type="button" @onclick="() => _browsing = true"><RunIcon Name="folder" Size="15" /> Browse…</button>
+        </div>
+        @if (_browsing)
+        {
+            <PathPicker Start="@(Value?.ToString() ?? Spec["start"]?.ToString())" Kind="@(Spec["kind"]?.ToString() ?? "any")"
+                        Extensions="@Extensions" OnPicked="Picked" OnClosed="() => _browsing = false" />
+        }
+        break;
+    default:
+        @if (Spec["multiline"]?.GetValueKind() == JsonValueKind.True)
+        {
+            <textarea id="@Id" rows="4" placeholder="Shift+Enter for a new line" @oninput="e => SetText(e.Value?.ToString())">@(Value?.ToString())</textarea>
+        }
+        else
+        {
+            <input id="@Id" type="@(Secret ? "password" : "text")" value="@(Value?.ToString())"
+                   autocomplete="@(Secret ? "new-password" : "off")" @oninput="e => SetText(e.Value?.ToString(), emptyIsNull: Nullable)" />
+        }
+        break;
+}
+
+@code {
+    [Parameter, EditorRequired] public JsonObject Spec { get; set; } = default!;
+    [Parameter] public JsonNode? Value { get; set; }
+    [Parameter] public EventCallback<JsonNode?> ValueChanged { get; set; }
+    [Parameter] public string Id { get; set; } = $"v{Guid.NewGuid():N}";
+
+    /// <summary>Whether an empty text means "no value" (null) rather than an empty string.</summary>
+    [Parameter] public bool Nullable { get; set; }
+
+    /// <summary>Options computed by the run from the typed text (an autocomplete with dynamic options).</summary>
+    [Parameter] public Func<string, Task<List<string>>>? Fetch { get; set; }
+
+    /// <summary>Picks with more options than this are searchable (a combobox) rather than a select.</summary>
+    public const int ComboboxThreshold = 6;
+
+    private string _text = "";
+    private bool _invalid;
+    private bool _browsing;
+    private JsonNode? _shown;
+
+    private string Kind => Spec["prompt_kind"]?.ToString() ?? "text";
+    private string? Widget => Spec["widget"]?.ToString();
+    private double? Minimum => Number(Spec["minimum"]);
+    private double? Maximum => Number(Spec["maximum"]);
+    private double? Step => Number(Spec["step"]);
+    private bool Integer => Spec["integer"]?.GetValueKind() == JsonValueKind.True;
+    private bool Secret => Spec["secret"]?.GetValueKind() == JsonValueKind.True;
+    private bool AllowNone => Spec["allow_none"]?.GetValueKind() == JsonValueKind.True;
+    private string NoneLabel => Spec["none_label"]?.ToString() ?? "None";
+    private List<JsonObject> Options => Spec["options"]?.AsArray().OfType<JsonObject>().ToList() ?? [];
+    private List<Combobox.Option> PickOptions =>
+        Options.Select(o => new Combobox.Option(OptionLabel(o), o["value"]?.DeepClone(),
+            JsonNode.DeepEquals(o["value"], Spec["default"]) && Spec["default"] is not null ? "default" : null)).ToList();
+
+    /// <summary>An autocomplete's suggestions, its default first.</summary>
+    private List<Combobox.Option> SuggestionOptions
+    {
+        get
+        {
+            var suggestions = Spec["options"]?.AsArray().Select(o => o?.ToString() ?? "").Where(o => o != "").ToList() ?? [];
+            var fallback = Spec["default"]?.ToString();
+            if (fallback is { Length: > 0 })
+            {
+                suggestions.Remove(fallback);
+                suggestions.Insert(0, fallback);
+            }
+            return suggestions.Select(o => new Combobox.Option(o, JsonValue.Create(o), o == fallback ? "default" : null)).ToList();
+        }
+    }
+    private IReadOnlyList<string>? Extensions => Spec["extensions"]?.AsArray().Select(e => e!.ToString()).ToList();
+    private string PathPlaceholder => Spec["kind"]?.ToString() == "dir" ? "A folder" : "A path";
+
+    private string SliderStep => Step is { } step
+        ? Format(step)
+        : Integer ? "1" : Format((Maximum!.Value - Minimum!.Value) / 100);
+
+    protected override void OnParametersSet()
+    {
+        if (Kind == "number" && !ReferenceEquals(_shown, Value))
+        {
+            // keep what is being typed ("0.") unless the value was changed from outside
+            var current = double.TryParse(_text, NumberStyles.Float, CultureInfo.InvariantCulture, out var typed) ? typed : (double?)null;
+            var incoming = Number(Value);
+            if (incoming != current)
+            {
+                _text = incoming is null ? "" : Format(incoming);
+                _invalid = false;
+            }
+        }
+        _shown = Value;
+    }
+
+    /// <summary>A JSON number as a double, however it was made (parsed, or created from a long or a double).</summary>
+    public static double? Number(JsonNode? node) =>
+        node is JsonValue value && value.GetValueKind() == JsonValueKind.Number
+            ? double.Parse(value.ToJsonString(), NumberStyles.Float, CultureInfo.InvariantCulture)
+            : null;
+
+    public static string Format(double? number) =>
+        number?.ToString("R", CultureInfo.InvariantCulture) ?? "";
+
+    public static string OptionLabel(JsonObject option) =>
+        option["label"]?.ToString() ?? option["value"]?.ToJsonString() ?? "";
+
+    private Task Set(JsonNode? value)
+    {
+        _shown = value;
+        Value = value;
+        return ValueChanged.InvokeAsync(value);
+    }
+
+    private Task SetText(string? text, bool emptyIsNull = false) =>
+        Set(string.IsNullOrEmpty(text) && emptyIsNull ? null : JsonValue.Create(text ?? ""));
+
+    private Task SetNumber(string? text)
+    {
+        _text = text ?? "";
+        if (_text.Trim() == "")
+        {
+            _invalid = false;
+            return Set(null);
+        }
+        if (!double.TryParse(_text, NumberStyles.Float, CultureInfo.InvariantCulture, out var number)
+            || (Integer && number != Math.Floor(number)))
+        {
+            _invalid = true;
+            return Task.CompletedTask;
+        }
+        _invalid = false;
+        return Set(Integer ? JsonValue.Create((long)number) : JsonValue.Create(number));
+    }
+
+    private Task SetOption(string? index) =>
+        Set(int.TryParse(index, out var i) && i >= 0 && i < Options.Count ? Options[i]["value"]?.DeepClone() : null);
+
+    private Task Picked(string path)
+    {
+        _browsing = false;
+        return Set(JsonValue.Create(path));
+    }
+}

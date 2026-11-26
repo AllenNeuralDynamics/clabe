@@ -1,0 +1,308 @@
+@* The fleet (served by a hub): which runs wait for an answer, what every rig is doing, and the issue reports
+   collected from the rigs. Ctrl+K jumps to a rig. *@
+@inject HubApi Hub
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+@implements IAsyncDisposable
+
+@if (_needsToken)
+{
+    <TokenPrompt What="This hub" />
+    return;
+}
+<div class="hub">
+    <HubTopBar Context="fleet" Home="@Navigation.Uri">
+        <Chips>
+            @if (_rigs is not null)
+            {
+                <span class="chip running" title="Rigs running an experiment">@Busy running</span>
+                @if (Waiting.Count > 0)
+                {
+                    <span class="chip waiting" title="Runs waiting for an answer">@Waiting.Count waiting</span>
+                }
+                else
+                {
+                    <span class="chip plain" title="Runs waiting for an answer">0 waiting</span>
+                }
+                <span class="chip @(Offline > 0 ? "offline" : "plain")" title="Rigs not reachable">@Offline offline</span>
+            }
+        </Chips>
+        <Actions>
+            <button type="button" class="ghost sm jump" @onclick="OpenPalette" title="Jump to a rig (Ctrl+K)">
+                <HubIcon Name="search" Size="14" /> Jump to… <kbd>Ctrl</kbd><kbd>K</kbd>
+            </button>
+        </Actions>
+    </HubTopBar>
+
+    <nav class="tabs" role="tablist" aria-label="Hub">
+        <button type="button" role="tab" id="tab-rigs" aria-selected="@(_tab == "rigs")" aria-controls="panel-rigs"
+                class="tab @(_tab == "rigs" ? "on" : "")" @onclick='() => Show("rigs")' @onkeydown="OnTabKey">
+            <HubIcon Name="server" Size="15" /> Rigs <span class="n">@(_rigs?.Count ?? 0)</span>
+        </button>
+        <button type="button" role="tab" id="tab-sessions" aria-selected="@(_tab == "sessions")" aria-controls="panel-sessions"
+                class="tab @(_tab == "sessions" ? "on" : "")" @onclick='() => Show("sessions")' @onkeydown="OnTabKey">
+            <HubIcon Name="flask" Size="15" /> Live sessions <span class="n">@LiveCount</span>
+        </button>
+        <button type="button" role="tab" id="tab-reports" aria-selected="@(_tab == "reports")" aria-controls="panel-reports"
+                class="tab @(_tab == "reports" ? "on" : "")" @onclick='() => Show("reports")' @onkeydown="OnTabKey">
+            <HubIcon Name="inbox" Size="15" /> Reports <span class="n">@Reports</span>
+        </button>
+    </nav>
+
+    <main class="content @_tab @(_unreachable ? "stale" : null)">
+        @if (_unreachable)
+        {
+            <div class="alert error" role="alert">
+                <span><strong>The hub is not answering</strong> (stopped?). What you see is from @ReportTime.Duration(DateTimeOffset.UtcNow - _lastSeen) ago; the page reconnects by itself.</span>
+            </div>
+        }
+        else if (_error is not null)
+        {
+            <div class="alert error" role="alert">@_error</div>
+        }
+        @if (_tab == "rigs")
+        {
+            <div id="panel-rigs" role="tabpanel" aria-labelledby="tab-rigs" class="rigs-panel">
+                <section class="needs" aria-labelledby="needs-title">
+                    <div class="section-head">
+                        <h2 id="needs-title">Needs you</h2>
+                        @if (Waiting.Count > 0)
+                        {
+                            <span class="chip waiting">@Waiting.Count</span>
+                        }
+                    </div>
+                    @if (_rigs is null)
+                    {
+                        <div class="card calm subtle"><span class="spinner"></span> Asking the rigs…</div>
+                    }
+                    else if (Waiting.Count == 0)
+                    {
+                        <div class="card calm">
+                            <span class="ok-dot"><HubIcon Name="check" Size="14" /></span>
+                            <span><strong>Nothing needs you.</strong> <span class="muted">No run is waiting for an answer.</span></span>
+                        </div>
+                    }
+                    else
+                    {
+                        <ul class="needs-list card flush">
+                            @foreach (var rig in Waiting)
+                            {
+                                var waiting = rig.Waiting!;
+                                <li @key="rig.Id">
+                                    <span class="pulse" aria-hidden="true"></span>
+                                    <div class="what">
+                                        <div class="question">@waiting.Label</div>
+                                        <div class="where small muted">
+                                            <span class="rig-id">@rig.Id</span>
+                                            @if (rig.Experiment is { } experiment)
+                                            {
+                                                <span>· @experiment</span>
+                                            }
+                                            @if ((rig.CurrentStepTitle ?? rig.CurrentStep) is { } step)
+                                            {
+                                                <span>· @step</span>
+                                            }
+                                        </div>
+                                    </div>
+                                    <span class="since" title="Waiting since @ReportTime.Exact(waiting.Since)">
+                                        <HubIcon Name="clock" Size="13" /> @ReportTime.Duration(DateTimeOffset.UtcNow - waiting.Since)
+                                    </span>
+                                    <a class="btn primary sm" href="@Hub.RigUrl(rig.Id, runPage: true)">Answer</a>
+                                </li>
+                            }
+                        </ul>
+                    }
+                </section>
+
+                <section aria-labelledby="rigs-title">
+                    <div class="section-head">
+                        <h2 id="rigs-title">Rigs</h2>
+                        <span class="subtle small">@(_rigs?.Count ?? 0) followed · refreshed every 2 s</span>
+                    </div>
+                    @if (_rigs is { Count: 0 })
+                    {
+                        <div class="card calm muted">No rigs are followed. Set <code>RIGS=rig-3=http://rig-3:24070;…</code> in the hub's environment.</div>
+                    }
+                    else
+                    {
+                        <div class="grid">
+                            @foreach (var rig in OrderedRigs)
+                            {
+                                <HubRigCard Rig="rig" @key="rig.Id" />
+                            }
+                        </div>
+                    }
+                </section>
+            </div>
+        }
+        else if (_tab == "sessions")
+        {
+            <div id="panel-sessions" role="tabpanel" aria-labelledby="tab-sessions" class="reports-panel">
+                <LiveSessions Rigs="_rigs" />
+            </div>
+        }
+        else
+        {
+            <div id="panel-reports" role="tabpanel" aria-labelledby="tab-reports" class="reports-panel">
+                <ReportBrowser Rigs="_rigs" OnChanged="Refresh" HubUnreachable="_unreachable" />
+            </div>
+        }
+    </main>
+</div>
+
+@if (_palette)
+{
+    <HubPalette Rigs="@(_rigs ?? [])" OnClose="() => _palette = false" OnTab="Show" />
+}
+
+@code {
+    private List<RigStatus>? _rigs;
+    private string? _error;
+    private bool _unreachable;
+    private bool _needsToken;
+    private DateTimeOffset _lastSeen = DateTimeOffset.UtcNow;
+    private Timer? _timer;
+    private string _tab = "rigs";
+    private bool _palette;
+    private IJSObjectReference? _ui;
+    private IJSObjectReference? _shortcuts;
+    private DotNetObjectReference<HubView>? _self;
+
+    private int Busy => _rigs?.Count(r => r.Reachable && r.Status == "busy") ?? 0;
+    private int LiveCount => _rigs?.Count(r => r.Reachable && r.Session is not null) ?? 0;
+    private int Offline => _rigs?.Count(r => !r.Reachable) ?? 0;
+    private long Reports => _rigs?.Sum(r => r.ReportsStored) ?? 0;
+
+    /// <summary>The runs waiting for an answer, longest first.</summary>
+    private List<RigStatus> Waiting => _rigs?.Where(r => r.Waiting is not null).OrderBy(r => r.Waiting!.Since).ToList() ?? [];
+
+    /// <summary>Waiting first, then busy, then the rest; offline last.</summary>
+    private IEnumerable<RigStatus> OrderedRigs => (_rigs ?? [])
+        .OrderBy(r => !r.Reachable)
+        .ThenBy(r => r.Waiting is null)
+        .ThenBy(r => r.Status != "busy")
+        .ThenBy(r => r.Id, StringComparer.OrdinalIgnoreCase);
+
+    protected override async Task OnInitializedAsync()
+    {
+        var tab = System.Web.HttpUtility.ParseQueryString(new Uri(Navigation.Uri).Query)["tab"];
+        _tab = tab is "reports" or "sessions" ? tab : "rigs";
+        ReportTime.Changed += TimeChanged;
+        await Refresh();
+        _timer = new Timer(_ => InvokeAsync(async () => { await Refresh(); StateHasChanged(); }), null, 2000, 2000);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _ui = await JS.InvokeAsync<IJSObjectReference>("import", "./js/ui.js");
+            _self = DotNetObjectReference.Create(this);
+            _shortcuts = await _ui.InvokeAsync<IJSObjectReference>("listenShortcuts", _self);
+            StateHasChanged();
+        }
+        // "(2) clabe fleet" and a dot on the icon while runs wait: seen from another tab
+        if (_ui is not null && Waiting.Count != _attention)
+        {
+            _attention = Waiting.Count;
+            await _ui.InvokeVoidAsync("setAttention", "clabe fleet", _attention);
+        }
+    }
+
+    private int _attention = -1;
+
+    [JSInvokable]
+    public Task<bool> OnShortcut(string name, bool typing)
+    {
+        if (name == "Ctrl+K")
+        {
+            _palette = !_palette;
+            StateHasChanged();
+            return Task.FromResult(true);
+        }
+        return Task.FromResult(false);
+    }
+
+    private void OpenPalette() => _palette = true;
+
+    private async Task Refresh()
+    {
+        try
+        {
+            _rigs = await Hub.RigsAsync();
+            _error = null;
+            _unreachable = false;
+            _lastSeen = DateTimeOffset.UtcNow;
+        }
+        catch (HttpRequestException exc) when (exc.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            _needsToken = true;
+        }
+        catch (HttpRequestException exc) when (exc.StatusCode is not null)
+        {
+            _error = exc.Message;
+        }
+        catch (HttpRequestException)
+        {
+            // no response at all ("TypeError: Failed to fetch"): the hub is down or the network is
+            _unreachable = true;
+        }
+    }
+
+    private void Show(string tab)
+    {
+        if (tab == _tab)
+        {
+            return;
+        }
+        _tab = tab;
+        // keep the tab in the address, so a reload or a shared link opens it
+        var uri = new Uri(Navigation.Uri);
+        var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+        query.Remove("report");  // a report's address belongs to the Reports tab
+        if (tab != "rigs")
+        {
+            query["tab"] = tab;
+        }
+        else
+        {
+            query.Remove("tab");
+        }
+        var search = query.Count > 0 ? "?" + query : "";
+        Navigation.NavigateTo(uri.GetLeftPart(UriPartial.Path) + search, replace: true);
+    }
+
+    private void OnTabKey(KeyboardEventArgs e)
+    {
+        string[] tabs = ["rigs", "sessions", "reports"];
+        var at = Array.IndexOf(tabs, _tab);
+        if (e.Key is "ArrowRight" or "ArrowLeft")
+        {
+            Show(tabs[(at + (e.Key == "ArrowRight" ? 1 : tabs.Length - 1)) % tabs.Length]);
+        }
+    }
+
+    private void TimeChanged() => InvokeAsync(StateHasChanged);
+
+    public async ValueTask DisposeAsync()
+    {
+        ReportTime.Changed -= TimeChanged;
+        _timer?.Dispose();
+        try
+        {
+            if (_shortcuts is not null)
+            {
+                await _shortcuts.InvokeVoidAsync("dispose");
+                await _shortcuts.DisposeAsync();
+            }
+            if (_ui is not null)
+            {
+                await _ui.DisposeAsync();
+            }
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+        _self?.Dispose();
+    }
+}

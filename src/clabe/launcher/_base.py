@@ -1,29 +1,32 @@
-import asyncio
 import contextlib
+import datetime
 import hashlib
 import logging
 import os
 import random
 import shutil
+import socket
 import threading
-from collections.abc import Awaitable, Callable, Generator
-from pathlib import Path
+import time
+from collections.abc import Callable, Generator
+from pathlib import Path, PureWindowsPath
 from typing import Self, TypeVar
 
 import git.exc
 import pydantic
 from aind_behavior_services import Session
 
-from .. import __version__
+from .. import __version__, reports, ui
 from .. import logging as clabe_logging
-from ..constants import TMP_DIR
-from ..git_manager import GitRepository
 from ..logging.otel import bind_session, record_exception, run_span
+from ..repository import GitRepository
 from ..runnable import set_include_timing
-from ..ui import Frontend, MessageLevel, PromptCancelledError, TextRequest, make_frontend, set_current_frontend
+from ..settings import TMP_DIR
+from ..ui import Client, ClientSession, MessageLevel, PromptCancelledError, make_client
 from ..utils import abspath, format_datetime, utcnow
+from ..workflow import ExperimentCallable, LocalClient, Run, RunStatus, Workflow, as_workflow
 from ._cli import LauncherCliArgs
-from ._experiments import get_experiment_metadata, get_experiment_name
+from ._manifest import RunManifest, collect_manifest, finish_manifest, write_manifest
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +63,7 @@ class Launcher:
         *,
         settings: LauncherCliArgs,
         attached_logger: logging.Logger | None = None,
-        frontend: None | Frontend = None,
+        client: Client | None = None,
     ) -> None:
         """
         Initializes the Launcher instance.
@@ -68,16 +71,17 @@ class Launcher:
         Args:
             settings: The settings for the launcher
             attached_logger: An attached logger instance. Defaults to None
-            frontend: The frontend mediating all user interaction. Defaults to the
-                backend selected by ``settings.frontend``
+            client: The user interface (console, TUI, ...). Defaults to the backend selected by
+                ``settings.frontend``
         """
         self._settings = settings
-        self.frontend = frontend or make_frontend(settings.frontend)
-        # Register the frontend so UI-agnostic library modules can surface key
-        # events to the user (see ``clabe.ui.notify``).
-        set_current_frontend(self.frontend)
+        # Outside a run, library code asks and informs the user through the launcher's client (see ``clabe.ui``);
+        # a run binds itself while it executes.
+        self._ui_session = ClientSession(client or make_client(settings.frontend))
+        self._ui_binding = ui.bind(self._ui_session)
+        self._ui_binding.__enter__()
         self.temp_dir = Path(TMP_DIR) / format_datetime(utcnow())
-        self.computer_name = os.environ["COMPUTERNAME"]
+        self.computer_name = os.environ.get("COMPUTERNAME") or socket.gethostname()
         self._data_directory: Path | None = None
         repository_dir = (
             Path(self.settings.repository_directory) if self.settings.repository_directory is not None else None
@@ -93,10 +97,10 @@ class Launcher:
             root_logger = logging.getLogger()
             _logger = clabe_logging.add_file_handler(root_logger, self.temp_dir / "launcher.log")
 
-        # Map verbosity flags to the console log level.
+        # Map verbosity flags to the console log level; debug mode also times every runnable's notification.
+        set_include_timing(settings.debug_mode)
         if settings.debug_mode:
             display_level = logging.DEBUG
-            set_include_timing(True)
         elif settings.verbose:
             display_level = logging.INFO
         elif settings.quiet:
@@ -110,7 +114,24 @@ class Launcher:
         self._logger = _logger
 
         self._session: Session | None = None
+        self._extra_session_directories: list[Path] = []  # see add_session_directory
         self._has_copied_logs = False
+        self._manifest: RunManifest | None = None
+        self._manifest_lock = threading.Lock()
+        self._has_run = False
+        self._serving = contextlib.ExitStack()  # the run server, kept up until the launcher exits (see _exit)
+        self._served_run: Run | None = None
+        self._last_run: Run | None = None  # the run an issue report from the exit prompt is about
+
+    @property
+    def client(self) -> Client:
+        """The user interface this launcher asks and informs through outside a run (and drives the run with)."""
+        return self._ui_session.client
+
+    @client.setter
+    def client(self, client: Client) -> None:
+        """Switches the user interface (used before a run starts)."""
+        self._ui_session.client = client
 
     @property
     def data_directory(self) -> Path:
@@ -137,6 +158,54 @@ class Launcher:
             raise ValueError("session.session_name is not set.")
         else:
             return Path(self.data_directory) / session.session_name
+
+    @property
+    def session_directories(self) -> list[Path | PureWindowsPath]:
+        """Every session folder of this run: this machine's, then its others, then every other machine's through its
+        network share.
+
+        - This machine's other folders are the ones added with `add_session_directory`, in that order.
+        - Another machine's folder is listed once it was registered with
+          [`RemoteRepository.register_session`][clabe.remote.RemoteRepository.register_session] in a step of this
+          run.
+
+        Give it to the watchdog to upload the data of every folder:
+        ``WatchdogDataTransferService(source=launcher.session_directories, ...)``.
+
+        Raises:
+            ValueError: If session_name is not set in the session schema
+        """
+        directories: list[Path | PureWindowsPath] = [self.session_directory, *self._extra_session_directories]
+        workers = self._manifest.workers if self._manifest is not None else []
+        directories += [PureWindowsPath(w.session_directory_unc) for w in workers if w.session_directory_unc]
+        return directories
+
+    def add_session_directory(self, path: os.PathLike | str) -> Path:
+        """Adds another session folder on this machine to `session_directories`, e.g. where an app on this PC records
+        to its own data folder. The folder is created if missing (an existing one, e.g. found after a crash, is fine).
+
+        It is recorded in the run's ``run.json`` (``extra_session_directories``). Logs are still copied to
+        `session_directory` only. Adding the session folder, or a folder already added, does nothing.
+
+        Args:
+            path: The folder, e.g. ``Path(rig.data_directory) / session.session_name``.
+
+        Returns:
+            The folder, as given.
+
+        Raises:
+            ValueError: If no session is registered yet.
+        """
+        folder = Path(path)
+        known = [self.session_directory, *self._extra_session_directories]  # raises without a session
+        if any(os.path.normcase(os.path.abspath(folder)) == os.path.normcase(os.path.abspath(k)) for k in known):
+            return folder
+        folder.mkdir(parents=True, exist_ok=True)
+        self._extra_session_directories.append(folder)
+        logger.info("Added session directory %s", folder)
+        if self._manifest is not None:
+            self.update_manifest(lambda manifest: manifest.extra_session_directories.append(str(folder)))
+        return folder
 
     def register_session(self, session: Session, data_directory: os.PathLike) -> Self:
         """
@@ -187,70 +256,228 @@ class Launcher:
         else:
             return self._session
 
-    def run_experiment(self, experiment: Callable[["Launcher"], None | Awaitable[None]]) -> None:
+    def run_experiment(self, experiment: "Workflow | ExperimentCallable") -> None:
         """
         Main entry point for the launcher execution.
 
-        Orchestrates the complete launcher workflow including validation,
-        experiment execution, and cleanup.
+        Accepts a [`Workflow`][clabe.workflow.Workflow], or a ``(launcher)`` function (sync or async) run as a workflow of
+        one step, and executes it as a run driven by this launcher's client. Unless in debug mode,
+        `validate` runs as the run's first step (``clabe_preflight``). The run's records are written to
+        ``temp_dir``. Orchestrates the complete launcher workflow including validation, execution and cleanup.
+
+        Steps (including a function's single step) run on a dedicated run thread, not the main thread; code that must
+        run on the main thread (e.g. ``signal.signal``, some GUI toolkits) cannot be called from a step.
+
+        A launcher runs a single experiment: create a new launcher for another run.
 
         Args:
-            experiment: A callable or async callable that takes the launcher as an argument and runs the experiment
+            experiment: The workflow, or the callable taking the launcher as its argument, to run
+
+        Raises:
+            RuntimeError: If this launcher has already run an experiment.
 
         Example:
             ```python
-            def my_experiment(launcher: Launcher):
-                # Experiment logic here
-                pass
-
-            async def my_async_experiment(launcher: Launcher):
-                # Async experiment logic here
+            async def my_experiment(launcher: Launcher):
+                # Experiment logic here (sync or async)
                 pass
 
             launcher = Launcher(...)
             launcher.run_experiment(my_experiment)
-            launcher.run_experiment(my_async_experiment)
             ```
         """
+        if self._has_run:
+            raise RuntimeError("A Launcher runs a single experiment; create a new Launcher for another run.")
+        self._has_run = True
+        workflow = as_workflow(experiment)
         _code = 0
         # Handle inside run_span so teardown logs stay under the root span (and its attributes).
-        # The exception no longer escapes the span, so status is set explicitly below.
-        _experiment_name = get_experiment_name(experiment)
-        with run_span(self, experiment_name=_experiment_name):
+        with run_span(self, experiment_name=workflow.name):
             try:
-                self.frontend.header(self.make_header())
-                set_experiment = getattr(self.frontend, "set_experiment", None)
+                ui.header(self.make_header())
+                set_experiment = getattr(self.client, "set_experiment", None)
                 if callable(set_experiment):
-                    set_experiment(_experiment_name)
+                    set_experiment(workflow.name)
                 logger.info(self._generate_diagnostic_info())
 
-                if not self.settings.debug_mode:
-                    self.validate()
-
-                result = experiment(self)
-                if asyncio.iscoroutine(result):
-                    asyncio.run(result)
+                _code = self._finish(self._run_workflow(workflow))
 
             except KeyboardInterrupt as e:
-                # An interrupt aborts the run: record it so the trace is red (OTel skips
-                # BaseException, so this must be explicit) while keeping it filterable by type.
+                # A second Ctrl+C (the first one aborts the run), or one outside the run.
                 logger.error("User interrupted the process.")
-                self.frontend.notify("Interrupted by user.", MessageLevel.WARNING)
+                ui.notify("Interrupted by user.", MessageLevel.WARNING)
                 record_exception(e)
+                self._record_outcome("aborted", "Interrupted by user.", -1)
                 _code = -1
             except Exception as e:  # pylint: disable=broad-except
                 logger.exception("Launcher failed")
-                self.frontend.notify(f"Launcher failed: {e}", MessageLevel.ERROR)
+                ui.notify(f"Launcher failed: {e}", MessageLevel.ERROR)
                 record_exception(e)
+                self._record_outcome("failed", str(e), -1)
                 _code = -1
             finally:
                 try:
                     self.copy_logs()
                 except ValueError as ve:  # In the case session_directory fails
-                    self.frontend.notify(f"Failed to copy logs from {self.temp_dir}: {ve}", MessageLevel.ERROR)
+                    ui.notify(f"Failed to copy logs from {self.temp_dir}: {ve}", MessageLevel.ERROR)
                     _code = -1
-        metadata = get_experiment_metadata(experiment)
-        self._exit(_code, timeout=metadata.exit_prompt_timeout if metadata is not None else None)
+                    self._record_exit_code(_code)
+        try:
+            self._exit(_code, timeout=workflow.exit_prompt_timeout)
+        finally:
+            self._stop_serving()
+
+    def _run_workflow(self, workflow: Workflow) -> Run:
+        """Executes ``workflow`` (with the preflight step) with this launcher, driven by its client."""
+        run = Run(self._with_preflight(workflow), launcher=self, record_dir=self.temp_dir)
+        self._last_run = run
+        self._manifest = collect_manifest(self, run.workflow, run_id=run.id, directory=self.temp_dir)
+        self._manifest.extra_session_directories = [str(folder) for folder in self._extra_session_directories]
+        self._write_manifest()
+        # The server stays up after the run, for its closing screen, until the launcher exits (see _exit).
+        self._serving.enter_context(self._served(run))
+        LocalClient(run, self.client).drive()
+        return run
+
+    @contextlib.contextmanager
+    def _served(self, run: Run) -> Generator[None, None, None]:
+        """Serves ``run`` over HTTP while the block executes, when the settings ask for it.
+
+        A served run keeps its session open after it finishes (see [`Run.keep_open`][clabe.workflow.Run.keep_open]):
+        browsers show its closing screen until `_exit` closes it.
+        """
+        if not self.settings.serve:
+            yield
+            return
+        from .._extras import FRONTEND_HINT, has_web
+
+        if not has_web():
+            # the core works without the frontend extra: the run is just not served
+            ui.notify(
+                f"Not served in the browser: the web server is not installed ({FRONTEND_HINT}).", MessageLevel.INFO
+            )
+            yield
+            return
+        from ..server import RunServer
+
+        token = self.settings.token or os.environ.get("CLABE_TOKEN") or None
+        server = RunServer(run, host=self.settings.host, port=self.settings.port, token=token)
+        try:
+            url = server.start()
+        except (OSError, RuntimeError) as exc:
+            logger.exception("Could not serve the run")
+            ui.notify(f"Could not serve the run over HTTP: {exc}", MessageLevel.WARNING)
+            yield
+            return
+        run.keep_open()
+        self._served_run = run
+        ui.notify(f"Run served at {url}", MessageLevel.INFO)
+        if not getattr(self.client, "interactive", True):
+            # a headless client only logs its messages: print the address, so a closed tab can be reopened
+            print(f"Run served at {url}", flush=True)
+        if self.settings.open_browser:
+            import webbrowser
+
+            webbrowser.open(url)
+        from ..daemon._announce import announce
+
+        withdraw = announce(
+            port=server.port,
+            token=token,
+            repository=Path(self.repository.working_dir).name,
+            experiment=run.workflow.name,
+        )
+        try:
+            yield
+        finally:
+            self._served_run = None
+            if run.wait(0):
+                run.close(client="launcher")  # ends the event streams of browsers still open; no-op if closed
+            if withdraw is not None:
+                withdraw()
+            server.stop()
+
+    def _stop_serving(self) -> None:
+        """Stops serving the run (closing its session first); idempotent."""
+        try:
+            self._serving.close()
+        except Exception:
+            logger.exception("Could not stop serving the run")
+
+    def _with_preflight(self, workflow: Workflow) -> Workflow:
+        """``workflow`` with `validate` as its first step, ``clabe_preflight`` (none in debug mode)."""
+        if self.settings.debug_mode:
+            return workflow
+
+        def clabe_preflight(launcher: "Launcher") -> None:
+            launcher.validate()
+
+        variant = workflow.variant(workflow.name)
+        if variant.steps:
+            return variant.insert_before(variant.steps[0].name, clabe_preflight, title="Preflight checks")
+        variant.step(clabe_preflight, title="Preflight checks")
+        return variant
+
+    def _finish(self, run: Run) -> int:
+        """Reports how ``run`` ended, records it in the run manifest and returns the launcher exit code."""
+        code = self._report(run)
+        self._record_outcome(run.status.value, run.reason, code)
+        return code
+
+    def _report(self, run: Run) -> int:
+        """Tells the user how ``run`` ended and returns the launcher exit code."""
+        if run.status is RunStatus.COMPLETED:
+            return 0
+        if run.status is RunStatus.ABORTED:
+            logger.error("Run aborted: %s", run.reason)
+            ui.notify(f"Run aborted: {run.reason}", MessageLevel.WARNING)
+            # Keep the trace red and filterable by type, as a Ctrl+C was before runs existed.
+            record_exception(run.error or KeyboardInterrupt(run.reason))
+        else:
+            logger.error("Run failed: %s", run.reason, exc_info=run.error)
+            ui.notify(f"Launcher failed: {run.reason}", MessageLevel.ERROR)
+            record_exception(run.error or RuntimeError(run.reason))
+        return -1
+
+    def _record_outcome(self, status: str, reason: str | None, exit_code: int) -> None:
+        """Adds the outcome to the run manifest, if one was started, and rewrites it."""
+        if self._manifest is None:
+            return
+        finish_manifest(self._manifest, status=status, reason=reason, exit_code=exit_code)
+        self._write_manifest()
+
+    def _record_exit_code(self, exit_code: int) -> None:
+        """Changes the exit code of the outcome already in the run manifest, if any, and rewrites it."""
+        if self._manifest is None or self._manifest.outcome is None:
+            return
+        self._manifest.outcome.exit_code = exit_code
+        self._write_manifest()
+
+    @property
+    def manifest(self) -> RunManifest | None:
+        """The run manifest (``run.json``) of the run going on, once it has started."""
+        return self._manifest
+
+    def update_manifest(self, change: Callable[[RunManifest], None]) -> None:
+        """Applies ``change`` to the run manifest and rewrites ``run.json`` (nothing happens without a run).
+
+        For what only becomes known during the run, e.g. the other machines it used (see [`clabe.remote`][clabe.remote]).
+        Thread-safe.
+        """
+        with self._manifest_lock:
+            if self._manifest is None:
+                return
+            change(self._manifest)
+            self._write_manifest()
+
+    def _write_manifest(self) -> None:
+        """Writes the run manifest; a failure is logged, never raised."""
+        if self._manifest is None:
+            return
+        try:
+            write_manifest(self._manifest, self.temp_dir)
+        except Exception:
+            logger.exception("Could not write the run manifest")
 
     def copy_logs(self, dst: os.PathLike | None = None, suffix: str = "Behavior/Logs") -> None:
         """
@@ -270,7 +497,7 @@ class Launcher:
             out = self._copy_tmp_directory(dst)
         else:
             out = self._copy_tmp_directory(self.session_directory / suffix)
-        self.frontend.notify(f"Copied logs to {out}", MessageLevel.SUCCESS)
+        ui.notify(f"Copied logs to {out}", MessageLevel.SUCCESS)
         self._has_copied_logs = True
 
     @property
@@ -329,57 +556,109 @@ class Launcher:
         Performs cleanup operations and exits the application, optionally
         prompting the user before exit.
 
+        When the run is served, its closing screen is shown to every client while the launcher waits: the local
+        exit prompt and a browser's Close (``POST /api/close``) race and the first one wins. A headless launcher
+        (no one at its screen) waits ``timeout`` seconds for a browser to close the session, and exits at once when
+        ``timeout`` is ``None`` or ``0`` (so daemon runs never hang). The run server stops after the wait.
+
         Args:
             code: The exit code to use. Defaults to 0
             _force: Whether to force exit without user prompt. Defaults to False
             timeout: Seconds to wait at the exit prompt before exiting anyway.
                 ``None`` waits until the user presses Enter; ``0`` skips the
-                prompt. Defaults to None
+                prompt after a successful run (after a failure or abort, it waits as ``None`` does, so the user sees
+                what went wrong). Defaults to None
         """
         logger.debug("Exiting with code %s", code)
-        if timeout and not callable(getattr(self.frontend, "cancel_prompt", None)):
-            logger.warning(
-                "%s cannot cancel prompts; ignoring the %s s exit prompt timeout.",
-                type(self.frontend).__name__,
-                timeout,
-            )
+        if code != 0 and timeout == 0:
             timeout = None
         if logger is not None:
             clabe_logging.shutdown_logger(logger)
-        if not _force and timeout != 0:
-            label = "Press Enter to exit..."
-            if timeout is not None:
-                label = f"Press Enter to exit (closing automatically in {timeout:g} s)..."
-            with self._cancel_prompt_after(timeout):
-                try:
-                    self.frontend.prompt_text(TextRequest(label=label, field="exit"))
-                except KeyboardInterrupt:
-                    pass  # a second Ctrl+C at the exit prompt should just exit
-                except PromptCancelledError:
-                    logger.debug("Exit prompt timed out after %s s", timeout)
-        # Tear down the frontend (e.g. leave the persistent TUI) if it supports it.
-        close = getattr(self.frontend, "close", None)
-        if callable(close):
-            close()
-        set_current_frontend(None)
+        run = self._served_run
+        interactive = getattr(self.client, "interactive", True)
+        if not interactive:
+            _force = True  # nobody is at the screen to dismiss an exit prompt
+        if run is not None and not interactive and timeout:
+            self._wait_for_close(run, timeout)  # headless: give browsers a chance to close the session
+        elif not _force and timeout != 0:
+            if run is not None:
+                run.begin_closing(_deadline(timeout))
+            closed_by = "local"
+            while True:
+                with self._cancel_prompt_after(timeout, run=run):
+                    try:
+                        answer = ui.text(self._exit_label(timeout), field="exit")
+                    except KeyboardInterrupt:
+                        break  # a second Ctrl+C at the exit prompt should just exit
+                    except PromptCancelledError:
+                        closed_by = "timeout"
+                        logger.debug("Exit prompt closed: timed out after %s s, or closed by a remote client", timeout)
+                        break
+                if self._last_run is None or str(answer).strip().lower() != "report":
+                    break
+                self._report_issue(self._last_run)
+                timeout = None  # someone is at the screen: wait for them to leave
+            if run is not None:
+                run.close(client=closed_by)  # no-op when a remote client closed it first
+        self._stop_serving()
+        # Tear down the client (e.g. leave the persistent TUI) and stop asking through it.
+        self.client.close()
+        self._ui_binding.__exit__(None, None, None)
+
+    def _exit_label(self, timeout: float | None) -> str:
+        """The exit prompt: Enter exits; after a run, typing ``report`` reports an issue first."""
+        label = "Press Enter to exit"
+        if self._last_run is not None:
+            label += ", or type 'report' to report an issue"
+        if timeout is not None:
+            label += f" (closing automatically in {timeout:g} s)"
+        return label + "..."
+
+    @staticmethod
+    def _report_issue(run: Run) -> None:
+        """Asks what went wrong and files an issue report about ``run`` (the hub collects it from this machine)."""
+        try:
+            comment = ui.text("What went wrong? (the run's logs and records are attached)", field="report")
+        except (KeyboardInterrupt, PromptCancelledError):
+            return
+        try:
+            report = reports.report_run(run, comment, reported_from="local")
+        except Exception as exc:
+            logger.exception("Could not save the issue report")
+            ui.notify(f"Could not save the issue report: {exc}", MessageLevel.ERROR)
+            return
+        ui.notify(f"Issue reported ({report.report_id}); the hub collects it from this PC.", MessageLevel.SUCCESS)
+
+    @staticmethod
+    def _wait_for_close(run: Run, timeout: float) -> None:
+        """Shows the closing screen of the served ``run`` for up to ``timeout`` seconds, until a client closes it."""
+        run.begin_closing(_deadline(timeout))
+        if not run.wait_closed(timeout):
+            run.close(client="timeout")
 
     @contextlib.contextmanager
-    def _cancel_prompt_after(self, timeout: float | None) -> Generator[None]:
-        """Cancels the frontend prompt running inside this block once ``timeout`` seconds pass.
+    def _cancel_prompt_after(self, timeout: float | None, run: Run | None = None) -> Generator[None]:
+        """Cancels the client prompt running inside this block once ``timeout`` seconds pass, or once a remote
+        client closes ``run``'s session.
 
         Keeps cancelling until the block exits, so a cancellation that lands before
-        the prompt is on screen is not lost. ``None`` never cancels.
+        the prompt is on screen is not lost. ``None`` never times out.
         """
-        if timeout is None:
+        if timeout is None and run is None:
             yield
             return
         done = threading.Event()
+        deadline = time.monotonic() + timeout if timeout is not None else None
 
         def _cancel_when_due() -> None:
-            if done.wait(timeout):
-                return
             while not done.is_set():
-                self.frontend.cancel_prompt()
+                if deadline is not None and time.monotonic() >= deadline:
+                    break
+                if run is not None and run.closed:
+                    break
+                done.wait(0.05 if deadline is None else min(0.05, max(0.0, deadline - time.monotonic())))
+            while not done.is_set():
+                self.client.cancel()
                 done.wait(0.1)
 
         timer = threading.Thread(target=_cancel_when_due, name="clabe-exit-timeout", daemon=True)
@@ -389,6 +668,26 @@ class Launcher:
         finally:
             done.set()
             timer.join()
+
+    def report_info(self) -> dict[str, object]:
+        """What this launcher knows about the session, as [`ReportInfo`][clabe.reports.ReportInfo] fields.
+
+        Session id, subject and experimenter once a session is registered; the repository's folder name and head
+        commit. Never raises: what cannot be read is left out.
+        """
+        info: dict[str, object] = {}
+        if self._session is not None:
+            info["session_id"] = self._session.session_name
+            info["subject"] = self._session.subject
+            info["experimenter"] = list(self._session.experimenter or [])
+        try:
+            info["repository"] = Path(self.repository.working_dir).name
+            commit = self.repository.head.commit.hexsha
+            if isinstance(commit, str):
+                info["commit"] = commit
+        except Exception:  # a report must be made even from a broken checkout
+            logger.debug("Could not read the repository for a report", exc_info=True)
+        return info
 
     def _generate_diagnostic_info(self) -> str:
         """
@@ -438,14 +737,14 @@ class Launcher:
         """
         if self.repository.is_dirty():
             logger.warning("Uncommitted files: %s", self.repository.uncommitted_changes())
-            self.frontend.notify(
+            ui.notify(
                 "Git repository is dirty. Discard changes before continuing unless you know what you are doing!",
                 MessageLevel.WARNING,
             )
             if not self.settings.allow_dirty:
-                self.repository.try_prompt_full_reset(self.frontend, force_reset=False)
+                self.repository.try_prompt_full_reset(force_reset=False)
                 if self.repository.is_dirty_with_submodules():
-                    self.frontend.notify(
+                    ui.notify(
                         "Dirty repository not allowed. Exiting. Consider running with --allow-dirty flag.",
                         MessageLevel.ERROR,
                     )
@@ -461,8 +760,8 @@ class Launcher:
         # Note: This function should be idempotent!!!
 
         try:
-            if self._data_directory is not None and not os.path.exists(self._data_directory):
-                # if _data_directory exists, session_directory is guaranteed to exist as well
+            # Each session has its own folder: the data directory existing (from earlier sessions) says nothing about it
+            if self._data_directory is not None and not os.path.exists(self.session_directory):
                 self.create_directory(self.session_directory)
 
             if not os.path.exists(self.temp_dir):
@@ -551,3 +850,10 @@ class Launcher:
         with open(fpath, "w+", encoding="utf-8") as f:
             f.write(model.model_dump_json(indent=2))
         return Path(fpath)
+
+
+def _deadline(timeout: float | None) -> datetime.datetime | None:
+    """When a wait of ``timeout`` seconds started now ends (``None``: it never does)."""
+    if timeout is None:
+        return None
+    return datetime.datetime.now(datetime.UTC) + datetime.timedelta(seconds=timeout)

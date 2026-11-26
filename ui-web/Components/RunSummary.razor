@@ -1,0 +1,24 @@
+@* The summary strip under the run's header: what the run is about, always in view (the run's context: the workflow,
+   the subject, the experimenters, the rig and the host). What is not known yet shows as a dash. *@
+
+<div class="run-summary" role="group" aria-label="Run summary">
+    @Item("Workflow", Context?.Workflow ?? Connection.Info?.Workflow)
+    @Item("Subject", Context?.Subject)
+    @Item("Experimenters", Context?.Experimenter is { Count: > 0 } names ? string.Join(", ", names) : null)
+    @Item("Rig", Context?.Rig)
+    @Item("Host", Context?.Hostname ?? Connection.Info?.Hostname)
+</div>
+
+@code {
+    [Parameter, EditorRequired] public RunConnection Connection { get; set; } = default!;
+
+    private Clabe.Web.Api.Run.RunContext? Context => Connection.State?.Context;
+
+    private static RenderFragment Item(string label, string? value) => __builder =>
+    {
+        <span class="summary-item" data-field="@label.ToLowerInvariant()">
+            <span class="summary-label">@label</span>
+            <span class="summary-value truncate @(value is null ? "unknown" : null)" title="@value">@(value ?? "—")</span>
+        </span>
+    };
+}

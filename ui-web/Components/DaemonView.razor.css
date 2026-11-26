@@ -1,0 +1,10 @@
+.daemon { display: flex; flex-direction: column; min-height: 100vh; }
+.content { width: 100%; max-width: 960px; margin: 0 auto; padding: var(--s6) var(--s5); display: flex; flex-direction: column; gap: var(--s5); }
+.alert { align-items: center; }
+.alert .grow { flex: 1; }
+.no-pulse::before { animation: none; }
+.section-head { display: flex; align-items: baseline; gap: var(--s3); margin-bottom: var(--s3); }
+.section-head h2 { font-size: var(--text-md); font-weight: 650; }
+.calm { display: flex; align-items: center; gap: var(--s3); padding: var(--s3) var(--s4); font-size: var(--text-sm); }
+.repos { display: flex; flex-direction: column; gap: var(--s4); }
+@media (max-width: 720px) { .content { padding: var(--s4); } }

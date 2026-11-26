@@ -1,0 +1,22 @@
+.status-select {
+    position: relative; display: inline-flex; align-items: center;
+    height: 24px; border-radius: 999px; color: var(--text-2); background: var(--surface-2);
+}
+.status-select select {
+    appearance: none; -webkit-appearance: none;
+    width: auto; height: 24px; padding: 0 24px 0 20px;
+    border: 1px solid transparent; border-radius: 999px; background: transparent;
+    color: inherit; font-size: var(--text-xs); font-weight: 600; cursor: pointer;
+}
+.status-select select:focus { box-shadow: 0 0 0 3px var(--focus); border-color: transparent; }
+.status-select::before {
+    content: ""; position: absolute; left: 9px; top: 50%; width: 6px; height: 6px; margin-top: -3px;
+    border-radius: 50%; background: currentColor; pointer-events: none;
+}
+.status-select ::deep .icon-svg { position: absolute; right: 7px; pointer-events: none; opacity: 0.7; }
+.s-new { background: var(--accent-soft); color: var(--accent); }
+.s-looking { background: var(--warn-soft); color: var(--warn); }
+.s-closed { background: var(--surface-2); color: var(--text-3); }
+.lg, .lg select { height: 28px; }
+.lg select { font-size: var(--text-sm); padding-left: 22px; }
+.lg::before { left: 10px; }

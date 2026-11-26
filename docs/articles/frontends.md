@@ -1,209 +1,202 @@
-# Frontends in CLABE
+# Talking to the user
 
-A **frontend** is the single boundary between CLABE and the person running an
-experiment. It owns *all* user-facing presentation (status messages, headers,
-live activity) and *all* interactive input (picking from a list, yes/no
-questions, free text, numbers). It is deliberately decoupled from logging: a
-logger is a durable diagnostic record, while a frontend is how a human is
-informed and prompted. See [Logging](logging.md) for the other side of that
-split.
+Ask questions and show messages with `clabe.ui`. The same call works with the console, the TUI, the web UI and
+agents. For how prompts reach clients, see [Prompts and clients](../concepts/index.md#prompts-and-clients).
 
-Everything downstream — the launcher, the stores, library `notify()` calls —
-talks to the `Frontend` protocol and never knows which implementation is behind
-it. Adding a new way to interact with CLABE means writing one class, not
-touching the rest of the codebase.
+The terminal UI and the web UI come with the `frontend` extra (`uv add "aind-clabe[frontend]"`). Without it, prompts
+are plain console prompts and runs are not served in the browser.
 
-## The ones we have
+## Asking
 
-| Frontend | Class | What it is | When it's used |
-| --- | --- | --- | --- |
-| **Console** | `ConsoleFrontend` | A `rich`-styled, line-based console. On a real terminal it offers an arrow-key picker and a type-to-filter autocomplete; piped/CI it degrades to plain numbered prompts and `input()`. | `frontend = "console"`, or `auto` when not attached to a terminal |
-| **TUI** | `TextualFrontend` | A persistent full-screen Textual app with four panes — **Session** (messages + answered prompts), **Processes** (live activity spinners), **Input** (the current prompt), **Logs**. | `frontend = "tui"`, or `auto` on a terminal (the default) |
-| **Web** | *(not a frontend class)* | The **TUI served in a browser** via `textual-serve`. Not a separate implementation — it runs the `TextualFrontend` in a subprocess and proxies it to the browser. | `clabe serve …` (see below) |
+```python
+from clabe import ui
 
-## Choosing one
+ui.notify("Transferring data…")
+if ui.confirm("Start the session?", default=True):
+    rig = ui.pick("Choose a rig:", ["rig-1", "rig-2"], allow_none=False)
+    trials = ui.number("Trials", default=200, minimum=1)
+    config = ui.form(SessionConfig)  # a pydantic model, field by field
+    mode = ui.field(SessionConfig, "recording_mode")  # one field, with its type and constraints
+```
 
-The launcher's `frontend` setting selects the backend:
+- Answers come back validated and typed.
+- `SecretStr` fields are masked in the records.
+- Each helper wraps `ui.ask(request)` (`ui.TextRequest`, `ui.PickRequest`, ...).
+- Other helpers: `ui.text`, `ui.autocomplete`, `ui.path`, `ui.table`, `ui.acknowledge`, `ui.header`.
+- After you go back, a prompt you answered before is prefilled with that answer. **Forward** re-submits it.
+
+### Options from a function
+
+```python
+subject = ui.autocomplete("Animal", options=lambda typed: subjects_service.search(typed))  # list[str]
+```
+
+- The run calls the function as the user types (debounced). The browser never calls your service.
+- With `strict=True`, only a value the function returns is accepted.
+
+### Several prompts as one
+
+```python
+tuning = ui.group(
+    "Tuning",
+    note=ui.TextRequest(label="Operator note"),
+    gain=ui.NumberRequest(label="Reward gain", minimum=0, maximum=1, step=0.05, widget="slider"),
+)
+tuning["gain"]  # a float in [0, 1]
+```
+
+Each item is a text, number, confirm, pick, autocomplete, path or field request.
+
+### Showing documents, images and pages
+
+```python
+ui.markdown("## Before you start\n\n1. Check the **water** line", title="Checklist")
+ui.image("qc/frame_0001.png", title="Camera 1", caption="Last frame")  # a file or a URL
+ui.html("qc/report.html", title="QC report")  # a file, a URL, or the HTML itself
+ui.url("https://grafana.example.org/d/rig-3", title="Rig dashboard")
+```
+
+- Each waits until the user continues.
+- Only the web UI shows images, HTML and URLs. The TUI and the console log a warning that names them.
+
+### When nothing can ask
+
+- `ui.ask` and the helpers raise [`NoSessionError`][clabe.ui.NoSessionError].
+- `ui.notify` / `ui.header` log the message instead.
+- In tests: `with ui.bind(ClientSession(fake_client)):`.
+
+- When going back, aborting or another client cancels the prompt, `ui.ask` raises
+  [`PromptCancelledError`][clabe.ui.PromptCancelledError]. The step should then return or raise, and not ask again.
+
+## Clients
 
 ```bash
-clabe run my_experiment.py                      # auto (TUI on a terminal)
-clabe run my_experiment.py --frontend tui       # force the TUI
-clabe run my_experiment.py --frontend console   # force the rich console
+clabe run my_experiment.py                      # auto: TUI on a terminal, console otherwise
+clabe run my_experiment.py --frontend tui
+clabe run my_experiment.py --frontend console
+clabe run my_experiment.py --frontend headless  # no local screen: answer from the browser
 ```
 
-| Value | Result |
-| --- | --- |
-| `auto` *(default)* | TUI when attached to a terminal, otherwise the console |
-| `tui` | Always the Textual TUI |
-| `console` | Always the rich console (also the safe choice for piping/CI) |
+| Client | Class | Notes |
+|---|---|---|
+| Console | [`ConsoleClient`][clabe.ui.ConsoleClient] | Rich, line-based; arrow-key pickers on a terminal, plain `input()` when piped |
+| TUI | [`TextualClient`][clabe.ui.TextualClient] | Full-screen: Session, Processes, Input and Logs panes |
+| Headless | [`HeadlessClient`][clabe.ui.HeadlessClient] | No screen; needs `--serve`; used by the [daemon](daemon.md) |
+| Web UI | — | Served by the run; see [below](#serving-a-run-over-http) |
+| Agents | — | MCP and AG-UI; see [Agents](agents.md) |
 
-In code, build one with the factory:
+- Every prompt shows on every client. The run accepts the first valid answer.
+- The TUI's bar under its header and the web UI's strip under its top bar show what the run is about:
+  workflow, subject, experimenters, rig and host. A dash means the value is not known yet.
+  - Subject and experimenters: from `launcher.register_session`, or from a step that returns a session.
+  - Rig: the `aibs_comp_id` environment variable of the machine running the run, and nothing else (a workflow
+    cannot set it).
+- In code: `ui.make_client("auto" | "tui" | "console" | "headless")`, or `Launcher(client=...)`.
 
-```python
-from clabe.ui import make_frontend, default_frontend
+### Shortcuts
 
-frontend = make_frontend("auto")  # or "tui" / "console"
-frontend = default_frontend()  # the auto choice directly
-```
-
-A `Launcher` does this for you from `settings.frontend` and registers the result
-process-wide so library code can reach it.
-
-## Talking to the active frontend
-
-`clabe.ui` mirrors every `Frontend` method as a module-level function that goes
-to whichever frontend is registered, so library code — stores, `SessionBuilder`,
-modifiers — never has to be handed one:
-
-```python
-from clabe import ui
-
-ui.notify("Transferring data…", ui.MessageLevel.INFO)
-choice = ui.prompt_pick(ui.PickRequest(label="Choose a rig:", options=paths))
-```
-
-The two halves behave differently when nothing is registered:
-
-- **Output** — `notify`, `header`, `activity` — is a **no-op**, so it is always
-  safe to call from library code used standalone.
-- **Prompts** — every `prompt_*` — raise `NoFrontendError`. A prompt has to
-  return an answer, and failing loudly beats hanging on a rig.
-
-`ui.cancel_prompt()` is the exception among the non-output calls: it aborts
-whatever prompt is currently waiting and is a no-op when nothing is registered
-(see [Cancelling a prompt](#cancelling-a-prompt)).
-
-`ui.require_frontend()` gets the registered frontend directly, with the same
-error. Tests use `ui.use_frontend(fake)` as a context manager, which restores
-whatever was registered before.
-
-`MessageLevel` (`INFO`, `SUCCESS`, `WARNING`, `ERROR`) expresses presentation
-intent; like the console, the Session pane only renders at/above the current
-verbosity threshold (warnings and above by default), while everything is still
-recorded to the transcript. See
-[Logging](logging.md#logging-vs-talking-to-the-user) for `notify()` vs `logger`.
-
-## Cancelling a prompt
-
-`frontend.cancel_prompt()` (or `ui.cancel_prompt()`) aborts the prompt that is
-currently waiting for the user. It is safe to call from any thread; the blocked
-`prompt_*` call raises `PromptCancelledError`. Calling it when no prompt is
-waiting does nothing, so a cancel that races ahead of a prompt is simply
-dropped; retry until the prompt returns if you need to be sure.
-
-```python
-import threading
-
-from clabe import ui
-
-threading.Timer(30, ui.cancel_prompt).start()
-try:
-    notes = ui.prompt_text(ui.TextRequest(label="Notes (30 s)"))
-except ui.PromptCancelledError:
-    notes = ""
-```
-
-In the TUI, cancelling also closes any open dialog (acknowledge, table, form,
-path picker). The console reads the keyboard key by key on a real terminal so
-its prompts can be cancelled too; when stdin or stdout is not a terminal it
-falls back to `input()`, which cannot be interrupted, and cancelling has no
-effect.
-
-## The exit prompt
-
-When an experiment finishes, the launcher waits at **Press Enter to exit...**
-so the last messages (and any error) stay on screen. Each experiment sets that
-wait with `exit_prompt_timeout`:
-
-| Value | Result |
-| --- | --- |
-| `None` (default) | Wait until Enter is pressed |
-| `0` | Exit immediately, without prompting |
-| `N` | Wait up to `N` seconds, then exit on its own |
-
-```python
-@experiment(name="photobleaching", exit_prompt_timeout=0)
-async def photobleaching(launcher: Launcher) -> None: ...
-
-
-@experiment(name="vr-foraging", exit_prompt_timeout=60)  # rigs must not stay blocked between sessions
-async def vr_foraging(launcher: Launcher) -> None: ...
-```
-
-The timeout relies on `cancel_prompt`, so it has no effect on a frontend that
-cannot cancel its prompts.
-
-## TUI shortcuts and clickable paths
-
-The Textual TUI shows a persistent header (with the CLABE version and, once
-known, the running experiment) and a footer listing the active shortcuts:
+The browser and the terminal UI use the same keys. Letters and digits work only outside text fields. In the browser,
+every action is also in the menu bar (Run, View, Session, Help), with its shortcut.
 
 | Key | Action |
-| --- | --- |
-| `Ctrl+C` | Exit the launcher |
-| `Ctrl+S` | Save an SVG screenshot of the window |
-| `F2` | Toggle the Logs pane to reclaim vertical space |
+|---|---|
+| `Enter` | Submit / continue (in a form: next field; the last submits) |
+| `Ctrl+Enter`, `F5` | Submit from anywhere |
+| `1`–`9`, `↑`/`↓` | Pick an option |
+| `y` / `n` | Yes / No |
+| `Alt+←` / `Alt+→` | Back to the previous step / Forward (re-submit your earlier answer) |
+| `r` | Retry the failed step |
+| `Esc` | Close a popup (never goes back or aborts) |
+| `F2` | Show or hide the log |
+| `F3` | Terminal UI: report an issue |
+| `Ctrl+K` | Browser: go to a step, run any command |
+| `Ctrl+S`, `Ctrl+Shift+R` | Browser: export logs, report an issue |
+| `?` | Browser: all shortcuts |
+| `Ctrl+C` | Terminal: abort the run (twice: force-quit) |
 
-`Ctrl+S` renders the whole window to an SVG in the OS temp directory and notes
-the (clickable) path in the Session pane — terminal-independent, and a reliable
-way to capture a run to share. Existing paths in the Session and Logs panes are
-rendered as `file://` hyperlinks — `Ctrl`/`⌘`-click opens them in terminals that
-support OSC 8 (e.g. Windows Terminal, iTerm2); elsewhere they render as ordinary
-underlined text.
+### Writing a client
 
-## Writing a new frontend
-
-Subclass `FrontendBase` and implement the rendering/asking primitives; the base
-class handles the transcript bridge, the validation/retry loop, and the
-number-prompt loop for you:
+Implement the [`Client`][clabe.ui.Client] protocol. A client does not validate answers; the run does.
 
 ```python
-from clabe.ui import FrontendBase
-
-
-class MyFrontend(FrontendBase):
-    def _render(self, message, level): ...
-    def _ask_text(self, request): ...
-    def _ask_pick(self, request): ...
-    def _ask_confirm(self, request): ...
-    def _ask_autocomplete(self, request): ...
-    def _ask_path(self, request): ...
-    def _ask_acknowledge(self, request): ...
+class MyClient:
+    def ask(self, request): ...  # show, block, return the raw answer; raise PromptCancelledError after cancel()
+    def cancel(self): ...  # thread-safe
+    def notify(self, message, level=ui.MessageLevel.INFO): ...
+    def header(self, text): ...
+    def close(self): ...
 ```
 
-Optional hooks: `_render_header`, `_on_answer`, `set_min_level`, `close`
-(for frontends that own a resource, like the TUI's background app), and
-`cancel_prompt` (abort the waiting prompt from another thread by making it
-raise `PromptCancelledError`; the base class leaves it a no-op).
+## The end of a run
 
-## Serving the TUI over the web
+When the run ends, every client shows a closing screen: outcome, duration, the session folder, **Close session**,
+**Export logs** and **Report an issue**. The session closes when the first client closes it (Enter in the terminal,
+the button in the browser), and the run server stays up until then. Each browser tab then closes itself after 5 s,
+unless you click **Keep it open**. The browser may not allow a tab you opened by hand (not through a link from clabe)
+to close itself. In that case the tab says so.
 
-`clabe serve` runs the TUI in a browser via `textual-serve`, so a launcher can
-be driven remotely without building a separate web UI:
+```python
+wf = Workflow("vr-foraging", exit_prompt_timeout=60)
+```
+
+| Value | Result |
+|---|---|
+| `None` (default) | Wait for a client to close |
+| `0` | Exit at once |
+| `N` | Count down `N` seconds (shown in every client), then exit |
+
+- A headless served run (started by the daemon) waits up to `N` seconds for a browser to close it. With `None` or
+  `0`, it exits at once.
+
+## Export logs and report an issue
+
+- **Export logs** downloads one zip of the run so far: `run.json`, `events.jsonl`, `outputs.jsonl`,
+  `launcher.log`, the daemon log's tail and `rig.json`.
+- **Report an issue** saves the same zip on the rig, with your comment and the session's details. The
+  [hub](hub.md#issue-reports) collects it, then deletes it from the rig.
+- In the terminal, press `F3` (terminal UI, at any time during or after the run), or type `report` at the exit
+  prompt (any terminal client).
+
+## Serving a run over HTTP
 
 ```bash
-clabe serve my_experiment.py --port 8080
+clabe run my_experiment.py                   # serves on http://localhost:8090 (or the next free port)
+clabe run my_experiment.py --no-serve        # local client only
+clabe run my_experiment.py --host 0.0.0.0 --token "$CLABE_TOKEN" --open-browser
 ```
 
-- It binds **localhost only**. For remote access, forward the port over SSH
-  rather than exposing it to the network:
+- The server binds localhost by default. For remote access, use `ssh -L 8090:localhost:8090 <rig-host>` or bind
+  `0.0.0.0` with a token.
+- `--token` (or `$CLABE_TOKEN`) requires `Authorization: Bearer <token>` (or `?token=`). The printed URL includes
+  the token.
+- In a browser, the page asks for the token (**Sign in**) and keeps it in a cookie for 30 days. A link with
+  `?token=` signs in, and the address is then replaced by the same one without the token. The daemon and the hub
+  work the same way.
+- The root page is the web UI. It shows the steps on the left (click one to go back), the prompt in the middle, and
+  the session and messages on the right. It has light and dark themes and works on a phone.
+- [`RunClient`][clabe.server.RunClient] is a Python client of the API.
 
-  ```bash
-  ssh -L 8080:localhost:8080 <rig-host>     # then open http://localhost:8080
-  ```
+| Endpoint | Does |
+|---|---|
+| `GET /api/state` | Snapshot of the run |
+| `GET /api/events` | Resumable Server-Sent Events stream |
+| `POST /api/prompts/{id}/answer` | Answer a prompt |
+| `POST /api/steps/{name}/back\|retry\|skip` | Step commands |
+| `POST /api/back`, `POST /api/forward` | Back to the previous step; re-submit the open prompt's earlier answer |
+| `GET /api/prompts/{id}/options?q=` | Options of an autocomplete backed by a function |
+| `POST /api/close` | Close the finished session |
+| `GET /api/export`, `POST /api/report` | Export logs (zip); report an issue (`{comment}`) |
+| `POST /api/abort` | Abort the run |
+| `POST /api/fs/list` | Directory listing for path pickers |
+| `/openapi.json`, `/docs` | The OpenAPI description |
 
-- **Single session is enforced.** Each browser connection spawns its own
-  launcher subprocess, so `clabe serve` passes `--single-session`: a stray second
-  connection refuses to start (via an OS file lock) rather than fighting the live
-  session over the rig.
-- The "Session ended" screen has a **Finish** button (next to Restart) that
-  shuts the server down and frees the port.
-- `--open-browser` opens the page automatically once the server is ready (leave
-  it off on headless/remote hosts).
+## Migrating from the frontend API
 
-In code, the same is available as `clabe.web.serve(command, …)`. Serving requires
-the optional `web` extra:
-
-```bash
-pip install "aind-clabe[web]"
-```
+| Old | New |
+|---|---|
+| `launcher.frontend.prompt_confirm(ConfirmRequest(label=...))` | `ui.confirm(...)` or `ui.ask(ConfirmRequest(...))` |
+| `ui.prompt_pick(PickRequest(...))` (and every `ui.prompt_*`) | `ui.pick(...)` or `ui.ask(PickRequest(...))` |
+| `ui.use_frontend(x)` / `ui.set_current_frontend(x)` | `ui.bind(ClientSession(client))` |
+| `ConsoleFrontend` / `TextualFrontend` / `make_frontend` | `ConsoleClient` / `TextualClient` / `make_client` |
+| `ui.NoFrontendError` | `ui.NoSessionError` |
+| subclassing `FrontendBase` | implement `Client` |

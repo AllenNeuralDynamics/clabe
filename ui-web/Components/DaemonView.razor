@@ -1,0 +1,164 @@
+@* A machine's home page (served by its daemon): what it is running, and the experiments it can start. *@
+@inject DaemonApi Daemon
+@inject NavigationManager Navigation
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+@if (_needsToken)
+{
+    <TokenPrompt What="This machine" />
+    return;
+}
+<div class="daemon">
+    <HubTopBar Context="@(_info?.Hostname ?? "machine")" Home="@Navigation.Uri">
+        <Chips>
+            @if (_info is { } info)
+            {
+                <span class="chip plain mono" title="clabe version">v@(info.ClabeVersion)</span>
+                <span class="chip @(info.Status switch { "idle" => "idle", "busy" => "running", "leased" => "accent", _ => "" })">@info.Status</span>
+                @if (info.ReportsWaiting > 0)
+                {
+                    <span class="chip waiting no-pulse" title="Issue reports saved on this machine, waiting for the hub to collect them">
+                        @info.ReportsWaiting report@(info.ReportsWaiting == 1 ? "" : "s") waiting
+                    </span>
+                }
+            }
+        </Chips>
+    </HubTopBar>
+
+    <main class="content">
+        @if (_error is not null)
+        {
+            <div class="alert error" role="alert">
+                <span class="grow">@_error</span>
+                <button type="button" class="ghost sm" @onclick="() => _error = null">Dismiss</button>
+            </div>
+        }
+        @if (_info?.LeasedBy is { } owner)
+        {
+            <div class="alert warn">In use by <strong>@owner</strong>: this machine runs part of their session and starts nothing else until it ends.</div>
+        }
+
+        @if (_run is { } run)
+        {
+            <DaemonRunCard Run="run" OnStop="() => _confirmStop = true" />
+        }
+
+        <section aria-labelledby="experiments-title">
+            <div class="section-head">
+                <h2 id="experiments-title">Experiments</h2>
+                @if (Busy)
+                {
+                    <span class="subtle small">Start is available once the current run ends.</span>
+                }
+            </div>
+            @if (_repositories is null)
+            {
+                @if (_error is null)
+                {
+                    <div class="card calm subtle"><span class="spinner"></span> Loading the repositories…</div>
+                }
+            }
+            else if (_repositories.Count == 0)
+            {
+                <div class="card calm muted">No repositories are configured. Add them under <code>daemon: repositories:</code> in clabe.yml.</div>
+            }
+            else
+            {
+                <div class="repos">
+                    @foreach (var repository in _repositories)
+                    {
+                        <DaemonRepository Repository="repository" Busy="Busy" OnStart="e => Launch(repository.Name, e)" @key="repository.Name" />
+                    }
+                </div>
+            }
+        </section>
+    </main>
+</div>
+
+@if (_confirmStop)
+{
+    <ReportConfirm Title="Stop the run?" Danger="true" ConfirmText="Stop"
+                   Message="This ends the run's process at once. Aborting it from its page lets it clean up first."
+                   OnConfirm="Stop" OnCancel="() => _confirmStop = false" />
+}
+
+@code {
+    private HostInfo? _info;
+    private RunInfo? _run;
+    private List<RepositoryInfo>? _repositories;
+    private string? _error;
+    private bool _needsToken;
+    private Timer? _timer;
+    private bool _openWhenRunning;
+    private bool _confirmStop;
+
+    private bool Busy => _run is { Status: "starting" or "running" } || _info?.LeasedBy is not null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _repositories = await Daemon.RepositoriesAsync();
+            await Refresh();
+        }
+        catch (Exception exc) when (exc is HttpRequestException or InvalidOperationException)
+        {
+            _needsToken = exc is HttpRequestException { StatusCode: System.Net.HttpStatusCode.Unauthorized } || exc.Message.Contains("401");
+            _error = _needsToken ? null : exc.Message;
+        }
+        _timer = new Timer(_ => InvokeAsync(async () => { await Refresh(); StateHasChanged(); }), null, 2000, 2000);
+    }
+
+    private async Task Refresh()
+    {
+        try
+        {
+            _info = await Daemon.InfoAsync();
+            _run = await Daemon.CurrentAsync();
+        }
+        catch (HttpRequestException)
+        {
+            return; // the daemon may be restarting; try again on the next tick
+        }
+        if (_openWhenRunning && _run?.Status == "running")
+        {
+            _openWhenRunning = false;
+            Navigation.NavigateTo(Daemon.RunPageUrl, forceLoad: true);
+        }
+    }
+
+    private async Task Launch(string repository, ExperimentInfo experiment)
+    {
+        try
+        {
+            await Daemon.LaunchAsync(repository, experiment.File, experiment.Name);
+            _openWhenRunning = true;
+            await Refresh();
+        }
+        catch (InvalidOperationException exc)
+        {
+            _error = exc.Message;
+        }
+    }
+
+    private async Task Stop()
+    {
+        try
+        {
+            await Daemon.StopAsync();
+            await Refresh();
+        }
+        catch (InvalidOperationException exc)
+        {
+            _error = exc.Message;
+        }
+        _confirmStop = false;
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        _timer?.Dispose();
+        return ValueTask.CompletedTask;
+    }
+}

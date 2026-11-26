@@ -1,0 +1,3131 @@
+{
+  "components": {
+    "schemas": {
+      "AbortBody": {
+        "description": "Aborts the run.",
+        "properties": {
+          "reason": {
+            "default": "Aborted by user.",
+            "description": "Recorded as the run's reason.",
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "title": "AbortBody",
+        "type": "object"
+      },
+      "ActivityEnded": {
+        "description": "Long-running work ended.",
+        "properties": {
+          "activity_id": {
+            "title": "Activity Id",
+            "type": "string"
+          },
+          "run_id": {
+            "default": "",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "seq": {
+            "default": 0,
+            "title": "Seq",
+            "type": "integer"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "type": {
+            "const": "activity_ended",
+            "default": "activity_ended",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "activity_id"
+        ],
+        "title": "ActivityEnded",
+        "type": "object"
+      },
+      "ActivityOutput": {
+        "description": "New output lines of a running activity (e.g. a remote job's log), at most about one event per second.",
+        "properties": {
+          "activity_id": {
+            "title": "Activity Id",
+            "type": "string"
+          },
+          "lines": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "run_id": {
+            "default": "",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "seq": {
+            "default": 0,
+            "title": "Seq",
+            "type": "integer"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "type": {
+            "const": "activity_output",
+            "default": "activity_output",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "activity_id",
+          "lines"
+        ],
+        "title": "ActivityOutput",
+        "type": "object"
+      },
+      "ActivityStarted": {
+        "description": "Long-running work began (e.g. an app is running).",
+        "properties": {
+          "activity_id": {
+            "title": "Activity Id",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "machine": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine"
+          },
+          "run_id": {
+            "default": "",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "seq": {
+            "default": 0,
+            "title": "Seq",
+            "type": "integer"
+          },
+          "step": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "type": {
+            "const": "activity_started",
+            "default": "activity_started",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "activity_id",
+          "description"
+        ],
+        "title": "ActivityStarted",
+        "type": "object"
+      },
+      "AnswerBody": {
+        "description": "An answer to an open prompt.",
+        "properties": {
+          "client": {
+            "default": "remote",
+            "description": "Who answers; recorded in the prompt's close event.",
+            "title": "Client",
+            "type": "string"
+          },
+          "value": {
+            "description": "The answer, as described by the prompt's answer schema.",
+            "title": "Value"
+          }
+        },
+        "title": "AnswerBody",
+        "type": "object"
+      },
+      "ArtifactExported": {
+        "description": "A step saved a file; ``path`` is relative to the run's ``artifacts/`` folder.",
+        "properties": {
+          "attempt": {
+            "title": "Attempt",
+            "type": "integer"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "run_id": {
+            "default": "",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "seq": {
+            "default": 0,
+            "title": "Seq",
+            "type": "integer"
+          },
+          "step": {
+            "title": "Step",
+            "type": "string"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "type": {
+            "const": "artifact_exported",
+            "default": "artifact_exported",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "step",
+          "attempt",
+          "path"
+        ],
+        "title": "ArtifactExported",
+        "type": "object"
+      },
+      "BranchEnded": {
+        "description": "A branch of a step ended: done, failed (``error``), cancelled (stopped with the others), or skipped (the user\ncontinued without it after it failed).",
+        "properties": {
+          "attempt": {
+            "default": 1,
+            "title": "Attempt",
+            "type": "integer"
+          },
+          "branch": {
+            "title": "Branch",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "outcome": {
+            "enum": [
+              "done",
+              "failed",
+              "cancelled",
+              "skipped"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          },
+          "run_id": {
+            "default": "",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "seq": {
+            "default": 0,
+            "title": "Seq",
+            "type": "integer"
+          },
+          "step": {
+            "title": "Step",
+            "type": "string"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "type": {
+            "const": "branch_ended",
+            "default": "branch_ended",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "step",
+          "branch",
+          "outcome"
+        ],
+        "title": "BranchEnded",
+        "type": "object"
+      },
+      "BranchStarted": {
+        "description": "A branch of a step started (see [`concurrently`][clabe.workflow.concurrently]); ``attempt`` counts its retries.",
+        "properties": {
+          "attempt": {
+            "default": 1,
+            "title": "Attempt",
+            "type": "integer"
+          },
+          "branch": {
+            "title": "Branch",
+            "type": "string"
+          },
+          "run_id": {
+            "default": "",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "seq": {
+            "default": 0,
+            "title": "Seq",
+            "type": "integer"
+          },
+          "step": {
+            "title": "Step",
+            "type": "string"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "type": {
+            "const": "branch_started",
+            "default": "branch_started",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "step",
+          "branch"
+        ],
+        "title": "BranchStarted",
+        "type": "object"
+      },
+      "ClientBody": {
+        "description": "Identifies who sends a command.",
+        "properties": {
+          "client": {
+            "default": "remote",
+            "description": "Who sends the command.",
+            "title": "Client",
+            "type": "string"
+          }
+        },
+        "title": "ClientBody",
+        "type": "object"
+      },
+      "ClosingState": {
+        "description": "The closing screen of a finished run (see [`Run.begin_closing`][clabe.workflow.Run.begin_closing]).",
+        "properties": {
+          "closed": {
+            "default": false,
+            "title": "Closed",
+            "type": "boolean"
+          },
+          "closed_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed By"
+          },
+          "deadline": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deadline"
+          },
+          "since": {
+            "format": "date-time",
+            "title": "Since",
+            "type": "string"
+          }
+        },
+        "required": [
+          "since"
+        ],
+        "title": "ClosingState",
+        "type": "object"
+      },
+      "CommandFinished": {
+        "description": "A command an app ran (Bonsai, Open Ephys, a script) ended: what exactly ran, for provenance.\n\n``files`` maps each existing file the command named (its arguments, its inputs, ``Bonsai.config`` next to the\nprogram) to its SHA-256 (``None`` when too large to hash). Files of a remote command are hashed here, where the\nrun is (the remote checkout is the same commit when ``RemoteRepository.verify()`` passed).",
+        "properties": {
+          "attempt": {
+            "default": 1,
+            "title": "Attempt",
+            "type": "integer"
+          },
+          "command": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Command",
+            "type": "array"
+          },
+          "cwd": {
+            "title": "Cwd",
+            "type": "string"
+          },
+          "duration_s": {
+            "title": "Duration S",
+            "type": "number"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When it ended (UTC)",
+            "title": "Ended At"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "executable": {
+            "title": "Executable",
+            "type": "string"
+          },
+          "executable_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Executable Sha256"
+          },
+          "exit_code": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exit Code"
+          },
+          "files": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Files",
+            "type": "object"
+          },
+          "machine": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine"
+          },
+          "run_id": {
+            "default": "",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "seq": {
+            "default": 0,
+            "title": "Seq",
+            "type": "integer"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When it started (UTC)",
+            "title": "Started At"
+          },
+          "step": {
+            "title": "Step",
+            "type": "string"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "type": {
+            "const": "command_finished",
+            "default": "command_finished",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "step",
+          "command",
+          "cwd",
+          "executable",
+          "duration_s"
+        ],
+        "title": "CommandFinished",
+        "type": "object"
+      },
+      "CommandResult": {
+        "description": "Outcome of an answer or a command: accepted, or rejected with a reason to show the user.",
+        "properties": {
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "title": "CommandResult",
+        "type": "object"
+      },
+      "ContextChanged": {
+        "description": "What the run is about changed (or became known): the workflow, the machine, the rig, the subject and the\nexperimenters. Every client shows the latest one prominently; see\n[`RunContext`][clabe.workflow.RunContext].",
+        "properties": {
+          "experimenter": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Experimenter",
+            "type": "array"
+          },
+          "hostname": {
+            "title": "Hostname",
+            "type": "string"
+          },
+          "rig": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rig"
+          },
+          "run_id": {
+            "default": "",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "seq": {
+            "default": 0,
+            "title": "Seq",
+            "type": "integer"
+          },
+          "subject": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "type": {
+            "const": "context_changed",
+            "default": "context_changed",
+            "title": "Type",
+            "type": "string"
+          },
+          "workflow": {
+            "title": "Workflow",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workflow",
+          "hostname"
+        ],
+        "title": "ContextChanged",
+        "type": "object"
+      },
+      "DirEntry": {
+        "description": "One entry of a listed directory.",
+        "properties": {
+          "is_dir": {
+            "title": "Is Dir",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "path",
+          "is_dir"
+        ],
+        "title": "DirEntry",
+        "type": "object"
+      },
+      "DirListing": {
+        "description": "A listed directory.",
+        "properties": {
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/DirEntry"
+            },
+            "title": "Entries",
+            "type": "array"
+          },
+          "parent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "parent",
+          "entries"
+        ],
+        "title": "DirListing",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "Header": {
+        "description": "A prominent header for the user.",
+        "properties": {
+          "run_id": {
+            "default": "",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "seq": {
+            "default": 0,
+            "title": "Seq",
+            "type": "integer"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "type": {
+            "const": "header",
+            "default": "header",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "Header",
+        "type": "object"
+      },
+      "ListDirBody": {
+        "description": "Lists a directory of the machine running the run (the remote path picker).",
+        "properties": {
+          "extensions": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Only list files with these suffixes.",
+            "title": "Extensions"
+          },
+          "kind": {
+            "default": "any",
+            "enum": [
+              "file",
+              "dir",
+              "any"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Directory to list; the working directory when omitted.",
+            "title": "Path"
+          }
+        },
+        "title": "ListDirBody",
+        "type": "object"
+      },
+      "LogLine": {
+        "description": "A Python log record of the run's process (info and above), as the web UI's Log pane shows it.",
+        "properties": {
+          "id": {
+            "description": "Increasing number of the line; follow the stream after it.",
+            "title": "Id",
+            "type": "integer"
+          },
+          "level": {
+            "description": "debug, info, warning, error or critical.",
+            "title": "Level",
+            "type": "string"
+          },
+          "logger": {
+            "description": "The logger's name (e.g. ``clabe.launcher``).",
+            "title": "Logger",
+            "type": "string"
+          },
+          "message": {
+            "description": "The message, with the traceback when an exception was logged.",
+            "title": "Message",
+            "type": "string"
+          },
+          "ts": {
+            "description": "When it was logged (UTC).",
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "ts",
+          "level",
+          "logger",
+          "message"
+        ],
+        "title": "LogLine",
+        "type": "object"
+      },
+      "Notify": {
+        "description": "A message for the user. ``level`` is a [`MessageLevel`][clabe.ui.MessageLevel] value.",
+        "properties": {
+          "level": {
+            "title": "Level",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "run_id": {
+            "default": "",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "seq": {
+            "default": 0,
+            "title": "Seq",
+            "type": "integer"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "type": {
+            "const": "notify",
+            "default": "notify",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "message",
+          "level"
+        ],
+        "title": "Notify",
+        "type": "object"
+      },
+      "PromptClosed": {
+        "description": "A prompt was answered (by ``answered_by``) or cancelled.\n\n``answer`` is the JSON form of the accepted answer (secrets stay masked); ``None`` when cancelled.",
+        "properties": {
+          "answer": {
+            "title": "Answer"
+          },
+          "answered_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answered By"
+          },
+          "outcome": {
+            "enum": [
+              "answered",
+              "cancelled"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          },
+          "prompt_id": {
+            "title": "Prompt Id",
+            "type": "string"
+          },
+          "run_id": {
+            "default": "",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "seq": {
+            "default": 0,
+            "title": "Seq",
+            "type": "integer"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "type": {
+            "const": "prompt_closed",
+            "default": "prompt_closed",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt_id",
+          "outcome"
+        ],
+        "title": "PromptClosed",
+        "type": "object"
+      },
+      "PromptOpened": {
+        "description": "A step is waiting for an answer. ``answer_schema`` is the JSON Schema of a valid answer.\n\nWhen the same prompt was answered before (an earlier attempt of its step asked it; see\n[`Run.forward`][clabe.workflow.Run.forward]), ``can_forward`` is set and ``previous_answer`` is that answer, in\nits JSON form: clients prefill it and offer Forward. Secret answers are never remembered.",
+        "properties": {
+          "answer_schema": {
+            "additionalProperties": true,
+            "title": "Answer Schema",
+            "type": "object"
+          },
+          "can_forward": {
+            "default": false,
+            "title": "Can Forward",
+            "type": "boolean"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "previous_answer": {
+            "title": "Previous Answer"
+          },
+          "prompt_id": {
+            "title": "Prompt Id",
+            "type": "string"
+          },
+          "run_id": {
+            "default": "",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "seq": {
+            "default": 0,
+            "title": "Seq",
+            "type": "integer"
+          },
+          "spec": {
+            "additionalProperties": true,
+            "title": "Spec",
+            "type": "object"
+          },
+          "step": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "type": {
+            "const": "prompt_opened",
+            "default": "prompt_opened",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt_id",
+          "step",
+          "kind",
+          "spec",
+          "answer_schema"
+        ],
+        "title": "PromptOpened",
+        "type": "object"
+      },
+      "RecordResolved": {
+        "description": "A step took a record (a rig, a trainer state, ...) from a store: which one, from where, and its content hash.\n\nThe record itself is saved as an artifact of the step (``stores/<kind>.json``), so the session keeps exactly what\nit used even if the store changes later.",
+        "properties": {
+          "artifact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Artifact"
+          },
+          "attempt": {
+            "default": 1,
+            "title": "Attempt",
+            "type": "integer"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "revision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revision"
+          },
+          "run_id": {
+            "default": "",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "scope": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Scope",
+            "type": "object"
+          },
+          "seq": {
+            "default": 0,
+            "title": "Seq",
+            "type": "integer"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          },
+          "step": {
+            "title": "Step",
+            "type": "string"
+          },
+          "store": {
+            "title": "Store",
+            "type": "string"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "type": {
+            "const": "record_resolved",
+            "default": "record_resolved",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "step",
+          "kind",
+          "store",
+          "label",
+          "sha256"
+        ],
+        "title": "RecordResolved",
+        "type": "object"
+      },
+      "ReportBody": {
+        "description": "Reports an issue with the run (saved on this machine for the hub to collect).",
+        "properties": {
+          "client": {
+            "default": "remote",
+            "description": "Who reports; recorded as the report's ``reported_from``.",
+            "title": "Client",
+            "type": "string"
+          },
+          "comment": {
+            "default": "",
+            "description": "What went wrong, in the user's words.",
+            "title": "Comment",
+            "type": "string"
+          }
+        },
+        "title": "ReportBody",
+        "type": "object"
+      },
+      "ReportInfo": {
+        "description": "What a report is about: who, where, when, and the user's comment. Stored as ``report.json`` in its zip.",
+        "properties": {
+          "clabe_version": {
+            "title": "Clabe Version",
+            "type": "string"
+          },
+          "comment": {
+            "default": "",
+            "description": "What the user wrote",
+            "title": "Comment",
+            "type": "string"
+          },
+          "commit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commit"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "experiment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Experiment"
+          },
+          "experimenter": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Experimenter",
+            "type": "array"
+          },
+          "hostname": {
+            "title": "Hostname",
+            "type": "string"
+          },
+          "report_id": {
+            "description": "Unique id of the report",
+            "title": "Report Id",
+            "type": "string"
+          },
+          "reported_from": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The client the report was made from",
+            "title": "Reported From"
+          },
+          "repository": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The experiment repository's name",
+            "title": "Repository"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The session's name, once registered",
+            "title": "Session Id"
+          },
+          "step": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The step the run was on",
+            "title": "Step"
+          },
+          "subject": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject"
+          }
+        },
+        "required": [
+          "report_id",
+          "created_at",
+          "hostname",
+          "clabe_version"
+        ],
+        "title": "ReportInfo",
+        "type": "object"
+      },
+      "RunAgentInput": {
+        "additionalProperties": true,
+        "description": "What an AG-UI client sends (only the fields clabe uses are read).",
+        "properties": {
+          "forwardedProps": {
+            "additionalProperties": true,
+            "title": "Forwardedprops",
+            "type": "object"
+          },
+          "messages": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Messages",
+            "type": "array"
+          },
+          "runId": {
+            "title": "Runid",
+            "type": "string"
+          },
+          "threadId": {
+            "title": "Threadid",
+            "type": "string"
+          }
+        },
+        "title": "RunAgentInput",
+        "type": "object"
+      },
+      "RunClosed": {
+        "description": "The session was closed: by a client (``closed_by``), by the deadline (``\"timeout\"``) or by the launcher.\n\nThe last event of a run whose session was kept open (see [`Run.keep_open`][clabe.workflow.Run.keep_open]).",
+        "properties": {
+          "closed_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed By"
+          },
+          "run_id": {
+            "default": "",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "seq": {
+            "default": 0,
+            "title": "Seq",
+            "type": "integer"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "type": {
+            "const": "run_closed",
+            "default": "run_closed",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "title": "RunClosed",
+        "type": "object"
+      },
+      "RunClosing": {
+        "description": "The run has finished and the launcher shows its closing screen, waiting for a client to close the session.\n\n``deadline`` is when it closes on its own (``None``: it waits for a client). See\n[`Run.close`][clabe.workflow.Run.close].",
+        "properties": {
+          "deadline": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deadline"
+          },
+          "run_id": {
+            "default": "",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "seq": {
+            "default": 0,
+            "title": "Seq",
+            "type": "integer"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "type": {
+            "const": "run_closing",
+            "default": "run_closing",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "title": "RunClosing",
+        "type": "object"
+      },
+      "RunContext": {
+        "description": "What a run is about, as far as known so far: every client shows it prominently (the TUI's header, the web\nUI's summary strip).\n\nThe subject and experimenters are known once the session is (``launcher.register_session``, or a step returning\na session). The rig is the ``aibs_comp_id`` environment variable of the machine running the run, and only that:\na workflow cannot set it.",
+        "properties": {
+          "experimenter": {
+            "description": "The experimenters, once the session is known",
+            "items": {
+              "type": "string"
+            },
+            "title": "Experimenter",
+            "type": "array"
+          },
+          "hostname": {
+            "title": "Hostname",
+            "type": "string"
+          },
+          "rig": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The rig's name, once known",
+            "title": "Rig"
+          },
+          "subject": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The subject's id, once the session is known",
+            "title": "Subject"
+          },
+          "workflow": {
+            "title": "Workflow",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workflow",
+          "hostname"
+        ],
+        "title": "RunContext",
+        "type": "object"
+      },
+      "RunFinished": {
+        "description": "The run ended.",
+        "properties": {
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "run_id": {
+            "default": "",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "seq": {
+            "default": 0,
+            "title": "Seq",
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "completed",
+              "aborted",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "type": {
+            "const": "run_finished",
+            "default": "run_finished",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "RunFinished",
+        "type": "object"
+      },
+      "RunStarted": {
+        "description": "The run began executing.",
+        "properties": {
+          "run_id": {
+            "default": "",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "seq": {
+            "default": 0,
+            "title": "Seq",
+            "type": "integer"
+          },
+          "steps": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Steps",
+            "type": "array"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "type": {
+            "const": "run_started",
+            "default": "run_started",
+            "title": "Type",
+            "type": "string"
+          },
+          "workflow": {
+            "title": "Workflow",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workflow",
+          "steps"
+        ],
+        "title": "RunStarted",
+        "type": "object"
+      },
+      "RunState": {
+        "description": "Snapshot of a run, for clients attaching mid-run. Follow events after ``last_seq``.\n\n``back_target`` is the step [`Run.back`][clabe.workflow.Run.back] would go back to (``None``: Back is not\navailable). ``closing`` is set once the finished run shows its closing screen. ``context`` is what the run is\nabout so far (the latest ``context_changed`` event).",
+        "properties": {
+          "back_target": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Back Target"
+          },
+          "closing": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ClosingState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "context": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RunContext"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "current_step": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Step"
+          },
+          "last_seq": {
+            "title": "Last Seq",
+            "type": "integer"
+          },
+          "prompt": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PromptOpened"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RunStatus"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/StepState"
+            },
+            "title": "Steps",
+            "type": "array"
+          },
+          "workflow": {
+            "title": "Workflow",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "workflow",
+          "status",
+          "current_step",
+          "steps",
+          "prompt",
+          "last_seq"
+        ],
+        "title": "RunState",
+        "type": "object"
+      },
+      "RunStatus": {
+        "description": "Where a run is in its lifecycle.",
+        "enum": [
+          "created",
+          "running",
+          "completed",
+          "aborted",
+          "failed"
+        ],
+        "title": "RunStatus",
+        "type": "string"
+      },
+      "ServerInfo": {
+        "description": "Identity of the server and the run it serves.",
+        "properties": {
+          "clabe_version": {
+            "title": "Clabe Version",
+            "type": "string"
+          },
+          "hostname": {
+            "title": "Hostname",
+            "type": "string"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "workflow": {
+            "title": "Workflow",
+            "type": "string"
+          }
+        },
+        "required": [
+          "clabe_version",
+          "hostname",
+          "run_id",
+          "workflow",
+          "status"
+        ],
+        "title": "ServerInfo",
+        "type": "object"
+      },
+      "SessionInfo": {
+        "description": "What a run is about, as far as known so far: the hub lists it as a session.",
+        "properties": {
+          "clabe_version": {
+            "title": "Clabe Version",
+            "type": "string"
+          },
+          "commit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commit"
+          },
+          "current_step": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Step"
+          },
+          "experiment": {
+            "title": "Experiment",
+            "type": "string"
+          },
+          "experimenter": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Experimenter",
+            "type": "array"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "hostname": {
+            "title": "Hostname",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why it ended, when it did not complete",
+            "title": "Reason"
+          },
+          "repository": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repository"
+          },
+          "rig": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The rig's name, once known",
+            "title": "Rig"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The session's name, once registered",
+            "title": "Session Id"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "description": "running, completed, aborted or failed",
+            "title": "Status",
+            "type": "string"
+          },
+          "steps_done": {
+            "default": 0,
+            "title": "Steps Done",
+            "type": "integer"
+          },
+          "steps_total": {
+            "default": 0,
+            "title": "Steps Total",
+            "type": "integer"
+          },
+          "subject": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject"
+          },
+          "waiting": {
+            "default": false,
+            "description": "Whether a prompt waits for an answer",
+            "title": "Waiting",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "run_id",
+          "experiment",
+          "status",
+          "hostname",
+          "clabe_version"
+        ],
+        "title": "SessionInfo",
+        "type": "object"
+      },
+      "StepFailed": {
+        "description": "A step raised. ``warn_only`` steps continue; others pause the run.",
+        "properties": {
+          "error": {
+            "title": "Error",
+            "type": "string"
+          },
+          "run_id": {
+            "default": "",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "seq": {
+            "default": 0,
+            "title": "Seq",
+            "type": "integer"
+          },
+          "step": {
+            "title": "Step",
+            "type": "string"
+          },
+          "traceback": {
+            "title": "Traceback",
+            "type": "string"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "type": {
+            "const": "step_failed",
+            "default": "step_failed",
+            "title": "Type",
+            "type": "string"
+          },
+          "warn_only": {
+            "default": false,
+            "title": "Warn Only",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "step",
+          "error",
+          "traceback"
+        ],
+        "title": "StepFailed",
+        "type": "object"
+      },
+      "StepFinished": {
+        "description": "A step completed.\n\n``summary`` is a truncated rendering of its output, ``output_sha256`` links to its line in ``outputs.jsonl``\nand ``inputs`` gives the attempt of each upstream step whose output it consumed (``0``: skipped). The attempt of\na ``warn``-only failure (whose output is ``None``) has a ``StepFailed`` event and no line in ``outputs.jsonl``.\n``output_sha256`` is ``None`` when the output was omitted or the run keeps no records.",
+        "properties": {
+          "attempt": {
+            "default": 1,
+            "title": "Attempt",
+            "type": "integer"
+          },
+          "inputs": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Inputs",
+            "type": "object"
+          },
+          "output_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Sha256"
+          },
+          "run_id": {
+            "default": "",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "seq": {
+            "default": 0,
+            "title": "Seq",
+            "type": "integer"
+          },
+          "step": {
+            "title": "Step",
+            "type": "string"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "type": {
+            "const": "step_finished",
+            "default": "step_finished",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "step"
+        ],
+        "title": "StepFinished",
+        "type": "object"
+      },
+      "StepSkipped": {
+        "description": "A step was skipped: an optional step declined, or a conditional step whose condition did not hold.",
+        "properties": {
+          "reason": {
+            "default": "declined",
+            "enum": [
+              "declined",
+              "condition"
+            ],
+            "title": "Reason",
+            "type": "string"
+          },
+          "run_id": {
+            "default": "",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "seq": {
+            "default": 0,
+            "title": "Seq",
+            "type": "integer"
+          },
+          "step": {
+            "title": "Step",
+            "type": "string"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "type": {
+            "const": "step_skipped",
+            "default": "step_skipped",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "step"
+        ],
+        "title": "StepSkipped",
+        "type": "object"
+      },
+      "StepStarted": {
+        "description": "A step began running (``attempt`` counts runs of this step, from 1).",
+        "properties": {
+          "attempt": {
+            "default": 1,
+            "title": "Attempt",
+            "type": "integer"
+          },
+          "run_id": {
+            "default": "",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "seq": {
+            "default": 0,
+            "title": "Seq",
+            "type": "integer"
+          },
+          "step": {
+            "title": "Step",
+            "type": "string"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "type": {
+            "const": "step_started",
+            "default": "step_started",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "step"
+        ],
+        "title": "StepStarted",
+        "type": "object"
+      },
+      "StepState": {
+        "description": "Snapshot of one step, for clients.",
+        "properties": {
+          "barrier": {
+            "title": "Barrier",
+            "type": "boolean"
+          },
+          "conditional": {
+            "default": false,
+            "title": "Conditional",
+            "type": "boolean"
+          },
+          "locked": {
+            "title": "Locked",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "optional": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Optional"
+          },
+          "skip_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "declined",
+                  "condition"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skip Reason"
+          },
+          "status": {
+            "$ref": "#/components/schemas/StepStatus"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "title",
+          "status",
+          "barrier",
+          "optional",
+          "locked"
+        ],
+        "title": "StepState",
+        "type": "object"
+      },
+      "StepStatus": {
+        "description": "Where a step is in its lifecycle.",
+        "enum": [
+          "pending",
+          "running",
+          "done",
+          "skipped",
+          "failed"
+        ],
+        "title": "StepStatus",
+        "type": "string"
+      },
+      "StepsInvalidated": {
+        "description": "Completed steps were reset to pending by going back.",
+        "properties": {
+          "run_id": {
+            "default": "",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "seq": {
+            "default": 0,
+            "title": "Seq",
+            "type": "integer"
+          },
+          "steps": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Steps",
+            "type": "array"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "type": {
+            "const": "steps_invalidated",
+            "default": "steps_invalidated",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "steps"
+        ],
+        "title": "StepsInvalidated",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "Observe and drive a clabe run: a snapshot, a resumable event stream, answers and commands.",
+    "title": "clabe run API"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/abort": {
+      "post": {
+        "description": "Aborts the run.",
+        "operationId": "abort_api_abort_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/AbortBody"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Abort"
+      }
+    },
+    "/api/agui": {
+      "post": {
+        "description": "The run as an AG-UI agent: one turn follows the run until it needs the user (see ``clabe.server._agui``).",
+        "operationId": "agui_api_agui_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunAgentInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Agui"
+      }
+    },
+    "/api/back": {
+      "post": {
+        "description": "Goes back to the previous step (the state's ``back_target``).",
+        "operationId": "back_previous_api_back_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ClientBody"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Back Previous"
+      }
+    },
+    "/api/close": {
+      "post": {
+        "description": "Closes the finished run's session (its closing screen): the launcher exits.",
+        "operationId": "close_api_close_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ClientBody"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Close"
+      }
+    },
+    "/api/events": {
+      "get": {
+        "description": "The run's events as Server-Sent Events, from ``after`` (or ``Last-Event-ID``); ends after the run ends.",
+        "operationId": "events_api_events_get",
+        "parameters": [
+          {
+            "description": "Only events after this sequence number.",
+            "in": "query",
+            "name": "after",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only events after this sequence number.",
+              "title": "After"
+            }
+          },
+          {
+            "in": "header",
+            "name": "last-event-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Last-Event-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "itemSchema": {
+                  "properties": {
+                    "data": {
+                      "contentMediaType": "application/json",
+                      "contentSchema": {
+                        "discriminator": {
+                          "mapping": {
+                            "activity_ended": "#/components/schemas/ActivityEnded",
+                            "activity_output": "#/components/schemas/ActivityOutput",
+                            "activity_started": "#/components/schemas/ActivityStarted",
+                            "artifact_exported": "#/components/schemas/ArtifactExported",
+                            "branch_ended": "#/components/schemas/BranchEnded",
+                            "branch_started": "#/components/schemas/BranchStarted",
+                            "command_finished": "#/components/schemas/CommandFinished",
+                            "context_changed": "#/components/schemas/ContextChanged",
+                            "header": "#/components/schemas/Header",
+                            "notify": "#/components/schemas/Notify",
+                            "prompt_closed": "#/components/schemas/PromptClosed",
+                            "prompt_opened": "#/components/schemas/PromptOpened",
+                            "record_resolved": "#/components/schemas/RecordResolved",
+                            "run_closed": "#/components/schemas/RunClosed",
+                            "run_closing": "#/components/schemas/RunClosing",
+                            "run_finished": "#/components/schemas/RunFinished",
+                            "run_started": "#/components/schemas/RunStarted",
+                            "step_failed": "#/components/schemas/StepFailed",
+                            "step_finished": "#/components/schemas/StepFinished",
+                            "step_skipped": "#/components/schemas/StepSkipped",
+                            "step_started": "#/components/schemas/StepStarted",
+                            "steps_invalidated": "#/components/schemas/StepsInvalidated"
+                          },
+                          "propertyName": "type"
+                        },
+                        "oneOf": [
+                          {
+                            "$ref": "#/components/schemas/RunStarted"
+                          },
+                          {
+                            "$ref": "#/components/schemas/RunFinished"
+                          },
+                          {
+                            "$ref": "#/components/schemas/RunClosing"
+                          },
+                          {
+                            "$ref": "#/components/schemas/RunClosed"
+                          },
+                          {
+                            "$ref": "#/components/schemas/StepStarted"
+                          },
+                          {
+                            "$ref": "#/components/schemas/StepFinished"
+                          },
+                          {
+                            "$ref": "#/components/schemas/StepFailed"
+                          },
+                          {
+                            "$ref": "#/components/schemas/StepSkipped"
+                          },
+                          {
+                            "$ref": "#/components/schemas/StepsInvalidated"
+                          },
+                          {
+                            "$ref": "#/components/schemas/ArtifactExported"
+                          },
+                          {
+                            "$ref": "#/components/schemas/PromptOpened"
+                          },
+                          {
+                            "$ref": "#/components/schemas/PromptClosed"
+                          },
+                          {
+                            "$ref": "#/components/schemas/Notify"
+                          },
+                          {
+                            "$ref": "#/components/schemas/Header"
+                          },
+                          {
+                            "$ref": "#/components/schemas/ActivityStarted"
+                          },
+                          {
+                            "$ref": "#/components/schemas/ActivityEnded"
+                          },
+                          {
+                            "$ref": "#/components/schemas/ActivityOutput"
+                          },
+                          {
+                            "$ref": "#/components/schemas/CommandFinished"
+                          },
+                          {
+                            "$ref": "#/components/schemas/RecordResolved"
+                          },
+                          {
+                            "$ref": "#/components/schemas/ContextChanged"
+                          },
+                          {
+                            "$ref": "#/components/schemas/BranchStarted"
+                          },
+                          {
+                            "$ref": "#/components/schemas/BranchEnded"
+                          }
+                        ],
+                        "title": "Streamitem Events Api Events Get"
+                      },
+                      "type": "string"
+                    },
+                    "event": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Events"
+      }
+    },
+    "/api/export": {
+      "get": {
+        "description": "The run's logs and records so far as a zip (see ``clabe.reports.make_bundle``), also while closing.",
+        "operationId": "export_api_export_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/zip": {}
+            },
+            "description": "The bundle (a zip)."
+          }
+        },
+        "summary": "Export"
+      }
+    },
+    "/api/forward": {
+      "post": {
+        "description": "Answers the open prompt with its earlier answer (the prompt's ``previous_answer``).",
+        "operationId": "forward_api_forward_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ClientBody"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Forward"
+      }
+    },
+    "/api/fs/list": {
+      "post": {
+        "description": "Lists a directory of the machine running the run (for remote path pickers).",
+        "operationId": "list_dir_api_fs_list_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListDirBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirListing"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Dir"
+      }
+    },
+    "/api/info": {
+      "get": {
+        "description": "Identity of the server and its run.",
+        "operationId": "info_api_info_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerInfo"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Info"
+      }
+    },
+    "/api/logs": {
+      "get": {
+        "description": "The process' log records (info and above) as Server-Sent Events (``log``), the latest kept ones first, then\nlive ones; ends when the run's session is over or the client leaves.",
+        "operationId": "log_lines_api_logs_get",
+        "parameters": [
+          {
+            "description": "Only lines after this id.",
+            "in": "query",
+            "name": "after",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only lines after this id.",
+              "title": "After"
+            }
+          },
+          {
+            "in": "header",
+            "name": "last-event-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Last-Event-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "itemSchema": {
+                  "properties": {
+                    "data": {
+                      "contentMediaType": "application/json",
+                      "contentSchema": {
+                        "$ref": "#/components/schemas/LogLine"
+                      },
+                      "type": "string"
+                    },
+                    "event": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Log Lines"
+      }
+    },
+    "/api/prompts/{prompt_id}/answer": {
+      "post": {
+        "description": "Answers an open prompt; an invalid answer is rejected and the prompt stays open.",
+        "operationId": "answer_api_prompts__prompt_id__answer_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "prompt_id",
+            "required": true,
+            "schema": {
+              "title": "Prompt Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnswerBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Answer"
+      }
+    },
+    "/api/prompts/{prompt_id}/media": {
+      "get": {
+        "description": "The local file shown by a media prompt (an image or an HTML page); nothing else is served.",
+        "operationId": "media_api_prompts__prompt_id__media_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "prompt_id",
+            "required": true,
+            "schema": {
+              "title": "Prompt Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Media"
+      }
+    },
+    "/api/prompts/{prompt_id}/options": {
+      "get": {
+        "description": "The options of the open autocomplete prompt for the text typed so far (its options function's result).",
+        "operationId": "options_api_prompts__prompt_id__options_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "prompt_id",
+            "required": true,
+            "schema": {
+              "title": "Prompt Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The text typed so far.",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "default": "",
+              "description": "The text typed so far.",
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The group item, when the prompt is a group.",
+            "in": "query",
+            "name": "item",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The group item, when the prompt is a group.",
+              "title": "Item"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "title": "Response Options Api Prompts  Prompt Id  Options Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Options"
+      }
+    },
+    "/api/report": {
+      "post": {
+        "description": "Files an issue report (the bundle and the comment), saved on this machine for the hub to collect.",
+        "operationId": "report_api_report_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ReportBody"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportInfo"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Report"
+      }
+    },
+    "/api/session": {
+      "get": {
+        "description": "What the run is about so far: session id, subject, experimenter, repository, progress, start and end.",
+        "operationId": "session_api_session_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionInfo"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Session"
+      }
+    },
+    "/api/state": {
+      "get": {
+        "description": "A snapshot of the run; follow the events after its ``last_seq``.",
+        "operationId": "state_api_state_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunState"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "State"
+      }
+    },
+    "/api/steps/{name}/back": {
+      "post": {
+        "description": "Goes back to step ``name``: it and the steps depending on it run again.",
+        "operationId": "back_api_steps__name__back_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ClientBody"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Back"
+      }
+    },
+    "/api/steps/{name}/retry": {
+      "post": {
+        "description": "Retries step ``name`` after it failed.",
+        "operationId": "retry_api_steps__name__retry_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ClientBody"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retry"
+      }
+    },
+    "/api/steps/{name}/skip": {
+      "post": {
+        "description": "Skips the optional step ``name``.",
+        "operationId": "skip_api_steps__name__skip_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ClientBody"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Skip"
+      }
+    }
+  }
+}

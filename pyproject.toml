@@ -23,15 +23,13 @@ classifiers = [
 dependencies = [
     "pydantic>=2.11",
     "pydantic-settings",
-    "typing-extensions>=4.13",
     "gitpython",
     "requests",
-    "semver",
     "rich",
     "aind_behavior_services>=0.13.0",
-    "textual>=8.2.7",
-    "textual-fspicker>=1.0.1",
     "opentelemetry-api>=1.24",
+    "markdown-it-py>=2",
+    "httpx>=0.27",
 ]
 
 [project.urls]
@@ -41,9 +39,6 @@ Issues = "https://github.com/AllenNeuralDynamics/clabe/issues"
 Changelog = "https://github.com/AllenNeuralDynamics/clabe/releases"
 
 [project.optional-dependencies]
-web = [
-    "textual-serve",
-]
 otel = [
     "opentelemetry-sdk",
     "opentelemetry-exporter-otlp-proto-http",
@@ -60,6 +55,16 @@ aind-services = [
     "aind-watchdog-service >= 0.1.10.dev0",
     "confierge>=0.1.4",
 ]
+agents = [
+    "mcp>=2.3",
+]
+frontend = [
+    # the terminal UI, and the web server: a run's browser page, the daemon and the hub
+    "textual>=8.2.7",
+    "textual-fspicker>=1.0.1",
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+]
 
 [dependency-groups]
 
@@ -72,14 +77,15 @@ dev = [
     'pytest-asyncio',
     'interrogate',
     "aind-clabe[aind-services]",
-    "aind-clabe[web]",
     "aind-clabe[otel]",
+    "aind-clabe[agents]",
+    "aind-clabe[frontend]",
 ]
 
 docs = [
     "aind-clabe[aind-services]",
-    'mkdocs',
-    'mkdocs-material',
+    "aind-clabe[frontend]",
+    'zensical',
     'mkdocstrings[python]',
     'pymdown-extensions',
 ]
@@ -109,8 +115,8 @@ mccabe = { max-complexity = 14 }
 pydocstyle = { convention = "google" }
 
 [tool.codespell]
-skip = '.git,*.pdf,*.svg,./bonsai,*.bonsai,./docs/_build,uv.lock'
-ignore-words-list = "nd, assertIn"
+skip = '.git,*.pdf,*.svg,./bonsai,*.bonsai,./docs/_build,uv.lock,./src/clabe/server/static,./ui-web/bin,./ui-web/obj'
+ignore-words-list = "nd, assertIn, te, fo"
 
 [tool.pytest.ini_options]
 addopts = "--strict-markers --tb=short --cov=src --cov-report=term-missing --ignore=tests/assets"

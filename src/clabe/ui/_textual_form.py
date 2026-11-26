@@ -1,7 +1,6 @@
 import logging
 import os
 import re
-import typing
 from collections.abc import Callable, Sequence
 from enum import Enum
 from pathlib import Path
@@ -14,10 +13,18 @@ from textual.binding import Binding
 from textual.containers import Horizontal, ScrollableContainer, Vertical
 from textual.css.query import QueryError
 from textual.screen import ModalScreen
-from textual.widgets import Button, DataTable, Footer, Input, Label, OptionList, Select, Switch
+from textual.widgets import Button, DataTable, Footer, Input, Label, Markdown, OptionList, Select, Switch
 from textual_fspicker import FileOpen, Filters, SelectDirectory
 
-from ._requests import AcknowledgeRequest, FormRequest, ReadOnlyTable, normalize_extensions
+from ._requests import (
+    AcknowledgeRequest,
+    FormRequest,
+    MarkdownRequest,
+    MediaRequest,
+    ReadOnlyTable,
+    normalize_extensions,
+)
+from ._validation import resolve_field_type
 
 logger = logging.getLogger(__name__)
 
@@ -26,18 +33,6 @@ def _humanize(name: str) -> str:
     """Convert snake_case or CamelCase to Title Case words."""
     name = re.sub(r"(?<=[a-z0-9])([A-Z])", r" \1", name)
     return name.replace("_", " ").replace("-", " ").title()
-
-
-def _resolve_form_type(annotation: Any) -> tuple[Any, bool]:
-    """Return (inner_type, is_optional) after stripping Annotated and Optional wrappers."""
-    if get_origin(annotation) is typing.Annotated:
-        annotation = get_args(annotation)[0]
-    if get_origin(annotation) is typing.Union:
-        args = get_args(annotation)
-        non_none = [a for a in args if a is not type(None)]
-        if len(non_none) == 1:
-            return non_none[0], True
-    return annotation, False
 
 
 def _field_label(field_name: str, field_info: Any, is_optional: bool) -> str:
@@ -180,6 +175,8 @@ _AcknowledgeScreen { align: center middle; }
 }
 #ack-title  { color: $warning; text-style: bold; margin-bottom: 1; }
 #ack-body   { margin-bottom: 1; }
+#ack-markdown { height: auto; max-height: 30; margin-bottom: 1; }
+_AcknowledgeScreen.wide #ack-box { width: 100; }
 #ack-ok     { width: 100%; }
 """
 
@@ -227,16 +224,25 @@ class _AcknowledgeScreen(ModalScreen):
         Binding("escape", "ok", "", show=False),
     ]
 
-    def __init__(self, request: AcknowledgeRequest) -> None:
-        """Initialize with the declarative acknowledge request."""
-        super().__init__()
+    def __init__(self, request: AcknowledgeRequest | MarkdownRequest | MediaRequest) -> None:
+        """Initialize with the request to show: a message, a Markdown document, or media the TUI cannot show."""
+        super().__init__(classes="wide" if isinstance(request, MarkdownRequest) else "")
         self._request = request
 
     def compose(self) -> ComposeResult:
         """Build the acknowledge dialog layout."""
+        request = self._request
         with Vertical(id="ack-box"):
-            yield Label(self._request.title, id="ack-title")
-            yield Label(self._request.message, id="ack-body")
+            if request.title:
+                yield Label(request.title, id="ack-title")
+            if isinstance(request, MarkdownRequest):
+                yield Markdown(request.markdown, id="ack-markdown")
+            elif isinstance(request, MediaRequest):
+                shown = "" if request.location == "inline" else f": {request.source}"
+                text = f"The terminal cannot show this {request.media}{shown}"
+                yield Label(f"{text}\n\n{request.caption}" if request.caption else text, id="ack-body")
+            else:
+                yield Label(request.message, id="ack-body")
             yield Button(
                 f"{self._request.button_label}  [Enter]",
                 id="ack-ok",
@@ -250,6 +256,58 @@ class _AcknowledgeScreen(ModalScreen):
     def action_ok(self) -> None:
         """Dismiss the dialog."""
         self.dismiss()
+
+
+_REPORT_CSS = """
+_ReportScreen { align: center middle; }
+#report-box {
+    width: 70; height: auto; max-width: 90%;
+    background: $surface; border: thick $error; padding: 1 2;
+}
+#report-title { color: $error; text-style: bold; margin-bottom: 1; }
+#report-help  { color: $text-muted; margin-bottom: 1; }
+#report-comment { width: 100%; }
+"""
+
+
+class _ReportScreen(ModalScreen[str | None]):
+    """The Report an issue dialog (F3): a comment, sent with Enter (``str``) or cancelled with Escape (``None``).
+
+    Its input's events stop here, so an open prompt underneath never takes the comment as its answer.
+    """
+
+    DEFAULT_CSS = _REPORT_CSS
+    BINDINGS: ClassVar[list[Binding]] = [
+        Binding("escape", "cancel", "Cancel", show=False),
+        Binding("f3", "cancel", "", show=False),
+    ]
+
+    def compose(self) -> ComposeResult:
+        """Build the report dialog layout."""
+        with Vertical(id="report-box"):
+            yield Label("Report an issue", id="report-title")
+            yield Label(
+                "What went wrong? The run's logs and records are attached.\nEnter sends the report, Esc cancels.",
+                id="report-help",
+            )
+            yield Input(placeholder="e.g. the camera froze at the second step", id="report-comment")
+
+    def on_mount(self) -> None:
+        """Focus the comment."""
+        self.query_one("#report-comment", Input).focus()
+
+    def on_input_changed(self, event: Input.Changed) -> None:
+        """Keep typing out of the prompt underneath (an autocomplete would filter on it)."""
+        event.stop()
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        """Send the comment."""
+        event.stop()
+        self.dismiss(event.value)
+
+    def action_cancel(self) -> None:
+        """Close without reporting."""
+        self.dismiss(None)
 
 
 def _cell(value: Any) -> str:
@@ -319,7 +377,7 @@ def build_picker_screen(
 
     ``kind`` must already be resolved to ``"file"`` or ``"dir"`` — a
     ``PathRequest(kind="any")`` is disambiguated one level up, by
-    :func:`push_path_picker`, before this is called. There's no single
+    `push_path_picker`, before this is called. There's no single
     ``textual-fspicker`` dialog that can return either: ``FileOpen`` treats
     picking a directory as "cd into it" and never dismisses with one.
 
@@ -424,10 +482,10 @@ async def push_path_picker(
 ) -> None:
     """Pushes the picker screen(s) matching ``kind``, delivering the answer to ``on_result``.
 
-    For ``kind="file"``/``"dir"`` this is just :func:`build_picker_screen`
+    For ``kind="file"``/``"dir"`` this is just `build_picker_screen`
     pushed directly. For ``kind="any"`` -- used for a generic ``Path``-typed
     field, where neither "file" nor "dir" is known -- a tiny disambiguation
-    modal (:class:`_PathKindScreen`) is pushed first, since no single
+    modal (`_PathKindScreen`) is pushed first, since no single
     ``textual-fspicker`` dialog can return either. ``on_result`` fires exactly
     once with the final path or ``None``, however many screens it took.
 
@@ -436,10 +494,10 @@ async def push_path_picker(
             ``push_screen``).
         label: Shown as the dialog's title (and the disambiguation prompt's
             label, for ``kind="any"``).
-        start: Forwarded to :func:`build_picker_screen`.
+        start: Forwarded to `build_picker_screen`.
         kind: ``"file"``, ``"dir"``, or ``"any"``.
-        extensions: Forwarded to :func:`build_picker_screen`.
-        must_exist: Forwarded to :func:`build_picker_screen`.
+        extensions: Forwarded to `build_picker_screen`.
+        must_exist: Forwarded to `build_picker_screen`.
         on_result: Called exactly once with the chosen ``Path``, or ``None``
             if the user cancelled at any point.
     """
@@ -496,7 +554,7 @@ class _FormScreen(ModalScreen):
                 yield Button("✕", id="form-close", variant="default")
             with ScrollableContainer(id="form-scroll"):
                 for field_name, field_info in self._model.model_fields.items():
-                    inner_type, is_optional = _resolve_form_type(field_info.annotation)
+                    inner_type, is_optional = resolve_field_type(field_info.annotation)
                     default = _field_default(field_name, field_info, self._initial)
                     widget = _build_field_widget(field_name, inner_type, default)
                     is_path = isinstance(inner_type, type) and issubclass(inner_type, Path)
@@ -517,7 +575,7 @@ class _FormScreen(ModalScreen):
         self._field_order = list(self._model.model_fields.keys())
         self._path_fields: set[str] = set()
         for name, info in self._model.model_fields.items():
-            inner, _ = _resolve_form_type(info.annotation)
+            inner, _ = resolve_field_type(info.annotation)
             if isinstance(inner, type) and issubclass(inner, Path):
                 self._path_fields.add(name)
             try:
@@ -666,7 +724,7 @@ class _FormScreen(ModalScreen):
         if field_info is None:
             return True
         base_annotation = field_info.annotation
-        _, is_optional = _resolve_form_type(base_annotation)
+        _, is_optional = resolve_field_type(base_annotation)
         annotation = (
             Annotated[tuple([base_annotation] + list(field_info.metadata))] if field_info.metadata else base_annotation
         )
@@ -691,7 +749,7 @@ class _FormScreen(ModalScreen):
             self._clear_field_error(field_name)
         data: dict[str, Any] = {}
         for field_name, field_info in self._model.model_fields.items():
-            _, is_optional = _resolve_form_type(field_info.annotation)
+            _, is_optional = resolve_field_type(field_info.annotation)
             widget = self._field_widgets.get(field_name)
             data[field_name] = _read_field_widget(widget, is_optional) if widget is not None else None
         try:

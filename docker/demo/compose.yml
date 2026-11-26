@@ -1,0 +1,19 @@
+# The hub of scripts/demo.ps1, following the daemon on this computer (reached from the container as
+# host.docker.internal).   docker compose -f docker/demo/compose.yml up -d --build
+services:
+  hub:
+    build:
+      context: ../..
+      dockerfile: docker/hub/Dockerfile
+    image: clabe-hub
+    ports: ["${HUB_PORT:-24080}:8080"]
+    environment:
+      RIGS: "this-pc=http://host.docker.internal:${DAEMON_PORT:-24070}"
+      TOKEN: "${DEMO_TOKEN:?run scripts/demo.ps1: it sets a token}"
+      RIG_TOKEN: "${DEMO_TOKEN}"
+      POLL_INTERVAL: "1"
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    volumes: ["hub-data:/data"]   # collected issue reports; `docker compose down -v` deletes them
+
+volumes:
+  hub-data:

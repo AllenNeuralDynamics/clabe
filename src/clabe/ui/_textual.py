@@ -1,3 +1,4 @@
+import asyncio
 import contextlib
 import datetime
 import logging
@@ -6,7 +7,7 @@ import platform as _platform
 import queue
 import re
 import threading
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -17,20 +18,24 @@ from textual.containers import Vertical
 from textual.widgets import Footer, Header, Input, Label, OptionList, RichLog, Static
 
 from .. import __version__
-from ..logging import _TRANSCRIPT_LOGGER_NAME
-from ._frontend import FrontendBase, PromptCancelledError
 from ._messages import MessageLevel
 from ._requests import (
     AcknowledgeRequest,
     AutoCompleteRequest,
     ConfirmRequest,
     FormRequest,
+    GroupRequest,
+    MarkdownRequest,
+    MediaRequest,
+    NumberRequest,
     PathRequest,
     PickRequest,
     ReadOnlyTable,
+    Request,
     TextRequest,
 )
-from ._textual_form import _AcknowledgeScreen, _FormScreen, _ReadOnlyTableScreen, push_path_picker
+from ._session import NavigationRequested, PromptCancelledError
+from ._textual_form import _AcknowledgeScreen, _FormScreen, _ReadOnlyTableScreen, _ReportScreen, push_path_picker
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +45,13 @@ _CANCELLED = object()
 _PROMPT_CANCELLED = object()
 #: Sentinel representing the "none" option in a pick list.
 _NONE = object()
+#: Sentinels pushed back to the caller when the user asks to go back (Alt+Left) or forward (Alt+Right).
+_BACK = object()
+_FORWARD = object()
+#: What `_LauncherApp._choice_for_key` returns for a key that picks nothing.
+_NO_CHOICE = object()
+#: Seconds the TUI waits after a key press before asking an options function again.
+_OPTIONS_DEBOUNCE = 0.2
 
 _SPINNER_FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
 
@@ -100,6 +112,7 @@ def _linkify(message: str, style: str) -> Text:
 
 _APP_CSS = """
 Screen { layout: vertical; }
+#clabe-context { height: auto; padding: 0 1; background: $primary-darken-2; color: $text; display: none; }
 #clabe-user { height: 2fr; border: round $accent; padding: 0 1; }
 #clabe-logo { height: auto; color: $accent; }
 #clabe-user-log { height: 1fr; display: none; }
@@ -183,6 +196,9 @@ class _LauncherApp(App):
     BINDINGS: ClassVar[list[Binding]] = [
         Binding("ctrl+c", "cancel", "Exit", priority=True),
         Binding("f2", "toggle_logs", "Toggle Logs"),
+        Binding("f3", "report", "Report issue"),
+        Binding("alt+left", "back", "Back", priority=True),
+        Binding("alt+right", "forward", "Forward", priority=True),
     ]
 
     def __init__(self, show_logs: bool = True) -> None:
@@ -196,12 +212,19 @@ class _LauncherApp(App):
         self._pending: queue.Queue | None = None
         self._kind: str | None = None
         self._pick_values: list[object] = []
+        self._pick_retry = False  # the pick is a failed step's Retry / Go back / Abort question
         self._auto_all: list[str] = []
+        self._auto_request: AutoCompleteRequest | None = None  # set when its options come from a function
+        self._auto_query = ""
+        self._auto_timer: Any = None
         self._activity_count: int = 0
+        #: Files an issue report with a comment and returns its id (set by whoever drives a run, see `set_reporter`).
+        self.reporter: Callable[[str], str] | None = None
 
     def compose(self) -> ComposeResult:
         """Build the four-pane layout."""
         yield Header()
+        yield Static("", id="clabe-context")
         with Vertical(id="clabe-user"):
             yield Static("", id="clabe-logo")
             yield RichLog(id="clabe-user-log", highlight=False, wrap=True, auto_scroll=True)
@@ -232,6 +255,12 @@ class _LauncherApp(App):
     def set_experiment(self, name: str) -> None:
         """Show the experiment name in the header subtitle."""
         self.sub_title = f"v{__version__} · {name}"
+
+    def set_context(self, context: Any) -> None:
+        """Shows what the run is about (a `RunContext`) in the bar under the header; ``—`` for what is not known yet."""
+        bar = self.query_one("#clabe-context", Static)
+        bar.update(_context_line(context))
+        bar.display = True
 
     def write_user(self, renderable: object) -> None:
         """Append a renderable to the Session pane, retiring the logo on first use."""
@@ -274,7 +303,13 @@ class _LauncherApp(App):
     async def ask_autocomplete(self, request: AutoCompleteRequest, reply: "queue.Queue") -> None:
         """Mount a filtering input and suggestion list; deliver the answer via reply."""
         self._pending, self._kind = reply, "auto"
-        self._auto_all = request.suggestions()
+        self._auto_request = request if request.dynamic else None
+        # An options function may be slow (e.g. a database search): called off the app's thread.
+        self._auto_all = (
+            await asyncio.to_thread(_options_for, request, "") if request.dynamic else request.suggestions()
+        )
+        if self._pending is not reply:
+            return  # cancelled while the options were listed
         await self._mount(
             Label(request.label),
             Input(value=request.default or "", id="clabe-input"),
@@ -293,6 +328,9 @@ class _LauncherApp(App):
         for choice in request.choices():
             labels.append(choice.display)
             self._pick_values.append(choice.value)
+        self._pick_retry = bool(request.field and request.field.endswith(".failed")) and "retry" in self._pick_values
+        # Options 1-9 are picked with their number key.
+        labels = [f"{index}. {label}" if index <= 9 else label for index, label in enumerate(labels, start=1)]
         await self._mount(Label(request.label), OptionList(*labels, id="clabe-options"))
         option_list = self.query_one("#clabe-options", OptionList)
         if request.default is not None and request.default in self._pick_values:
@@ -304,7 +342,7 @@ class _LauncherApp(App):
 
         ``kind="any"`` takes an extra screen (a File/Folder disambiguation) since
         no single ``textual-fspicker`` dialog can return either — see
-        :func:`push_path_picker`.
+        `push_path_picker`.
         """
         self._pending = reply
         self._kind = "path"
@@ -330,7 +368,7 @@ class _LauncherApp(App):
     async def ask_confirm(self, request: ConfirmRequest, reply: "queue.Queue") -> None:
         """Mount a Yes/No list; deliver the answer via reply."""
         self._pending, self._kind = reply, "confirm"
-        await self._mount(Label(request.label), OptionList("Yes", "No", id="clabe-options"))
+        await self._mount(Label(request.label), OptionList("Yes (y)", "No (n)", id="clabe-options"))
         option_list = self.query_one("#clabe-options", OptionList)
         option_list.highlighted = 0 if request.default else 1
         option_list.focus()
@@ -349,7 +387,9 @@ class _LauncherApp(App):
 
         await self.push_screen(_FormScreen(request), _on_dismiss)
 
-    async def ask_acknowledge(self, request: AcknowledgeRequest, reply: "queue.Queue") -> None:
+    async def ask_acknowledge(
+        self, request: AcknowledgeRequest | MarkdownRequest | MediaRequest, reply: "queue.Queue"
+    ) -> None:
         """Push an acknowledge modal; deliver True via reply once dismissed."""
         self._pending, self._kind = reply, "acknowledge"
 
@@ -396,13 +436,32 @@ class _LauncherApp(App):
             await self._finish(event.value)
 
     def on_input_changed(self, event: Input.Changed) -> None:
-        """Filter the autocomplete suggestion list as the user types."""
+        """Filter the autocomplete suggestion list as the user types (asking an options function, debounced)."""
         if self._kind != "auto":
             return
+        if self._auto_request is not None:
+            self._auto_query = event.value
+            if self._auto_timer is not None:
+                self._auto_timer.stop()
+            self._auto_timer = self.set_timer(_OPTIONS_DEBOUNCE, self._refresh_options)
+            return
+        text = event.value.lower()
+        self._show_options([opt for opt in self._auto_all if text in opt.lower()] if text else self._auto_all)
+
+    async def _refresh_options(self) -> None:
+        """Asks the options function for the typed text (off the app's thread) and shows its options."""
+        request, reply, query = self._auto_request, self._pending, self._auto_query
+        if request is None or self._kind != "auto":
+            return
+        options = await asyncio.to_thread(_options_for, request, query)
+        if self._pending is reply and self._kind == "auto" and self._auto_query == query:
+            self._show_options(options)
+
+    def _show_options(self, options: list[str]) -> None:
+        """Replaces the autocomplete suggestion list."""
         option_list = self.query_one("#clabe-options", OptionList)
         option_list.clear_options()
-        text = event.value.lower()
-        option_list.add_options([opt for opt in self._auto_all if text in opt.lower()] if text else self._auto_all)
+        option_list.add_options(options)
 
     async def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         """Resolve pick, confirm, and autocomplete prompts on selection."""
@@ -414,8 +473,17 @@ class _LauncherApp(App):
         elif self._kind == "auto":
             await self._finish(str(event.option.prompt))
 
-    def on_key(self, event) -> None:
-        """Shuttle focus between the autocomplete input and suggestion list with arrow keys."""
+    async def on_key(self, event) -> None:
+        """Choice keys outside text inputs (1-9 pick an option, y/n confirm, r retries a failed step); arrow keys
+        shuttle focus between the autocomplete input and its suggestion list."""
+        if isinstance(self.screen, _ReportScreen):
+            return  # keys typed in the report dialog never answer the prompt underneath
+        if self._kind in ("pick", "confirm") and not isinstance(self.focused, Input):
+            value = self._choice_for_key(event.key)
+            if value is not _NO_CHOICE:
+                event.stop()
+                await self._finish(value)
+            return
         if self._kind != "auto":
             return
         if event.key == "down" and isinstance(self.focused, Input):
@@ -429,6 +497,18 @@ class _LauncherApp(App):
             if option_list.highlighted == 0:
                 self.query_one("#clabe-input", Input).focus()
                 event.stop()
+
+    def _choice_for_key(self, key: str) -> object:
+        """The answer ``key`` gives the open pick/confirm prompt, or ``_NO_CHOICE`` when it gives none."""
+        if self._kind == "confirm" and key in ("y", "n", "1", "2"):
+            return key in ("y", "1")
+        if self._kind == "pick":
+            if key == "r" and self._pick_retry:
+                return "retry"
+            if len(key) == 1 and key.isdigit() and 1 <= int(key) <= min(9, len(self._pick_values)):
+                value = self._pick_values[int(key) - 1]
+                return None if value is _NONE else value
+        return _NO_CHOICE
 
     async def _release_pending(self, value: object) -> None:
         """Tear down the waiting prompt (inline or modal) and hand ``value`` to its caller."""
@@ -459,6 +539,45 @@ class _LauncherApp(App):
 
             _thread.interrupt_main()
 
+    async def action_back(self) -> None:
+        """Go back to the previous step (Alt+Left): releases the waiting prompt; the run decides."""
+        if self._pending is not None:
+            await self._release_pending(_BACK)
+
+    async def action_forward(self) -> None:
+        """Go forward (Alt+Right): answers the waiting prompt with its earlier answer; the run decides."""
+        if self._pending is not None:
+            await self._release_pending(_FORWARD)
+
+    async def action_report(self) -> None:
+        """Report an issue (F3): asks for a comment, then files the report (the run's records and the comment)."""
+        if isinstance(self.screen, _ReportScreen):
+            return
+        reporter = self.reporter
+        if reporter is None:
+            self.write_user(
+                Text("Nothing to report on yet: an issue can be reported once a run starts.", style="yellow")
+            )
+            return
+
+        async def _on_dismiss(comment: str | None) -> None:
+            """Files the report off the app's thread and says where it went."""
+            if comment is None:
+                return
+            try:
+                report_id = await asyncio.to_thread(reporter, comment)
+            except Exception as exc:
+                logger.exception("Could not save the issue report")
+                self.write_user(Text(f"[{_local_time()}] Could not save the issue report: {exc}", style="bold red"))
+                return
+            self.write_user(
+                Text(
+                    f"[{_local_time()}] Issue reported ({report_id}); the hub collects it from this PC.", style="green"
+                )
+            )
+
+        await self.push_screen(_ReportScreen(), _on_dismiss)
+
     def action_toggle_logs(self) -> None:
         """Show or hide the Logs pane to reclaim vertical space."""
         logs = self.query_one("#clabe-logs", RichLog)
@@ -488,48 +607,105 @@ class _TuiActivitySink:
 class _TuiLogHandler(logging.Handler):
     """Routes log records (info and above) into the TUI Logs pane."""
 
-    def __init__(self, frontend: "TextualFrontend") -> None:
-        """Initialize with the owning frontend."""
+    def __init__(self, client: "TextualClient") -> None:
+        """Initialize with the owning client."""
         super().__init__(logging.INFO)
-        self._frontend = frontend
+        self._client = client
 
     def emit(self, record: logging.LogRecord) -> None:
         """Format and write a color-coded log record to the Logs pane."""
-        if record.name.startswith(_TRANSCRIPT_LOGGER_NAME):
-            return
         try:
             message = self.format(record)
         except Exception:  # noqa: BLE001 -- formatting an arbitrary log record must never crash the log pane
             return
-        self._frontend._write_log(_linkify(message, _log_style(record.levelno)))
+        self._client._write_log(_linkify(message, _log_style(record.levelno)))
+
+
+def _context_line(context: Any) -> Text:
+    """The context bar: workflow, subject, experimenters, rig and host, each labelled; ``—`` when not known yet."""
+    experimenters = ", ".join(getattr(context, "experimenter", None) or [])
+    fields = (
+        ("Subject", getattr(context, "subject", None)),
+        ("Experimenters", experimenters or None),
+        ("Rig", getattr(context, "rig", None)),
+        ("Host", getattr(context, "hostname", None)),
+    )
+    line = Text(str(getattr(context, "workflow", "")), style="bold")
+    for label, value in fields:
+        line.append("  │  ", style="dim")
+        line.append(f"{label} ", style="dim")
+        line.append(value or "—", style="bold" if value else "dim")
+    return line
+
+
+def _options_for(request: AutoCompleteRequest, typed: str) -> list[str]:
+    """The options a function returns for ``typed``; none (logged) when it fails."""
+    try:
+        return request.suggestions(typed)
+    except Exception as exc:  # noqa: BLE001 -- a failing search leaves the user typing freely
+        logger.warning("The options of %r could not be listed: %s", request.label, exc)
+        return []
 
 
 def _unwrap(value: object) -> object:
-    """Translate the cancellation sentinel into KeyboardInterrupt."""
+    """Translate the cancellation and navigation sentinels into their exceptions."""
     if value is _CANCELLED:
         raise KeyboardInterrupt("Cancelled by user.")
     if value is _PROMPT_CANCELLED:
         raise PromptCancelledError("Prompt cancelled.")
+    if value is _BACK:
+        raise NavigationRequested("back")
+    if value is _FORWARD:
+        raise NavigationRequested("forward")
     return value
 
 
-class TextualFrontend(FrontendBase):
+class TextualClient:
     """
-    Interactive TUI frontend backed by a single persistent Textual app.
+    A [`Client`][clabe.ui.Client] backed by a single persistent Textual app.
 
-    The app is started lazily on first use and runs on a background thread for
-    the remainder of the session. Messages, answered prompts, and live activity
-    all render inside the one app; console logging is muted for the app's
-    lifetime so nothing corrupts the display.
+    The app is started lazily on first use and runs on a background thread for the remainder of the session.
+    Messages, answered prompts, and live activity all render inside the one app; console logging is muted for the
+    app's lifetime so nothing corrupts the display.
+
+    Like every client it never validates: `ask` returns the raw answer and whoever drives the client (a run,
+    or a [`ClientSession`][clabe.ui.ClientSession]) validates it and asks again if needed.
     """
+
+    #: The method that asks each primitive prompt kind.
+    _HANDLERS: ClassVar[dict[str, str]] = {
+        "text": "_ask_text",
+        "number": "_ask_number",
+        "confirm": "_ask_confirm",
+        "pick": "_ask_pick",
+        "autocomplete": "_ask_autocomplete",
+        "path": "_ask_path",
+        "form": "_ask_form",
+        "group": "_ask_group",
+        "table": "_ask_read_only_table",
+        "acknowledge": "_ask_acknowledge",
+        "markdown": "_ask_acknowledge",
+        "media": "_ask_media",
+    }
 
     def __init__(self) -> None:
-        """Initialize the frontend."""
-        super().__init__()
         self._app: _LauncherApp | None = None
         self._thread: threading.Thread | None = None
         self._log_handler: _TuiLogHandler | None = None
         self._prev_console_level: int | None = None
+        self._reporter: Callable[[str], str] | None = None
+
+    def set_context(self, context: Any) -> None:
+        """Shows what the run is about (a [`RunContext`][clabe.workflow.RunContext]) in the bar under the header."""
+        app = self._ensure()
+        app.call_from_thread(app.set_context, context)
+
+    def set_reporter(self, reporter: Callable[[str], str] | None) -> None:
+        """Lets the user report an issue (F3): ``reporter`` files a report with the user's comment and returns its
+        id. ``None`` turns reporting off."""
+        self._reporter = reporter
+        if self._app is not None:
+            self._app.reporter = reporter
 
     def _ensure(self) -> _LauncherApp:
         """Start the TUI app on a background thread (once) and return it."""
@@ -538,6 +714,7 @@ class TextualFrontend(FrontendBase):
         from ..logging import rich_handler
 
         app = _LauncherApp(show_logs=rich_handler.level <= logging.DEBUG)
+        app.reporter = self._reporter
         self._app = app
         self._thread = threading.Thread(target=app.run, name="clabe-tui", daemon=True)
         self._thread.start()
@@ -583,8 +760,35 @@ class TextualFrontend(FrontendBase):
         self._app = None
         self._thread = None
 
-    def cancel_prompt(self) -> None:
-        """Abort the waiting prompt from any thread; it raises :class:`PromptCancelledError`."""
+    # --- Client -------------------------------------------------------------
+    def ask(self, request: Request) -> Any:
+        """Shows ``request`` in the TUI and returns the raw answer, echoing it in the Session pane.
+
+        Raises:
+            PromptCancelledError: `cancel` was called while the prompt was shown.
+            ValueError: ``request`` is not a primitive prompt (e.g. an unresolved field request).
+        """
+        handler = self._HANDLERS.get(request.prompt_kind)
+        if handler is None:
+            raise ValueError(f"Clients cannot ask {request.prompt_kind!r} prompts; resolve the request first.")
+        answer = getattr(self, handler)(request)
+        self._echo_answer(request, answer)
+        return answer
+
+    def notify(self, message: str, level: MessageLevel = MessageLevel.INFO) -> None:
+        """Writes a timestamped, level-styled message to the Session pane."""
+        self._ensure()
+        line = Text(f"[{_local_time()}] ", style="dim")
+        line.append_text(_linkify(message, _RICH_STYLES[level]))
+        self._write_user(line)
+
+    def header(self, text: str) -> None:
+        """Shows the banner as the empty-state logo in the Session pane."""
+        app = self._ensure()
+        app.call_from_thread(app.set_logo, text)
+
+    def cancel(self) -> None:
+        """Abort the waiting prompt from any thread; it raises `PromptCancelledError`."""
         app = self._app
         if app is None:
             return
@@ -603,27 +807,16 @@ class TextualFrontend(FrontendBase):
         if self._app is not None:
             self._app.call_from_thread(self._app.write_log, renderable)
 
-    def _render_header(self, text: str) -> None:
-        """Show the banner as the empty-state logo in the Session pane."""
-        app = self._ensure()
-        app.call_from_thread(app.set_logo, text)
-
     def set_experiment(self, name: str) -> None:
         """Show the running experiment name in the TUI header."""
         app = self._ensure()
         app.call_from_thread(app.set_experiment, name)
 
-    def _render(self, message: str, level: MessageLevel) -> None:
-        """Write a timestamped, level-styled message to the Session pane."""
-        self._ensure()
-        line = Text(f"[{_local_time()}] ", style="dim")
-        line.append_text(_linkify(message, _RICH_STYLES[level]))
-        self._write_user(line)
-
-    def _on_answer(self, key: str, value: object) -> None:
+    def _echo_answer(self, request: Request, value: object) -> None:
         """Append an answered prompt as a timestamped line in the Session pane."""
-        if value is None or value == "":
+        if value is None or value == "" or request.prompt_kind in ("acknowledge", "markdown", "media"):
             return
+        key = getattr(request, "field", None) or getattr(request, "label", None) or request.prompt_kind
         self._ensure()
         line = Text(f"[{_local_time()}] ", style="dim")
         line.append("› ", style="dim")
@@ -637,6 +830,11 @@ class TextualFrontend(FrontendBase):
         reply: queue.Queue = queue.Queue()
         app.call_from_thread(app.ask_text, request, reply)
         return _unwrap(reply.get()) or ""
+
+    def _ask_number(self, request: NumberRequest) -> str:
+        """Request a number as typed text (validation coerces it)."""
+        default = f"{request.default:g}" if request.default is not None else None
+        return self._ask_text(TextRequest(label=request.label, default=default, field=request.field))
 
     def _ask_autocomplete(self, request: AutoCompleteRequest) -> str:
         """Request an autocomplete prompt and block until answered."""
@@ -673,12 +871,9 @@ class TextualFrontend(FrontendBase):
         app.call_from_thread(app.ask_form, request, reply)
         return _unwrap(reply.get())
 
-    def prompt_form(self, request: FormRequest) -> Any | None:
-        """Present a Pydantic model form; return the filled instance or None if cancelled."""
-        result = self._ask_form(request)
-        if result is not None:
-            self._record(request.field or request.model.__name__, str(result))
-        return result
+    def _ask_group(self, request: GroupRequest) -> object | None:
+        """Asks a group as a form of its compiled model."""
+        return self._ask_form(FormRequest(model=request.model(), title=request.title or "Group"))
 
     def _ask_read_only_table(self, request: ReadOnlyTable) -> bool:
         """Push the read-only table modal and block until the user answers."""
@@ -687,13 +882,12 @@ class TextualFrontend(FrontendBase):
         app.call_from_thread(app.ask_read_only_table, request, reply)
         return bool(_unwrap(reply.get()))
 
-    def prompt_read_only_table(self, request: ReadOnlyTable) -> bool:
-        """Display read-only tabular data; return True on confirm, False on cancel."""
-        answer = self._ask_read_only_table(request)
-        self._record(request.field or request.title or "read_only_table", answer)
-        return answer
+    def _ask_media(self, request: MediaRequest) -> None:
+        """Cannot show media: warns, names the file or URL, and waits like an acknowledgement."""
+        logger.warning("The TUI cannot show the %s; open it yourself: %s", request.media, request.describe())
+        self._ask_acknowledge(request)
 
-    def _ask_acknowledge(self, request: AcknowledgeRequest) -> None:
+    def _ask_acknowledge(self, request: AcknowledgeRequest | MarkdownRequest | MediaRequest) -> None:
         """Push the acknowledge modal and block until the user dismisses it."""
         app = self._ensure()
         reply: queue.Queue = queue.Queue()

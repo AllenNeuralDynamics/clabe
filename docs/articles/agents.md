@@ -1,0 +1,54 @@
+# Agents
+
+An AI agent can follow a run and answer its prompts through MCP or AG-UI. As with any client, the first valid answer
+is the one accepted.
+
+## MCP
+
+The [hub](hub.md) serves MCP for every rig at one address (streamable HTTP):
+
+```json
+{"mcpServers": {"clabe": {"url": "http://hub:8080/mcp", "headers": {"Authorization": "Bearer <the hub's TOKEN>"}}}}
+```
+
+- Every tool takes the `rig` to act on (see `list_rigs`). Leave the header out when the hub has no token.
+
+Without a hub, `clabe mcp` serves a run server, a rig's [daemon](daemon.md) (or a hub) over stdio:
+
+```bash
+uv add "aind-clabe[agents]"
+clabe mcp --url http://rig-3:24070          # token: --token, else $DAEMON_CLABE_TOKEN, else $CLABE_TOKEN
+```
+
+In an MCP client's configuration:
+
+```json
+{"mcpServers": {"clabe": {"command": "uvx", "args": ["--from", "aind-clabe[agents]", "clabe", "mcp", "--url", "http://hub:8080"]}}}
+```
+
+| Tool | Does |
+|---|---|
+| `list_rigs` | The rigs it can act on (through a hub: status and what they wait for) |
+| `get_run` | Steps, current step, open prompt and its JSON answer schema |
+| `wait_for_prompt` | Waits until the run asks something (or ends) |
+| `answer_prompt` | Answers the open prompt; returns the reason if rejected |
+| `ask_the_user` | Asks the MCP client's user (elicitation), then submits |
+| `go_back`, `retry_step`, `skip_step`, `abort_run` | The run's commands |
+
+Through a hub, every tool takes the `rig` to act on.
+
+## AG-UI
+
+Every run supports [AG-UI](https://docs.ag-ui.com):
+
+| Via | Endpoint |
+|---|---|
+| Run server | `POST /api/agui` |
+| Daemon | `POST /run/api/agui` |
+| Hub | `POST /rigs/<id>/run/api/agui` |
+
+- One AG-UI run is one turn. It streams steps (`STEP_STARTED`/`STEP_FINISHED`), messages and state
+  (`STATE_SNAPSHOT`) until the run needs the user.
+- An open prompt arrives as a call of the frontend tool `clabe_prompt` (arguments: `kind`, `spec`, `answer_schema`).
+- To answer, send a `tool` message for that call in the next turn, with the answer as JSON in its content.
+- A rejected answer comes back as a text message, and the prompt is asked again.

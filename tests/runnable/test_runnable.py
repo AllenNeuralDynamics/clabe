@@ -2,8 +2,9 @@ import contextlib
 
 import pytest
 
+from clabe import ui
 from clabe.runnable import _core, runnable
-from clabe.ui import MessageLevel, set_current_frontend
+from clabe.ui import MessageLevel
 
 
 class RecordingFrontend:
@@ -41,9 +42,8 @@ class RecordingIndicator:
 @pytest.fixture
 def frontend() -> RecordingFrontend:
     fe = RecordingFrontend()
-    set_current_frontend(fe)
-    yield fe
-    set_current_frontend(None)
+    with ui.bind(fe):
+        yield fe
 
 
 @pytest.fixture
@@ -217,3 +217,20 @@ class TestCallSiteRewrap:
         assert runnable(free)(21) == 42
         assert calls == [21]
         assert frontend.levels() == [MessageLevel.INFO, MessageLevel.SUCCESS]
+
+
+def test_debug_timing_is_read_when_the_runnable_finishes(frontend, indicator):
+    from clabe.runnable import set_include_timing
+
+    @runnable(name="Timed")
+    def work() -> None:
+        pass
+
+    work()
+    set_include_timing(True)
+    try:
+        work()
+    finally:
+        set_include_timing(False)
+    finished = [message for level, message in frontend.messages if level is MessageLevel.SUCCESS]
+    assert finished[0] == "Timed finished" and finished[1].startswith("Timed finished in ")

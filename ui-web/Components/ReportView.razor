@@ -1,0 +1,208 @@
+@* One report: who, where, when and what the user wrote, then its files. Also shows an export opened for a look
+   (not stored: no status, no delete). *@
+@inject HubApi Hub
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+
+<div class="rv">
+    <div class="crumbs">
+        <button type="button" class="ghost sm back" @onclick="() => OnBack.InvokeAsync()"><HubIcon Name="back" Size="14" /> Reports</button>
+        <span class="sep">/</span>
+        <span class="mono small muted truncate">@(Inspected is not null ? "Opened export" : Report?.ReportId)</span>
+    </div>
+
+    <header class="head card">
+        <div class="title-row">
+            <div class="title">
+                <h1>@Title</h1>
+                <div class="meta small muted">
+                    @if (_facts.When is { } when)
+                    {
+                        <span title="@ReportTime.Exact(when)"><HubIcon Name="clock" Size="13" /> @ReportTime.Ago(when) · @ReportTime.Exact(when)</span>
+                    }
+                    @if (_facts.From is { Length: > 0 } from)
+                    {
+                        <span>from the @from</span>
+                    }
+                    @if (Inspected is not null)
+                    {
+                        <span class="chip accent plain">Opened export — not stored</span>
+                    }
+                </div>
+            </div>
+            <div class="actions">
+                @if (Report is not null)
+                {
+                    <ReportStatusSelect Report="Report" Large="true" OnChanged="Changed" OnError="e => _error = e" />
+                    <button type="button" class="sm" @onclick="CopyLink" title="Copy this report's address, to share it">
+                        <HubIcon Name="@(_copied ? "check" : "link")" Size="14" /> @(_copied ? "Link copied" : "Copy link")
+                    </button>
+                    <a class="btn sm" href="@Hub.ZipUrl(Report.ReportId)" download><HubIcon Name="download" Size="14" /> Download zip</a>
+                    <button type="button" class="danger sm" @onclick="() => _confirm = true"><HubIcon Name="trash" Size="14" /> Delete</button>
+                }
+            </div>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(_facts.Comment))
+        {
+            <blockquote class="comment">
+                <HubIcon Name="message" Size="15" />
+                <p>@_facts.Comment</p>
+            </blockquote>
+        }
+        else if (_facts.Known)
+        {
+            <p class="no-comment subtle small">No comment was written with this report.</p>
+        }
+
+        @if (_facts.Known)
+        {
+            <dl class="facts">
+                <div><dt>Rig</dt><dd><span class="rig">@(_facts.Rig ?? "—")</span></dd></div>
+                <div><dt>Hostname</dt><dd>@Or(_facts.Hostname)</dd></div>
+                <div class="wide"><dt>Session</dt><dd class="mono">@Or(_facts.Session)</dd></div>
+                <div><dt>Subject</dt><dd>@Or(_facts.Subject)</dd></div>
+                <div><dt>Experimenter</dt><dd>@Or(_facts.Experimenter)</dd></div>
+                <div><dt>Experiment</dt><dd>@Or(_facts.Experiment)</dd></div>
+                <div><dt>Step</dt><dd>@Or(_facts.Step)</dd></div>
+                <div class="wide"><dt>Repository</dt><dd>@Or(_facts.Repository)@if (_facts.Commit is { Length: > 0 } commit) {<span class="mono commit" title="@commit">@(" @ " + commit[..Math.Min(10, commit.Length)])</span>}</dd></div>
+                <div><dt>clabe</dt><dd class="mono">@Or(_facts.Version)</dd></div>
+                <div class="wide"><dt>Run</dt><dd class="mono truncate" title="@_facts.Run">@Or(_facts.Run)</dd></div>
+            </dl>
+        }
+    </header>
+
+    @if (_error is not null)
+    {
+        <div class="alert error" role="alert">@_error</div>
+    }
+
+    <div class="files">
+        @if (_files is null)
+        {
+            <div class="card loading-card subtle"><span class="spinner"></span> Loading the report's files…</div>
+        }
+        else if (_source is not null)
+        {
+            <FileExplorer Source="_source" Files="_files" />
+        }
+    </div>
+</div>
+
+@if (_confirm && Report is not null)
+{
+    <ReportConfirm Title="Delete this report?" Danger="true" ConfirmText="Delete"
+                   Message="@($"The report from {Report.RigId} and its files are deleted from the hub. This cannot be undone.")"
+                   OnConfirm="Delete" OnCancel="() => _confirm = false" />
+}
+
+@code {
+    [Parameter] public StoredReport? Report { get; set; }
+    [Parameter] public InspectResult? Inspected { get; set; }
+    [Parameter] public EventCallback OnBack { get; set; }
+
+    private bool _copied;
+
+    /// <summary>Copies the report's address (the hub page opens it straight away), then says so for a moment.</summary>
+    private async Task CopyLink()
+    {
+        var module = await JS.InvokeAsync<IJSObjectReference>("import", "./js/report.js");
+        var ok = await module.InvokeAsync<bool>("copyText", Navigation.Uri);
+        await module.DisposeAsync();
+        if (!ok)
+        {
+            _error = $"Could not copy the link: {Navigation.Uri}";
+            return;
+        }
+        _copied = true;
+        StateHasChanged();
+        await Task.Delay(2000);
+        _copied = false;
+    }
+    [Parameter] public EventCallback<StoredReport> OnChanged { get; set; }
+    [Parameter] public EventCallback<string> OnDeleted { get; set; }
+
+    /// <summary>What the header shows, from a stored report or an export's report.json.</summary>
+    private sealed record Facts(
+        bool Known = false, string? Rig = null, string? Hostname = null, string? Session = null, string? Subject = null,
+        string? Experimenter = null, string? Experiment = null, string? Step = null, string? Repository = null,
+        string? Commit = null, string? Version = null, string? Run = null, string? From = null, string? Comment = null,
+        DateTimeOffset? When = null);
+
+    private Facts _facts = new();
+    private ReportSource? _source;
+    private List<ZipEntry>? _files;
+    private string? _error;
+    private bool _confirm;
+    private string? _shown;
+
+    private string Title =>
+        _facts.Experiment is { Length: > 0 } experiment
+            ? _facts.Step is { Length: > 0 } step ? $"{experiment} · {step}" : experiment
+            : Inspected is not null ? "Exported logs" : "Issue report";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var key = Report?.ReportId ?? Inspected?.InspectId;
+        if (Report is not null)
+        {
+            _facts = new Facts(true, Report.RigId, Report.Hostname, Report.SessionId, Report.Subject,
+                string.Join(", ", Report.Experimenter ?? []), Report.Experiment, Report.Step, Report.Repository,
+                Report.Commit, Report.ClabeVersion, Report.RunId, Report.ReportedFrom, Report.Comment, Report.CreatedAt);
+        }
+        else if (Inspected?.Report is { } info)
+        {
+            _facts = new Facts(true, null, info.Hostname, info.SessionId, info.Subject,
+                string.Join(", ", info.Experimenter ?? []), info.Experiment, info.Step, info.Repository,
+                info.Commit, info.ClabeVersion, info.RunId, info.ReportedFrom, info.Comment, info.CreatedAt);
+        }
+        else
+        {
+            _facts = new Facts();
+        }
+        if (key == _shown)
+        {
+            return;
+        }
+        _shown = key;
+        _error = null;
+        if (Inspected is not null)
+        {
+            _source = new ReportSource(Inspected.InspectId, Inspected: true);
+            _files = Inspected.Files;
+        }
+        else if (Report is not null)
+        {
+            _source = new ReportSource(Report.ReportId, Inspected: false);
+            _files = null;
+            try
+            {
+                _files = await Hub.FilesAsync(Report.ReportId);
+            }
+            catch (HttpRequestException exc)
+            {
+                _error = exc.Message;
+                _files = [];
+            }
+        }
+    }
+
+    private static string Or(string? value) => string.IsNullOrWhiteSpace(value) ? "—" : value;
+
+    private Task Changed(StoredReport report) => OnChanged.InvokeAsync(report);
+
+    private async Task Delete()
+    {
+        try
+        {
+            await Hub.DeleteAsync(Report!.ReportId);
+            _confirm = false;
+            await OnDeleted.InvokeAsync(Report.ReportId);
+        }
+        catch (HttpRequestException exc)
+        {
+            _confirm = false;
+            _error = exc.Message;
+        }
+    }
+}

@@ -4,16 +4,16 @@ from collections.abc import Callable
 from aind_behavior_services import Session
 
 from . import ui
-from .cache_manager import CacheManager
+from .aind.validators import validate_username
+from .cache import CacheManager
 from .launcher import Launcher
-from .utils.aind_validators import validate_username
 
 logger = logging.getLogger(__name__)
 
 
 class SessionBuilder:
     """
-    Assembles a :class:`Session` by asking the user who is running and on which animal.
+    Assembles a `Session` by asking the user who is running and on which animal.
 
     This is the one genuinely interactive job with no database behind it, which
     is why it is not a store. It holds no state between calls, so a recovery
@@ -55,7 +55,7 @@ class SessionBuilder:
         """
         experimenter = self.prompt_experimenter()
         subject = self.choose_subject()
-        notes = ui.prompt_text(ui.TextRequest(label="Enter notes", field="notes"))
+        notes = ui.text("Enter notes", field="notes")
         settings = self._launcher.settings
         return Session(
             subject=subject,
@@ -75,7 +75,7 @@ class SessionBuilder:
         """
         subject = ""
         while not subject:
-            subject = ui.prompt_autocomplete(
+            subject = ui.ask(
                 ui.AutoCompleteRequest(
                     label="Subject (type to filter, or enter a new one)",
                     options=self._cached_options("subjects"),
@@ -96,7 +96,7 @@ class SessionBuilder:
             The validated experimenter names.
         """
         while True:
-            entered = ui.prompt_autocomplete(
+            entered = ui.ask(
                 ui.AutoCompleteRequest(
                     label="Experimenter name(s) (type to filter, comma-separated for multiple)",
                     options=self._cached_options("experimenters"),

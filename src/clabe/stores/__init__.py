@@ -2,7 +2,7 @@ from ._base import Candidate, CompositeStore, Kind, KindLike, Scope, Store, Stor
 from ._local import DefaultLayout, Layout, LocalFileStore
 from ._memory import MemoryStore
 
-# ``dataverse`` and ``confierge`` are not re-exported: they need the ``aind-services`` extra, so they are imported explicitly, e.g. ``from clabe.stores.confierge import ConfiergeStore``.
+# ``dataverse`` and ``confierge`` are not re-exported: they need the ``aind-services`` extra, so they are imported explicitly, e.g. ``from clabe.aind.confierge import ConfiergeStore``.
 
 __all__ = [
     "Candidate",

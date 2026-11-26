@@ -12,7 +12,7 @@ from aind_behavior_services import Session
 from aind_data_transfer_service.models.core import Task
 from requests.exceptions import HTTPError
 
-from clabe.data_transfer.aind_watchdog import (
+from clabe.aind.watchdog import (
     ManifestConfig,
     WatchConfig,
     WatchdogDataTransferService,
@@ -29,7 +29,7 @@ _IS_WINDOWS = sys.platform == "win32"
 @pytest.fixture(autouse=True)
 def no_active_directory_lookup():
     """Stubs watchdog's Active Directory email lookup so tests don't hit the network."""
-    with patch("clabe.utils.aind_validators.requests.get") as mock_get:
+    with patch("clabe.aind.validators.requests.get") as mock_get:
         mock_response = MagicMock(ok=True)
         mock_response.json.return_value = {
             "username": "mock_experimenter",
@@ -123,7 +123,7 @@ def watchdog_service(source, settings, mock_session):
 
 def test_default_email_from_experimenter_success():
     """Returns the Active Directory email when the lookup succeeds."""
-    with patch("clabe.utils.aind_validators.requests.get") as mock_get:
+    with patch("clabe.aind.validators.requests.get") as mock_get:
         mock_response = MagicMock(ok=True)
         mock_response.json.return_value = {"username": "j.doe", "email": "j.doe@alleninstitute.org"}
         mock_get.return_value = mock_response
@@ -133,7 +133,7 @@ def test_default_email_from_experimenter_success():
 
 def test_default_email_from_experimenter_raises_when_lookup_fails():
     """Propagates the Active Directory error instead of falling back to a constructed address."""
-    with patch("clabe.utils.aind_validators.requests.get") as mock_get:
+    with patch("clabe.aind.validators.requests.get") as mock_get:
         mock_response = MagicMock()
         mock_response.raise_for_status.side_effect = HTTPError("404")
         mock_get.return_value = mock_response
@@ -144,7 +144,7 @@ def test_default_email_from_experimenter_raises_when_lookup_fails():
 
 def test_default_email_from_experimenter_raises_when_no_email_on_file():
     """Raises ValueError when the Active Directory record has no email."""
-    with patch("clabe.utils.aind_validators.requests.get") as mock_get:
+    with patch("clabe.aind.validators.requests.get") as mock_get:
         mock_response = MagicMock(ok=True)
         mock_response.json.return_value = {"username": "j.doe"}
         mock_get.return_value = mock_response
@@ -154,7 +154,7 @@ def test_default_email_from_experimenter_raises_when_no_email_on_file():
 
 
 class TestWatchdogDataTransferService:
-    @patch("clabe.data_transfer.aind_watchdog.subprocess.check_output")
+    @patch("clabe.aind.watchdog.subprocess.check_output")
     def test_is_running(self, mock_check_output, watchdog_service):
         mock_check_output.return_value = (
             "Image Name                     PID Session Name        Session#    Mem Usage\n"
@@ -163,12 +163,12 @@ class TestWatchdogDataTransferService:
         )
         assert watchdog_service.is_running()
 
-    @patch("clabe.data_transfer.aind_watchdog.subprocess.check_output")
+    @patch("clabe.aind.watchdog.subprocess.check_output")
     def test_is_not_running(self, mock_check_output, watchdog_service):
         mock_check_output.return_value = "INFO: No tasks are running which match the specified criteria."
         assert not watchdog_service.is_running()
 
-    @patch("clabe.data_transfer.aind_watchdog.requests.get")
+    @patch("clabe.aind.watchdog.requests.get")
     def test_get_project_names(self, mock_get, watchdog_service):
         mock_response = MagicMock()
         mock_response.ok = True
@@ -178,7 +178,7 @@ class TestWatchdogDataTransferService:
         assert "test_project" in project_names
         mock_get.assert_called_once_with("http://aind-metadata-service/api/v2/project_names", timeout=5)
 
-    @patch("clabe.data_transfer.aind_watchdog.requests.get")
+    @patch("clabe.aind.watchdog.requests.get")
     def test_get_project_names_fail(self, mock_get, watchdog_service):
         mock_response = MagicMock()
         mock_response.ok = False
@@ -187,14 +187,14 @@ class TestWatchdogDataTransferService:
             watchdog_service._get_project_names()
 
     @patch(
-        "clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.is_running",
+        "clabe.aind.watchdog.WatchdogDataTransferService.is_running",
         return_value=True,
     )
     @patch(
-        "clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.is_valid_project_name",
+        "clabe.aind.watchdog.WatchdogDataTransferService.is_valid_project_name",
         return_value=True,
     )
-    @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService._read_yaml")
+    @patch("clabe.aind.watchdog.WatchdogDataTransferService._read_yaml")
     def test_validate_success(self, mock_read_yaml, mock_is_valid_project_name, mock_is_running, watchdog_service):
         mock_read_yaml.return_value = WatchConfig(
             flag_dir="mock_flag_dir", manifest_complete="manifest_complete_dir"
@@ -203,7 +203,7 @@ class TestWatchdogDataTransferService:
             assert watchdog_service.validate()
 
     @patch(
-        "clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.is_running",
+        "clabe.aind.watchdog.WatchdogDataTransferService.is_running",
         return_value=False,
     )
     def test_validate_fail(self, mock_is_running, watchdog_service):
@@ -218,8 +218,8 @@ class TestWatchdogDataTransferService:
         with pytest.raises(ValueError):
             WatchdogDataTransferService(source, settings=settings, validate=False, session=mock_session)
 
-    @patch("clabe.data_transfer.aind_watchdog.Path.mkdir")
-    @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService._write_yaml")
+    @patch("clabe.aind.watchdog.Path.mkdir")
+    @patch("clabe.aind.watchdog.WatchdogDataTransferService._write_yaml")
     def test_dump_manifest_config(self, mock_write_yaml, mock_mkdir, watchdog_service):
         path = Path("flag_dir/manifest_test_manifest.yaml")
         result = watchdog_service.dump_manifest_config()
@@ -231,8 +231,8 @@ class TestWatchdogDataTransferService:
         mock_write_yaml.assert_called_once()
         mock_mkdir.assert_called_once_with(parents=True, exist_ok=True)
 
-    @patch("clabe.data_transfer.aind_watchdog.Path.mkdir")
-    @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService._write_yaml")
+    @patch("clabe.aind.watchdog.Path.mkdir")
+    @patch("clabe.aind.watchdog.WatchdogDataTransferService._write_yaml")
     def test_dump_manifest_config_custom_path(self, mock_write_yaml, mock_mkdir, watchdog_service):
         custom_path = Path("custom_path/manifest_test_manifest.yaml")
         result = watchdog_service.dump_manifest_config(path=custom_path)
@@ -387,9 +387,9 @@ class TestWatchdogDataTransferService:
             ).resolve()
         )
 
-    @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.is_running", return_value=False)
-    @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.force_restart", return_value=None)
-    @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.dump_manifest_config")
+    @patch("clabe.aind.watchdog.WatchdogDataTransferService.is_running", return_value=False)
+    @patch("clabe.aind.watchdog.WatchdogDataTransferService.force_restart", return_value=None)
+    @patch("clabe.aind.watchdog.WatchdogDataTransferService.dump_manifest_config")
     def test_transfer_service_not_running_restart_success(
         self,
         mock_dump_manifest_config,
@@ -402,13 +402,13 @@ class TestWatchdogDataTransferService:
         mock_force_restart.assert_called_once_with(kill_if_running=False)
         mock_dump_manifest_config.assert_called_once()
 
-    @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.is_running", return_value=False)
+    @patch("clabe.aind.watchdog.WatchdogDataTransferService.is_running", return_value=False)
     @patch(
-        "clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.force_restart",
+        "clabe.aind.watchdog.WatchdogDataTransferService.force_restart",
         side_effect=subprocess.CalledProcessError(1, "cmd"),
     )
     @patch(
-        "clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.dump_manifest_config",
+        "clabe.aind.watchdog.WatchdogDataTransferService.dump_manifest_config",
         return_value=Path("flag_dir/manifest_session.yaml"),
     )
     def test_transfer_service_not_running_restart_fail(
@@ -421,10 +421,10 @@ class TestWatchdogDataTransferService:
         # The watchdog processes existing manifests when it starts, so the session is still queued
         mock_dump_manifest_config.assert_called_once()
 
-    @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.is_running", return_value=False)
-    @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.force_restart", return_value=None)
+    @patch("clabe.aind.watchdog.WatchdogDataTransferService.is_running", return_value=False)
+    @patch("clabe.aind.watchdog.WatchdogDataTransferService.force_restart", return_value=None)
     @patch(
-        "clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.dump_manifest_config",
+        "clabe.aind.watchdog.WatchdogDataTransferService.dump_manifest_config",
         return_value=Path("flag_dir/manifest_session.yaml"),
     )
     def test_transfer_writes_manifest_before_starting_service(
@@ -436,20 +436,20 @@ class TestWatchdogDataTransferService:
         watchdog_service.transfer()
         assert [c[0] for c in calls.mock_calls] == ["dump", "restart"]
 
-    @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.is_running", return_value=False)
+    @patch("clabe.aind.watchdog.WatchdogDataTransferService.is_running", return_value=False)
     @patch(
-        "clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.force_restart",
+        "clabe.aind.watchdog.WatchdogDataTransferService.force_restart",
         side_effect=FileNotFoundError("watchdog.exe"),
     )
-    @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.dump_manifest_config")
+    @patch("clabe.aind.watchdog.WatchdogDataTransferService.dump_manifest_config")
     def test_transfer_never_raises_when_service_cannot_start(
         self, mock_dump_manifest_config, mock_force_restart, mock_is_running, watchdog_service
     ):
         watchdog_service.transfer()
         mock_dump_manifest_config.assert_called_once()
 
-    @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.is_running", return_value=True)
-    @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.dump_manifest_config")
+    @patch("clabe.aind.watchdog.WatchdogDataTransferService.is_running", return_value=True)
+    @patch("clabe.aind.watchdog.WatchdogDataTransferService.dump_manifest_config")
     def test_transfer_watch_config_none(
         self,
         mock_dump_manifest_config,
@@ -461,8 +461,8 @@ class TestWatchdogDataTransferService:
             watchdog_service.transfer()
         mock_dump_manifest_config.assert_not_called()
 
-    @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.is_running", return_value=True)
-    @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.dump_manifest_config")
+    @patch("clabe.aind.watchdog.WatchdogDataTransferService.is_running", return_value=True)
+    @patch("clabe.aind.watchdog.WatchdogDataTransferService.dump_manifest_config")
     def test_transfer_success(
         self,
         mock_dump_manifest_config,
@@ -472,25 +472,25 @@ class TestWatchdogDataTransferService:
         watchdog_service.transfer()
         mock_dump_manifest_config.assert_called_once()
 
-    @patch("clabe.data_transfer.aind_watchdog.Path.exists", return_value=False)
+    @patch("clabe.aind.watchdog.Path.exists", return_value=False)
     def test_validate_executable_not_found(self, mock_exists, watchdog_service):
         with pytest.raises(FileNotFoundError):
             watchdog_service.validate()
 
-    @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.is_running", return_value=False)
-    @patch("clabe.data_transfer.aind_watchdog.Path.exists", return_value=True)
+    @patch("clabe.aind.watchdog.WatchdogDataTransferService.is_running", return_value=False)
+    @patch("clabe.aind.watchdog.Path.exists", return_value=True)
     @patch(
-        "clabe.data_transfer.aind_watchdog.WatchdogDataTransferService._read_yaml",
+        "clabe.aind.watchdog.WatchdogDataTransferService._read_yaml",
         return_value={"flag_dir": "mock_flag_dir", "manifest_complete": "mock_manifest_complete"},
     )
     def test_validate_service_not_running(self, mock_read_yaml, mock_exists, mock_is_running, watchdog_service):
         assert not watchdog_service.validate()
 
-    @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.is_valid_project_name", return_value=False)
-    @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.is_running", return_value=True)
-    @patch("clabe.data_transfer.aind_watchdog.Path.exists", return_value=True)
+    @patch("clabe.aind.watchdog.WatchdogDataTransferService.is_valid_project_name", return_value=False)
+    @patch("clabe.aind.watchdog.WatchdogDataTransferService.is_running", return_value=True)
+    @patch("clabe.aind.watchdog.Path.exists", return_value=True)
     @patch(
-        "clabe.data_transfer.aind_watchdog.WatchdogDataTransferService._read_yaml",
+        "clabe.aind.watchdog.WatchdogDataTransferService._read_yaml",
         return_value={"flag_dir": "mock_flag_dir", "manifest_complete": "mock_manifest_complete"},
     )
     def test_validate_invalid_project_name(
@@ -503,11 +503,11 @@ class TestWatchdogDataTransferService:
     ):
         assert not watchdog_service.validate()
 
-    @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.is_valid_project_name", side_effect=HTTPError)
-    @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.is_running", return_value=True)
-    @patch("clabe.data_transfer.aind_watchdog.Path.exists", return_value=True)
+    @patch("clabe.aind.watchdog.WatchdogDataTransferService.is_valid_project_name", side_effect=HTTPError)
+    @patch("clabe.aind.watchdog.WatchdogDataTransferService.is_running", return_value=True)
+    @patch("clabe.aind.watchdog.Path.exists", return_value=True)
     @patch(
-        "clabe.data_transfer.aind_watchdog.WatchdogDataTransferService._read_yaml",
+        "clabe.aind.watchdog.WatchdogDataTransferService._read_yaml",
         return_value={"flag_dir": "mock_flag_dir", "manifest_complete": "mock_manifest_complete"},
     )
     def test_validate_http_error(
@@ -521,11 +521,11 @@ class TestWatchdogDataTransferService:
         with pytest.raises(HTTPError):
             watchdog_service.validate()
 
-    @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.is_valid_project_name", return_value=True)
-    @patch("clabe.data_transfer.aind_watchdog.WatchdogDataTransferService.is_running", return_value=True)
-    @patch("clabe.data_transfer.aind_watchdog.Path.exists", return_value=True)
+    @patch("clabe.aind.watchdog.WatchdogDataTransferService.is_valid_project_name", return_value=True)
+    @patch("clabe.aind.watchdog.WatchdogDataTransferService.is_running", return_value=True)
+    @patch("clabe.aind.watchdog.Path.exists", return_value=True)
     @patch(
-        "clabe.data_transfer.aind_watchdog.WatchdogDataTransferService._read_yaml",
+        "clabe.aind.watchdog.WatchdogDataTransferService._read_yaml",
         return_value={"flag_dir": "mock_flag_dir", "manifest_complete": "mock_manifest_complete"},
     )
     def test_validate_success_extended(
@@ -539,14 +539,14 @@ class TestWatchdogDataTransferService:
         assert watchdog_service.validate()
 
     @patch(
-        "clabe.data_transfer.aind_watchdog.WatchdogDataTransferService._get_project_names",
+        "clabe.aind.watchdog.WatchdogDataTransferService._get_project_names",
         return_value=["test_project"],
     )
     def test_is_valid_project_name_valid(self, mock_get_project_names, watchdog_service):
         assert watchdog_service.is_valid_project_name()
 
     @patch(
-        "clabe.data_transfer.aind_watchdog.WatchdogDataTransferService._get_project_names",
+        "clabe.aind.watchdog.WatchdogDataTransferService._get_project_names",
         return_value=["other_project"],
     )
     def test_is_valid_project_name_invalid(self, mock_get_project_names, watchdog_service):
@@ -826,3 +826,16 @@ class TestRobocopyService:
 
         # File should be overwritten with new content
         assert (dest_dir / "file1.txt").read_text() == "content1"
+
+
+def test_the_watchdog_skips_sources_that_are_none(settings, mock_session, monkeypatch):
+    monkeypatch.setenv("WATCHDOG_EXE", "watchdog.exe")
+    monkeypatch.setenv("WATCHDOG_CONFIG", str(TESTS_ASSETS / "watch_config.yml"))
+    here, there = Path("C:/data/s1"), Path("//rig-b/data/s1")
+    service = WatchdogDataTransferService([here, None, there], settings=settings, session=mock_session)
+    assert service._sources == [here, there]
+    assert WatchdogDataTransferService(here, settings=settings, session=mock_session)._sources == [here]
+    with pytest.raises(ValueError, match="every source is None"):
+        WatchdogDataTransferService([None], settings=settings, session=mock_session)
+    with pytest.raises(ValueError, match="every source is None"):
+        WatchdogDataTransferService(None, settings=settings, session=mock_session)
