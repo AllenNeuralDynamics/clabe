@@ -117,7 +117,6 @@ class DaemonSettings(EnvSettings):
     hubs: Annotated[list[str], NoDecode] = Field(
         default_factory=list, description="Hubs this rig enrolls with, e.g. https://hub-vm/clabe (none: no hub)"
     )
-    enroll_token: SecretStr | None = Field(default=None, description="What the hubs require to enroll (ENROLL_TOKEN)")
     enroll_name: str | None = Field(
         default=None,
         description="This rig's name in the hubs; defaults to this computer's name",

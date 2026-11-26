@@ -129,11 +129,10 @@ def test_the_hub_collects_a_rigs_reports_then_deletes_them_there(rig, store: Rep
     shutil.copy(tmp_path / "made" / f"{already.report_id}.zip", rig_reports)  # e.g. a delete that failed last time
     (rig_reports / ("e" * 32 + ".zip")).write_bytes(b"broken")  # never listed: no report.json
 
-    settings = HubSettings(
-        port=free_port("127.0.0.1", 18380), rig_token="rig-secret", poll_interval=0.2, report_interval=0.2
-    )
+    settings = HubSettings(port=free_port("127.0.0.1", 18380), poll_interval=0.2, report_interval=0.2)
     fleet = Fleet(settings, reports=store)
     fleet.enroll(EnrollBody(id="rig-3", host="127.0.0.1", port=httpx.URL(url).port))
+    fleet.set_token("rig-3", "rig-secret")
     hub, thread = _serve(create_hub_app(fleet, token="hub-secret"), settings.port)
     base = f"http://127.0.0.1:{settings.port}"
     try:

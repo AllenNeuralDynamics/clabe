@@ -75,7 +75,8 @@ public sealed record RigConfig(
     [property: JsonPropertyName("url")] string Url,
     [property: JsonPropertyName("clabe_version")] string? ClabeVersion = null,
     [property: JsonPropertyName("enrolled_at")] DateTimeOffset? EnrolledAt = null,
-    [property: JsonPropertyName("last_enrolled_at")] DateTimeOffset? LastEnrolledAt = null);
+    [property: JsonPropertyName("last_enrolled_at")] DateTimeOffset? LastEnrolledAt = null,
+    [property: JsonPropertyName("moved_from")] string? MovedFrom = null);
 
 /// <summary>What the hub last saw of a rig.</summary>
 public sealed record RigStatus(
@@ -99,7 +100,8 @@ public sealed record RigStatus(
     [property: JsonPropertyName("reports_waiting")] long ReportsWaiting = 0,
     [property: JsonPropertyName("reports_stored")] long ReportsStored = 0,
     [property: JsonPropertyName("has_token")] bool HasToken = false,
-    [property: JsonPropertyName("needs_token")] bool NeedsToken = false);
+    [property: JsonPropertyName("needs_token")] bool NeedsToken = false,
+    [property: JsonPropertyName("moved_from")] string? MovedFrom = null);
 
 /// <summary>What a run is about, as far as known so far: the hub lists it as a session.</summary>
 public sealed record SessionInfo(

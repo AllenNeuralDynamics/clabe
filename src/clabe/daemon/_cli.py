@@ -6,6 +6,7 @@ import os
 import sys
 import time
 from pathlib import Path
+from urllib.parse import quote
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, CliApp, CliImplicitFlag, CliSubCommand
@@ -161,6 +162,35 @@ class _StatusCli(DaemonSettings, cli_kebab_case=True):
         print(reports_waiting(self.reports_path()))
 
 
+class _OpenCli(DaemonSettings, cli_kebab_case=True):
+    """Open the daemon's page in the browser, signed in (for a desktop shortcut on the rig).
+
+    The link carries the daemon's token once; the page keeps it in a cookie and drops it from the address.
+    """
+
+    run_page: CliImplicitFlag[bool] = Field(default=False, description="Open the run's page instead of the daemon's")
+
+    def cli_cmd(self):
+        """Check that the daemon answers, then open its page with its token."""
+        token = _token(self)
+        answer = _install.probe(self.port, token)
+        if answer is None:
+            raise SystemExit(f"No daemon answers on port {self.port}: start it with `clabe daemon start`.")
+        if answer.get("status") == "unauthorized":
+            raise SystemExit("The daemon refuses this token: DAEMON_CLABE_TOKEN differs from the running daemon's.")
+        import webbrowser
+
+        webbrowser.open(open_url(self, run_page=self.run_page))
+
+
+def open_url(settings: DaemonSettings, *, run_page: bool = False) -> str:
+    """The daemon's page on this machine (or its run's), with the token in the link when the daemon has one."""
+    host = "localhost" if settings.host in ("127.0.0.1", "0.0.0.0", "::") else settings.host
+    token = _token(settings)
+    query = f"?token={quote(token, safe='')}" if token else ""
+    return f"http://{host}:{settings.port}/{'run/' if run_page else ''}{query}"
+
+
 def reports_waiting(directory: Path) -> str:
     """How many issue reports wait in ``directory`` for the hub to collect them, as a sentence."""
     from ..reports import count_reports
@@ -206,6 +236,7 @@ class DaemonCli(BaseSettings, cli_kebab_case=True):
     stop: CliSubCommand[_StopCli]
     restart: CliSubCommand[_RestartCli]
     status: CliSubCommand[_StatusCli]
+    open: CliSubCommand[_OpenCli]
     uninstall: CliSubCommand[_UninstallCli]
     upgrade: CliSubCommand[_UpgradeCli]
 

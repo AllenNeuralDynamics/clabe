@@ -86,22 +86,21 @@ def test_the_daemon_and_the_hub_read_only_their_environment(_isolated_config, mo
     monkeypatch.setenv("DAEMON_CLABE_REPOSITORY_ROOTS", "C:/a;D:/b")
     monkeypatch.setenv("DAEMON_CLABE_REPOSITORIES", '["C:/x", {"path": "C:/y", "name": "why"}]')
     monkeypatch.setenv("DAEMON_CLABE_HUBS", "https://hub-vm/clabe;http://hub-2:8080")
-    monkeypatch.setenv("RIG_TOKEN", "rigs")
-    monkeypatch.setenv("ENROLL_TOKEN", "join")
+    monkeypatch.setenv("TOKEN", "hub")
     daemon, hub = DaemonSettings(), HubSettings()
     assert daemon.port == 5 and [str(p) for p in daemon.repository_roots] == [str(Path("C:/a")), str(Path("D:/b"))]
     assert [r.display_name for r in daemon.repositories] == ["x", "why"]
     assert daemon.hubs == ["https://hub-vm/clabe", "http://hub-2:8080"]
-    assert hub.rig_token.get_secret_value() == "rigs" and hub.enroll_token.get_secret_value() == "join"
+    assert hub.token.get_secret_value() == "hub"
 
 
 def test_the_hub_reads_a_dot_env_file(tmp_path, monkeypatch):
     from clabe.hub._fleet import HubSettings
 
-    (tmp_path / ".env").write_text("TOKEN=from-file\nENROLL_TOKEN=join\n")
+    (tmp_path / ".env").write_text("TOKEN=from-file\nPOLL_INTERVAL=7\n")
     monkeypatch.chdir(tmp_path)
     hub = HubSettings()
-    assert hub.token.get_secret_value() == "from-file" and hub.enroll_token.get_secret_value() == "join"
+    assert hub.token.get_secret_value() == "from-file" and hub.poll_interval == 7
 
 
 def test_the_daemon_reads_its_env_file_under_the_environment(tmp_path, monkeypatch):

@@ -190,13 +190,15 @@
     /// <summary>The runs waiting for an answer, longest first.</summary>
     private List<RigStatus> Waiting => _rigs?.Where(r => r.Waiting is not null).OrderBy(r => r.Waiting!.Since).ToList() ?? [];
 
-    /// <summary>Whether a rig answers (one that refuses the hub's token answers too).</summary>
-    private static bool IsOnline(RigStatus rig) => rig.Reachable || rig.NeedsToken;
+    /// <summary>Whether a rig answers, or needs someone (one that refuses the hub's token, one held after a move).</summary>
+    private static bool IsOnline(RigStatus rig) => rig.Reachable || rig.NeedsToken || rig.MovedFrom is not null;
 
-    /// <summary>The rigs that answer: waiting first, then needing a token, then busy, then the rest, by name.</summary>
+    /// <summary>The rigs that answer: waiting first, then held after a move, then needing a token, then busy, then
+    /// the rest, by name.</summary>
     private List<RigStatus> OnlineRigs => (_rigs ?? [])
         .Where(IsOnline)
         .OrderBy(r => r.Waiting is null)
+        .ThenBy(r => r.MovedFrom is null)
         .ThenBy(r => !r.NeedsToken)
         .ThenBy(r => r.Status != "busy")
         .ThenBy(r => r.Id, StringComparer.OrdinalIgnoreCase)
