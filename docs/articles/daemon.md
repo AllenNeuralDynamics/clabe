@@ -72,19 +72,20 @@ DAEMON_CLABE_TOKEN=...
 |---|---|
 | `clabe daemon run [--open-browser]` | Run in the foreground, e.g. to try it |
 | `clabe daemon open [--run-page]` | Open the daemon's page (or its run's) signed in, e.g. from a desktop shortcut |
-| `clabe daemon install` | Register the `clabe-daemon` logon task (restarts on failure) and start it |
-| `clabe daemon stop [--force] [--timeout 15]` | End the task and wait until the port is free; refused during a session unless `--force` |
+| `clabe daemon deploy [--version V \| --lock REPO \| --package SPEC] [--hubs H] [--force]` | Install that clabe for the daemon and switch it there; nothing when it already runs it. See [Deploy a rig](deployment.md#update-and-go-back) |
+| `clabe daemon install` | Register the `clabe-daemon` logon task (restarts on failure) to run this `clabe`, and start it |
+| `clabe daemon stop [--force] [--if-installed] [--timeout 15]` | End the task and wait until the port is free; refused during a session unless `--force`; `--if-installed`: no task is not an error |
 | `clabe daemon start [--timeout 60]` | Start the task and wait until the daemon answers |
 | `clabe daemon restart [--force] [--timeout 60]` | `stop`, then `start`; refused during a session unless `--force` |
 | `clabe daemon status` | The task, whether the daemon answers, and the reports waiting |
-| `clabe daemon upgrade` | Deprecated. On Windows, run [the installer](deployment.md#3-install) instead |
+| `clabe daemon upgrade` | Deprecated. Use `clabe daemon deploy --version <version>` |
 | `clabe daemon uninstall` | Stop it and remove the task |
 
 - It runs as the logged-on user (not as a service), so experiments can open windows.
 - Logs go to `%LOCALAPPDATA%\clabe\daemon.log`. They are also sent through OpenTelemetry when
   `DAEMON_CLABE_OTEL_ENDPOINT` is set.
-- To update, run [the installer](deployment.md#3-install): it stops the daemon before replacing clabe (on Windows the
-  running daemon locks its files) and starts it again.
+- To update, run `clabe daemon deploy --version <version>` (or [the installer](deployment.md#3-install)). The new
+  clabe installs in its own environment while the daemon keeps running, then the daemon restarts on it.
 
 ## Starting a run
 

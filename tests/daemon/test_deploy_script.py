@@ -1,4 +1,4 @@
-"""The installer (scripts/install.ps1), dry-run: what it would run, however it is invoked, and what it decides."""
+"""The installer (scripts/install.ps1), dry-run: what it would run, however it is invoked."""
 
 import http.server
 import json
@@ -27,22 +27,17 @@ def _isolated(tmp_path, monkeypatch):
     monkeypatch.setenv("UV_TOOL_DIR", str(tmp_path / "tools"))
     monkeypatch.setenv("UV_TOOL_BIN_DIR", str(tmp_path / "bin"))
     monkeypatch.setenv("DAEMON_CLABE_PORT", str(free_port("127.0.0.1", 24900)))
-    for name in ("DAEMON_CLABE_VERSION", "DAEMON_CLABE_PACKAGE", "DAEMON_CLABE_FORCE", "DAEMON_CLABE_REINSTALL"):
+    for name in (
+        "DAEMON_CLABE_VERSION",
+        "DAEMON_CLABE_LOCK",
+        "DAEMON_CLABE_PACKAGE",
+        "DAEMON_CLABE_FORCE",
+        "DAEMON_CLABE_DEPLOY_HUBS",
+        "DAEMON_CLABE_CLI_PACKAGE",
+        "DAEMON_CLABE_STOP",
+    ):
         monkeypatch.delenv(name, raising=False)
     return tmp_path
-
-
-def _installed(tmp_path: Path, version: str, extras: list[str], direct_url: dict | None = None) -> None:
-    """A uv tool environment with aind-clabe ``version`` (its metadata only) and uv's receipt."""
-    tool = tmp_path / "tools" / "aind-clabe"
-    subprocess.run(["uv", "venv", "--quiet", str(tool)], check=True)
-    info = tool / "Lib" / "site-packages" / f"aind_clabe-{version}.dist-info"
-    info.mkdir(parents=True)
-    (info / "METADATA").write_text(f"Metadata-Version: 2.1\nName: aind-clabe\nVersion: {version}\n")
-    if direct_url:
-        (info / "direct_url.json").write_text(json.dumps(direct_url))
-    listed = ", ".join(f'"{e}"' for e in extras)
-    (tool / "uv-receipt.toml").write_text(f'[tool]\nrequirements = [{{ name = "aind-clabe", extras = [{listed}] }}]\n')
 
 
 @pytest.fixture
@@ -89,37 +84,47 @@ def _commands(lines: list[str]) -> list[str]:
     return [line for line in lines if not line.startswith("==>")]
 
 
-def _decision(lines: list[str]) -> str:
-    return next(line for line in lines if line.startswith("==> Decision:"))
-
-
 def test_as_a_file_with_arguments():
-    lines = _powershell("-File", str(SCRIPT), "-Version", "0.18.0", "-Token", "t0k", "-DryRun")
+    lines = _powershell(
+        "-File", str(SCRIPT), "-Version", "0.18.0", "-Hubs", "http://a/;http://b/", "-Token", "t0k", "-DryRun"
+    )
     commands = _commands(lines)
-    assert commands[0] == "schtasks /End /TN clabe-daemon"
-    assert commands[1].endswith("tool install --force aind-clabe[frontend,otel]==0.18.0")
-    assert commands[2].endswith("clabe.exe daemon install")
-    assert commands[3].endswith("clabe.exe daemon start --timeout 120")
+    assert commands[0].endswith("tool install --upgrade aind-clabe[frontend,otel]")  # the latest: it has `deploy`
+    assert commands[1].endswith("tool update-shell")
+    assert commands[2].endswith("clabe.exe daemon deploy --timeout 120 --version 0.18.0 --hubs http://a/;http://b/")
+    assert commands[3].endswith("clabe.exe daemon status")
     assert "t0k" not in "\n".join(lines)  # the token is never printed
 
 
 def test_piped_into_iex_with_environment_variables():
     """What `irm <url> | iex` does: no arguments, options from DAEMON_CLABE_* variables."""
-    env = {"DAEMON_CLABE_VERSION": "0.18.0", "DAEMON_CLABE_FORCE": "1", "DAEMON_CLABE_DRY_RUN": "1"}
+    env = {"DAEMON_CLABE_LOCK": "C:/git/Aind.Experiment.X", "DAEMON_CLABE_FORCE": "1", "DAEMON_CLABE_DRY_RUN": "1"}
     commands = _commands(_powershell("-Command", f"Get-Content -Raw '{SCRIPT}' | Invoke-Expression", env=env))
-    assert commands[1].endswith("tool install --force aind-clabe[frontend,otel]==0.18.0")
+    assert commands[0].endswith("tool install --upgrade aind-clabe[frontend,otel]")
+    assert commands[2].endswith("daemon deploy --timeout 120 --lock C:/git/Aind.Experiment.X --force")
 
 
 def test_as_a_script_block_with_arguments():
-    command = f"& ([scriptblock]::Create((Get-Content -Raw '{SCRIPT}'))) -Package 'aind-clabe[agents]==0.18.0' -DryRun"
-    assert _commands(_powershell("-Command", command))[1].endswith("tool install --force aind-clabe[agents]==0.18.0")
+    command = (
+        f"& ([scriptblock]::Create((Get-Content -Raw '{SCRIPT}'))) "
+        "-Package 'aind-clabe[agents]==0.18.0' -CliPackage 'aind-clabe==0.18.0' -DryRun"
+    )
+    commands = _commands(_powershell("-Command", command))
+    assert commands[0].endswith("tool install --upgrade aind-clabe==0.18.0")
+    assert commands[2].endswith("daemon deploy --timeout 120 --package aind-clabe[agents]==0.18.0")
+
+
+def test_stop_daemon_only_installs_the_command_and_stops_it():
+    commands = _commands(_powershell("-File", str(SCRIPT), "-StopDaemon", "-Force", "-DryRun"))
+    assert commands[-1].endswith("clabe.exe daemon stop --if-installed --force")
+    assert not any("deploy" in c for c in commands)
 
 
 def test_a_failure_is_a_non_zero_exit_and_installs_nothing():
     done = _run(
         "-Command", f"Get-Content -Raw '{SCRIPT}' | iex", env={"DAEMON_CLABE_CONFIG": "C:/does/not/exist/clabe.yml"}
     )
-    assert done.returncode != 0 and "Installing aind-clabe" not in done.stdout
+    assert done.returncode != 0 and "Installing the clabe command" not in done.stdout
 
 
 def test_the_configuration_can_come_from_standard_input():
@@ -131,75 +136,23 @@ def test_the_configuration_can_come_from_standard_input():
     assert "repository_roots: [D:/git]" in lines
 
 
-def test_without_uv_it_stops_before_doing_anything(tmp_path):
-    env = {"PATH": os.environ.get("SystemRoot", "C:/Windows") + "/System32", "USERPROFILE": str(tmp_path)}
-    done = _run("-File", str(SCRIPT), "-DryRun", env=env)
-    assert done.returncode != 0 and "uv is not installed" in done.stderr + done.stdout
-    assert "Installing" not in done.stdout
+def test_without_uv_it_installs_uv_first(tmp_path):
+    system = os.environ.get("SystemRoot", "C:/Windows") + "/System32"
+    env = {"PATH": f"{system};{system}/WindowsPowerShell/v1.0", "USERPROFILE": str(tmp_path)}
+    lines = _powershell("-File", str(SCRIPT), "-DryRun", env=env)
+    assert lines[0] == f"==> Installing uv for {os.environ.get('USERNAME')}"
+    assert "irm https://astral.sh/uv/install.ps1 | iex" in lines
 
 
-class TestDecision:
-    """Restart only, or stop, install and start (on Windows the running daemon locks the files uv replaces)."""
+@pytest.mark.parametrize("status", ["busy", "leased"])
+def test_a_busy_daemon_stops_it_before_anything_changes(daemon_answering, status):
+    daemon_answering.update(status=status, leased_by="rig-1")
+    done = _run("-File", str(SCRIPT), "-Version", "0.18.0", "-Token", "t0k", "-DryRun")
+    assert done.returncode != 0 and "would interrupt it" in done.stderr + done.stdout
+    assert "DAEMON_CLABE_TOKEN" not in done.stdout and "Installing" not in done.stdout
 
-    def test_nothing_installed(self):
-        lines = _powershell("-File", str(SCRIPT), "-Version", "0.18.0", "-DryRun")
-        assert _decision(lines) == "==> Decision: stop, install, start (clabe is not installed)"
 
-    def test_the_same_version_only_restarts(self, _isolated):
-        _installed(_isolated, "0.18.0", ["frontend", "otel"])
-        lines = _powershell("-File", str(SCRIPT), "-Version", "0.18.0", "-DryRun")
-        assert _decision(lines) == "==> Decision: restart only (clabe 0.18.0 is already installed)"
-        commands = _commands(lines)
-        assert not any("tool install" in c for c in commands)
-        assert commands[0].endswith("daemon install") and commands[1].endswith("daemon restart --timeout 120")
-
-    def test_the_same_version_with_reinstall_installs(self, _isolated):
-        _installed(_isolated, "0.18.0", ["frontend", "otel"])
-        lines = _powershell("-File", str(SCRIPT), "-Version", "0.18.0", "-Reinstall", "-DryRun")
-        assert _decision(lines).startswith("==> Decision: stop, install, start (-Reinstall")
-
-    def test_other_extras_install(self, _isolated):
-        _installed(_isolated, "0.18.0", ["frontend"])
-        lines = _powershell("-File", str(SCRIPT), "-Version", "0.18.0", "-DryRun")
-        assert _decision(lines).startswith("==> Decision: stop, install, start")
-
-    def test_a_different_version_stops_installs_and_starts_with_a_rollback(self, _isolated):
-        _installed(_isolated, "0.17.0", ["frontend", "otel"])
-        lines = _powershell("-File", str(SCRIPT), "-Version", "0.18.0", "-DryRun")
-        assert _decision(lines) == (
-            "==> Decision: stop, install, start "
-            "(clabe 0.17.0 is installed; aind-clabe[frontend,otel]==0.18.0 is requested)"
-        )
-        assert "==> To restore if the install fails: aind-clabe[frontend,otel]==0.17.0" in lines
-        commands = _commands(lines)
-        assert commands[0] == "schtasks /End /TN clabe-daemon"  # this clabe has no `clabe daemon stop`
-        assert commands[1].endswith("tool install --force aind-clabe[frontend,otel]==0.18.0")
-
-    def test_the_same_git_commit_only_restarts(self, _isolated):
-        commit = "c7cc84fb0ad11698d62a351aff28fd6d2b2e7600"
-        url = "https://github.com/bruno-f-cruz/clabe"
-        vcs = {"url": url, "vcs_info": {"vcs": "git", "commit_id": commit}}
-        _installed(_isolated, "0.19.0", ["frontend", "otel"], vcs)
-        same = f"aind-clabe[frontend,otel] @ git+{url}@{commit}"
-        assert "restart only" in _decision(_powershell("-File", str(SCRIPT), "-Package", same, "-DryRun"))
-        lines = _powershell("-File", str(SCRIPT), "-Package", same.replace("c7cc84fb", "00000000"), "-DryRun")
-        assert "stop, install, start" in _decision(lines)
-        assert f"==> To restore if the install fails: {same}" in lines
-
-    def test_an_unpinned_request_installs(self, _isolated):
-        _installed(_isolated, "0.18.0", ["frontend", "otel"])
-        assert "does not pin a version" in _decision(_powershell("-File", str(SCRIPT), "-DryRun"))
-
-    @pytest.mark.parametrize("status", ["busy", "leased"])
-    def test_a_busy_daemon_stops_it_before_anything_changes(self, _isolated, daemon_answering, status):
-        daemon_answering.update(status=status, leased_by="rig-1")
-        _installed(_isolated, "0.17.0", ["frontend", "otel"])
-        done = _run("-File", str(SCRIPT), "-Version", "0.18.0", "-Token", "t0k", "-DryRun")
-        assert done.returncode != 0 and "would interrupt it" in done.stderr + done.stdout
-        assert "Decision" not in done.stdout and "DAEMON_CLABE_TOKEN" not in done.stdout
-
-    def test_a_busy_daemon_is_interrupted_with_force(self, daemon_answering):
-        daemon_answering.update(status="busy")
-        lines = _powershell("-File", str(SCRIPT), "-Version", "0.18.0", "-Force", "-DryRun")
-        assert "==> The daemon runs an experiment; -Force: it is interrupted." in lines
-        assert "stop, install, start" in _decision(lines)
+def test_a_busy_daemon_is_interrupted_with_force(daemon_answering):
+    daemon_answering.update(status="busy")
+    commands = _commands(_powershell("-File", str(SCRIPT), "-Version", "0.18.0", "-Force", "-DryRun"))
+    assert commands[2].endswith("--version 0.18.0 --force")

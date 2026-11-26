@@ -96,20 +96,43 @@ def task_state() -> str | None:
     return (done.stdout.strip() or None) if done.returncode == 0 else None
 
 
-def install(*, working_directory: Path | None = None) -> str:
-    """Registers (or replaces) the scheduled task and starts it.
+def registered_executable() -> Path | None:
+    """The program the task starts (e.g. a ``clabe.exe``), or ``None`` when the task is not registered."""
+    if sys.platform != "win32":
+        return None
+    query = f"(Get-ScheduledTask -TaskName '{TASK_NAME}' -ErrorAction Stop).Actions[0].Execute"
+    done = subprocess.run(
+        ["powershell", "-NoProfile", "-NonInteractive", "-Command", query], capture_output=True, text=True, check=False
+    )
+    program = done.stdout.strip().strip('"') if done.returncode == 0 else ""
+    return Path(program) if program else None
 
-    A daemon that is already running keeps running the old task's command: `restart` it to use the new one.
+
+def register(command: list[str], *, working_directory: Path | None = None) -> Path:
+    """Registers (or replaces) the scheduled task to run ``command``, without starting it; returns its working
+    directory.
+
+    Raises:
+        OSError: Task Scheduler refuses.
     """
     directory = working_directory or default_working_directory()
     directory.mkdir(parents=True, exist_ok=True)
-    xml = task_xml(daemon_command(), working_directory=directory)
+    xml = task_xml(command, working_directory=directory)
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "clabe-daemon.xml"
         path.write_text(xml, encoding="utf-16")
         created = _schtasks("/Create", "/TN", TASK_NAME, "/XML", str(path), "/F")
     if created.returncode != 0:
         raise OSError(f"Could not create the scheduled task: {created.stderr.strip() or created.stdout.strip()}")
+    return directory
+
+
+def install(*, working_directory: Path | None = None) -> str:
+    """Registers (or replaces) the scheduled task and starts it.
+
+    A daemon that is already running keeps running the old task's command: `restart` it to use the new one.
+    """
+    directory = register(daemon_command(), working_directory=working_directory)
     was_running = task_state() == "Running"
     _schtasks("/Run", "/TN", TASK_NAME)
     note = (
@@ -148,7 +171,9 @@ def _refuse_if_busy(port: int, token: str | None, doing: str) -> None:
         raise OSError(f"The daemon {what}: {doing} would interrupt it. Wait, or pass --force.")
 
 
-def stop(port: int, token: str | None, *, force: bool = False, timeout: float = 15.0) -> str:
+def stop(
+    port: int, token: str | None, *, force: bool = False, timeout: float = 15.0, if_installed: bool = False
+) -> str:
     """Ends the daemon's task and waits until the task no longer runs and nothing answers on ``port``.
 
     Args:
@@ -157,11 +182,17 @@ def stop(port: int, token: str | None, *, force: bool = False, timeout: float = 
         force: Stop even while it runs an experiment or is leased by another machine's run (that session's
             processes may be stopped).
         timeout: Seconds to wait for the daemon to stop answering.
+        if_installed: A missing task is not an error (nothing to stop), as long as nothing answers on ``port``.
 
     Raises:
-        OSError: The task is missing, the daemon is busy (without ``force``), or it still answers after ``timeout``.
+        OSError: The task is missing (without ``if_installed``, or something answers on ``port`` anyway), the daemon
+            is busy (without ``force``), or it still answers after ``timeout``.
     """
     if task_state() is None:
+        if if_installed and probe(port, token) is None:
+            return f"The {TASK_NAME} task is not installed: no daemon to stop."
+        if if_installed:
+            raise OSError(f"Something answers on port {port} but the {TASK_NAME} task is not installed: stop it first.")
         raise OSError(f"The {TASK_NAME} task is not installed: run `clabe daemon install` first.")
     if not force:
         _refuse_if_busy(port, token, "stopping it")
@@ -261,8 +292,8 @@ def upgrade() -> str:
     """
     if sys.platform == "win32":
         raise OSError(
-            "`clabe daemon upgrade` is deprecated: on Windows it cannot replace the clabe.exe it runs from. Run the "
-            "installer instead (see the Deploying docs): it stops the daemon, installs, and starts it again."
+            "`clabe daemon upgrade` is deprecated: on Windows it cannot replace the clabe.exe it runs from. Run "
+            "`clabe daemon deploy --version <version>` instead (see the Deploying docs)."
         )
     uv = shutil.which("uv")
     if uv is None:
