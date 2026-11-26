@@ -1,5 +1,8 @@
 """The token in a browser: a sign-in sets a cookie, and a ?token= link is swapped for one."""
 
+from urllib.parse import urljoin
+
+import pytest
 from fastapi.testclient import TestClient
 
 from clabe import ui
@@ -42,7 +45,7 @@ def test_a_link_with_the_token_is_swapped_for_the_cookie():
     client = _client()
     response = client.get("/?token=s3cret&tab=reports", follow_redirects=False)
     assert response.status_code == 303
-    assert response.headers["location"] == "/?tab=reports"
+    assert response.headers["location"] == "./?tab=reports"
     assert "clabe_token_24070=s3cret" in response.headers["set-cookie"]
     # a wrong token is left alone: the page asks for it
     assert client.get("/?token=nope", follow_redirects=False).status_code != 303
@@ -50,6 +53,30 @@ def test_a_link_with_the_token_is_swapped_for_the_cookie():
     fresh = _client()
     assert fresh.get("/api/state?token=s3cret").status_code == 200
     assert fresh.get("/api/state", headers={"Authorization": "Bearer s3cret"}).status_code == 200
+
+
+@pytest.mark.parametrize(
+    ("asked", "app_path", "lands"),
+    [
+        ("https://vm/clabe/?token=s3cret", "/?token=s3cret", "https://vm/clabe/"),
+        (
+            "https://vm/clabe/rigs/rig-3/?token=s3cret&a=1",
+            "/rigs/rig-3/?token=s3cret&a=1",
+            "https://vm/clabe/rigs/rig-3/?a=1",
+        ),
+        (
+            "https://vm/clabe/rigs/rig-3/run?token=s3cret",
+            "/rigs/rig-3/run?token=s3cret",
+            "https://vm/clabe/rigs/rig-3/run",
+        ),
+        ("http://rig-3:24070/?token=s3cret", "/?token=s3cret", "http://rig-3:24070/"),
+    ],
+)
+def test_a_link_with_the_token_stays_under_a_proxys_prefix(asked: str, app_path: str, lands: str):
+    """A proxy that strips a prefix (Traefik's StripPrefix) passes the Location back as it is: it must be relative."""
+    response = _client().get(app_path, follow_redirects=False)
+    assert response.status_code == 303
+    assert urljoin(asked, response.headers["location"]) == lands
 
 
 def test_without_a_token_signing_in_says_none_is_needed():

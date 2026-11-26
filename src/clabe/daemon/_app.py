@@ -6,13 +6,13 @@ from typing import Annotated
 import httpx
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, Response
 from fastapi import Path as FastApiPath
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from .. import __version__
 from ..reports import REPORT_ID_PATTERN, ReportInfo, count_reports, delete_report, list_reports, report_path
 from ..server._app import STATIC_DIR
-from ..server._proxy import TokenCookies, forward, token_check
+from ..server._proxy import TokenCookies, forward, relative_redirect, token_check
 from ..workflow import ExperimentListing
 from ._enroll import enrolling
 from ._host import AttachBody, Host, HostError, HostInfo, LaunchBody, RepositoryInfo, RunInfo
@@ -141,10 +141,9 @@ def create_daemon_app(
     client = httpx.AsyncClient(timeout=httpx.Timeout(30.0, read=None))
 
     @app.get("/run", include_in_schema=False)
-    def run_root(request: Request) -> RedirectResponse:
+    def run_root(request: Request) -> Response:
         """The run's page needs the trailing slash (its links are relative)."""
-        query = f"?{request.url.query}" if request.url.query else ""
-        return RedirectResponse(f"/run/{query}")
+        return relative_redirect(request.url.path, request.url.query, slash=True)
 
     @app.api_route("/run/{path:path}", methods=["GET", "POST"], include_in_schema=False)
     async def proxy(path: str, request: Request) -> Response:

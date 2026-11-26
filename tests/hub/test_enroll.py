@@ -108,6 +108,17 @@ def test_a_rig_enrolling_from_another_address_is_held_until_its_move_is_confirme
     assert Fleet(HubSettings(), registry=Registry(tmp_path)).rigs["rig-3"].url == "http://10.0.0.7:24071"
 
 
+def test_a_rigs_page_gets_its_slash_under_a_proxys_prefix():
+    from urllib.parse import urljoin
+
+    client = _hub(Fleet(HubSettings()))
+    response = client.get("/rigs/rig-3?x=1", follow_redirects=False)
+    assert response.status_code == 307
+    assert (
+        urljoin("https://vm/clabe/rigs/rig-3?x=1", response.headers["location"]) == "https://vm/clabe/rigs/rig-3/?x=1"
+    )
+
+
 def test_an_exclusion_removes_matching_rigs_and_refuses_them(tmp_path: Path):
     fleet = Fleet(HubSettings(), registry=Registry(tmp_path))
     client = _hub(fleet)
