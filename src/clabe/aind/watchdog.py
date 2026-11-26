@@ -135,7 +135,10 @@ class WatchdogSettings(ServiceSettings):
 
     destination: Path
     schedule_time: datetime.time | None = datetime.time(hour=20)
-    project_name: str
+    project_name: str | None = pydantic.Field(
+        default=None,
+        description="Project name of the upload. Optional; when set, it is validated against the metadata service.",
+    )
     transfer_endpoint: str = DEFAULT_TRANSFER_ENDPOINT
     delete_modalities_source_after_success: bool = False
     extra_identifying_info: dict | None = None
@@ -400,7 +403,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         if missing:
             raise FileNotFoundError(f"Watchdog source directories not found or not reachable: {', '.join(missing)}")
 
-        if self._validate_project_name:
+        if self._validate_project_name and self._settings.project_name is not None:
             project_names = self._get_project_names()
             if self._settings.project_name not in project_names:
                 raise ValueError(f"Project name {self._settings.project_name} not found in {project_names}")
