@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.11"
 resolution-markers = [
     "python_full_version >= '3.14'",
@@ -105,7 +105,7 @@ requires-dist = [
     { name = "aind-behavior-services", specifier = ">=0.13.0" },
     { name = "aind-data-schema", marker = "extra == 'aind-services'", specifier = ">=2" },
     { name = "aind-data-transfer-service", marker = "extra == 'aind-services'", specifier = ">=2.2.0" },
-    { name = "aind-watchdog-service", marker = "extra == 'aind-services'", specifier = ">=0.1.10.dev0" },
+    { name = "aind-watchdog-service", marker = "extra == 'aind-services'", specifier = ">=0.1.10" },
     { name = "confierge", marker = "extra == 'aind-services'", git = "https://github.com/AllenNeuralDynamics/ficus.git?subdirectory=packages%2Fconfierge&tag=v0.3.0" },
     { name = "fastapi", marker = "extra == 'frontend'", specifier = ">=0.115" },
     { name = "gitpython" },
@@ -183,7 +183,7 @@ wheels = [
 
 [[package]]
 name = "aind-data-transfer-service"
-version = "2.2.3"
+version = "2.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aind-data-schema-models" },
@@ -193,22 +193,22 @@ dependencies = [
     { name = "python-json-logger" },
     { name = "pyyaml" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b8/9f/08edacafb4bd5ff47fe9d70532b01e359f19728a9c3262f2f24b0fb304b5/aind_data_transfer_service-2.2.3.tar.gz", hash = "sha256:a6364f4433128bb00dafaf31bbdaac90effa0d5b697ec9f95021864f087f6a11", size = 38568, upload-time = "2026-11-03T00:25:38.614Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/8f/b9/b1ad80088592d6fd7b0d1bf1561adbf98da73e53f9190847206de3535972/aind_data_transfer_service-2.3.0.tar.gz", hash = "sha256:c1bd9e0f5c46c5d70d405c2750b7d8c98a3ff33e6a321332195f174cad300a5a", size = 38693, upload-time = "2026-11-18T22:40:42.199Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/16/c8/562e5a4ad8f868b37e38099f4da98b3655e2bd1bcb28cc9ef7a8fe3f8b2e/aind_data_transfer_service-2.2.3-py3-none-any.whl", hash = "sha256:d0356afa305c65dc4181519229e9187bd7642836c81be2b790fdfbf8ec6910f6", size = 24789, upload-time = "2026-11-03T00:25:37.497Z" },
+    { url = "https://files.pythonhosted.org/packages/c9/b7/5ee14d7031dc2372adb64cbdcb2a8e0e731cb83eb8bd0544a3421a3dc3fd/aind_data_transfer_service-2.3.0-py3-none-any.whl", hash = "sha256:ab426a2a2f3f872459e9bc99186b88ca44ba0696e6603ad7a31cf6a0acb10133", size = 24827, upload-time = "2026-11-18T22:40:40.745Z" },
 ]
 
 [[package]]
 name = "aind-watchdog-service"
-version = "0.1.10.dev0"
+version = "0.1.10"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aind-data-transfer-service" },
     { name = "pyyaml" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c3/48/cee1862376fcd751f5ce55bf82b8220808ced95748405d4ea67832e587f7/aind_watchdog_service-0.1.10.dev0.tar.gz", hash = "sha256:25e54d5863179f9fe57823ec470f3ffa42703cb4b16a14794ea4bfcf56a88abc", size = 394032, upload-time = "2026-11-02T17:48:00.991Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/21/57/3310fd9de6d9237e6b0c5e224cfb529448a49b0d8be4fbfaebde796bc4a8/aind_watchdog_service-0.1.10.tar.gz", hash = "sha256:a39f3cda00ca8f09f325d04441f19a1a9682ccdc21fe067fa5e3e8f8f3ac2c5f", size = 394320, upload-time = "2026-11-20T00:05:01.572Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/72/8d/f6a7fac4496e90d4a30a99fca38f65def097b3103e6044b718f3aba26520/aind_watchdog_service-0.1.10.dev0-py3-none-any.whl", hash = "sha256:2c5aba8330c2d94b19920ffc4c89537877a80cd92722cd382c32e0c476356209", size = 48555, upload-time = "2026-11-02T17:47:59.999Z" },
+    { url = "https://files.pythonhosted.org/packages/5a/3b/4df9267864747761bc875cc85c26e84015aa53402d3fcec730fe952ebb97/aind_watchdog_service-0.1.10-py3-none-any.whl", hash = "sha256:3887b38187f9e2f314f2266cb0ce11de10c5bc59dde0a624d2043787e35cd7e7", size = 48513, upload-time = "2026-11-20T00:05:00.439Z" },
 ]
 
 [[package]]

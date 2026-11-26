@@ -213,6 +213,23 @@ class TestPlan:
         assert "gather_preliminary_metadata" in _job(planned.manifest).tasks
         assert _job(planned.manifest).job_type == "single_job"
 
+    def test_project_name_reaches_manifest_and_job(self, behavior_dir, session):
+        (planned,) = _service(behavior_dir, _settings(), session).plan()
+        assert planned.manifest.project_name == "test_project"
+        assert _job(planned.manifest).project_name == "test_project"
+
+    def test_project_name_reaches_every_group(self, behavior_dir, session):
+        settings = _settings(upload_groups=VIDEO_SPLIT)
+        for planned in _service(behavior_dir, settings, session).plan():
+            assert planned.manifest.project_name == "test_project"
+            assert _job(planned.manifest).project_name == "test_project"
+
+    def test_without_project_name(self, behavior_dir, session):
+        settings = WatchdogSettings(destination=Path("//vast/destination"))
+        (planned,) = _service(behavior_dir, settings, session).plan()
+        assert planned.manifest.project_name is None
+        assert _job(planned.manifest).project_name is None
+
     def test_video_split(self, behavior_dir, session):
         settings = _settings(upload_groups=VIDEO_SPLIT, data_description_tags=["tag"])
         primary, videos = _service(behavior_dir, settings, session).plan()
@@ -371,3 +388,8 @@ class TestTransfer:
             service.transfer()
         assert "manifest_mock_session.yaml" in caplog.text
         assert "manifest_mock_session__videos.yaml" in caplog.text
+
+
+def test_project_name_is_optional():
+    settings = WatchdogSettings(destination=Path("//vast/destination"))
+    assert settings.project_name is None
