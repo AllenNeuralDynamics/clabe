@@ -22,21 +22,59 @@ Settings go in `docker/hub/.env` (copy `docker/hub/.env.example`). The names hav
 container sees them:
 
 ```bash
-RIGS=rig-3=http://rig-3:24070;rig-4=http://rig-4:24070     # id=url; or JSON, for per-rig tokens
+ENROLL_TOKEN=...                                         # what rigs present to enroll
 # TOKEN=...                                              # optional: the hub's own token
 # RIG_TOKEN=...                                          # optional: the rigs' DAEMON_CLABE_TOKEN
 ```
 
 | Variable | Default | What it does |
 |---|---|---|
-| `TOKEN` | none | Optional: when set, the hub's API requires it |
-| `RIG_TOKEN` | none | The rigs' daemon token, when they have one |
-| `RIGS` | none | `id=url;...`, or `[{"id": ..., "url": ..., "token": ...}]` |
+| `ENROLL_TOKEN` | none | What a rig must present to enroll. Unset: any rig that reaches the hub can enroll |
+| `TOKEN` | none | Optional: when set, the hub's page and API require it |
+| `RIG_TOKEN` | none | The daemon token of rigs without their own ([below](#rig-tokens)) |
 | `PORT` | `8080` | The hub's port |
 | `POLL_INTERVAL` | `2` | Seconds between polls of each rig |
-| `DATA_DIR` | `./hub-data` (`/data` in Docker) | Where collected issue reports are kept |
+| `DATA_DIR` | `./hub-data` (`/data` in Docker) | Where enrolled rigs, exclusions and collected issue reports are kept |
 | `REPORT_INTERVAL` | `5` | Seconds between collections of a rig's reports |
 | `REPORT_RETENTION_DAYS` | none | Optional: delete reports collected longer ago; kept forever if unset |
+
+## Rigs enroll themselves
+
+The hub has no list of rigs. Each rig's [daemon](daemon.md#hubs) enrolls itself: when it starts, and every 5 minutes
+after that, it sends the hub its name and where to reach it. Adding a rig is deploying its daemon with the hub's
+address:
+
+```bash
+DAEMON_CLABE_HUBS=https://hub-vm/clabe          # one or more hubs, ; between them
+DAEMON_CLABE_ENROLL_TOKEN=...                   # the hub's ENROLL_TOKEN
+```
+
+- The hub follows the rig at `http://<host>:<port>` from then on, polling it like any client. The rig never sends
+  its status, only that it exists.
+- A rig's name and host default to its computer's name, and the port is the daemon's own. Set
+  `DAEMON_CLABE_ENROLL_NAME` for another name, and `DAEMON_CLABE_ENROLL_HOST` when the hub cannot reach the rig by
+  its computer's name (e.g. a hub in Docker on the same PC: `host.docker.internal`).
+- Enrolling again updates where the rig is. A hub that restarted, moved or lost its data fills up again within
+  minutes, without touching the rigs.
+- The enroll token only enrolls. It does not open the hub's page or API, and the hub's `TOKEN` does not enroll.
+- Rigs that answer are listed first. Those that do not are grouped under **Offline**.
+- **Remove** a rig with the bin on its card (or `DELETE /api/hub/rigs/<id>`). A rig whose daemon still enrolls with
+  this hub comes back within minutes; **Remove and exclude** keeps it out.
+- **Exclude** rigs with glob patterns (`BEH.*`, `rig-3`, `wxvs-*`), matched without case against a rig's name and its
+  host. Excluding removes the matching rigs and refuses them when they enroll, until the exclusion is removed.
+  Manage exclusions under **Rigs ▸ Excluded** on the page, or with the API below.
+- Enrolled rigs and exclusions are kept in `<DATA_DIR>/hub.db`, with the issue reports.
+
+### Rig tokens
+
+A rig with a `DAEMON_CLABE_TOKEN` requires it from every client, the hub included. Enter it in the hub with **Token**
+on the rig's card (or `PUT /api/hub/rigs/<id>/token`). For a rig without one entered, the hub tries `RIG_TOKEN`.
+
+- A rig that refuses the hub's token shows **needs token**.
+- The page and the API never show a token back, only whether one is entered ("Token set").
+- Tokens are kept in `hub.db` as plain text: the hub must send them to the rigs. Protect the data volume like the
+  `.env` file.
+- Enrolling again keeps a rig's token. Removing a rig deletes it.
 
 
 ## Run it
@@ -59,8 +97,8 @@ it again. A failed collection is retried at the next poll.
 | `<DATA_DIR>/hub.db` | SQLite: one row per report (its `report.json`, rig id, received time, status, size) |
 | `<DATA_DIR>/reports/<id>.zip` | The report's zip, as collected |
 
-- In Docker, `DATA_DIR` is `/data`, the named volume `hub-data`. It survives `docker compose down` and rebuilds.
-- `docker compose down -v` deletes the volume and every report in it.
+- In Docker, `DATA_DIR` is `/data`, the volume `hub_hub-data`. It survives `docker compose down`, `up` and rebuilds.
+- `docker compose down -v` deletes the volume: every report, enrolled rig and exclusion in it.
 - Delete reports from the page or the API. `REPORT_RETENTION_DAYS` deletes old reports at start and then every hour.
 - Each report has its own address (`/?tab=reports&report=<id>`): **Copy link** on the report copies it to share.
   Whoever opens it signs in if the hub has a token, then sees the report.
@@ -74,6 +112,12 @@ Interactive docs at `/docs`.
 | `GET /api/hub/rigs` | Every rig, as last polled (with its live `session`) |
 | `GET /api/hub/inbox` | Rigs waiting for an answer |
 | `POST /api/hub/refresh` | Poll now (and collect reports) |
+| `POST /api/hub/enroll` | A rig enrolls: `{"id", "host", "port", "clabe_version"}`, with the `ENROLL_TOKEN`; 403 if excluded |
+| `DELETE /api/hub/rigs/{id}` | Remove a rig and its token (it comes back if it enrolls again) |
+| `PUT /api/hub/rigs/{id}/token` | `{"token": "..."}`: the rig's `DAEMON_CLABE_TOKEN`; `null` deletes it (`RIG_TOKEN`) |
+| `GET /api/hub/exclusions` | The exclusions: `[{pattern, comment, added_at}]` |
+| `POST /api/hub/exclusions` | `{"pattern", "comment"}`: exclude → `{exclusion, removed}` (the rigs removed) |
+| `DELETE /api/hub/exclusions?pattern=...` | Remove an exclusion |
 | `GET /api/hub/reports` | Reports: `rig`, `experiment`, `status`, `q` (text anywhere), `sort`, `order`, `limit`, `offset` → `{total, items}` |
 | `GET /api/hub/reports/{id}` | One report |
 | `PATCH /api/hub/reports/{id}` | `{"status": "new" \| "looking" \| "closed"}` |

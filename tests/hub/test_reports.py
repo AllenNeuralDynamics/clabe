@@ -11,13 +11,14 @@ import time
 import zipfile
 from pathlib import Path
 
+import httpx
 import pytest
 import requests
 import uvicorn
 from fastapi.testclient import TestClient
 
 from clabe.daemon import DaemonSettings, Host, create_daemon_app
-from clabe.hub import Fleet, HubSettings, InspectCache, ReportStore, RigConfig, create_hub_app
+from clabe.hub import EnrollBody, Fleet, HubSettings, InspectCache, ReportStore, create_hub_app
 from clabe.reports import REPORT_FILE, ReportInfo, list_reports, make_bundle, save_report
 from clabe.server import free_port
 
@@ -100,7 +101,7 @@ def test_old_reports_are_deleted_after_the_retention(store: ReportStore, tmp_pat
     long_ago = (datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=40)).isoformat()
     with store._db:
         store._db.execute("UPDATE reports SET received_at = ? WHERE report_id = ?", (long_ago, old.report_id))
-    fleet = Fleet(HubSettings(rigs=[], report_retention_days=30), reports=store)
+    fleet = Fleet(HubSettings(report_retention_days=30), reports=store)
     asyncio.run(fleet.poll_once())
     assert store.get(old.report_id) is None and store.get(recent.report_id) is not None
     assert not (store.data_dir / "reports" / f"{old.report_id}.zip").exists()
@@ -129,12 +130,11 @@ def test_the_hub_collects_a_rigs_reports_then_deletes_them_there(rig, store: Rep
     (rig_reports / ("e" * 32 + ".zip")).write_bytes(b"broken")  # never listed: no report.json
 
     settings = HubSettings(
-        port=free_port("127.0.0.1", 18380),
-        rigs=[RigConfig(id="rig-3", url=url, token="rig-secret")],
-        poll_interval=0.2,
-        report_interval=0.2,
+        port=free_port("127.0.0.1", 18380), rig_token="rig-secret", poll_interval=0.2, report_interval=0.2
     )
-    hub, thread = _serve(create_hub_app(Fleet(settings, reports=store), token="hub-secret"), settings.port)
+    fleet = Fleet(settings, reports=store)
+    fleet.enroll(EnrollBody(id="rig-3", host="127.0.0.1", port=httpx.URL(url).port))
+    hub, thread = _serve(create_hub_app(fleet, token="hub-secret"), settings.port)
     base = f"http://127.0.0.1:{settings.port}"
     try:
         deadline = time.monotonic() + 30
@@ -158,15 +158,16 @@ def test_the_hub_collects_a_rigs_reports_then_deletes_them_there(rig, store: Rep
 
 def test_an_unreachable_rig_or_failed_download_never_stops_polling(store: ReportStore):
     port = free_port("127.0.0.1", 18395)
-    fleet = Fleet(HubSettings(rigs=[RigConfig(id="gone", url=f"http://127.0.0.1:{port}")]), reports=store)
+    fleet = Fleet(HubSettings(), reports=store)
+    fleet.enroll(EnrollBody(id="gone", host="127.0.0.1", port=port))
     assert asyncio.run(fleet.collect(fleet.rigs["gone"])) == 0
-    asyncio.run(Fleet(fleet.settings, reports=store).poll_once(collect=True))
+    asyncio.run(Fleet(fleet.settings, reports=store, registry=fleet.registry).poll_once(collect=True))
     assert store.query().total == 0
 
 
 @pytest.fixture
 def hub(store: ReportStore):
-    app = create_hub_app(Fleet(HubSettings(rigs=[]), reports=store), token="hub-secret", static_dir=None, poll=False)
+    app = create_hub_app(Fleet(HubSettings(), reports=store), token="hub-secret", static_dir=None, poll=False)
     with TestClient(app, headers=_AUTH) as client:
         yield client
 
@@ -242,7 +243,7 @@ def test_an_opened_export_expires(tmp_path: Path):
 
 
 def test_report_routes_answer_503_without_a_store():
-    app = create_hub_app(Fleet(HubSettings(rigs=[])), static_dir=None, poll=False)
+    app = create_hub_app(Fleet(HubSettings()), static_dir=None, poll=False)
     with TestClient(app) as client:
         assert client.get("/api/hub/reports").status_code == 503
 
@@ -256,7 +257,7 @@ def test_a_report_has_an_address_that_opens_it(store: ReportStore, tmp_path: Pat
     report, data = _report(tmp_path / "made", comment="Camera froze", experiment="vr-foraging")
     store.add("rig-3", data)
     port = free_port("127.0.0.1", 18660)
-    app = create_hub_app(Fleet(HubSettings(rigs=[]), reports=store), token="hub-secret", poll=False)
+    app = create_hub_app(Fleet(HubSettings(), reports=store), token="hub-secret", poll=False)
     server, thread = _serve(app, port)
     base = f"http://127.0.0.1:{port}"
     try:

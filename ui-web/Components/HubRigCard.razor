@@ -1,4 +1,4 @@
-@* A rig in the fleet: its status, what it runs, its reports, and a way to its page. *@
+@* A rig in the fleet: its status, what it runs, its reports, its token, and a way to its page. *@
 @inject HubApi Hub
 
 <article class="rig card @(Rig.Reachable ? "" : "offline") @(Rig.Waiting is not null ? "waiting" : "")" aria-label="@Rig.Id">
@@ -15,7 +15,11 @@
     </header>
 
     <div class="rig-body">
-        @if (!Rig.Reachable)
+        @if (Rig.NeedsToken)
+        {
+            <p class="line small needs-token">It refuses the hub's token. Enter this rig's token with <strong>Token</strong> below.</p>
+        }
+        else if (!Rig.Reachable)
         {
             <p class="line subtle small unreachable" title="@Rig.Error">Not reachable: @(Rig.Error ?? "no answer")</p>
         }
@@ -56,23 +60,127 @@
                 <span class="waiting-reports" title="Reports waiting on the rig to be collected">@Rig.ReportsWaiting waiting</span>
             }
         </span>
-        @if (Rig.Reachable)
-        {
-            <a class="btn sm open" href="@Hub.RigUrl(Rig.Id)" aria-label="Open @Rig.Id">Open <HubIcon Name="right" Size="13" /></a>
-        }
-        else
+        <button type="button" class="ghost sm token-toggle @(Rig.HasToken ? "set" : "") @(Rig.NeedsToken ? "needed" : "")"
+                aria-expanded="@_editingToken" aria-label="Token of @Rig.Id"
+                @onclick="() => { _editingToken = !_editingToken; _tokenError = null; }"
+                title="@(Rig.HasToken ? "This rig's token is entered in the hub" : "No token entered for this rig: the hub tries its RIG_TOKEN")">
+            @(Rig.HasToken ? "Token set" : "Token")
+        </button>
+        <span class="grow"></span>
+        @if (!Rig.Reachable)
         {
             <span class="subtle tiny">@(Rig.SeenAt is { } seen ? $"seen {ReportTime.Ago(seen)}" : "never seen")</span>
         }
+        else
+        {
+            <a class="btn sm open" href="@Hub.RigUrl(Rig.Id)" aria-label="Open @Rig.Id">Open <HubIcon Name="right" Size="13" /></a>
+        }
+        <button type="button" class="ghost icon sm" aria-label="Remove @Rig.Id" title="Remove this rig from the hub"
+                @onclick="() => { _confirmRemove = true; _removeError = null; }">
+            <HubIcon Name="trash" Size="14" />
+        </button>
     </footer>
+    @if (_confirmRemove)
+    {
+        <div class="confirm" role="group" aria-label="Remove @Rig.Id">
+            <p class="small">Remove <strong>@Rig.Id</strong>? If its daemon still enrolls with this hub, it comes back within minutes, unless you also exclude it.</p>
+            <div class="actions">
+                <button type="button" class="danger sm" disabled="@_removing" @onclick="() => Remove(exclude: false)">Remove</button>
+                <button type="button" class="danger sm" disabled="@_removing" @onclick="() => Remove(exclude: true)">Remove and exclude</button>
+                <button type="button" class="ghost sm" disabled="@_removing" @onclick="() => _confirmRemove = false">Cancel</button>
+            </div>
+        </div>
+    }
+    @if (_editingToken)
+    {
+        <form class="token" @onsubmit="SaveToken" @onsubmit:preventDefault>
+            <input type="password" autocomplete="off" aria-label="New token of @Rig.Id" @bind="_token" @bind:event="oninput"
+                   placeholder="@(Rig.HasToken ? "New token (replaces the one entered)" : "This rig's DAEMON_CLABE_TOKEN")" />
+            <button type="submit" class="sm primary" disabled="@(_savingToken || string.IsNullOrWhiteSpace(_token))">Save</button>
+            @if (Rig.HasToken)
+            {
+                <button type="button" class="sm" disabled="@_savingToken" @onclick="ClearToken"
+                        title="Delete the token entered for this rig (the hub then tries its RIG_TOKEN)">Clear</button>
+            }
+        </form>
+    }
+    @if ((_tokenError ?? _removeError) is { } error)
+    {
+        <p class="subtle small card-error" role="alert">@error</p>
+    }
 </article>
 
 @code {
     [Parameter, EditorRequired] public RigStatus Rig { get; set; } = default!;
 
+    /// <summary>Called once the rig is removed or its token changed, e.g. to refresh the fleet.</summary>
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    private bool _editingToken;
+    private bool _savingToken;
+    private string _token = "";
+    private string? _tokenError;
+
+    private bool _confirmRemove;
+    private bool _removing;
+    private string? _removeError;
+
+    private Task SaveToken() => StoreToken(_token.Trim());
+
+    private Task ClearToken() => StoreToken(null);
+
+    private async Task StoreToken(string? token)
+    {
+        _savingToken = true;
+        _tokenError = null;
+        try
+        {
+            await Hub.SetTokenAsync(Rig.Id, token);
+            _token = "";
+            _editingToken = false;
+            await OnChanged.InvokeAsync();
+        }
+        catch (HttpRequestException exc)
+        {
+            _tokenError = exc.Message;
+        }
+        finally
+        {
+            _savingToken = false;
+        }
+    }
+
+    private async Task Remove(bool exclude)
+    {
+        _removing = true;
+        _removeError = null;
+        try
+        {
+            if (exclude)
+            {
+                await Hub.ExcludeAsync(Rig.Id, null);  // excluding removes it too
+            }
+            else
+            {
+                await Hub.RemoveAsync(Rig.Id);
+            }
+            _confirmRemove = false;
+            await OnChanged.InvokeAsync();
+        }
+        catch (HttpRequestException exc)
+        {
+            _removeError = exc.Message;
+        }
+        finally
+        {
+            _removing = false;
+        }
+    }
+
     /// <summary>A rig's status chip: its text and its class (waiting pulses).</summary>
     public static (string Text, string Css) StatusChip(RigStatus rig) =>
-        !rig.Reachable ? ("offline", "offline")
+        rig.NeedsToken ? ("needs token", "waiting")
+        : !rig.Reachable ? ("offline", "offline")
         : rig.Waiting is not null ? ("waiting", "waiting")
         : rig.Status switch
         {

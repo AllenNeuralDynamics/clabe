@@ -22,7 +22,8 @@ on its own:
 
 ## Configure
 
-The daemon reads only environment variables of the rig's user, never `clabe.yml`. None are required. Lists are
+The daemon reads environment variables of the rig's user, else the same `NAME=value` lines in
+`%LOCALAPPDATA%\clabe\daemon.env` (environment variables win); never `clabe.yml`. None are required. Lists are
 written as `a;b` or as JSON. Restart the daemon after changing them.
 
 ```bat
@@ -47,6 +48,25 @@ setx DAEMON_CLABE_OTEL_ENDPOINT "collector:4317"               :: where to send 
 | `DAEMON_CLABE_MAX_FILE_SIZE` | 50 MB | Worker: largest file a remote run uploads |
 | `DAEMON_CLABE_FILE_TRANSFER_DIR` | `%TEMP%\clabe-worker` | Worker: where uploaded files go |
 | `DAEMON_CLABE_LEASE_GRACE` | `300` | Worker: seconds a crashed run can take the machine back |
+| `DAEMON_CLABE_HUBS` | none | [Hubs](#hubs) to enroll with, e.g. `https://hub-vm/clabe` |
+| `DAEMON_CLABE_ENROLL_TOKEN` | none | The hubs' `ENROLL_TOKEN` |
+| `DAEMON_CLABE_ENROLL_NAME` | this computer's name | The rig's name in the hubs |
+| `DAEMON_CLABE_ENROLL_HOST` | this computer's name | Where the hubs reach the daemon (a hostname or an IP) |
+| `DAEMON_CLABE_ENROLL_INTERVAL` | `300` | Seconds between enrollments (30 s at most after a failure) |
+
+### Hubs
+
+With `DAEMON_CLABE_HUBS` set, the daemon enrolls with each hub when it starts and every 5 minutes after that. The
+[hub](hub.md#rigs-enroll-themselves) then follows the rig. A hub that is down, or refuses the rig (excluded, wrong
+token), changes nothing on the rig: the daemon logs it and tries again. Deploying a rig with a file instead of
+`setx`:
+
+```ini
+# %LOCALAPPDATA%\clabe\daemon.env
+DAEMON_CLABE_HUBS=https://hub-vm/clabe
+DAEMON_CLABE_ENROLL_TOKEN=...
+DAEMON_CLABE_TOKEN=...
+```
 
 ## Commands
 

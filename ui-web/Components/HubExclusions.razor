@@ -1,0 +1,137 @@
+@* The patterns that keep rigs out of the hub: excluding removes the matching rigs and refuses them when they enroll. *@
+@inject HubApi Hub
+
+<details class="exclusions card" @ontoggle="OnToggle">
+    <summary>
+        <HubIcon Name="filter" Size="14" />
+        <span>Excluded</span>
+        @if (_exclusions is { Count: > 0 } list)
+        {
+            <span class="chip plain">@list.Count</span>
+        }
+        <span class="subtle small">Rigs matching these patterns are dropped and cannot enroll</span>
+    </summary>
+
+    <form class="add" @onsubmit="Add" @onsubmit:preventDefault>
+        <input aria-label="Pattern" placeholder="Pattern, e.g. BEH.* or rig-3" @bind="_pattern" @bind:event="oninput" required />
+        <input aria-label="Reason" placeholder="Reason (optional)" @bind="_comment" @bind:event="oninput" />
+        <button type="submit" class="sm" disabled="@(_busy || string.IsNullOrWhiteSpace(_pattern))">Exclude</button>
+    </form>
+    <p class="subtle small hint">Globs (<code>*</code>, <code>?</code>), matched without case against a rig's name and host.</p>
+
+    @if (_message is not null)
+    {
+        <p class="small message" role="status">@_message</p>
+    }
+    @if (_error is not null)
+    {
+        <div class="alert error" role="alert"><span>@_error</span></div>
+    }
+
+    @if (_exclusions is null)
+    {
+        <p class="subtle small">@(_open ? "Loading…" : "")</p>
+    }
+    else if (_exclusions.Count == 0)
+    {
+        <p class="subtle small">Nothing is excluded: every rig that enrolls is followed.</p>
+    }
+    else
+    {
+        <ul class="list">
+            @foreach (var exclusion in _exclusions)
+            {
+                <li @key="exclusion.Pattern">
+                    <code class="pattern">@exclusion.Pattern</code>
+                    <span class="comment subtle small truncate">@(exclusion.Comment ?? "")</span>
+                    <span class="subtle tiny" title="@ReportTime.Exact(exclusion.AddedAt)">@ReportTime.Ago(exclusion.AddedAt)</span>
+                    <button type="button" class="ghost icon sm" aria-label="Remove the exclusion @exclusion.Pattern"
+                            title="Remove: these rigs are followed again once they enroll" disabled="@_busy"
+                            @onclick="() => Remove(exclusion.Pattern)">
+                        <HubIcon Name="x" Size="14" />
+                    </button>
+                </li>
+            }
+        </ul>
+    }
+</details>
+
+@code {
+    /// <summary>Called when rigs were dropped, e.g. to refresh the fleet.</summary>
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    private List<Exclusion>? _exclusions;
+    private string _pattern = "";
+    private string _comment = "";
+    private string? _message;
+    private string? _error;
+    private bool _busy;
+    private bool _open;
+
+    private async Task OnToggle()
+    {
+        _open = !_open;
+        if (_open)
+        {
+            await Load();
+        }
+    }
+
+    private async Task Load()
+    {
+        try
+        {
+            _exclusions = await Hub.ExclusionsAsync();
+            _error = null;
+        }
+        catch (HttpRequestException exc)
+        {
+            _error = exc.Message;
+        }
+    }
+
+    private async Task Add()
+    {
+        var pattern = _pattern.Trim();
+        if (pattern.Length == 0)
+        {
+            return;
+        }
+        await Act(async () =>
+        {
+            var result = await Hub.ExcludeAsync(pattern, string.IsNullOrWhiteSpace(_comment) ? null : _comment.Trim());
+            _message = result.Removed.Count == 0
+                ? $"Excluded {pattern}: no rig followed now matches it."
+                : $"Excluded {pattern}: removed {string.Join(", ", result.Removed)}.";
+            _pattern = "";
+            _comment = "";
+        });
+    }
+
+    private async Task Remove(string pattern) => await Act(async () =>
+    {
+        await Hub.UnexcludeAsync(pattern);
+        _message = $"Removed {pattern}: matching rigs come back when they next enroll (within minutes).";
+    });
+
+    private async Task Act(Func<Task> action)
+    {
+        _busy = true;
+        _error = null;
+        _message = null;
+        try
+        {
+            await action();
+            await Load();
+            await OnChanged.InvokeAsync();
+        }
+        catch (HttpRequestException exc)
+        {
+            _error = exc.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

@@ -31,8 +31,8 @@ environment variables.
 | Process | Configured by | Names |
 |---|---|---|
 | Experiment (`clabe run`) | `clabe.yml`, then environment variables | `CLABE_<SECTION>_<FIELD>`, e.g. `CLABE_WATCHDOG_JOB_TYPE`; launcher options `CLABE_<FIELD>`, e.g. `CLABE_TOKEN` |
-| Daemon | Environment variables of the rig's user | `DAEMON_CLABE_<FIELD>`, e.g. `DAEMON_CLABE_TOKEN` ([list](daemon.md#configure)) |
-| Hub | `docker/hub/.env` (inside its container) | `TOKEN`, `RIG_TOKEN`, `RIGS`, … ([list](hub.md#configure)) |
+| Daemon | Environment variables of the rig's user, else `%LOCALAPPDATA%\clabe\daemon.env` | `DAEMON_CLABE_<FIELD>`, e.g. `DAEMON_CLABE_TOKEN` ([list](daemon.md#configure)) |
+| Hub | `docker/hub/.env` (inside its container) | `TOKEN`, `RIG_TOKEN`, `ENROLL_TOKEN`, … ([list](hub.md#configure)) |
 
 ## Where an experiment's settings come from
 

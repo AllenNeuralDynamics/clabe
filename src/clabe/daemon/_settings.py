@@ -8,9 +8,13 @@ from pathlib import Path
 from typing import Annotated, ClassVar
 
 from pydantic import BaseModel, Field, SecretStr, field_validator
-from pydantic_settings import NoDecode
+from pydantic_settings import NoDecode, SettingsConfigDict
 
 from ..settings import EnvSettings, split_list
+from ._install import default_working_directory
+
+#: An optional file of ``DAEMON_CLABE_*`` settings, in the daemon's working directory; environment variables win.
+ENV_FILE = default_working_directory() / "daemon.env"
 
 logger = logging.getLogger(__name__)
 
@@ -54,8 +58,9 @@ def is_experiment_repository(path: Path) -> bool:
 
 
 class DaemonSettings(EnvSettings):
-    """Settings of ``clabe daemon run``, from environment variables only (``DAEMON_CLABE_<FIELD>``, e.g.
-    ``DAEMON_CLABE_TOKEN``). Every setting has a default; a rig usually needs none.
+    """Settings of ``clabe daemon run``, from environment variables (``DAEMON_CLABE_<FIELD>``, e.g.
+    ``DAEMON_CLABE_TOKEN``), else the same lines in ``%LOCALAPPDATA%\\clabe\\daemon.env``; never clabe.yml. Every
+    setting has a default; a rig usually needs none.
 
     Repositories are found under ``repository_roots``: every folder right under a root with a ``main.py`` and a
     ``pyproject.toml`` depending on ``aind-clabe``. List others (any layout) in ``repositories``. Lists are written
@@ -64,11 +69,13 @@ class DaemonSettings(EnvSettings):
     ```bat
     setx DAEMON_CLABE_REPOSITORY_ROOTS "C:/git;D:/experiments"
     setx DAEMON_CLABE_REPOSITORIES "C:/somewhere/else/Aind.Experiment.Special"
+    setx DAEMON_CLABE_HUBS "https://hub-vm/clabe"
     ```
     """
 
     __yml_section__: ClassVar[str | None] = "daemon"
     __env_prefix__: ClassVar[str | None] = "DAEMON_CLABE_"
+    model_config = SettingsConfigDict(env_file=ENV_FILE, env_file_encoding="utf-8")
 
     host: str = Field(default="0.0.0.0", description="Interface to bind (the network; 127.0.0.1 for this PC only)")
     port: int = Field(default=24070, description="Port of the daemon (runs are proxied under /run/)")
@@ -107,13 +114,30 @@ class DaemonSettings(EnvSettings):
         description="Where issue reports wait for the hub to collect them; defaults to %LOCALAPPDATA%\\clabe\\reports",
     )
 
+    hubs: Annotated[list[str], NoDecode] = Field(
+        default_factory=list, description="Hubs this rig enrolls with, e.g. https://hub-vm/clabe (none: no hub)"
+    )
+    enroll_token: SecretStr | None = Field(default=None, description="What the hubs require to enroll (ENROLL_TOKEN)")
+    enroll_name: str | None = Field(
+        default=None,
+        description="This rig's name in the hubs; defaults to this computer's name",
+        pattern=r"^[A-Za-z0-9_.-]+$",
+    )
+    enroll_host: str | None = Field(
+        default=None,
+        description="Where the hubs reach this daemon (a hostname or an IP); defaults to this computer's name",
+    )
+    enroll_interval: float = Field(
+        default=300.0, description="Seconds between enrollments (a hub that restarted or moved learns of the rig again)"
+    )
+
     def reports_path(self) -> Path:
         """Where this machine's issue reports wait for the hub (``reports_directory``, else `reports_dir`)."""
         from ..reports import reports_dir
 
         return self.reports_directory or reports_dir()
 
-    @field_validator("repository_roots", "command", "run_arguments", mode="before")
+    @field_validator("repository_roots", "command", "run_arguments", "hubs", mode="before")
     @classmethod
     def _lists(cls, value: object) -> object:
         """Lists from the environment: ``a;b`` or JSON."""

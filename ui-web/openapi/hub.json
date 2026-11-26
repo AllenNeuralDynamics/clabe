@@ -33,6 +33,131 @@
         "title": "DeleteResult",
         "type": "object"
       },
+      "EnrollBody": {
+        "description": "What a rig's daemon sends to enroll: its name, and where the hub reaches it.",
+        "properties": {
+          "clabe_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The daemon's clabe",
+            "title": "Clabe Version"
+          },
+          "host": {
+            "description": "Where the hub reaches the daemon: a hostname or an IP address",
+            "minLength": 1,
+            "title": "Host",
+            "type": "string"
+          },
+          "id": {
+            "description": "The rig's name in the hub (its URLs: /rigs/<id>/)",
+            "pattern": "^[A-Za-z0-9_.-]+$",
+            "title": "Id",
+            "type": "string"
+          },
+          "port": {
+            "description": "The daemon's port",
+            "maximum": 65535.0,
+            "minimum": 1.0,
+            "title": "Port",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "host",
+          "port"
+        ],
+        "title": "EnrollBody",
+        "type": "object"
+      },
+      "ExcludeBody": {
+        "description": "An exclusion to add.",
+        "properties": {
+          "comment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why it is excluded",
+            "title": "Comment"
+          },
+          "pattern": {
+            "description": "A glob matched without case against a rig's name and host, e.g. BEH.* or rig-3",
+            "minLength": 1,
+            "title": "Pattern",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pattern"
+        ],
+        "title": "ExcludeBody",
+        "type": "object"
+      },
+      "ExcludeResult": {
+        "description": "The exclusion added, and the rigs it removed from the hub.",
+        "properties": {
+          "exclusion": {
+            "$ref": "#/components/schemas/Exclusion"
+          },
+          "removed": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Removed",
+            "type": "array"
+          }
+        },
+        "required": [
+          "exclusion",
+          "removed"
+        ],
+        "title": "ExcludeResult",
+        "type": "object"
+      },
+      "Exclusion": {
+        "description": "A pattern that keeps rigs out of the hub.",
+        "properties": {
+          "added_at": {
+            "format": "date-time",
+            "title": "Added At",
+            "type": "string"
+          },
+          "comment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why it is excluded",
+            "title": "Comment"
+          },
+          "pattern": {
+            "description": "A glob (e.g. BEH.*), matched without case against a rig's name and host",
+            "title": "Pattern",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pattern",
+          "added_at"
+        ],
+        "title": "Exclusion",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -236,6 +361,66 @@
         "title": "ReportPage",
         "type": "object"
       },
+      "RigConfig": {
+        "description": "A rig the hub follows.",
+        "properties": {
+          "clabe_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The clabe of the rig's daemon, when it enrolled",
+            "title": "Clabe Version"
+          },
+          "enrolled_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When it first enrolled",
+            "title": "Enrolled At"
+          },
+          "id": {
+            "description": "Short name used in the hub's URLs, e.g. rig-3",
+            "pattern": "^[A-Za-z0-9_.-]+$",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_enrolled_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When it last enrolled",
+            "title": "Last Enrolled At"
+          },
+          "url": {
+            "description": "The rig's daemon, e.g. http://rig-3:24070",
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "url"
+        ],
+        "title": "RigConfig",
+        "type": "object"
+      },
       "RigStatus": {
         "description": "What the hub last saw of a rig.",
         "properties": {
@@ -294,6 +479,12 @@
             ],
             "title": "Experiment"
           },
+          "has_token": {
+            "default": false,
+            "description": "Whether this rig's token is entered in the hub",
+            "title": "Has Token",
+            "type": "boolean"
+          },
           "header": {
             "anyOf": [
               {
@@ -330,6 +521,12 @@
               }
             ],
             "title": "Leased By"
+          },
+          "needs_token": {
+            "default": false,
+            "description": "Whether the rig answers but refuses the hub's token",
+            "title": "Needs Token",
+            "type": "boolean"
           },
           "reachable": {
             "default": false,
@@ -772,6 +969,28 @@
         "title": "StoredReport",
         "type": "object"
       },
+      "TokenBody": {
+        "description": "A rig's own daemon token, or null to clear it.",
+        "properties": {
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The rig's DAEMON_CLABE_TOKEN; null or empty: use the hub's RIG_TOKEN",
+            "title": "Token"
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "title": "TokenBody",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -877,11 +1096,144 @@
     }
   },
   "info": {
-    "description": "Follow a fleet of rigs: what each runs, which ones wait for an answer, and each rig's own API under /rigs/<id>/.",
+    "description": "Follow a fleet of rigs: what each runs, which ones wait for an answer, and each rig's own API under /rigs/<id>/. Rigs enroll themselves (POST /api/hub/enroll).",
     "title": "clabe hub API"
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/hub/enroll": {
+      "post": {
+        "description": "A rig's daemon enrolls (again): the hub follows it at ``http://<host>:<port>`` from now on.",
+        "operationId": "enroll_rig_api_hub_enroll_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnrollBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RigConfig"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "The rig is excluded"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Enroll Rig"
+      }
+    },
+    "/api/hub/exclusions": {
+      "delete": {
+        "description": "Removes an exclusion: the rigs it kept out are followed again once they enroll (within minutes).",
+        "operationId": "unexclude_api_hub_exclusions_delete",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "pattern",
+            "required": true,
+            "schema": {
+              "title": "Pattern",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Unexclude"
+      },
+      "get": {
+        "description": "The patterns that keep rigs out, oldest first.",
+        "operationId": "exclusions_api_hub_exclusions_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Exclusion"
+                  },
+                  "title": "Response Exclusions Api Hub Exclusions Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Exclusions"
+      },
+      "post": {
+        "description": "Keeps out the rigs matching a pattern: those followed now are removed, and they cannot enroll.",
+        "operationId": "exclude_api_hub_exclusions_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExcludeBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExcludeResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Exclude"
+      }
+    },
     "/api/hub/inbox": {
       "get": {
         "description": "The rigs whose run waits for an answer, longest-waiting first.",
@@ -1524,6 +1876,82 @@
           }
         },
         "summary": "Rigs"
+      }
+    },
+    "/api/hub/rigs/{rig_id}": {
+      "delete": {
+        "description": "Removes a rig and its token. A rig whose daemon still enrolls with this hub comes back; exclude it to keep it\nout.",
+        "operationId": "remove_api_hub_rigs__rig_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "rig_id",
+            "required": true,
+            "schema": {
+              "title": "Rig Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remove"
+      }
+    },
+    "/api/hub/rigs/{rig_id}/token": {
+      "put": {
+        "description": "Sets the daemon token the hub uses for this rig (``null`` clears it: the hub's ``RIG_TOKEN``). It is never\nshown back.",
+        "operationId": "set_token_api_hub_rigs__rig_id__token_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "rig_id",
+            "required": true,
+            "schema": {
+              "title": "Rig Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TokenBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Token"
       }
     }
   }
