@@ -14,11 +14,10 @@ from clabe.daemon._enroll import enroll_body, enroll_forever, enroll_once, enrol
 from clabe.hub import EnrollBody, Excluded, Fleet, HubSettings, Registry, create_hub_app
 
 _HUB = {"Authorization": "Bearer hub-secret"}
-_ENROLL = {"Authorization": "Bearer enroll-secret"}
 
 
 def _hub(fleet: Fleet) -> TestClient:
-    app = create_hub_app(fleet, token="hub-secret", enroll_token="enroll-secret", static_dir=None, poll=False)
+    app = create_hub_app(fleet, token="hub-secret", static_dir=None, poll=False)
     return TestClient(app)
 
 
@@ -26,15 +25,13 @@ def _ids(client: TestClient) -> list[str]:
     return sorted(r["id"] for r in client.get("/api/hub/rigs", headers=_HUB).json())
 
 
-def test_a_rig_enrolls_with_the_enroll_token_only():
+def test_any_rig_can_enroll_but_the_rest_of_the_api_needs_the_hubs_token():
     client = _hub(Fleet(HubSettings()))
     body = {"id": "BEH.B-Box1", "host": "wxvs-syslogic7", "port": 24070, "clabe_version": "1.2.3"}
-    assert client.post("/api/hub/enroll", json=body).status_code == 401
-    assert client.post("/api/hub/enroll", json=body, headers=_HUB).status_code == 401  # the hub's token does not enroll
-    enrolled = client.post("/api/hub/enroll", json=body, headers=_ENROLL)
+    enrolled = client.post("/api/hub/enroll", json=body)
     assert enrolled.status_code == 200, enrolled.text
-    assert enrolled.json()["url"] == "http://wxvs-syslogic7:24070"
-    assert client.get("/api/hub/rigs", headers=_ENROLL).status_code == 401  # the enroll token gives nothing else
+    assert enrolled.json()["url"] == "http://wxvs-syslogic7:24070" and enrolled.json()["moved_from"] is None
+    assert client.get("/api/hub/rigs").status_code == 401
     assert _ids(client) == ["BEH.B-Box1"]
 
 
@@ -53,34 +50,76 @@ def test_a_rig_enrolls_with_the_enroll_token_only():
 def test_an_enrollment_names_a_plain_rig_and_host(change: dict):
     client = _hub(Fleet(HubSettings()))
     body = {"id": "rig-3", "host": "rig-3", "port": 24070} | change
-    assert client.post("/api/hub/enroll", json=body, headers=_ENROLL).status_code == 422
+    assert client.post("/api/hub/enroll", json=body).status_code == 422
     assert _ids(client) == []
 
 
-def test_enrolling_again_moves_a_rig_and_keeps_when_it_first_enrolled():
+def test_enrolling_again_from_the_same_address_keeps_the_rig_followed():
     fleet = Fleet(HubSettings())
     first = fleet.enroll(EnrollBody(id="rig-3", host="rig-3", port=24070))
-    again = fleet.enroll(EnrollBody(id="rig-3", host="10.0.0.7", port=24071, clabe_version="2"))
-    assert again.url == "http://10.0.0.7:24071" and again.enrolled_at == first.enrolled_at
+    again = fleet.enroll(EnrollBody(id="rig-3", host="rig-3", port=24070, clabe_version="2"))
+    assert (again.moved_from, again.clabe_version, again.enrolled_at) == (None, "2", first.enrolled_at)
     assert again.last_enrolled_at >= first.last_enrolled_at
-    assert fleet.status["rig-3"].url == "http://10.0.0.7:24071"
-    assert [r.url for r in fleet.registry.rigs()] == ["http://10.0.0.7:24071"]
+
+
+def test_a_rig_enrolling_from_another_address_is_held_until_its_move_is_confirmed(tmp_path: Path):
+    seen: list[tuple[str, str | None]] = []
+
+    def rigs(request: httpx.Request) -> httpx.Response:
+        seen.append((request.url.host, request.headers.get("authorization")))
+        return httpx.Response(200, json={"hostname": request.url.host, "clabe_version": "0", "status": "idle"})
+
+    fleet = Fleet(HubSettings(), registry=Registry(tmp_path))
+    fleet._client = httpx.AsyncClient(transport=httpx.MockTransport(rigs))
+    client = _hub(fleet)
+    fleet.enroll(EnrollBody(id="rig-3", host="rig-3", port=24070))
+    fleet.set_token("rig-3", "rig-3-token")
+
+    # someone enrolls under rig-3's name from elsewhere: held, never polled nor sent the token, not reachable
+    moved = client.post("/api/hub/enroll", json={"id": "rig-3", "host": "laptop", "port": 24070})
+    assert moved.json()["moved_from"] == "http://rig-3:24070" and fleet.rig_token("rig-3") is None
+    asyncio.run(fleet.poll_once())
+    assert seen == []
+    status = client.get("/api/hub/rigs", headers=_HUB).json()[0]
+    assert (status["moved_from"], status["reachable"], status["url"]) == (
+        "http://rig-3:24070",
+        False,
+        "http://laptop:24070",
+    )
+    assert client.get("/rigs/rig-3/api/daemon/info", headers=_HUB).status_code == 409
+    assert client.get("/api/hub/inbox", headers=_HUB).json() == []
+
+    # moving on again still remembers the confirmed address; held across a restart too
+    client.post("/api/hub/enroll", json={"id": "rig-3", "host": "laptop-2", "port": 24070})
+    assert Fleet(HubSettings(), registry=Registry(tmp_path)).rigs["rig-3"].moved_from == "http://rig-3:24070"
+
+    # back at its confirmed address: followed again, no click needed
+    back = client.post("/api/hub/enroll", json={"id": "rig-3", "host": "rig-3", "port": 24070})
+    assert back.json()["moved_from"] is None and fleet.rig_token("rig-3") == "rig-3-token"
+
+    # a real move, confirmed on the page
+    client.post("/api/hub/enroll", json={"id": "rig-3", "host": "10.0.0.7", "port": 24071})
+    assert client.post("/api/hub/rigs/rig-3/confirm").status_code == 401
+    assert client.post("/api/hub/rigs/nope/confirm", headers=_HUB).status_code == 404
+    assert client.post("/api/hub/rigs/rig-3/confirm", headers=_HUB).status_code == 204
+    assert fleet.rigs["rig-3"].moved_from is None and fleet.rig_token("rig-3") == "rig-3-token"
+    asyncio.run(fleet.poll_once())
+    assert seen == [("10.0.0.7", "Bearer rig-3-token")]
+    assert Fleet(HubSettings(), registry=Registry(tmp_path)).rigs["rig-3"].url == "http://10.0.0.7:24071"
 
 
 def test_an_exclusion_removes_matching_rigs_and_refuses_them(tmp_path: Path):
     fleet = Fleet(HubSettings(), registry=Registry(tmp_path))
     client = _hub(fleet)
     for rig_id, host in (("BEH.B-Box1", "wxvs-syslogic7"), ("BEH.B-Box2", "wxvs-syslogic8"), ("NP.1-Acq", "np1")):
-        assert client.post(
-            "/api/hub/enroll", json={"id": rig_id, "host": host, "port": 24070}, headers=_ENROLL
-        ).is_success
+        assert client.post("/api/hub/enroll", json={"id": rig_id, "host": host, "port": 24070}).is_success
 
     added = client.post("/api/hub/exclusions", json={"pattern": "beh.*", "comment": "behavior has its own hub"},
                         headers=_HUB)  # fmt: skip
     assert added.status_code == 200, added.text
     assert sorted(added.json()["removed"]) == ["BEH.B-Box1", "BEH.B-Box2"]  # case-insensitive glob
     assert _ids(client) == ["NP.1-Acq"]
-    refused = client.post("/api/hub/enroll", json={"id": "BEH.B-Box3", "host": "x", "port": 1}, headers=_ENROLL)
+    refused = client.post("/api/hub/enroll", json={"id": "BEH.B-Box3", "host": "x", "port": 1})
     assert refused.status_code == 403 and "beh.*" in refused.json()["detail"]
 
     # an exclusion matches the host too
@@ -92,8 +131,8 @@ def test_an_exclusion_removes_matching_rigs_and_refuses_them(tmp_path: Path):
     assert [(e["pattern"], e["comment"]) for e in listed] == [("beh.*", "behavior has its own hub"), ("np1", None)]
     assert client.delete("/api/hub/exclusions", params={"pattern": "beh.*"}, headers=_HUB).status_code == 204
     assert client.delete("/api/hub/exclusions", params={"pattern": "beh.*"}, headers=_HUB).status_code == 404
-    assert client.post("/api/hub/enroll", json={"id": "BEH.B-Box3", "host": "x", "port": 1}, headers=_ENROLL).is_success
-    assert client.get("/api/hub/exclusions", headers=_ENROLL).status_code == 401
+    assert client.post("/api/hub/enroll", json={"id": "BEH.B-Box3", "host": "x", "port": 1}).is_success
+    assert client.get("/api/hub/exclusions").status_code == 401
 
 
 def test_removing_a_rig_drops_it_until_it_enrolls_again():
@@ -121,43 +160,42 @@ def test_rigs_and_exclusions_survive_a_restart_of_the_hub(tmp_path: Path):
         restarted.enroll(EnrollBody(id="rig-9", host="rig-9", port=24070))
 
 
-def test_a_rig_can_have_its_own_token_which_is_used_and_never_shown(tmp_path: Path):
+def test_a_rigs_token_entered_in_the_hub_is_used_and_never_shown(tmp_path: Path):
     seen: dict[str, str | None] = {}
 
     def rigs(request: httpx.Request) -> httpx.Response:
         seen[request.url.host] = request.headers.get("authorization")
         return httpx.Response(200, json={"hostname": request.url.host, "clabe_version": "0", "status": "idle"})
 
-    fleet = Fleet(HubSettings(rig_token="shared"), registry=Registry(tmp_path))
+    fleet = Fleet(HubSettings(), registry=Registry(tmp_path))
     fleet._client = httpx.AsyncClient(transport=httpx.MockTransport(rigs))
     client = _hub(fleet)
     for rig_id in ("rig-3", "rig-4"):
-        assert client.post("/api/hub/enroll", json={"id": rig_id, "host": rig_id, "port": 24070}, headers=_ENROLL)
+        assert client.post("/api/hub/enroll", json={"id": rig_id, "host": rig_id, "port": 24070})
 
     put = "/api/hub/rigs/rig-3/token"
     assert client.put(put, json={"token": "Xq7-rig3-secret"}).status_code == 401
-    assert client.put(put, json={"token": "Xq7-rig3-secret"}, headers=_ENROLL).status_code == 401
     assert client.put("/api/hub/rigs/nope/token", json={"token": "x"}, headers=_HUB).status_code == 404
     assert client.put(put, json={"token": " Xq7-rig3-secret "}, headers=_HUB).status_code == 204
     asyncio.run(fleet.poll_once())
-    assert seen == {"rig-3": "Bearer Xq7-rig3-secret", "rig-4": "Bearer shared"}
+    assert seen == {"rig-3": "Bearer Xq7-rig3-secret", "rig-4": None}  # no token entered: none sent
 
     listed = client.get("/api/hub/rigs", headers=_HUB)
     assert {r["id"]: r["has_token"] for r in listed.json()} == {"rig-3": True, "rig-4": False}
     assert "Xq7-rig3-secret" not in listed.text and "Xq7-rig3-secret" not in client.get("/openapi.json").text
-    again = client.post("/api/hub/enroll", json={"id": "rig-3", "host": "rig-3", "port": 24071}, headers=_ENROLL)
+    again = client.post("/api/hub/enroll", json={"id": "rig-3", "host": "rig-3", "port": 24070})
     assert "Xq7-rig3-secret" not in again.text
     assert fleet.rig_token("rig-3") == "Xq7-rig3-secret"  # enrolling again keeps it
 
-    restarted = Fleet(HubSettings(rig_token="shared"), registry=Registry(tmp_path))
-    assert restarted.rig_token("rig-3") == "Xq7-rig3-secret" and restarted.rig_token("rig-4") == "shared"
+    restarted = Fleet(HubSettings(), registry=Registry(tmp_path))
+    assert restarted.rig_token("rig-3") == "Xq7-rig3-secret" and restarted.rig_token("rig-4") is None
 
     assert client.put(put, json={"token": None}, headers=_HUB).status_code == 204
-    assert fleet.rig_token("rig-3") == "shared"
+    assert fleet.rig_token("rig-3") is None
     fleet.set_token("rig-4", "four")
     fleet.remove("rig-4")
     fleet.enroll(EnrollBody(id="rig-4", host="rig-4", port=24070))
-    assert fleet.rig_token("rig-4") == "shared"  # removing a rig drops its token
+    assert fleet.rig_token("rig-4") is None  # removing a rig drops its token
 
 
 def test_a_rig_that_refuses_the_hubs_token_says_it_needs_one():
@@ -166,7 +204,7 @@ def test_a_rig_that_refuses_the_hubs_token_says_it_needs_one():
             return httpx.Response(401, json={"detail": "A valid token is required."})
         return httpx.Response(200, json={"hostname": "rig-3", "clabe_version": "0", "status": "idle"})
 
-    fleet = Fleet(HubSettings(rig_token="shared"))
+    fleet = Fleet(HubSettings())
     fleet._client = httpx.AsyncClient(transport=httpx.MockTransport(rig))
     fleet.enroll(EnrollBody(id="rig-3", host="rig-3", port=24070))
     asyncio.run(fleet.poll_once())
@@ -219,16 +257,14 @@ def test_the_daemon_enrolls_with_each_hub_under_its_name(monkeypatch):
             return httpx.Response(403, json={"detail": "Excluded by 'wxvs-*'"})
         return httpx.Response(200, json={})
 
-    settings = DaemonSettings(
-        port=24070, hubs=["https://vm/clabe/", "http://down:8080", "http://strict:8080"], enroll_token="join"
-    )
+    settings = DaemonSettings(port=24070, hubs=["https://vm/clabe/", "http://down:8080", "http://strict:8080"])
     client = httpx.AsyncClient(transport=httpx.MockTransport(hub))
     outcome = asyncio.run(enroll_once(settings, client))
     assert outcome["https://vm/clabe/"] is None
     assert outcome["http://down:8080"].startswith("not reachable")
     assert outcome["http://strict:8080"] == "403 Excluded by 'wxvs-*'"
     url, body, auth = seen[0]
-    assert url == "https://vm/clabe/api/hub/enroll" and auth == "Bearer join"
+    assert url == "https://vm/clabe/api/hub/enroll" and auth is None  # enrolling needs no secret
     assert (body["id"], body["host"], body["port"]) == ("wxvs-syslogic7", "wxvs-syslogic7", 24070)
 
     named = DaemonSettings(port=9000, enroll_name="BEH.B-Box1", enroll_host="10.0.0.7")
@@ -316,6 +352,24 @@ def test_the_page_groups_excludes_removes_and_sets_tokens(tmp_path: Path):
         for server, thread in servers:
             server.should_exit = True
             thread.join(5)
+
+
+def test_daemon_open_opens_the_page_signed_in(monkeypatch):
+    from clabe.daemon import _cli, _install
+
+    opened: list[str] = []
+    monkeypatch.setattr("webbrowser.open", opened.append)
+    answers: list[dict | None] = [None, {"status": "unauthorized"}, {"status": "idle"}, {"status": "idle"}]
+    monkeypatch.setattr(_install, "probe", lambda port, token, timeout=2.0: answers.pop(0))
+    command = _cli._OpenCli(port=24070, token="a b/c")
+    with pytest.raises(SystemExit, match="No daemon answers on port 24070"):
+        command.cli_cmd()
+    with pytest.raises(SystemExit, match="refuses this token"):
+        command.cli_cmd()
+    command.cli_cmd()
+    _cli._OpenCli(port=24070, token="a b/c", run_page=True).cli_cmd()
+    assert opened == ["http://localhost:24070/?token=a%20b%2Fc", "http://localhost:24070/run/?token=a%20b%2Fc"]
+    assert _cli.open_url(DaemonSettings(port=1, host="10.0.0.7")) == "http://10.0.0.7:1/"
 
 
 def test_the_daemon_keeps_enrolling_until_stopped(monkeypatch):

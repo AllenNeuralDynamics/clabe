@@ -49,7 +49,6 @@ setx DAEMON_CLABE_OTEL_ENDPOINT "collector:4317"               :: where to send 
 | `DAEMON_CLABE_FILE_TRANSFER_DIR` | `%TEMP%\clabe-worker` | Worker: where uploaded files go |
 | `DAEMON_CLABE_LEASE_GRACE` | `300` | Worker: seconds a crashed run can take the machine back |
 | `DAEMON_CLABE_HUBS` | none | [Hubs](#hubs) to enroll with, e.g. `https://hub-vm/clabe` |
-| `DAEMON_CLABE_ENROLL_TOKEN` | none | The hubs' `ENROLL_TOKEN` |
 | `DAEMON_CLABE_ENROLL_NAME` | this computer's name | The rig's name in the hubs |
 | `DAEMON_CLABE_ENROLL_HOST` | this computer's name | Where the hubs reach the daemon (a hostname or an IP) |
 | `DAEMON_CLABE_ENROLL_INTERVAL` | `300` | Seconds between enrollments (30 s at most after a failure) |
@@ -64,7 +63,6 @@ token), changes nothing on the rig: the daemon logs it and tries again. Deployin
 ```ini
 # %LOCALAPPDATA%\clabe\daemon.env
 DAEMON_CLABE_HUBS=https://hub-vm/clabe
-DAEMON_CLABE_ENROLL_TOKEN=...
 DAEMON_CLABE_TOKEN=...
 ```
 
@@ -73,6 +71,7 @@ DAEMON_CLABE_TOKEN=...
 | Command | Does |
 |---|---|
 | `clabe daemon run [--open-browser]` | Run in the foreground, e.g. to try it |
+| `clabe daemon open [--run-page]` | Open the daemon's page (or its run's) signed in, e.g. from a desktop shortcut |
 | `clabe daemon install` | Register the `clabe-daemon` logon task (restarts on failure) and start it |
 | `clabe daemon stop [--force] [--timeout 15]` | End the task and wait until the port is free; refused during a session unless `--force` |
 | `clabe daemon start [--timeout 60]` | Start the task and wait until the daemon answers |

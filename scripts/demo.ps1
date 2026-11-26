@@ -134,7 +134,6 @@ try {
         $env:DAEMON_CLABE_REPOSITORIES = (Join-Path $root 'examples/demo')  # also startable from its page
         # It enrolls with the demo's hub, which reaches it from its container at host.docker.internal.
         $env:DAEMON_CLABE_HUBS = "http://127.0.0.1:$HubPort"
-        $env:DAEMON_CLABE_ENROLL_TOKEN = $token
         $env:DAEMON_CLABE_ENROLL_NAME = 'this-pc'
         $env:DAEMON_CLABE_ENROLL_HOST = 'host.docker.internal'
         $log = Join-Path ([IO.Path]::GetTempPath()) 'clabe-demo-daemon.log'
@@ -145,6 +144,18 @@ try {
     }
 
     Wait-Answers "http://127.0.0.1:$HubPort/api/hub/rigs" 'the hub'
+    # Give the hub this-pc's daemon token (what you would enter on its card), and confirm where it is: an earlier
+    # demo may have enrolled it on another port.
+    $hubApi = "http://127.0.0.1:$HubPort/api/hub"
+    $auth = @{ Authorization = "Bearer $token" }
+    $deadline = (Get-Date).AddSeconds(30)
+    while (-not (@(Invoke-RestMethod "$hubApi/rigs" -Headers $auth) | Where-Object id -eq 'this-pc')) {
+        if ((Get-Date) -gt $deadline) { throw 'The daemon did not enroll with the hub.' }
+        Start-Sleep -Milliseconds 300
+    }
+    Invoke-RestMethod "$hubApi/rigs/this-pc/confirm" -Method Post -Headers $auth | Out-Null
+    $body = @{ token = $token } | ConvertTo-Json
+    Invoke-RestMethod "$hubApi/rigs/this-pc/token" -Method Put -Headers $auth -Body $body -ContentType 'application/json' | Out-Null
     $hubUrl = "http://localhost:$HubPort/?token=$token"
     Write-Host "==> The hub is at $hubUrl"
     Write-Host "    (the demo's token: $token)"

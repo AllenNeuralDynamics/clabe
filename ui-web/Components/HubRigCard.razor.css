@@ -44,6 +44,8 @@ footer {
 .token-toggle.set { color: var(--text-2); }
 .token-toggle.needed { color: var(--warn); font-weight: 600; }
 .needs-token { color: var(--warn); }
+.moved { display: flex; flex-direction: column; align-items: flex-start; gap: var(--s2); }
+.moved p { margin: 0; color: var(--warn); }
 .token { display: flex; gap: var(--s2); }
 .token input { flex: 1; min-width: 0; height: 28px; }
 .confirm { display: flex; flex-direction: column; gap: var(--s2); }

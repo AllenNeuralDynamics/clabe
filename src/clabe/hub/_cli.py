@@ -24,14 +24,11 @@ class _RunHubCli(HubSettings, cli_kebab_case=True):
         from ._reports import ReportStore
 
         token = (self.token.get_secret_value() if self.token else None) or None
-        enroll_token = (self.enroll_token.get_secret_value() if self.enroll_token else None) or None
         reports = ReportStore(self.data_dir)
         fleet = Fleet(self, reports=reports, registry=Registry(self.data_dir))
         print(f"clabe hub on port {self.port}, following {len(fleet.rigs)} enrolled rig(s)", flush=True)
         print(f"Enrolled rigs and issue reports are kept in {self.data_dir.resolve()}", flush=True)
-        if enroll_token is None:
-            print("ENROLL_TOKEN is not set: any rig that reaches this hub can enroll", flush=True)
-        app = create_hub_app(fleet, token=token, self_url=f"http://127.0.0.1:{self.port}", enroll_token=enroll_token)
+        app = create_hub_app(fleet, token=token, self_url=f"http://127.0.0.1:{self.port}")
         uvicorn.run(app, host=self.host, port=self.port, log_level="warning")
 
 

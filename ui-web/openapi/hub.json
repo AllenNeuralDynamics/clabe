@@ -408,6 +408,18 @@
             "description": "When it last enrolled",
             "title": "Last Enrolled At"
           },
+          "moved_from": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where the rig was confirmed, when it enrolled from another address since: until someone confirms the move, the hub sends it no token and does not forward requests to it",
+            "title": "Moved From"
+          },
           "url": {
             "description": "The rig's daemon, e.g. http://rig-3:24070",
             "title": "Url",
@@ -521,6 +533,18 @@
               }
             ],
             "title": "Leased By"
+          },
+          "moved_from": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where the rig was confirmed, when it enrolled from another address since: it is not polled, sent its token or reached through the hub until the move is confirmed",
+            "title": "Moved From"
           },
           "needs_token": {
             "default": false,
@@ -981,7 +1005,7 @@
                 "type": "null"
               }
             ],
-            "description": "The rig's DAEMON_CLABE_TOKEN; null or empty: use the hub's RIG_TOKEN",
+            "description": "The rig's DAEMON_CLABE_TOKEN; null or empty deletes it",
             "title": "Token"
           }
         },
@@ -1103,7 +1127,7 @@
   "paths": {
     "/api/hub/enroll": {
       "post": {
-        "description": "A rig's daemon enrolls (again): the hub follows it at ``http://<host>:<port>`` from now on.",
+        "description": "A rig's daemon enrolls (again): the hub follows it at ``http://<host>:<port>``. A known rig enrolling from\nanother address is held (``moved_from``) until the move is confirmed.",
         "operationId": "enroll_rig_api_hub_enroll_post",
         "requestBody": {
           "content": {
@@ -1911,9 +1935,42 @@
         "summary": "Remove"
       }
     },
+    "/api/hub/rigs/{rig_id}/confirm": {
+      "post": {
+        "description": "Confirms that a rig really moved to the address it enrolled from: the hub follows it there again.",
+        "operationId": "confirm_api_hub_rigs__rig_id__confirm_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "rig_id",
+            "required": true,
+            "schema": {
+              "title": "Rig Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Confirm"
+      }
+    },
     "/api/hub/rigs/{rig_id}/token": {
       "put": {
-        "description": "Sets the daemon token the hub uses for this rig (``null`` clears it: the hub's ``RIG_TOKEN``). It is never\nshown back.",
+        "description": "Enters the rig's daemon token (its DAEMON_CLABE_TOKEN), which the hub then presents to it; ``null``\ndeletes it. It is never shown back.",
         "operationId": "set_token_api_hub_rigs__rig_id__token_put",
         "parameters": [
           {

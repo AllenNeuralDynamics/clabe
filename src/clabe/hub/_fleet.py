@@ -28,12 +28,11 @@ logger = logging.getLogger(__name__)
 class HubSettings(EnvSettings):
     """Settings of ``clabe hub run``, from environment variables without a prefix (the hub runs in its own container)
     or a ``.env`` file in the working directory (see ``docker/hub/.env.example``). Rigs are not listed here: each
-    rig's daemon enrolls itself (its ``DAEMON_CLABE_HUBS``), and the hub keeps them in its database:
+    rig's daemon enrolls itself (its ``DAEMON_CLABE_HUBS``), and the hub keeps them in its database. A rig's daemon
+    token is entered on the hub's page.
 
     ```bash
     TOKEN=...                             # the hub's own
-    RIG_TOKEN=...                         # the daemon token of rigs without their own (set on the page)
-    ENROLL_TOKEN=...                      # what rigs present to enroll (their DAEMON_CLABE_ENROLL_TOKEN)
     ```
     """
 
@@ -44,12 +43,6 @@ class HubSettings(EnvSettings):
     host: str = Field(default="0.0.0.0", description="Interface to bind")
     port: int = Field(default=8080, description="Port of the hub")
     token: SecretStr | None = Field(default=None, description="Token required by the hub's API")
-    rig_token: SecretStr | None = Field(
-        default=None, description="The daemon token (DAEMON_CLABE_TOKEN) of rigs without one of their own"
-    )
-    enroll_token: SecretStr | None = Field(
-        default=None, description="Token rigs present to enroll; any rig that reaches the hub can enroll when unset"
-    )
     poll_interval: float = Field(default=2.0, description="Seconds between polls of each rig")
     data_dir: Path = Field(
         default=Path("hub-data"), description="Where the hub keeps collected issue reports (hub.db and reports/)"
@@ -123,13 +116,19 @@ class RigStatus(BaseModel):
     reports_stored: int = Field(default=0, description="Issue reports from this rig stored in the hub")
     has_token: bool = Field(default=False, description="Whether this rig's token is entered in the hub")
     needs_token: bool = Field(default=False, description="Whether the rig answers but refuses the hub's token")
+    moved_from: str | None = Field(
+        default=None,
+        description="Where the rig was confirmed, when it enrolled from another address since: it is not polled, "
+        "sent its token or reached through the hub until the move is confirmed",
+    )
 
 
 class Fleet:
     """Polls every enrolled rig's daemon (and, when it runs an experiment, the run) and keeps what it saw.
 
     Rigs enroll themselves (`enroll`); the registry keeps them, and the exclusions that keep rigs out, across
-    restarts. With a report store, the fleet also collects each rig's issue reports (every ``report_interval``
+    restarts. A rig that enrolls again from another address is held (not polled, sent its token or reached) until
+    its move is confirmed (`confirm`), so a machine cannot take over a rig's name and collect its token. With a report store, the fleet also collects each rig's issue reports (every ``report_interval``
     seconds, when the rig has some): downloads each, stores it, and only then deletes it on the rig.
     """
 
@@ -157,16 +156,14 @@ class Fleet:
         return self.rigs.get(rig_id)
 
     def rig_token(self, rig_id: str) -> str | None:
-        """The token the hub presents to a rig's daemon: the one entered for the rig, else the hub's ``rig_token``."""
-        own = self._tokens.get(rig_id)
-        if own is not None:
-            return own
-        token = self.settings.rig_token
-        return (token.get_secret_value() if token else None) or None
+        """The token the hub presents to a rig's daemon: the one entered for it; none while its move is unconfirmed."""
+        rig = self.rigs.get(rig_id)
+        if rig is None or rig.moved_from is not None:
+            return None
+        return self._tokens.get(rig_id)
 
     def set_token(self, rig_id: str, token: str | None) -> bool:
-        """Enters a rig's daemon token (its DAEMON_CLABE_TOKEN), or deletes it (None: the hub's ``rig_token``);
-        whether the rig is enrolled."""
+        """Enters a rig's daemon token (its DAEMON_CLABE_TOKEN), or deletes it (None); whether the rig is enrolled."""
         if not self.registry.set_token(rig_id, token):
             return False
         if token is None:
@@ -178,6 +175,9 @@ class Fleet:
     def enroll(self, body: EnrollBody) -> RigConfig:
         """Adds a rig, or updates where it is (a rig enrolls again every few minutes, and after it moves).
 
+        A new rig is followed at once. A known rig that enrolls from another address is held until the move is
+        confirmed; one that comes back to its confirmed address is followed again.
+
         Raises:
             Excluded: An exclusion matches the rig's name or host.
         """
@@ -186,22 +186,41 @@ class Fleet:
             raise Excluded(exclusion)
         now = datetime.datetime.now(datetime.UTC)
         known = self.rigs.get(body.id)
+        url = f"http://{body.host}:{body.port}"
+        confirmed = (known.moved_from or known.url) if known is not None else url
         rig = RigConfig(
             id=body.id,
-            url=f"http://{body.host}:{body.port}",
+            url=url,
             clabe_version=body.clabe_version,
             enrolled_at=known.enrolled_at if known is not None else now,
             last_enrolled_at=now,
+            moved_from=None if url == confirmed else confirmed,
         )
         self.registry.save(rig)
         if known is None:
             logger.info("%s enrolled at %s", rig.id, rig.url)
+        elif known.url != rig.url and rig.moved_from is not None:
+            logger.warning("%s enrolled from %s (was %s): held until the move is confirmed", rig.id, url, confirmed)
         elif known.url != rig.url:
-            logger.info("%s moved from %s to %s", rig.id, known.url, rig.url)
+            logger.info("%s is back at %s", rig.id, rig.url)
         self.rigs[rig.id] = rig
         if known is None or known.url != rig.url:
             self.status[rig.id] = RigStatus(id=rig.id, url=rig.url)
         return rig
+
+    def confirm(self, rig_id: str) -> bool:
+        """Confirms a rig's move: the hub follows it at its new address (and sends it its token); whether the rig is
+        enrolled."""
+        rig = self.rigs.get(rig_id)
+        if rig is None:
+            return False
+        if rig.moved_from is not None:
+            confirmed = rig.model_copy(update={"moved_from": None})
+            self.registry.save(confirmed)
+            self.rigs[rig_id] = confirmed
+            self.status[rig_id] = RigStatus(id=rig_id, url=rig.url)
+            logger.info("%s confirmed at %s", rig_id, rig.url)
+        return True
 
     def remove(self, rig_id: str) -> bool:
         """Removes a rig and its token (it is followed again if its daemon enrolls again); whether it was followed."""
@@ -220,12 +239,18 @@ class Fleet:
         return exclusion, removed
 
     def statuses(self, statuses: list[RigStatus] | None = None) -> list[RigStatus]:
-        """Every rig as last polled (or those given), with how many of its reports the hub stores and whether it has
-        its own token."""
+        """Every rig as last polled (or those given), with how many of its reports the hub stores, whether its token
+        is entered, and where it moved from (until confirmed)."""
         statuses = list(self.status.values()) if statuses is None else statuses
         counts = self.reports.counts_by_rig() if self.reports is not None else {}
         return [
-            s.model_copy(update={"reports_stored": counts.get(s.id, 0), "has_token": s.id in self._tokens})
+            s.model_copy(
+                update={
+                    "reports_stored": counts.get(s.id, 0),
+                    "has_token": s.id in self._tokens,
+                    "moved_from": rig.moved_from if (rig := self.rigs.get(s.id)) is not None else None,
+                }
+            )
             for s in statuses
         ]
 
@@ -235,9 +260,16 @@ class Fleet:
         return sorted(waiting, key=lambda s: s.waiting.since)  # type: ignore[union-attr]
 
     async def poll_once(self, *, collect: bool = False) -> None:
-        """Refreshes every rig's status, and collects reports where due (or everywhere, with ``collect``)."""
+        """Refreshes every rig's status, and collects reports where due (or everywhere, with ``collect``). A rig whose
+        move is unconfirmed is not polled."""
         await self._purge()
-        await asyncio.gather(*(self._poll(rig, collect) for rig in list(self.rigs.values())))
+        held = [rig for rig in self.rigs.values() if rig.moved_from is not None]
+        for rig in held:
+            self.status[rig.id] = RigStatus(
+                id=rig.id, url=rig.url, error=f"Enrolled from {rig.url}, was {rig.moved_from}: confirm the move"
+            )
+        followed = [rig for rig in self.rigs.values() if rig.moved_from is None]
+        await asyncio.gather(*(self._poll(rig, collect) for rig in followed))
 
     async def _purge(self) -> None:
         """Deletes the reports older than ``report_retention_days``, at most once an hour."""

@@ -18,8 +18,6 @@ from clabe.hub import EnrollBody, Fleet, HubSettings, create_hub_app
 from clabe.server import RunClient, free_port
 from clabe.workflow.events import PromptOpened
 
-_ENROLL = {"Authorization": "Bearer enroll-secret"}
-
 _EXPERIMENT = """
 from clabe import ui
 from clabe.workflow import Workflow
@@ -49,9 +47,9 @@ def fleet(tmp_path: Path, end_launched_run):
     (repo / "main.py").write_text(_EXPERIMENT, encoding="utf-8")
     for args in (["init", "-q"], ["add", "."], ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "x"]):
         subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True)
-    hub_settings = HubSettings(port=free_port("127.0.0.1", 18280), rig_token="rig-secret", poll_interval=0.3)
+    hub_settings = HubSettings(port=free_port("127.0.0.1", 18280), poll_interval=0.3)
     fleet = Fleet(hub_settings)
-    app = create_hub_app(fleet, token="hub-secret", enroll_token="enroll-secret")
+    app = create_hub_app(fleet, token="hub-secret")
     hub, hub_thread = _serve(app, hub_settings.port)
     base = f"http://127.0.0.1:{hub_settings.port}"
     daemon_settings = DaemonSettings(
@@ -63,19 +61,19 @@ def fleet(tmp_path: Path, end_launched_run):
         runs_directory=tmp_path / "runs",
         file_transfer_dir=tmp_path / "transfer",
         hubs=[base],  # the daemon enrolls itself
-        enroll_token="enroll-secret",
         enroll_name="rig-3",
         enroll_host="127.0.0.1",
     )
     host = Host(daemon_settings)
     daemon, daemon_thread = _serve(create_daemon_app(host, token="rig-secret"), daemon_settings.port)
     nobody = {"id": "rig-9", "host": "127.0.0.1", "port": free_port("127.0.0.1", 18290)}  # nobody there
-    enrolled = requests.post(f"{base}/api/hub/enroll", json=nobody, headers=_ENROLL, timeout=10)
+    enrolled = requests.post(f"{base}/api/hub/enroll", json=nobody, timeout=10)
     assert enrolled.ok, enrolled.text
     deadline = time.monotonic() + 10
     while "rig-3" not in fleet.rigs:
         assert time.monotonic() < deadline, "the daemon did not enroll"
         time.sleep(0.05)
+    fleet.set_token("rig-3", "rig-secret")  # what one enters on the rig's card
     yield base
     end_launched_run(host)
     for server, thread in ((hub, hub_thread), (daemon, daemon_thread)):

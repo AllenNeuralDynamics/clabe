@@ -55,7 +55,11 @@ public sealed class HubApi(HttpClient http, RunApi run)
     public async Task RemoveAsync(string rig) =>
         await EnsureOk(await http.DeleteAsync($"api/hub/rigs/{Uri.EscapeDataString(rig)}"));
 
-    /// <summary>Sets the daemon token the hub uses for a rig; null clears it (the hub's RIG_TOKEN). Never read back.</summary>
+    /// <summary>Confirms that a rig moved to the address it enrolled from: the hub follows it there again.</summary>
+    public async Task ConfirmAsync(string rig) =>
+        await EnsureOk(await http.PostAsync($"api/hub/rigs/{Uri.EscapeDataString(rig)}/confirm", null));
+
+    /// <summary>Enters a rig's daemon token (its DAEMON_CLABE_TOKEN); null deletes it. Never read back.</summary>
     public async Task SetTokenAsync(string rig, string? token) =>
         await EnsureOk(await http.PutAsJsonAsync($"api/hub/rigs/{Uri.EscapeDataString(rig)}/token", new TokenBody(token), Json.Options));
 

@@ -15,7 +15,14 @@
     </header>
 
     <div class="rig-body">
-        @if (Rig.NeedsToken)
+        @if (Rig.MovedFrom is { } movedFrom)
+        {
+            <div class="moved small">
+                <p>Enrolled from <code>@Host(Rig.Url)</code>, was <code>@Host(movedFrom)</code>. The hub holds it, without its token, until you confirm the move. Confirm only if this rig really moved.</p>
+                <button type="button" class="sm primary" disabled="@_confirming" @onclick="Confirm">Confirm move</button>
+            </div>
+        }
+        else if (Rig.NeedsToken)
         {
             <p class="line small needs-token">It refuses the hub's token. Enter this rig's token with <strong>Token</strong> below.</p>
         }
@@ -63,7 +70,7 @@
         <button type="button" class="ghost sm token-toggle @(Rig.HasToken ? "set" : "") @(Rig.NeedsToken ? "needed" : "")"
                 aria-expanded="@_editingToken" aria-label="Token of @Rig.Id"
                 @onclick="() => { _editingToken = !_editingToken; _tokenError = null; }"
-                title="@(Rig.HasToken ? "This rig's token is entered in the hub" : "No token entered for this rig: the hub tries its RIG_TOKEN")">
+                title="@(Rig.HasToken ? "This rig's token is entered in the hub" : "No token entered: needed if the rig has a DAEMON_CLABE_TOKEN")">
             @(Rig.HasToken ? "Token set" : "Token")
         </button>
         <span class="grow"></span>
@@ -100,11 +107,11 @@
             @if (Rig.HasToken)
             {
                 <button type="button" class="sm" disabled="@_savingToken" @onclick="ClearToken"
-                        title="Delete the token entered for this rig (the hub then tries its RIG_TOKEN)">Clear</button>
+                        title="Delete the token entered for this rig">Clear</button>
             }
         </form>
     }
-    @if ((_tokenError ?? _removeError) is { } error)
+    @if ((_tokenError ?? _removeError ?? _confirmError) is { } error)
     {
         <p class="subtle small card-error" role="alert">@error</p>
     }
@@ -124,6 +131,28 @@
     private bool _confirmRemove;
     private bool _removing;
     private string? _removeError;
+
+    private bool _confirming;
+    private string? _confirmError;
+
+    private async Task Confirm()
+    {
+        _confirming = true;
+        _confirmError = null;
+        try
+        {
+            await Hub.ConfirmAsync(Rig.Id);
+            await OnChanged.InvokeAsync();
+        }
+        catch (HttpRequestException exc)
+        {
+            _confirmError = exc.Message;
+        }
+        finally
+        {
+            _confirming = false;
+        }
+    }
 
     private Task SaveToken() => StoreToken(_token.Trim());
 
@@ -179,7 +208,8 @@
 
     /// <summary>A rig's status chip: its text and its class (waiting pulses).</summary>
     public static (string Text, string Css) StatusChip(RigStatus rig) =>
-        rig.NeedsToken ? ("needs token", "waiting")
+        rig.MovedFrom is not null ? ("moved", "waiting")
+        : rig.NeedsToken ? ("needs token", "waiting")
         : !rig.Reachable ? ("offline", "offline")
         : rig.Waiting is not null ? ("waiting", "waiting")
         : rig.Status switch

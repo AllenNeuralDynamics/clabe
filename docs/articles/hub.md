@@ -22,16 +22,12 @@ Settings go in `docker/hub/.env` (copy `docker/hub/.env.example`). The names hav
 container sees them:
 
 ```bash
-ENROLL_TOKEN=...                                         # what rigs present to enroll
-# TOKEN=...                                              # optional: the hub's own token
-# RIG_TOKEN=...                                          # optional: the rigs' DAEMON_CLABE_TOKEN
+TOKEN=...                                                # the hub's own token
 ```
 
 | Variable | Default | What it does |
 |---|---|---|
-| `ENROLL_TOKEN` | none | What a rig must present to enroll. Unset: any rig that reaches the hub can enroll |
-| `TOKEN` | none | Optional: when set, the hub's page and API require it |
-| `RIG_TOKEN` | none | The daemon token of rigs without their own ([below](#rig-tokens)) |
+| `TOKEN` | none | The hub's page and API require it. Set it: the hub can drive every rig it follows |
 | `PORT` | `8080` | The hub's port |
 | `POLL_INTERVAL` | `2` | Seconds between polls of each rig |
 | `DATA_DIR` | `./hub-data` (`/data` in Docker) | Where enrolled rigs, exclusions and collected issue reports are kept |
@@ -45,8 +41,7 @@ after that, it sends the hub its name and where to reach it. Adding a rig is dep
 address:
 
 ```bash
-DAEMON_CLABE_HUBS=https://hub-vm/clabe          # one or more hubs, ; between them
-DAEMON_CLABE_ENROLL_TOKEN=...                   # the hub's ENROLL_TOKEN
+DAEMON_CLABE_HUBS=https://hub-vm/clabe;https://other-hub          # one or more hubs
 ```
 
 - The hub follows the rig at `http://<host>:<port>` from then on, polling it like any client. The rig never sends
@@ -54,9 +49,12 @@ DAEMON_CLABE_ENROLL_TOKEN=...                   # the hub's ENROLL_TOKEN
 - A rig's name and host default to its computer's name, and the port is the daemon's own. Set
   `DAEMON_CLABE_ENROLL_NAME` for another name, and `DAEMON_CLABE_ENROLL_HOST` when the hub cannot reach the rig by
   its computer's name (e.g. a hub in Docker on the same PC: `host.docker.internal`).
-- Enrolling again updates where the rig is. A hub that restarted, moved or lost its data fills up again within
-  minutes, without touching the rigs.
-- The enroll token only enrolls. It does not open the hub's page or API, and the hub's `TOKEN` does not enroll.
+- Enrolling needs no secret, so a rig can enroll with any number of hubs. A hub that restarted, moved or lost its
+  data fills up again within minutes, without touching the rigs.
+- **Moves are confirmed.** A known rig that enrolls from another address shows **moved**, with both addresses. Until
+  someone clicks **Confirm move** on its card (or `POST /api/hub/rigs/<id>/confirm`), the hub does not poll it, send
+  it its token or forward requests to it. A machine cannot take over a rig's name and collect its token or answers.
+  A rig that comes back to its confirmed address is followed again without a click.
 - Rigs that answer are listed first. Those that do not are grouped under **Offline**.
 - **Remove** a rig with the bin on its card (or `DELETE /api/hub/rigs/<id>`). A rig whose daemon still enrolls with
   this hub comes back within minutes; **Remove and exclude** keeps it out.
@@ -68,7 +66,8 @@ DAEMON_CLABE_ENROLL_TOKEN=...                   # the hub's ENROLL_TOKEN
 ### Rig tokens
 
 A rig with a `DAEMON_CLABE_TOKEN` requires it from every client, the hub included. Enter it in the hub with **Token**
-on the rig's card (or `PUT /api/hub/rigs/<id>/token`). For a rig without one entered, the hub tries `RIG_TOKEN`.
+on the rig's card (or `PUT /api/hub/rigs/<id>/token`). People using the hub only need the hub's `TOKEN`: the hub
+presents each rig's token for them.
 
 - A rig that refuses the hub's token shows **needs token**.
 - The page and the API never show a token back, only whether one is entered ("Token set").
@@ -112,9 +111,10 @@ Interactive docs at `/docs`.
 | `GET /api/hub/rigs` | Every rig, as last polled (with its live `session`) |
 | `GET /api/hub/inbox` | Rigs waiting for an answer |
 | `POST /api/hub/refresh` | Poll now (and collect reports) |
-| `POST /api/hub/enroll` | A rig enrolls: `{"id", "host", "port", "clabe_version"}`, with the `ENROLL_TOKEN`; 403 if excluded |
+| `POST /api/hub/enroll` | A rig enrolls: `{"id", "host", "port", "clabe_version"}` (no token); 403 if excluded |
 | `DELETE /api/hub/rigs/{id}` | Remove a rig and its token (it comes back if it enrolls again) |
-| `PUT /api/hub/rigs/{id}/token` | `{"token": "..."}`: the rig's `DAEMON_CLABE_TOKEN`; `null` deletes it (`RIG_TOKEN`) |
+| `POST /api/hub/rigs/{id}/confirm` | Confirm a rig's move to the address it enrolled from |
+| `PUT /api/hub/rigs/{id}/token` | `{"token": "..."}`: the rig's `DAEMON_CLABE_TOKEN`; `null` deletes it |
 | `GET /api/hub/exclusions` | The exclusions: `[{pattern, comment, added_at}]` |
 | `POST /api/hub/exclusions` | `{"pattern", "comment"}`: exclude → `{exclusion, removed}` (the rigs removed) |
 | `DELETE /api/hub/exclusions?pattern=...` | Remove an exclusion |

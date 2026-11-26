@@ -41,14 +41,12 @@ def enroll_url(hub: str) -> str:
 
 async def enroll_once(settings: DaemonSettings, client: httpx.AsyncClient) -> dict[str, str | None]:
     """Enrolls with every hub; for each, None when it enrolled the rig, else why not."""
-    token = settings.enroll_token.get_secret_value() if settings.enroll_token else None
-    headers = {"Authorization": f"Bearer {token}"} if token else {}
     body = enroll_body(settings)
 
     async def one(hub: str) -> str | None:
         """Enrolls with ``hub``: None, else why it did not."""
         try:
-            response = await client.post(enroll_url(hub), json=body, headers=headers)
+            response = await client.post(enroll_url(hub), json=body)
         except httpx.HTTPError as exc:
             return f"not reachable ({exc or type(exc).__name__})"
         if response.is_success:
