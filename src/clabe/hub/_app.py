@@ -9,13 +9,13 @@ from pathlib import Path
 
 import httpx
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, Response
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from .. import __version__
 from ..server._app import STATIC_DIR
-from ..server._proxy import RequireToken, TokenCookies, forward, token_check
+from ..server._proxy import RequireToken, TokenCookies, forward, relative_redirect, token_check
 from ._fleet import EnrollBody, Excluded, Fleet, RigStatus
 from ._registry import Exclusion, RigConfig
 from ._report_api import report_routes
@@ -172,10 +172,9 @@ def create_hub_app(
     client = httpx.AsyncClient(timeout=httpx.Timeout(30.0, read=None))
 
     @app.get("/rigs/{rig_id}", include_in_schema=False)
-    def rig_root(rig_id: str, request: Request) -> RedirectResponse:
+    def rig_root(rig_id: str, request: Request) -> Response:
         """A rig's page needs the trailing slash (its links are relative)."""
-        query = f"?{request.url.query}" if request.url.query else ""
-        return RedirectResponse(f"/rigs/{rig_id}/{query}")
+        return relative_redirect(request.url.path, request.url.query, slash=True)
 
     @app.api_route("/rigs/{rig_id}/{path:path}", methods=["GET", "POST", "PUT", "DELETE"], include_in_schema=False)
     async def proxy(rig_id: str, path: str, request: Request) -> Response:

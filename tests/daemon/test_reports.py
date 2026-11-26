@@ -72,3 +72,13 @@ def test_status_counts_the_reports_waiting(tmp_path: Path):
     for _ in range(3):
         save_report(None, {}, directory=tmp_path)
     assert reports_waiting(tmp_path).startswith("3 issue reports waiting")
+
+
+def test_the_run_page_gets_its_slash_through_the_hub(client: TestClient):
+    """Reached as a hub's /rigs/<id>/run (under a prefix too), the daemon's redirect must stay relative."""
+    from urllib.parse import urljoin
+
+    response = client.get("/run?x=1", follow_redirects=False)
+    assert response.status_code == 307
+    asked = "https://vm/clabe/rigs/rig-3/run?x=1"
+    assert urljoin(asked, response.headers["location"]) == "https://vm/clabe/rigs/rig-3/run/?x=1"

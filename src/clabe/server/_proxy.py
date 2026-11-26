@@ -6,7 +6,7 @@ Server-Sent Events) are streamed back as they come.
 
 import hmac
 import json
-from urllib.parse import parse_qsl, urlencode
+from urllib.parse import parse_qsl, quote, urlencode
 
 import httpx
 from fastapi import HTTPException, Request, Response
@@ -76,6 +76,17 @@ class RequireToken:
         await self.app(scope, receive, send)
 
 
+def relative_redirect(path: str, query: str = "", *, slash: bool = False, status_code: int = 307) -> Response:
+    """A redirect relative to the address asked for, so it holds behind a proxy that serves clabe under a prefix.
+
+    The location is ``path``'s last segment (``./`` when ``path`` ends in ``/``); with ``slash``, that segment with a
+    trailing slash: ``/rigs/rig-3`` -> ``./rig-3/``, which a browser at ``/clabe/rigs/rig-3`` resolves to
+    ``/clabe/rigs/rig-3/``.
+    """
+    location = "./" + quote(path.rsplit("/", 1)[-1]) + ("/" if slash else "")
+    return RedirectResponse(location + (f"?{query}" if query else ""), status_code=status_code)
+
+
 class TokenCookies:
     """Lets a browser hold the token in a cookie (HttpOnly) rather than in its address bar.
 
@@ -107,7 +118,7 @@ class TokenCookies:
                 query = urlencode(
                     [(k, v) for k, v in parse_qsl(scope.get("query_string", b"").decode()) if k != "token"]
                 )
-                response = RedirectResponse(path + (f"?{query}" if query else ""), status_code=303)
+                response = relative_redirect(path, query, status_code=303)
                 self._set(response, request, given)
         if response is None:
             await self.app(scope, receive, send)
