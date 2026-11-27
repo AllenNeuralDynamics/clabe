@@ -155,10 +155,11 @@ function Install-Clabe {
     }
 
     # The latest clabe, whatever the daemon runs: it is only the command (`clabe daemon deploy` installs the daemon's
-    # own), and an older release has no `clabe daemon deploy`.
+    # own), and an older release has no `clabe daemon deploy`. --force replaces a clabe.exe in uv's executables folder
+    # that no tool uv knows owns (one installed with other uv folders).
     $cliSpec = if ($CliPackage) { $CliPackage } else { 'aind-clabe[frontend,otel]>=0.18.0rc2' }
     try {
-        Invoke-Step "Installing the clabe command ($cliSpec)" $uv @('tool', 'install', '--upgrade', $cliSpec)
+        Invoke-Step "Installing the clabe command ($cliSpec)" $uv @('tool', 'install', '--upgrade', '--force', $cliSpec)
     } catch {
         if ($stoppedOld) {
             & schtasks /Run /TN $taskName | Out-Null
