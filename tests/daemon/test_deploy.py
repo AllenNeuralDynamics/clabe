@@ -220,6 +220,29 @@ class TestDeploy:
         assert [c[0] for c in rig["calls"]] == ["install", "stop", "register", "start"]
         assert "no longer used by the daemon" in message
 
+    def test_the_task_runs_the_windowless_daemon_when_the_clabe_has_one(self, rig, monkeypatch):
+        registered = []
+        monkeypatch.setattr(_install, "register", lambda command, working_directory=None: registered.append(command))
+        environment = _environment("0.18.0")
+        windowless = environment.clabe.with_name("clabe-daemon" + environment.clabe.suffix)
+        windowless.write_text("")
+        assert environment.daemon == windowless
+        self._deploy()
+        assert registered == [[str(windowless), "run"]]
+
+    def test_a_task_running_the_console_clabe_moves_to_the_windowless_daemon(self, rig):
+        environment = _environment("0.18.0")
+        rig.update(runs=environment.clabe, answers=True)  # deployed before clabe-daemon existed
+        environment.clabe.with_name("clabe-daemon" + environment.clabe.suffix).write_text("")
+        self._deploy()
+        assert [c[0] for c in rig["calls"]] == ["stop", "register", "start"]
+        assert rig["runs"].stem == "clabe-daemon"
+
+    def test_an_older_clabe_without_it_runs_its_console_clabe(self):
+        environment = _environment("0.17.0")
+        assert environment.daemon == environment.clabe
+        assert _install.daemon_command_for(environment.daemon)[1:] == ["daemon", "run"]
+
     def test_only_the_last_environments_are_kept(self, rig):
         for version in ("0.15.0", "0.16.0", "0.17.0", "0.18.0"):
             self._deploy(version)
@@ -269,6 +292,8 @@ def _fake_clabe(root: Path, *, with_daemon: bool = True, with_ui: bool = True) -
             version = "9.9.9"
             [project.scripts]
             clabe = "clabe:main"
+            [project.gui-scripts]
+            clabe-daemon = "clabe:main"
             [build-system]
             requires = ["uv_build>=0.8"]
             build-backend = "uv_build"
@@ -289,6 +314,7 @@ class TestInstallEnvironment:
         request = _deploy.request_package(f"aind-clabe @ {source.as_uri()}", ())
         environment, new = _deploy.install_environment(request)
         assert new and environment.version == "9.9.9" and environment.clabe.is_file()
+        assert environment.daemon.stem == "clabe-daemon" and environment.daemon.is_file()  # uv made it
         assert (
             environment.path.name.startswith("9.9.9-url-") and environment.path.parent == _deploy.versions_directory()
         )

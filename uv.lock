@@ -81,10 +81,13 @@ otel = [
     { name = "opentelemetry-sdk" },
     { name = "pyyaml" },
 ]
+ssh = [
+    { name = "asyncssh" },
+]
 
 [package.dev-dependencies]
 dev = [
-    { name = "aind-clabe", extra = ["agents", "aind-services", "frontend", "otel"] },
+    { name = "aind-clabe", extra = ["agents", "aind-services", "frontend", "otel", "ssh"] },
     { name = "codespell" },
     { name = "coverage" },
     { name = "interrogate" },
@@ -106,6 +109,7 @@ requires-dist = [
     { name = "aind-data-schema", marker = "extra == 'aind-services'", specifier = ">=2" },
     { name = "aind-data-transfer-service", marker = "extra == 'aind-services'", specifier = ">=2.2.0" },
     { name = "aind-watchdog-service", marker = "extra == 'aind-services'", specifier = ">=0.1.10" },
+    { name = "asyncssh", marker = "extra == 'ssh'", specifier = ">=2.17" },
     { name = "confierge", marker = "extra == 'aind-services'", git = "https://github.com/AllenNeuralDynamics/ficus.git?subdirectory=packages%2Fconfierge&tag=v0.3.0" },
     { name = "fastapi", marker = "extra == 'frontend'", specifier = ">=0.115" },
     { name = "gitpython" },
@@ -129,7 +133,7 @@ requires-dist = [
     { name = "textual-fspicker", marker = "extra == 'frontend'", specifier = ">=1.0.1" },
     { name = "uvicorn", marker = "extra == 'frontend'", specifier = ">=0.30" },
 ]
-provides-extras = ["otel", "aind-services", "agents", "frontend"]
+provides-extras = ["otel", "aind-services", "agents", "frontend", "ssh"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -137,6 +141,7 @@ dev = [
     { name = "aind-clabe", extras = ["aind-services"] },
     { name = "aind-clabe", extras = ["frontend"] },
     { name = "aind-clabe", extras = ["otel"] },
+    { name = "aind-clabe", extras = ["ssh"] },
     { name = "codespell" },
     { name = "coverage" },
     { name = "interrogate" },
@@ -299,6 +304,19 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/ae/70/7eb3fe7bf00103cbbb569c51aef150661f22b734a782673a600ff0f52309/argon2_cffi_bindings-26.1.0-pp311-pypy311_pp73-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:49d525938467d52c923a890153c99087c9d5a937d1f6b585dbdba34ec82e397a", size = 24869, upload-time = "2026-08-20T07:33:20.671Z" },
     { url = "https://files.pythonhosted.org/packages/5b/4b/9d5919c6cb1f15df7406af0f99b048bd93936f112e3e8f4c8077bc2a9110/argon2_cffi_bindings-26.1.0-pp311-pypy311_pp73-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:1b0bcac4d490a237e18cf91f57352920c29f77f2fa39efd0813fb81298bf17ba", size = 24216, upload-time = "2026-08-20T07:33:21.653Z" },
     { url = "https://files.pythonhosted.org/packages/a3/34/32109943bace7729233cc4ee78530baa306d8cc3c6501a64ba8cb3b58129/argon2_cffi_bindings-26.1.0-pp311-pypy311_pp73-win_amd64.whl", hash = "sha256:0cc40f7b4050bb93eb67de95d2d759322fc7ce4930b9d645581ecf4913ec651e", size = 23584, upload-time = "2026-08-20T07:33:22.613Z" },
+]
+
+[[package]]
+name = "asyncssh"
+version = "2.24.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cryptography" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/0f/c5/41a0d5477865c48cee65050586092dc3ba3fc1c52e29b47fba08d3a44581/asyncssh-2.24.1.tar.gz", hash = "sha256:efcd36e9b35f79873535b06444a7c9b0a3c61d97081b208c7fdd3fd8a40f1eca", size = 558085, upload-time = "2026-10-04T02:48:24.913Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/07/e5/8bc721f04ff545c5a84c9c23fbf788fbb56960bb57a86c6366bc35be0f66/asyncssh-2.24.1-py3-none-any.whl", hash = "sha256:fc560b4f43be0f0c602d184783e5e3876f5d24d933a25359d86e5a50a5f46fe5", size = 382514, upload-time = "2026-10-04T02:48:23.676Z" },
 ]
 
 [[package]]

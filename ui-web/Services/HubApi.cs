@@ -54,6 +54,22 @@ public sealed class HubApi(HttpClient http, RunApi run)
 
     // ---------- enrolled rigs and exclusions ----------
 
+    /// <summary>Restarts a rig's daemon through its own API (it answers): it ends itself and its task starts a new
+    /// one. Refused (409) while it runs an experiment, unless <paramref name="force"/> (the run is stopped).</summary>
+    public async Task RestartDaemonAsync(string rig, bool force) =>
+        await EnsureOk(await http.PostAsync(
+            $"rigs/{Uri.EscapeDataString(rig)}/api/daemon/restart?force={(force ? "true" : "false")}", null));
+
+    /// <summary>Restarts a rig's daemon over SSH (it hangs or is not running), with the operator's rig account: sent
+    /// with this request only.</summary>
+    public async Task<ReviveResult> ReviveAsync(string rig, string username, string password)
+    {
+        var response = await http.PostAsJsonAsync(
+            $"api/hub/rigs/{Uri.EscapeDataString(rig)}/revive", new ReviveBody(username, password), Json.Options);
+        await EnsureOk(response);
+        return (await response.Content.ReadFromJsonAsync<ReviveResult>(Json.Options))!;
+    }
+
     /// <summary>Removes a rig from the hub (it is followed again if its daemon enrolls again).</summary>
     public async Task RemoveAsync(string rig) =>
         await EnsureOk(await http.DeleteAsync($"api/hub/rigs/{Uri.EscapeDataString(rig)}"));

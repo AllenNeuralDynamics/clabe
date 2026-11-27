@@ -143,6 +143,12 @@ class Environment:
         """The environment's ``clabe`` executable, which the task runs."""
         return _scripts(self.path) / ("clabe.exe" if os.name == "nt" else "clabe")
 
+    @property
+    def daemon(self) -> Path:
+        """What the task runs: the environment's windowless ``clabe-daemon`` (since 0.18), else its ``clabe``."""
+        windowless = _scripts(self.path) / ("clabe-daemon.exe" if os.name == "nt" else "clabe-daemon")
+        return windowless if windowless.is_file() else self.clabe
+
     def describe(self) -> str:
         """The environment's clabe, for messages: ``clabe 0.18.0`` (and its git commit, if any)."""
         return f"clabe {self.version}" + (f" (git {self.commit[:12]})" if self.commit else "")
@@ -448,7 +454,7 @@ def deploy(
         settings_changed, notes = set_hubs(hubs)
         log.extend(notes)
 
-    runs_it = _same_path(previous, environment.clabe)
+    runs_it = _same_path(previous, environment.daemon)
     if runs_it and info is not None and not settings_changed and not restart:
         log.append(f"The daemon already runs {environment.describe()}: nothing to restart.")
         _mark_activated(environment)
@@ -457,18 +463,18 @@ def deploy(
     if previous is not None and (info is not None or _install.task_state() == "Running"):
         log.append(_install.stop(port, token, force=True))
     try:
-        _install.register([str(environment.clabe), "daemon", "run"])
-        log.append(f"The {_install.TASK_NAME} task runs {environment.clabe}")
+        _install.register(_install.daemon_command_for(environment.daemon))
+        log.append(f"The {_install.TASK_NAME} task runs {environment.daemon}")
         log.append(_install.start(port, token, timeout=timeout))
     except OSError as failure:
-        if previous is None or _same_path(previous, environment.clabe):
+        if previous is None or _same_path(previous, environment.daemon):
             raise
         try:
             _install.stop(port, token, force=True)
         except OSError:
             pass
         try:
-            _install.register([str(previous), "daemon", "run"])
+            _install.register(_install.daemon_command_for(previous))
             _install.start(port, token, timeout=timeout)
         except OSError as again:
             raise OSError(

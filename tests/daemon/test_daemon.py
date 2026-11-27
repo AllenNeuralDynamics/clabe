@@ -141,6 +141,28 @@ class TestInstall:
         assert "<RestartOnFailure>" in xml and "<ExecutionTimeLimit>PT0S</ExecutionTimeLimit>" in xml
         assert "<Command>C:/tools/clabe.exe</Command><Arguments>daemon run</Arguments>" in xml
 
+    def test_the_task_starts_a_stopped_daemon_every_five_minutes_from_now(self):
+        import datetime
+        from xml.etree import ElementTree
+
+        now = datetime.datetime(2026, 11, 27, 9, 30, 15, 123456)
+        xml = _install.task_xml(["C:/tools/clabe-daemon.exe", "run"], user="rig", now=now)
+        ns = {"t": "http://schemas.microsoft.com/windows/2004/02/mit/task"}
+        root = ElementTree.fromstring(xml.split("?>", 1)[1])  # the declaration says UTF-16; the text is a str
+        trigger = root.find("t:Triggers/t:TimeTrigger", ns)
+        # registered mid-session (deploy over SSH): it repeats from now, not from the next logon
+        assert trigger.find("t:StartBoundary", ns).text == "2026-11-27T09:30:15"
+        assert trigger.find("t:Repetition/t:Interval", ns).text == "PT5M"
+        assert trigger.find("t:Repetition/t:Duration", ns) is None  # indefinitely
+        # Task Scheduler's schema: a trigger's Enabled, then StartBoundary, then Repetition
+        assert [child.tag.split("}")[1] for child in trigger] == ["Enabled", "StartBoundary", "Repetition"]
+        assert root.find("t:Settings/t:MultipleInstancesPolicy", ns).text == "IgnoreNew"  # never two daemons
+
+    def test_the_windowless_daemon_runs_without_the_daemon_subcommand(self):
+        windowless, console = "C:/env/Scripts/clabe-daemon.exe", "C:/env/Scripts/clabe.exe"
+        assert _install.daemon_command_for(windowless) == [windowless, "run"]
+        assert _install.daemon_command_for(console) == [console, "daemon", "run"]
+
     def test_install_registers_and_starts_the_task(self, monkeypatch):
         calls = []
 
@@ -215,7 +237,7 @@ class TestDeployment:
         calls, xml = [], {}
 
         def schtasks(*args):
-            calls.append(args[0])
+            calls.append(args[-1] if args[0] == "/Change" else args[0])  # /Change: /ENABLE or /DISABLE
             if args[0] == "/Create":
                 xml["text"] = Path(args[args.index("/XML") + 1]).read_text(encoding="utf-16")
             return subprocess.CompletedProcess(args, 0, stdout="SUCCESS", stderr="")
@@ -230,7 +252,7 @@ class TestDeployment:
         monkeypatch.setattr(_install.shutil, "which", lambda name: f"C:/Users/me/.local/bin/{name}.exe")
         monkeypatch.setattr(_install, "task_state", lambda: "Ready")
         message = _install.install()
-        assert "<Command>C:/Users/me/.local/bin/clabe.exe</Command><Arguments>daemon run</Arguments>" in xml["text"]
+        assert "<Command>C:/Users/me/.local/bin/clabe-daemon.exe</Command><Arguments>run</Arguments>" in xml["text"]
         assert f"<WorkingDirectory>{tmp_path / 'clabe'}</WorkingDirectory>" in xml["text"]
         assert calls == ["/Create", "/Run"] and (tmp_path / "clabe").is_dir() and "Registered" in message
 
@@ -259,7 +281,7 @@ class TestDeployment:
         monkeypatch.setattr(_install, "task_state", lambda: "Running" if calls[-1:] == ["/Run"] else "Ready")
         monkeypatch.setattr(_install, "probe", lambda port, token, timeout=2.0: next(answers))
         assert _install.restart(8070, None, force=True) == "The clabe daemon answers on port 8070 (clabe 9)."
-        assert calls == ["/End", "/Run"]
+        assert calls == ["/DISABLE", "/End", "/ENABLE", "/Run"]
 
     def test_restart_explains_a_user_who_is_not_logged_on(self, scheduler, monkeypatch):
         monkeypatch.setattr(_install, "task_state", lambda: "Ready")
@@ -283,7 +305,7 @@ class TestDeployment:
         monkeypatch.setattr(_install, "task_state", lambda: "Ready" if calls else "Running")
         monkeypatch.setattr(_install, "probe", lambda port, token, timeout=2.0: next(answers))
         assert "stopped" in _install.stop(8070, None, force=True)
-        assert calls == ["/End"]
+        assert calls == ["/DISABLE", "/End"]  # disabled first: its repeating trigger would start it again
 
     def test_stop_fails_while_the_old_daemon_still_answers(self, scheduler, monkeypatch):
         monkeypatch.setattr(_install, "task_state", lambda: "Ready")
@@ -303,7 +325,7 @@ class TestDeployment:
         monkeypatch.setattr(_install, "task_state", lambda: "Running")
         monkeypatch.setattr(_install, "probe", lambda port, token, timeout=2.0: next(answers))
         assert _install.start(8070, None) == "The clabe daemon answers on port 8070 (clabe 9)."
-        assert calls == ["/Run"]
+        assert calls == ["/ENABLE", "/Run"]  # `stop` disabled it
 
     def test_start_explains_a_user_who_is_not_logged_on(self, scheduler, monkeypatch):
         monkeypatch.setattr(_install, "task_state", lambda: "Ready")

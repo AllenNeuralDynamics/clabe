@@ -131,6 +131,10 @@ public sealed record RepositoryInfo(
     [property: JsonPropertyName("path")] string Path,
     [property: JsonPropertyName("exists")] bool Exists);
 
+/// <summary>A restart that is under way.</summary>
+public sealed record RestartResult(
+    [property: JsonPropertyName("detail")] string Detail);
+
 /// <summary>The run the host launched last.</summary>
 public sealed record RunInfo(
     [property: JsonPropertyName("repository")] string Repository,

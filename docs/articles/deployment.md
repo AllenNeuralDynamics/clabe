@@ -114,7 +114,7 @@ clabe daemon deploy --lock C:/git/Aind.Experiment.X --hubs "http://hub-vm/clabe/
 ```bash
 ssh rig-3 clabe daemon status      # the task, and whether the daemon answers (idle, busy, leased)
 ssh rig-3 clabe daemon restart     # refused during a session; --force interrupts it
-ssh rig-3 clabe daemon stop        # same; it starts again at logon or with `clabe daemon start`
+ssh rig-3 clabe daemon stop        # same; it stays stopped until `clabe daemon start` (or restart, deploy)
 ssh rig-3 clabe daemon uninstall   # stop the daemon and remove the task
 ssh rig-3 type %LOCALAPPDATA%\clabe\daemon.log
 ```
@@ -123,6 +123,9 @@ ssh rig-3 type %LOCALAPPDATA%\clabe\daemon.log
   the SSH session disconnects.
 - To check that rigs are up, the hub shows each rig as online, offline, idle, busy or leased. `clabe daemon status`
   checks a single rig.
+- A daemon that crashed, was ended or hangs comes back by itself within minutes
+  ([Running hidden](daemon.md#running-hidden)); the hub can also restart it, even when it does not answer
+  ([Restarting a rig's daemon](hub.md#restarting-a-rigs-daemon)).
 - Without SSH, a rig admin can run `schtasks /S rig-3 /Run /TN clabe-daemon`.
 
 ## 6. Deploy the hub

@@ -1,23 +1,30 @@
 """The daemon's HTTP app: its own API under /api/daemon, the run it hosts proxied under /run/, and the web UI."""
 
+import asyncio
+import logging
+import os
 from pathlib import Path
 from typing import Annotated
 
 import httpx
-from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, FastAPI, HTTPException, Request, Response
 from fastapi import Path as FastApiPath
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
 
 from .. import __version__
 from ..reports import REPORT_ID_PATTERN, ReportInfo, count_reports, delete_report, list_reports, report_path
 from ..server._app import STATIC_DIR
 from ..server._proxy import TokenCookies, forward, relative_redirect, token_check
 from ..workflow import ExperimentListing
+from . import _install, _watchdog
 from ._enroll import enrolling
 from ._host import AttachBody, Host, HostError, HostInfo, LaunchBody, RepositoryInfo, RunInfo
 from ._settings import DaemonSettings
 from ._worker import Worker, worker_router
+
+logger = logging.getLogger(__name__)
 
 
 def _guarded(call):
@@ -75,6 +82,48 @@ def _report_routes(api: APIRouter, directory: Path) -> None:
             raise HTTPException(status_code=404, detail=f"No report {report_id}.")
 
 
+class RestartResult(BaseModel):
+    """A restart that is under way."""
+
+    detail: str = Field(description="What happens next")
+
+
+def _restart_routes(api: APIRouter, host: Host) -> None:
+    """``POST /restart``: the daemon ends itself and its task starts a new one (also through the hub)."""
+
+    @api.post(
+        "/restart",
+        status_code=202,
+        response_model=RestartResult,
+        responses={409: {"description": "A run is going (without force), or the daemon was not started by its task"}},
+    )
+    def restart(background: BackgroundTasks, force: bool = False) -> RestartResult:
+        """Restarts the daemon: it answers, ends itself, and its task starts a new one (in a few seconds). Refused
+        while it runs an experiment or is leased by another machine's run, unless ``force`` (the run is stopped)."""
+        status = host.info().status
+        if status in ("busy", "leased") and not force:
+            what = "runs an experiment" if status == "busy" else "is leased by another machine's run"
+            raise HTTPException(status_code=409, detail=f"The daemon {what}: restarting would interrupt it.")
+        if force and status == "busy":
+            try:
+                host.stop()
+            except HostError:
+                pass  # it ended meanwhile
+        try:
+            _install.restart_later(os.getpid())
+        except OSError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        logger.info("Restarting, as asked through the API: ending the daemon, its task starts a new one.")
+        background.add_task(_end_soon)
+        return RestartResult(detail="The daemon restarts: it answers again in a few seconds.")
+
+
+async def _end_soon() -> None:
+    """Ends the daemon once its answer is sent (`_watchdog.end_process` flushes the logs first)."""
+    await asyncio.sleep(0.5)
+    _watchdog.end_process(0)
+
+
 def create_daemon_app(
     host: Host, *, token: str | None = None, static_dir: Path | None = STATIC_DIR, worker: Worker | None = None
 ) -> FastAPI:
@@ -123,6 +172,7 @@ def create_daemon_app(
 
     _attach_routes(api, host)
     _report_routes(api, reports_directory)
+    _restart_routes(api, host)
 
     @api.get("/runs/current", response_model=RunInfo | None)
     def current() -> RunInfo | None:

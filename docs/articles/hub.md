@@ -75,6 +75,25 @@ presents each rig's token for them.
   `.env` file.
 - Enrolling again keeps a rig's token. Removing a rig deletes it.
 
+### Restarting a rig's daemon
+
+The restart button on a rig's card restarts its daemon, whatever state it is in:
+
+- **It answers**: the hub asks it to restart (`POST /rigs/<id>/api/daemon/restart`). It comes back in a few seconds.
+  During a run, the button says so and stops the run.
+- **It hangs or is not running** (or that failed): the card asks for your rig account, the way Shush signs in (the
+  rig's logged-on user, or an administrator). The hub connects to the rig over SSH and restarts the daemon's task
+  there, ending any daemon left over. A run going on the rig is stopped.
+
+The account is sent to the hub with that one request, used for that SSH connection only, and never stored or logged
+by the hub; the page keeps it in the tab's memory, so a second restart does not ask again. Serve the hub over HTTPS
+(a TLS-terminating reverse proxy) to keep it off the network in the clear: over plain HTTP it travels unencrypted.
+
+The hub remembers each rig's SSH host key the first time and refuses a rig that later shows another one, before
+sending the password. Removing the rig forgets its key (for a reinstalled rig). SSH needs the hub's `ssh` extra
+(`aind-clabe[ssh]`, in the Docker image).
+
+A rig's daemon usually comes back by itself, too: see [the daemon](daemon.md#running-hidden).
 
 ## Run it
 
@@ -115,6 +134,7 @@ Interactive docs at `/docs`.
 | `DELETE /api/hub/rigs/{id}` | Remove a rig and its token (it comes back if it enrolls again) |
 | `POST /api/hub/rigs/{id}/confirm` | Confirm a rig's move to the address it enrolled from |
 | `PUT /api/hub/rigs/{id}/token` | `{"token": "..."}`: the rig's `DAEMON_CLABE_TOKEN`; `null` deletes it |
+| `POST /api/hub/rigs/{id}/revive` | `{"username", "password"}`: restart its daemon over SSH → `{state, ended, fingerprint, first_connection}`; 403 refused credentials, 409 changed host key |
 | `GET /api/hub/exclusions` | The exclusions: `[{pattern, comment, added_at}]` |
 | `POST /api/hub/exclusions` | `{"pattern", "comment"}`: exclude → `{exclusion, removed}` (the rigs removed) |
 | `DELETE /api/hub/exclusions?pattern=...` | Remove an exclusion |

@@ -65,6 +65,10 @@ frontend = [
     "fastapi>=0.115",
     "uvicorn>=0.30",
 ]
+ssh = [
+    # the hub restarts a rig's daemon that does not answer, over SSH, with the operator's credentials
+    "asyncssh>=2.17",
+]
 
 [dependency-groups]
 
@@ -80,6 +84,7 @@ dev = [
     "aind-clabe[otel]",
     "aind-clabe[agents]",
     "aind-clabe[frontend]",
+    "aind-clabe[ssh]",
 ]
 
 docs = [
@@ -92,6 +97,10 @@ docs = [
 
 [project.scripts]
 clabe = "clabe.cli:main"
+
+[project.gui-scripts]
+# the daemon without a console window (what its scheduled task runs on Windows): `clabe-daemon run`
+clabe-daemon = "clabe.daemon._cli:main"
 
 [tool.uv]
 default-groups = ['dev']

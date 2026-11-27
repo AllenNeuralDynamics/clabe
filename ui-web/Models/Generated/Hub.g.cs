@@ -73,6 +73,18 @@ public sealed record ReportPage(
     [property: JsonPropertyName("total")] long Total,
     [property: JsonPropertyName("items")] List<StoredReport> Items);
 
+/// <summary>The operator's rig credentials, for one revive: used for that SSH connection only, never stored or logged.</summary>
+public sealed record ReviveBody(
+    [property: JsonPropertyName("username")] string Username,
+    [property: JsonPropertyName("password")] string Password);
+
+/// <summary>What reviving a rig's daemon did.</summary>
+public sealed record ReviveResult(
+    [property: JsonPropertyName("state")] string State,
+    [property: JsonPropertyName("ended")] List<long> Ended,
+    [property: JsonPropertyName("fingerprint")] string Fingerprint,
+    [property: JsonPropertyName("first_connection")] bool FirstConnection);
+
 /// <summary>A rig the hub follows.</summary>
 public sealed record RigConfig(
     [property: JsonPropertyName("id")] string Id,

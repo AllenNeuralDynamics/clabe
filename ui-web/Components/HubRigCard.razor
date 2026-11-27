@@ -1,5 +1,7 @@
-@* A rig in the fleet: its status, what it runs, its reports, its token, and a way to its page. *@
+@* A rig in the fleet: its status, what it runs, its reports, its token, a way to its page, and restarting its
+   daemon (through its API, or over SSH when it does not answer). *@
 @inject HubApi Hub
+@inject RigCredentials Credentials
 
 <article class="rig card @(Rig.Reachable ? "" : "offline") @(Rig.Waiting is not null ? "waiting" : "")" aria-label="@Rig.Id">
     <header>
@@ -83,6 +85,13 @@
         {
             <a class="btn sm open" href="@Hub.RigUrl(Rig.Id)" aria-label="Open @Rig.Id">Open <HubIcon Name="right" Size="13" /></a>
         }
+        @if (Rig.MovedFrom is null)
+        {
+            <button type="button" class="ghost icon sm" aria-label="Restart the daemon of @Rig.Id"
+                    title="Restart this rig's daemon" aria-expanded="@(_restart is not null)" @onclick="OpenRestart">
+                <HubIcon Name="refresh" Size="14" />
+            </button>
+        }
         <button type="button" class="ghost icon sm" aria-label="Remove @Rig.Id" title="Remove this rig from the hub"
                 @onclick="() => { _confirmRemove = true; _removeError = null; }">
             <HubIcon Name="trash" Size="14" />
@@ -112,7 +121,50 @@
             }
         </form>
     }
-    @if ((_tokenError ?? _removeError ?? _confirmError) is { } error)
+    @if (_restart == RestartWay.Api)
+    {
+        <div class="confirm" role="group" aria-label="Restart the daemon of @Rig.Id">
+            <p class="small">Restart the daemon of <strong>@Name</strong>? It comes back in a few seconds.</p>
+            @if (Rig.Status == "busy")
+            {
+                <p class="small warn">It runs an experiment: restarting stops it.</p>
+            }
+            <div class="actions">
+                <button type="button" class="primary sm" disabled="@_restarting" @onclick="RestartThroughApi">
+                    @(Rig.Status == "busy" ? "Stop the run and restart" : "Restart")
+                </button>
+                <button type="button" class="sm" disabled="@_restarting" @onclick="() => UseSsh(null)"
+                        title="When the daemon hangs: restart it over SSH, with your rig account">Over SSH…</button>
+                <button type="button" class="ghost sm" disabled="@_restarting" @onclick="CloseRestart">Cancel</button>
+            </div>
+        </div>
+    }
+    else if (_restart == RestartWay.Ssh)
+    {
+        <form class="confirm ssh" aria-label="Restart the daemon of @Rig.Id over SSH" @onsubmit="RestartOverSsh" @onsubmit:preventDefault>
+            <p class="small">
+                @(_sshReason ?? "The daemon does not answer.") Restart it over SSH with your rig account: used for
+                this restart only, never stored. A run going on the rig is stopped.
+            </p>
+            <input autocomplete="username" aria-label="Rig username" placeholder="Rig username"
+                   title="The rig's logged-on user, or an administrator"
+                   @bind="_username" @bind:event="oninput" />
+            <input type="password" autocomplete="current-password" aria-label="Rig password" placeholder="Password"
+                   @bind="_password" @bind:event="oninput" />
+            <div class="actions">
+                <button type="submit" class="primary sm"
+                        disabled="@(_restarting || string.IsNullOrWhiteSpace(_username) || string.IsNullOrEmpty(_password))">
+                    Restart over SSH
+                </button>
+                <button type="button" class="ghost sm" disabled="@_restarting" @onclick="CloseRestart">Cancel</button>
+            </div>
+        </form>
+    }
+    @if (_restartNote is { } note)
+    {
+        <p class="subtle small card-note" role="status">@note</p>
+    }
+    @if ((_tokenError ?? _removeError ?? _confirmError ?? _restartError) is { } error)
     {
         <p class="subtle small card-error" role="alert">@error</p>
     }
@@ -135,6 +187,99 @@
 
     private bool _confirming;
     private string? _confirmError;
+
+    private enum RestartWay { Api, Ssh }
+    private RestartWay? _restart;
+    private bool _restarting;
+    private string? _sshReason;
+    private string _username = "";
+    private string _password = "";
+    private string? _restartNote;
+    private string? _restartError;
+
+    private string Name => Rig.RigId ?? Rig.Id;
+
+    /// <summary>Through the daemon's API when it answers; over SSH when it does not.</summary>
+    private void OpenRestart()
+    {
+        if (_restart is not null)
+        {
+            CloseRestart();
+            return;
+        }
+        (_restartNote, _restartError) = (null, null);
+        if (Rig.Reachable && !Rig.NeedsToken)
+        {
+            _restart = RestartWay.Api;
+        }
+        else
+        {
+            UseSsh(Rig.NeedsToken ? "The daemon refuses the hub's token." : null);
+        }
+    }
+
+    private void UseSsh(string? reason)
+    {
+        _sshReason = reason;
+        _username = Credentials.Username ?? _username;
+        _password = Credentials.Password ?? "";
+        _restart = RestartWay.Ssh;
+    }
+
+    private void CloseRestart()
+    {
+        _restart = null;
+        _password = "";
+    }
+
+    private async Task RestartThroughApi()
+    {
+        _restarting = true;
+        _restartError = null;
+        try
+        {
+            await Hub.RestartDaemonAsync(Rig.Id, force: Rig.Status == "busy");
+            _restart = null;
+            _restartNote = "Restarting: it answers again in a few seconds.";
+            await OnChanged.InvokeAsync();
+        }
+        catch (HttpRequestException exc)
+        {
+            UseSsh($"Restarting through its API failed: {exc.Message}.");
+        }
+        finally
+        {
+            _restarting = false;
+        }
+    }
+
+    private async Task RestartOverSsh()
+    {
+        _restarting = true;
+        _restartError = null;
+        try
+        {
+            var revived = await Hub.ReviveAsync(Rig.Id, _username.Trim(), _password);
+            (Credentials.Username, Credentials.Password) = (_username.Trim(), _password);
+            CloseRestart();
+            _restartNote = $"Restarted over SSH (its task: {revived.State})."
+                + (revived.FirstConnection ? $" Its SSH host key ({revived.Fingerprint}) is now remembered." : "");
+            await OnChanged.InvokeAsync();
+        }
+        catch (HttpRequestException exc)
+        {
+            if (exc.StatusCode == System.Net.HttpStatusCode.Forbidden)
+            {
+                Credentials.Forget();
+                _password = "";
+            }
+            _restartError = exc.Message;
+        }
+        finally
+        {
+            _restarting = false;
+        }
+    }
 
     private async Task Confirm()
     {

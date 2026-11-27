@@ -4,6 +4,7 @@ The daemon runs as the logged-in user (it starts experiments that show windows, 
 Every function here works from an SSH session of that user: the task still runs in the user's desktop session.
 """
 
+import datetime
 import getpass
 import os
 import shutil
@@ -14,8 +15,13 @@ import time
 from pathlib import Path
 from xml.sax.saxutils import escape
 
+from ._process import NO_WINDOW
+
 #: The scheduled task's name.
 TASK_NAME = "clabe-daemon"
+
+#: How often the task starts the daemon when it is not running (a start while it runs does nothing).
+CHECK_INTERVAL = "PT5M"
 
 
 def default_working_directory() -> Path:
@@ -30,9 +36,15 @@ def _in_uv_cache() -> bool:
     return any(part in ("archive-v0", "builds-v0") for part in parts)
 
 
+def daemon_command_for(executable: Path | str) -> list[str]:
+    """The task's command for ``executable``: ``clabe-daemon run`` (windowless), or ``clabe daemon run``."""
+    name = Path(executable).stem.lower()
+    return [str(executable), "run"] if name == "clabe-daemon" else [str(executable), "daemon", "run"]
+
+
 def daemon_command() -> list[str]:
-    """How the task starts the daemon: the installed ``clabe`` executable (``uv tool install``), else this
-    interpreter.
+    """How the task starts the daemon: the installed windowless ``clabe-daemon`` (``uv tool install``), else
+    ``clabe``, else this interpreter.
 
     Raises:
         OSError: This clabe runs from uv's cache (e.g. ``uvx``): the task would point into a cache uv may clean up.
@@ -42,20 +54,37 @@ def daemon_command() -> list[str]:
             "This clabe runs from uv's cache (uvx): the daemon's task needs an installed clabe. Install it with the "
             "installer (see the Deploying docs) or `uv tool install 'aind-clabe[frontend]'`, then run `clabe daemon install`."
         )
-    executable = shutil.which("clabe")
-    return [executable, "daemon", "run"] if executable else [sys.executable, "-m", "clabe.cli", "daemon", "run"]
+    executable = shutil.which("clabe-daemon") or shutil.which("clabe")
+    return daemon_command_for(executable) if executable else [sys.executable, "-m", "clabe.cli", "daemon", "run"]
 
 
-def task_xml(command: list[str], *, user: str | None = None, working_directory: Path | None = None) -> str:
-    """The Task Scheduler definition: start at logon of ``user``, restart every minute on failure, never time out."""
+def task_xml(
+    command: list[str],
+    *,
+    user: str | None = None,
+    working_directory: Path | None = None,
+    now: datetime.datetime | None = None,
+) -> str:
+    """The Task Scheduler definition: start at logon of ``user`` and every `CHECK_INTERVAL` from ``now`` on (only
+    one daemon runs: a start while it runs is ignored, so a daemon that stopped or was ended comes back), restart
+    every minute on failure, never time out.
+
+    The repeating trigger is a time trigger from ``now`` (when the task is registered), not a repetition of the
+    logon trigger: that would only repeat from the next logon, and a rig deployed over SSH may not log on for days.
+    """
     user = user or getpass.getuser()
+    start = (now or datetime.datetime.now()).replace(microsecond=0).isoformat()
     program, *arguments = command
     args = " ".join(f'"{a}"' if " " in a else a for a in arguments)
     directory = f"<WorkingDirectory>{escape(str(working_directory))}</WorkingDirectory>" if working_directory else ""
     return f"""<?xml version="1.0" encoding="UTF-16"?>
 <Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
   <RegistrationInfo><Description>clabe daemon: runs experiments on this machine.</Description></RegistrationInfo>
-  <Triggers><LogonTrigger><Enabled>true</Enabled><UserId>{escape(user)}</UserId></LogonTrigger></Triggers>
+  <Triggers>
+    <LogonTrigger><Enabled>true</Enabled><UserId>{escape(user)}</UserId></LogonTrigger>
+    <TimeTrigger><Enabled>true</Enabled><StartBoundary>{start}</StartBoundary>
+      <Repetition><Interval>{CHECK_INTERVAL}</Interval></Repetition></TimeTrigger>
+  </Triggers>
   <Principals><Principal id="Author"><UserId>{escape(user)}</UserId><LogonType>InteractiveToken</LogonType>
     <RunLevel>LeastPrivilege</RunLevel></Principal></Principals>
   <Settings>
@@ -79,7 +108,7 @@ def _schtasks(*args: str) -> subprocess.CompletedProcess:
             "Installing the daemon is supported on Windows (Task Scheduler). Elsewhere, start `clabe daemon run` "
             "from your session manager (e.g. a systemd user unit)."
         )
-    return subprocess.run(["schtasks", *args], capture_output=True, text=True, check=False)
+    return subprocess.run(["schtasks", *args], capture_output=True, text=True, check=False, creationflags=NO_WINDOW)
 
 
 def task_state() -> str | None:
@@ -91,7 +120,11 @@ def task_state() -> str | None:
         return None
     query = f"(Get-ScheduledTask -TaskName '{TASK_NAME}' -ErrorAction Stop).State"
     done = subprocess.run(
-        ["powershell", "-NoProfile", "-NonInteractive", "-Command", query], capture_output=True, text=True, check=False
+        ["powershell", "-NoProfile", "-NonInteractive", "-Command", query],
+        capture_output=True,
+        text=True,
+        check=False,
+        creationflags=NO_WINDOW,
     )
     return (done.stdout.strip() or None) if done.returncode == 0 else None
 
@@ -102,7 +135,11 @@ def registered_executable() -> Path | None:
         return None
     query = f"(Get-ScheduledTask -TaskName '{TASK_NAME}' -ErrorAction Stop).Actions[0].Execute"
     done = subprocess.run(
-        ["powershell", "-NoProfile", "-NonInteractive", "-Command", query], capture_output=True, text=True, check=False
+        ["powershell", "-NoProfile", "-NonInteractive", "-Command", query],
+        capture_output=True,
+        text=True,
+        check=False,
+        creationflags=NO_WINDOW,
     )
     program = done.stdout.strip().strip('"') if done.returncode == 0 else ""
     return Path(program) if program else None
@@ -171,10 +208,22 @@ def _refuse_if_busy(port: int, token: str | None, doing: str) -> None:
         raise OSError(f"The daemon {what}: {doing} would interrupt it. Wait, or pass --force.")
 
 
+def _set_enabled(enabled: bool) -> None:
+    """Enables or disables the task: a disabled task stays stopped (its triggers do not start it).
+
+    Raises:
+        OSError: Task Scheduler refuses.
+    """
+    changed = _schtasks("/Change", "/TN", TASK_NAME, "/ENABLE" if enabled else "/DISABLE")
+    if changed.returncode != 0:
+        raise OSError(f"Could not change the {TASK_NAME} task: {changed.stderr.strip() or changed.stdout.strip()}")
+
+
 def stop(
     port: int, token: str | None, *, force: bool = False, timeout: float = 15.0, if_installed: bool = False
 ) -> str:
-    """Ends the daemon's task and waits until the task no longer runs and nothing answers on ``port``.
+    """Ends the daemon's task and waits until the task no longer runs and nothing answers on ``port``. The task is
+    disabled, so it stays stopped (its triggers do not start it) until `start` (or a new `register`).
 
     Args:
         port: The daemon's port (from its settings).
@@ -196,6 +245,7 @@ def stop(
         raise OSError(f"The {TASK_NAME} task is not installed: run `clabe daemon install` first.")
     if not force:
         _refuse_if_busy(port, token, "stopping it")
+    _set_enabled(False)  # first: its repeating trigger must not start it again
     _schtasks("/End", "/TN", TASK_NAME)
     deadline = time.monotonic() + timeout
     while task_state() == "Running" or probe(port, token, timeout=0.5) is not None:
@@ -216,6 +266,7 @@ def start(port: int, token: str | None, *, timeout: float = 60.0) -> str:
     """
     if task_state() is None:
         raise OSError(f"The {TASK_NAME} task is not installed: run `clabe daemon install` first.")
+    _set_enabled(True)  # `stop` disabled it
     started = _schtasks("/Run", "/TN", TASK_NAME)
     if started.returncode != 0:
         raise OSError(f"Could not start the {TASK_NAME} task: {started.stderr.strip() or started.stdout.strip()}")
@@ -314,3 +365,45 @@ def start_task(host: str | None = None) -> None:
     started = _schtasks("/Run", *(("/S", host) if host else ()), "/TN", TASK_NAME)
     if started.returncode != 0:
         raise OSError(f"Could not start {TASK_NAME} on {host or 'this machine'}: {started.stderr.strip()}")
+
+
+def _restart_script(pid: int) -> str:
+    """PowerShell that waits for process ``pid`` (the daemon) to end and its task to leave ``Running`` (a start
+    while it runs would be ignored), then enables and starts the task."""
+    task = TASK_NAME.replace("'", "''")
+    return (
+        f"Wait-Process -Id {int(pid)} -Timeout 60 -ErrorAction SilentlyContinue; "
+        "$deadline = (Get-Date).AddSeconds(60); "
+        f"while ((Get-ScheduledTask -TaskName '{task}').State -eq 'Running' -and (Get-Date) -lt $deadline) "
+        "{ Start-Sleep -Milliseconds 500 }; "
+        f"Enable-ScheduledTask -TaskName '{task}' | Out-Null; Start-ScheduledTask -TaskName '{task}'"
+    )
+
+
+def restart_later(pid: int) -> None:
+    """Has the task start the daemon again once process ``pid`` (this daemon) has ended: what the daemon does before
+    ending itself when asked to restart (``POST /api/daemon/restart``). A hidden PowerShell outside the task does it.
+
+    Raises:
+        OSError: Not on Windows, or the task is not installed (this daemon was not started by its task).
+    """
+    if sys.platform != "win32":
+        raise OSError("Only the daemon's Windows task can restart it: restart it from your session manager.")
+    if task_state() is None:
+        raise OSError(f"The {TASK_NAME} task is not installed: this daemon was not started by it, restart it by hand.")
+    command = ["powershell", "-NoProfile", "-NonInteractive", "-Command", _restart_script(pid)]
+    flags = NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP
+    for extra in (subprocess.CREATE_BREAKAWAY_FROM_JOB, 0):  # outside the task's job, when the job allows it
+        try:
+            subprocess.Popen(
+                command,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                creationflags=flags | extra,
+                close_fds=True,
+            )
+            return
+        except OSError:
+            if not extra:
+                raise

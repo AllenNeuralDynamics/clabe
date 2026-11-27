@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field, ValidationError
 from ..server import free_port
 from ..server._server import ANNOUNCE_ENV
 from ..workflow import ExperimentListing
+from ._process import NO_WINDOW
 from ._settings import MAIN_FILE, DaemonSettings, RepositoryConfig
 
 logger = logging.getLogger(__name__)
@@ -257,7 +258,13 @@ class Host:
         command = self._command(repository, "list", MAIN_FILE, "--json")
         try:
             done = subprocess.run(
-                command, cwd=repository.path, capture_output=True, text=True, timeout=LIST_TIMEOUT, check=False
+                command,
+                cwd=repository.path,
+                capture_output=True,
+                text=True,
+                timeout=LIST_TIMEOUT,
+                check=False,
+                creationflags=NO_WINDOW,
             )
         except (OSError, subprocess.TimeoutExpired) as exc:
             raise HostError(f"Could not list the experiments of {name}: {exc}", status=502) from exc
@@ -300,7 +307,7 @@ class Host:
                     stdout=output,
                     stderr=subprocess.STDOUT,
                     env=env,
-                    creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0,
+                    creationflags=(subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0) | NO_WINDOW,
                 )
             self._current = _Launched(body, process, log, announce, token)
             return self._current.info()

@@ -41,6 +41,7 @@ from ..remote._models import (
     Share,
     WorkerInfo,
 )
+from ._process import NO_WINDOW
 from ._settings import DaemonSettings, RepositoryConfig
 
 logger = logging.getLogger(__name__)
@@ -203,7 +204,12 @@ class Worker:
         with trace.use_span(span, end_on_exit=True):
             try:
                 job.process = subprocess.Popen(
-                    job.cmd, cwd=job.cwd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+                    job.cmd,
+                    cwd=job.cwd,
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    creationflags=NO_WINDOW,
                 )
                 stdout, stderr = _pump(job)
             except OSError as exc:
@@ -366,7 +372,7 @@ def list_shares() -> list[Share]:
     try:
         done = subprocess.run(
             ["powershell", "-NoProfile", "-NonInteractive", "-Command", query],
-            capture_output=True, text=True, timeout=20, check=True,
+            capture_output=True, text=True, timeout=20, check=True, creationflags=NO_WINDOW,
         )  # fmt: skip
         listed = json.loads(done.stdout) if done.stdout.strip() else []
     except (OSError, subprocess.SubprocessError, ValueError):
