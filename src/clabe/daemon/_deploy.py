@@ -243,7 +243,19 @@ def install_environment(request: Request, *, python: str | None = None) -> tuple
     python = python or f"{sys.version_info.major}.{sys.version_info.minor}"
     try:
         _run([uv, "venv", "--quiet", "--relocatable", "--python", python, str(staging)])
-        _run([uv, "pip", "install", "--quiet", "--python", str(_python(staging)), request.spec])
+        _run(
+            [
+                uv,
+                "pip",
+                "install",
+                "--quiet",
+                "--refresh-package",
+                PACKAGE,
+                "--python",
+                str(_python(staging)),
+                request.spec,
+            ]
+        )
         found = _probe(staging)
         commit = found.get("commit")
         url = None if commit or not found.get("url") else found["url"]

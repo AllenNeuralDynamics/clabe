@@ -89,7 +89,7 @@ def test_as_a_file_with_arguments():
         "-File", str(SCRIPT), "-Version", "0.18.0", "-Hubs", "http://a/;http://b/", "-Token", "t0k", "-DryRun"
     )
     commands = _commands(lines)
-    assert commands[0].endswith("tool install --upgrade aind-clabe[frontend,otel]")  # the latest: it has `deploy`
+    assert commands[0].endswith("tool install --upgrade aind-clabe[frontend,otel]>=0.18.0rc2")
     assert commands[1].endswith("tool update-shell")
     assert commands[2].endswith("clabe.exe daemon deploy --timeout 120 --version 0.18.0 --hubs http://a/;http://b/")
     assert commands[3].endswith("clabe.exe daemon status")
@@ -100,7 +100,7 @@ def test_piped_into_iex_with_environment_variables():
     """What `irm <url> | iex` does: no arguments, options from DAEMON_CLABE_* variables."""
     env = {"DAEMON_CLABE_LOCK": "C:/git/Aind.Experiment.X", "DAEMON_CLABE_FORCE": "1", "DAEMON_CLABE_DRY_RUN": "1"}
     commands = _commands(_powershell("-Command", f"Get-Content -Raw '{SCRIPT}' | Invoke-Expression", env=env))
-    assert commands[0].endswith("tool install --upgrade aind-clabe[frontend,otel]")
+    assert commands[0].endswith("tool install --upgrade aind-clabe[frontend,otel]>=0.18.0rc2")
     assert commands[2].endswith("daemon deploy --timeout 120 --lock C:/git/Aind.Experiment.X --force")
 
 

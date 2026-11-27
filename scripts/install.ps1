@@ -156,7 +156,7 @@ function Install-Clabe {
 
     # The latest clabe, whatever the daemon runs: it is only the command (`clabe daemon deploy` installs the daemon's
     # own), and an older release has no `clabe daemon deploy`.
-    $cliSpec = if ($CliPackage) { $CliPackage } else { 'aind-clabe[frontend,otel]' }
+    $cliSpec = if ($CliPackage) { $CliPackage } else { 'aind-clabe[frontend,otel]>=0.18.0rc2' }
     try {
         Invoke-Step "Installing the clabe command ($cliSpec)" $uv @('tool', 'install', '--upgrade', $cliSpec)
     } catch {
