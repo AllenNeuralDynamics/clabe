@@ -18,8 +18,9 @@
         -Token      / DAEMON_CLABE_TOKEN        the daemon's token, saved as this user's DAEMON_CLABE_TOKEN
         -Config     / DAEMON_CLABE_CONFIG       a clabe.yml to install as %PROGRAMDATA%\clabe.yml: a path on this PC, or -
                                                 to read it from standard input (over SSH: ssh rig "..." < clabe.yml)
-        -CliPackage / DAEMON_CLABE_CLI_PACKAGE  the uv requirement of the `clabe` command (default: the latest
-                                                release, whatever -Version the daemon runs)
+        -CliPackage / DAEMON_CLABE_CLI_PACKAGE  the uv requirement of the `clabe` command (default: the newest
+                                                release from 0.18.0rc2, the first with `clabe daemon deploy`,
+                                                whatever -Version the daemon runs)
         -StopDaemon / DAEMON_CLABE_STOP=1       only install the clabe command and stop the daemon (e.g. before updating
                                                 an experiment's environment); deploy later
         -Force      / DAEMON_CLABE_FORCE=1      stop or restart the daemon even if it runs a session (it is interrupted)
@@ -54,6 +55,8 @@ function Install-Clabe {
     $ErrorActionPreference = 'Stop'
     $ProgressPreference = 'SilentlyContinue'
     $taskName = 'clabe-daemon'
+    # The first clabe whose command has `clabe daemon deploy`: the clabe command is never older.
+    $minimumCli = '0.18.0rc2'
 
     function Invoke-Step([string]$Description, [string]$Program, [string[]]$Arguments) {
         Write-Host "==> $Description"
@@ -154,9 +157,10 @@ function Install-Clabe {
         $stoppedOld = $true
     }
 
-    # The latest clabe, whatever the daemon runs: it is only the command (`clabe daemon deploy` installs the daemon's
-    # own), and an older release has no `clabe daemon deploy`.
-    $cliSpec = if ($CliPackage) { $CliPackage } else { 'aind-clabe[frontend,otel]' }
+    # The newest clabe from the first with `clabe daemon deploy`, whatever the daemon runs: it is only the command
+    # (`clabe daemon deploy` installs the daemon's own). The floor names a pre-release, so uv may pick pre-releases:
+    # without it uv takes the newest stable release, which may predate `deploy`.
+    $cliSpec = if ($CliPackage) { $CliPackage } else { "aind-clabe[frontend,otel]>=$minimumCli" }
     try {
         Invoke-Step "Installing the clabe command ($cliSpec)" $uv @('tool', 'install', '--upgrade', $cliSpec)
     } catch {
