@@ -192,7 +192,9 @@ def _record_run_order(launcher, experiment):
         patch.object(Launcher, "validate", return_value=True),
         patch.object(Launcher, "copy_logs", lambda self, *a, **k: order.append("copy_logs")),
         patch.object(
-            Launcher, "_exit", lambda self, code=0, _force=False, timeout=None: order.append(f"_exit({code})")
+            Launcher,
+            "_exit",
+            lambda self, code=0, _force=False, timeout=None, failed=False: order.append(f"_exit({code})"),
         ),
     ):
         launcher.run_experiment(experiment)
@@ -231,7 +233,9 @@ def test_failed_log_copy_still_exits_with_an_error_code(mock_base_launcher):
         patch.object(Launcher, "validate", return_value=True),
         patch.object(Launcher, "copy_logs", boom),
         patch.object(
-            Launcher, "_exit", lambda self, code=0, _force=False, timeout=None: order.append(f"_exit({code})")
+            Launcher,
+            "_exit",
+            lambda self, code=0, _force=False, timeout=None, failed=False: order.append(f"_exit({code})"),
         ),
     ):
         mock_base_launcher.run_experiment(lambda launcher: None)
@@ -248,8 +252,8 @@ def _record_exit_call(launcher, experiment):
         patch.object(
             Launcher,
             "_exit",
-            lambda self, code=0, _force=False, timeout=None: calls.append(
-                {"code": code, "_force": _force, "timeout": timeout}
+            lambda self, code=0, _force=False, timeout=None, failed=False: calls.append(
+                {"code": code, "_force": _force, "timeout": timeout, "failed": failed}
             ),
         ),
     ):
@@ -260,7 +264,7 @@ def _record_exit_call(launcher, experiment):
 
 def test_exit_prompt_shown_by_default(mock_base_launcher):
     call = _record_exit_call(mock_base_launcher, lambda launcher: None)
-    assert call == {"code": 0, "_force": False, "timeout": None}
+    assert call == {"code": 0, "_force": False, "timeout": None, "failed": False}
 
 
 @pytest.mark.parametrize("timeout", [0, 60.0, None])
@@ -359,7 +363,7 @@ def test_run_experiment_runs_a_workflow_whose_prompts_reach_the_run(mock_base_la
 
     call = _record_exit_call(mock_base_launcher, wf)
 
-    assert call == {"code": 0, "_force": False, "timeout": 0}
+    assert call == {"code": 0, "_force": False, "timeout": 0, "failed": False}
     assert seen == [True]
     assert isinstance(mock_base_launcher.client, MockFrontend)  # the client given at construction is kept
     events = (mock_base_launcher.temp_dir / "events.jsonl").read_text(encoding="utf-8")
@@ -374,7 +378,8 @@ def test_an_aborted_run_exits_with_an_error_code(mock_base_launcher):
     def a():
         raise Abort("no rig")
 
-    assert _record_exit_call(mock_base_launcher, wf)["code"] == -1
+    call = _record_exit_call(mock_base_launcher, wf)
+    assert call["code"] == -1 and not call["failed"]  # an abort is deliberate: the normal timeout applies
 
 
 def test_a_failing_legacy_experiment_can_be_aborted(mock_base_launcher, mock_frontend):
@@ -383,7 +388,8 @@ def test_a_failing_legacy_experiment_can_be_aborted(mock_base_launcher, mock_fro
     def boom(launcher):
         raise RuntimeError("x")
 
-    assert _record_exit_call(mock_base_launcher, boom)["code"] == -1
+    call = _record_exit_call(mock_base_launcher, boom)
+    assert call["code"] == -1 and call["failed"]  # an error: whoever watches has to close it
     mock_frontend._ask_pick_mock.assert_called_once()
 
 
@@ -416,7 +422,7 @@ def test_a_failed_log_copy_is_recorded_as_the_manifest_exit_code(mock_base_launc
     with (
         patch.object(Launcher, "validate", return_value=True),
         patch.object(Launcher, "copy_logs", boom),
-        patch.object(Launcher, "_exit", lambda self, code=0, _force=False, timeout=None: None),
+        patch.object(Launcher, "_exit", lambda self, code=0, _force=False, timeout=None, failed=False: None),
     ):
         mock_base_launcher.run_experiment(lambda launcher: None)
 

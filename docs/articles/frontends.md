@@ -147,6 +147,9 @@ wf = Workflow("vr-foraging", exit_prompt_timeout=60)
 
 - A headless served run (started by the daemon) waits up to `N` seconds for a browser to close it. With `None` or
   `0`, it exits at once.
+- A run that failed with an error (not an abort) is not closed while someone may be looking at it. In the terminal,
+  it waits for Enter. Headless, it waits while a browser has the run open, and closes once none has for `N` seconds
+  (at once with `None` or `0`), so a rig nobody looks at is not kept busy.
 
 ## Export logs and report an issue
 

@@ -17,7 +17,8 @@ wf.step(steps.session())  # a `session` step: who is running, on which animal
 
 - `exit_prompt_timeout`: with `None` the run waits for a client to close the session, with `0` it exits at once, and
   with `N` it counts down `N` seconds. After a failure or abort, `0` waits as `None` does, so the error stays on
-  screen.
+  screen. A run that failed with an error waits until someone closes it, or headless, until no browser has had it
+  open for `N` seconds (see [The end of a run](frontends.md#the-end-of-a-run)).
 
 ## 2. Add your own steps
 

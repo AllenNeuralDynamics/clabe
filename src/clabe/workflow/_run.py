@@ -362,6 +362,7 @@ class Run:
         self._session_scope = contextlib.ExitStack()  # the run's binding as the process' session (see start())
         self._answers: dict[_PromptKey, tuple[Any, Any]] = {}  # identity -> (validated answer, its JSON form)
         self._kept_open = False
+        self._viewers = 0  # clients following the run's events (see watching)
         self._closing: ClosingState | None = None
         self._closed = threading.Event()
         self._context: RunContext | None = None  # the latest ContextChanged (see _update_context)
@@ -1252,6 +1253,23 @@ class Run:
         """Whether the session stays open after the run finishes (see `keep_open`)."""
         with self._lock:
             return self._kept_open
+
+    @contextlib.contextmanager
+    def watching(self) -> Generator[None, None, None]:
+        """Counts a client as watching the run while the block executes (e.g. a browser following its events)."""
+        with self._lock:
+            self._viewers += 1
+        try:
+            yield
+        finally:
+            with self._lock:
+                self._viewers -= 1
+
+    @property
+    def viewers(self) -> int:
+        """How many clients watch the run now (see `watching`)."""
+        with self._lock:
+            return self._viewers
 
     def begin_closing(self, deadline: datetime.datetime | None = None) -> None:
         """Shows the closing screen: records ``RunClosing`` and exposes it in `state` (``closing``).

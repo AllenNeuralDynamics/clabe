@@ -176,3 +176,70 @@ def test_the_server_stays_up_until_a_browser_closes_the_session(mock_base_launch
     assert closed == [{"ok": True, "reason": None}]
     with pytest.raises(requests.ConnectionError):
         requests.get(f"{base}/state", timeout=1)
+
+
+def _watched_for(run: Run, seconds: float) -> threading.Thread:
+    """A browser watching ``run`` (following its events) for ``seconds``."""
+
+    def watch() -> None:
+        with run.watching():
+            time.sleep(seconds)
+
+    thread = threading.Thread(target=watch, daemon=True)
+    thread.start()
+    return thread
+
+
+def test_a_failed_run_waits_for_someone_at_the_screen_whatever_the_timeout(mock_base_launcher, mock_frontend):
+    with patch("clabe.launcher._base.ui.text") as exit_prompt:
+        mock_base_launcher._exit(-1, timeout=60, failed=True)
+    assert exit_prompt.call_args.args[0] == "Press Enter to exit..."  # no "closing automatically"
+
+
+def test_a_failed_headless_run_closes_once_nobody_watches(mock_base_launcher):
+    mock_base_launcher.client = HeadlessClient()
+    run = _finished_run()
+    mock_base_launcher._served_run = run
+    started = time.monotonic()
+    mock_base_launcher._exit(-1, timeout=0.3, failed=True)
+    assert time.monotonic() - started < 3
+    assert _closed_by(run) == "timeout"
+    assert run.state().closing.deadline is None  # no countdown is shown: whoever watches closes it
+
+
+def test_a_failed_headless_run_stays_open_while_a_browser_watches(mock_base_launcher):
+    mock_base_launcher.client = HeadlessClient()
+    run = _finished_run()
+    mock_base_launcher._served_run = run
+    browser = _watched_for(run, 1.5)
+    time.sleep(0.05)
+    started = time.monotonic()
+    mock_base_launcher._exit(-1, timeout=0.2, failed=True)
+    assert time.monotonic() - started >= 1.4  # kept open while watched, though the timeout is 0.2 s
+    browser.join(5)
+    assert _closed_by(run) == "timeout"
+
+
+def test_a_failed_headless_run_is_closed_by_the_browser_watching_it(mock_base_launcher):
+    mock_base_launcher.client = HeadlessClient()
+    run = _finished_run()
+    mock_base_launcher._served_run = run
+    browser = _watched_for(run, 5)
+    closer = _close_when_shown(run)
+    mock_base_launcher._exit(-1, timeout=0, failed=True)
+    closer.join(5)
+    browser.join(6)
+    assert _closed_by(run) == "pc-2"
+
+
+def test_an_aborted_headless_run_keeps_its_timeout(mock_base_launcher):
+    """An abort is deliberate: unlike a failure, it is not kept open for whoever watches."""
+    mock_base_launcher.client = HeadlessClient()
+    run = _finished_run()
+    mock_base_launcher._served_run = run
+    browser = _watched_for(run, 5)
+    started = time.monotonic()
+    mock_base_launcher._exit(-1, timeout=0.2)
+    assert time.monotonic() - started < 2
+    assert _closed_by(run) == "timeout"
+    browser.join(6)
