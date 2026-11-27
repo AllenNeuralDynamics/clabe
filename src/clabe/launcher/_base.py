@@ -122,6 +122,7 @@ class Launcher:
         self._serving = contextlib.ExitStack()  # the run server, kept up until the launcher exits (see _exit)
         self._served_run: Run | None = None
         self._last_run: Run | None = None  # the run an issue report from the exit prompt is about
+        self._outcome: str | None = None  # how the run ended: completed, aborted or failed (see _record_outcome)
 
     @property
     def client(self) -> Client:
@@ -323,7 +324,7 @@ class Launcher:
                     _code = -1
                     self._record_exit_code(_code)
         try:
-            self._exit(_code, timeout=workflow.exit_prompt_timeout)
+            self._exit(_code, timeout=workflow.exit_prompt_timeout, failed=self._outcome == "failed")
         finally:
             self._stop_serving()
 
@@ -441,6 +442,7 @@ class Launcher:
 
     def _record_outcome(self, status: str, reason: str | None, exit_code: int) -> None:
         """Adds the outcome to the run manifest, if one was started, and rewrites it."""
+        self._outcome = status
         if self._manifest is None:
             return
         finish_manifest(self._manifest, status=status, reason=reason, exit_code=exit_code)
@@ -549,7 +551,7 @@ class Launcher:
 
         return _str
 
-    def _exit(self, code: int = 0, _force: bool = False, timeout: float | None = None) -> None:
+    def _exit(self, code: int = 0, _force: bool = False, timeout: float | None = None, failed: bool = False) -> None:
         """
         Exits the launcher with the specified exit code.
 
@@ -561,6 +563,10 @@ class Launcher:
         (no one at its screen) waits ``timeout`` seconds for a browser to close the session, and exits at once when
         ``timeout`` is ``None`` or ``0`` (so daemon runs never hang). The run server stops after the wait.
 
+        A run that failed (an error, not an abort) is never closed under someone's eyes: at the launcher's screen
+        the prompt waits for them; headless, the closing screen waits while a browser watches the run, and closes
+        once none has for ``timeout`` seconds (at once with ``None`` or ``0``).
+
         Args:
             code: The exit code to use. Defaults to 0
             _force: Whether to force exit without user prompt. Defaults to False
@@ -568,9 +574,11 @@ class Launcher:
                 ``None`` waits until the user presses Enter; ``0`` skips the
                 prompt after a successful run (after a failure or abort, it waits as ``None`` does, so the user sees
                 what went wrong). Defaults to None
+            failed: The run failed with an error: someone watching has to close it.
         """
         logger.debug("Exiting with code %s", code)
-        if code != 0 and timeout == 0:
+        unwatched_timeout = timeout or 0  # headless, failed: how long nobody may watch before it closes
+        if (code != 0 and timeout == 0) or failed:
             timeout = None
         if logger is not None:
             clabe_logging.shutdown_logger(logger)
@@ -578,7 +586,9 @@ class Launcher:
         interactive = getattr(self.client, "interactive", True)
         if not interactive:
             _force = True  # nobody is at the screen to dismiss an exit prompt
-        if run is not None and not interactive and timeout:
+        if run is not None and not interactive and failed:
+            self._wait_for_close_while_watched(run, unwatched_timeout)  # headless: whoever watches closes it
+        elif run is not None and not interactive and timeout:
             self._wait_for_close(run, timeout)  # headless: give browsers a chance to close the session
         elif not _force and timeout != 0:
             if run is not None:
@@ -635,6 +645,24 @@ class Launcher:
         run.begin_closing(_deadline(timeout))
         if not run.wait_closed(timeout):
             run.close(client="timeout")
+
+    @staticmethod
+    def _wait_for_close_while_watched(run: Run, unwatched: float, poll: float = 0.5) -> None:
+        """Shows the closing screen of the failed, served ``run`` until a client closes it: with no deadline while a
+        browser watches the run, so the failure is seen; once none has for ``unwatched`` seconds, it closes, so a
+        rig nobody looks at is not kept busy."""
+        run.begin_closing(None)
+        since: float | None = None  # when the run was last watched
+        while not run.wait_closed(poll):
+            if run.viewers > 0:
+                since = None
+                continue
+            now = time.monotonic()
+            if since is None:
+                since = now
+            if now - since >= unwatched:
+                run.close(client="timeout")
+                return
 
     @contextlib.contextmanager
     def _cancel_prompt_after(self, timeout: float | None, run: Run | None = None) -> Generator[None]:

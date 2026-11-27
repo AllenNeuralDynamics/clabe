@@ -253,26 +253,27 @@ async def _event_stream(run: Run, request: Request, start: int) -> AsyncIterable
             loop.call_soon_threadsafe(queue.put_nowait, event)
 
     unsubscribe = run.events.subscribe(forward)  # subscribe before reading the backlog: no gap
-    try:
-        last = start
-        for event in run.events.since(start):
-            last = event.seq
-            yield event
-            if _is_last(run, event):
-                return
-        while not await request.is_disconnected():
-            try:
-                event = await asyncio.wait_for(queue.get(), timeout=1.0)
-            except TimeoutError:
-                continue
-            if event.seq <= last:
-                continue
-            last = event.seq
-            yield event
-            if _is_last(run, event):
-                return
-    finally:
-        unsubscribe()
+    with run.watching():  # an open stream: someone watches the run (a failed run waits for them)
+        try:
+            last = start
+            for event in run.events.since(start):
+                last = event.seq
+                yield event
+                if _is_last(run, event):
+                    return
+            while not await request.is_disconnected():
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=1.0)
+                except TimeoutError:
+                    continue
+                if event.seq <= last:
+                    continue
+                last = event.seq
+                yield event
+                if _is_last(run, event):
+                    return
+        finally:
+            unsubscribe()
 
 
 def _session_over(run: Run) -> bool:

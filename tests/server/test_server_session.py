@@ -197,3 +197,28 @@ def test_report_without_records_includes_what_the_launcher_knows(serve, tmp_path
         "abc",
     )
     assert zipfile.ZipFile(io.BytesIO(client.export())).namelist()  # no records: still a bundle
+
+
+def test_a_browser_following_the_events_watches_the_run(serve):
+    wf = Workflow("demo")
+    wf.step(lambda: 1, name="a")
+    run = Run(wf)
+    run.keep_open()
+    client = serve(run)
+    assert run.viewers == 0
+    follower = threading.Thread(target=lambda: list(client._stream(0)), daemon=True)
+    follower.start()
+    deadline = time.monotonic() + 5
+    while run.viewers == 0 and time.monotonic() < deadline:
+        time.sleep(0.02)
+    assert run.viewers == 1
+    run.start()
+    assert run.wait(5)
+    run.begin_closing(None)
+    assert run.viewers == 1  # still watching the closing screen
+    assert client.close().ok
+    follower.join(5)
+    deadline = time.monotonic() + 5
+    while run.viewers and time.monotonic() < deadline:
+        time.sleep(0.02)
+    assert run.viewers == 0  # the stream ended: nobody watches
