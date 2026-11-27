@@ -89,7 +89,6 @@ def test_as_a_file_with_arguments():
         "-File", str(SCRIPT), "-Version", "0.18.0", "-Hubs", "http://a/;http://b/", "-Token", "t0k", "-DryRun"
     )
     commands = _commands(lines)
-    # At least the first clabe with `deploy`: the floor names a pre-release, so uv may pick one (0.17.0 has no deploy)
     assert commands[0].endswith("tool install --upgrade aind-clabe[frontend,otel]>=0.18.0rc2")
     assert commands[1].endswith("tool update-shell")
     assert commands[2].endswith("clabe.exe daemon deploy --timeout 120 --version 0.18.0 --hubs http://a/;http://b/")

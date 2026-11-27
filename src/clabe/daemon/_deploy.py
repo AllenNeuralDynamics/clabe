@@ -243,7 +243,6 @@ def install_environment(request: Request, *, python: str | None = None) -> tuple
     python = python or f"{sys.version_info.major}.{sys.version_info.minor}"
     try:
         _run([uv, "venv", "--quiet", "--relocatable", "--python", python, str(staging)])
-        # --refresh-package: a release published minutes ago may be missing from uv's cached index ("no version").
         _run(
             [
                 uv,

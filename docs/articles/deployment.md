@@ -31,7 +31,7 @@ The installer:
 
 1. Installs uv if it is missing. Stops if the daemon runs a session (busy or leased) and `-Force` is not set.
 2. Sets `DAEMON_CLABE_TOKEN` and `%PROGRAMDATA%\clabe.yml`, when given.
-3. Installs or updates the `clabe` command to the newest release from `0.18.0rc2`, the first with `clabe daemon deploy` (`uv tool install --upgrade`), and adds it to the user's PATH (`uv tool update-shell`). The command may be a pre-release: it only installs and switches the daemon, which runs the version you deploy.
+3. Installs or updates the `clabe` command to the latest release (`uv tool install --upgrade`), and adds it to the user's PATH (`uv tool update-shell`).
 4. Runs [`clabe daemon deploy`](#update-and-go-back), which installs the daemon's clabe and starts the daemon.
 
 Running it again is safe: the same command installs, updates and repairs.
@@ -45,7 +45,7 @@ Running it again is safe: the same command installs, updates and repairs.
 | `-Hubs` | `DAEMON_CLABE_DEPLOY_HUBS` | Hubs to enroll with, `;`-separated; `none` for no hub (default: unchanged) |
 | `-Token` | `DAEMON_CLABE_TOKEN` | Daemon token, saved as the user's `DAEMON_CLABE_TOKEN` |
 | `-Config` | `DAEMON_CLABE_CONFIG` | The experiments' `clabe.yml` to install as `%PROGRAMDATA%\clabe.yml`; `-` reads it from standard input |
-| `-CliPackage` | `DAEMON_CLABE_CLI_PACKAGE` | uv requirement of the `clabe` command (default: the newest release from `0.18.0rc2`, the first with `deploy`, whatever `-Version` the daemon runs) |
+| `-CliPackage` | `DAEMON_CLABE_CLI_PACKAGE` | uv requirement of the `clabe` command (default: the latest release, whatever `-Version` the daemon runs) |
 | `-StopDaemon` | `DAEMON_CLABE_STOP=1` | Only install the `clabe` command and stop the daemon; deploy later |
 | `-Force` | `DAEMON_CLABE_FORCE=1` | Stop or restart the daemon even during a session (it is interrupted) |
 | `-DryRun` | `DAEMON_CLABE_DRY_RUN=1` | Print the commands only |
