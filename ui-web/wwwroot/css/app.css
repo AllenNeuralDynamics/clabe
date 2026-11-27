@@ -46,6 +46,7 @@ button.ghost-danger:hover:not(:disabled) { background: var(--err-soft); }
 }
 .run-brand { gap: 10px; min-width: 0; }
 .run-brand img { width: auto; height: 24px; border-radius: 6px; }
+.run-brand .home { display: inline-flex; flex: 0 0 auto; border-radius: 6px; }
 .run-name { font-size: var(--text-lg); font-weight: 650; letter-spacing: -0.015em; max-width: 32ch; }
 .run-elapsed .ri { color: var(--text-3); }
 .run-elapsed { display: inline-flex; align-items: center; gap: 6px; color: var(--text-2); font-size: var(--text-sm); font-variant-numeric: tabular-nums; min-width: 4.5em; }

@@ -26,6 +26,28 @@ public sealed class RunApi(HttpClient http)
     private string BrowserUrl(string path) =>
         new Uri(http.BaseAddress!, Token is null ? path : $"{path}?token={Uri.EscapeDataString(Token)}").ToString();
 
+    /// <summary>The home page the clabe logo links to: the hub's (from a rig's page or run, under
+    /// <c>rigs/&lt;id&gt;/</c>), the daemon's (from its run, under <c>run/</c>), or else this page's root. It keeps
+    /// the hub's prefix (e.g. <c>/clabe/</c>) and the token.</summary>
+    public string HomeUrl
+    {
+        get
+        {
+            var path = http.BaseAddress!.AbsolutePath;
+            var rigs = path.IndexOf("/rigs/", StringComparison.Ordinal);
+            if (rigs >= 0)
+            {
+                path = path[..(rigs + 1)];
+            }
+            else if (path.EndsWith("/run/", StringComparison.Ordinal))
+            {
+                path = path[..^"run/".Length];
+            }
+            var url = new Uri(http.BaseAddress, path).ToString();
+            return Token is null ? url : $"{url}?token={Uri.EscapeDataString(Token)}";
+        }
+    }
+
     /// <summary>The event stream's URL.</summary>
     public string EventsUrl => BrowserUrl("api/events");
 

@@ -149,6 +149,10 @@ def test_the_hub_page_leads_from_the_inbox_to_the_run(fleet):
         page.get_by_label("Subject").fill("mouse-12")
         page.get_by_role("button", name="Submit").click()
         page.get_by_role("heading", name="Run completed").wait_for()
+        # the logo leads back home: from the rig's run, the hub's page (not the rig's)
+        page.get_by_role("link", name="clabe: home").click()
+        page.wait_for_url(f"{base}/")  # the token stays in its cookie, out of the address
+        page.get_by_role("tab", name="Rigs").wait_for()
         browser.close()
 
 
