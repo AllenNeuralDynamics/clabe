@@ -31,7 +31,7 @@ The installer:
 
 1. Installs uv if it is missing. Stops if the daemon runs a session (busy or leased) and `-Force` is not set.
 2. Sets `DAEMON_CLABE_TOKEN` and `%PROGRAMDATA%\clabe.yml`, when given.
-3. Installs or updates the `clabe` command to the latest release (`uv tool install --upgrade`), and adds it to the user's PATH (`uv tool update-shell`).
+3. Installs or updates the `clabe` command to the latest release (`uv tool install --upgrade --force`), and adds it to the user's PATH (`uv tool update-shell`).
 4. Runs [`clabe daemon deploy`](#update-and-go-back), which installs the daemon's clabe and starts the daemon.
 
 Running it again is safe: the same command installs, updates and repairs.
