@@ -77,10 +77,38 @@ class RunInfo(BaseModel):
     log_tail: list[str] = []
 
 
+#: The environment variable that names an Allen Institute rig (e.g. ``"RIG_12"``), set machine-wide on rig PCs.
+RIG_ID_ENV = "AIBS_RIG_ID"
+
+
+def rig_id() -> str | None:
+    """This rig's name at the Allen Institute (``AIBS_RIG_ID``), or ``None`` when it is not set."""
+    return os.environ.get(RIG_ID_ENV, "").strip() or None
+
+
+def ip_address() -> str | None:
+    """This machine's IPv4 address (that of the interface with the default route), or ``None`` when it has none."""
+    import socket
+
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+            probe.connect(("10.255.255.255", 1))  # UDP: sends nothing, only picks the outgoing interface
+            return probe.getsockname()[0]
+    except OSError:
+        pass
+    try:
+        address = socket.gethostbyname(socket.gethostname())
+    except OSError:
+        return None
+    return None if address.startswith("127.") else address
+
+
 class HostInfo(BaseModel):
     """Who the host is and whether it is busy."""
 
     hostname: str
+    rig_id: str | None = Field(default=None, description="The rig's name at the Allen Institute (AIBS_RIG_ID), if set")
+    ip: str | None = Field(default=None, description="This machine's IPv4 address, if it has one")
     clabe_version: str
     status: Literal["idle", "busy", "leased"]
     run: RunInfo | None
@@ -327,7 +355,13 @@ class Host:
         owner = self._leased_by()
         status = "busy" if busy else "leased" if owner is not None else "idle"
         return HostInfo(
-            hostname=socket.gethostname(), clabe_version=__version__, status=status, run=run, leased_by=owner
+            hostname=socket.gethostname(),
+            rig_id=rig_id(),
+            ip=ip_address(),
+            clabe_version=__version__,
+            status=status,
+            run=run,
+            leased_by=owner,
         )
 
     def busy(self) -> bool:

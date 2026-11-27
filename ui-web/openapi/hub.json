@@ -171,6 +171,21 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "HubInfo": {
+        "description": "The hub itself.",
+        "properties": {
+          "clabe_version": {
+            "description": "The clabe the hub runs",
+            "title": "Clabe Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "clabe_version"
+        ],
+        "title": "HubInfo",
+        "type": "object"
+      },
       "InspectResult": {
         "description": "An export opened for a look (not stored): its id, its files, and its ``report.json`` if it has one.",
         "properties": {
@@ -523,6 +538,18 @@
             "title": "Id",
             "type": "string"
           },
+          "ip": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The rig's IPv4 address, as it reports it",
+            "title": "Ip"
+          },
           "leased_by": {
             "anyOf": [
               {
@@ -579,6 +606,18 @@
               }
             ],
             "title": "Repository"
+          },
+          "rig_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The rig's name at the Allen Institute (AIBS_RIG_ID), if set",
+            "title": "Rig Id"
           },
           "run_status": {
             "anyOf": [
@@ -1279,6 +1318,25 @@
           }
         },
         "summary": "Inbox"
+      }
+    },
+    "/api/hub/info": {
+      "get": {
+        "description": "The hub's own clabe version (shown next to its name).",
+        "operationId": "info_api_hub_info_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HubInfo"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Info"
       }
     },
     "/api/hub/inspect": {

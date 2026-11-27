@@ -33,6 +33,21 @@ class ExcludeBody(BaseModel):
     comment: str | None = Field(default=None, description="Why it is excluded")
 
 
+class HubInfo(BaseModel):
+    """The hub itself."""
+
+    clabe_version: str = Field(description="The clabe the hub runs")
+
+
+def _info_routes(api: APIRouter) -> None:
+    """``GET /info``: the hub itself."""
+
+    @api.get("/info", response_model=HubInfo)
+    def info() -> HubInfo:
+        """The hub's own clabe version (shown next to its name)."""
+        return HubInfo(clabe_version=__version__)
+
+
 class TokenBody(BaseModel):
     """A rig's own daemon token, or null to clear it."""
 
@@ -148,6 +163,8 @@ def create_hub_app(
     app.add_middleware(RequireToken, token=token, prefix="/mcp")
     check = token_check(token)
     api = APIRouter(prefix="/api/hub", dependencies=[Depends(check)])
+
+    _info_routes(api)
 
     @api.get("/rigs", response_model=list[RigStatus])
     def rigs() -> list[RigStatus]:

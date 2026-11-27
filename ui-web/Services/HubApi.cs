@@ -42,6 +42,9 @@ public sealed class HubApi(HttpClient http, RunApi run)
         }
     }
 
+    public async Task<HubInfo> InfoAsync() =>
+        (await http.GetFromJsonAsync<HubInfo>("api/hub/info", Json.Options))!;
+
     public async Task<List<RigStatus>> RigsAsync() =>
         (await http.GetFromJsonAsync<List<RigStatus>>("api/hub/rigs", Json.Options))!;
 

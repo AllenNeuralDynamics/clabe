@@ -159,6 +159,18 @@
             "title": "Hostname",
             "type": "string"
           },
+          "ip": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "This machine's IPv4 address, if it has one",
+            "title": "Ip"
+          },
           "leased_by": {
             "anyOf": [
               {
@@ -175,6 +187,18 @@
             "description": "Issue reports on this machine, not collected by the hub yet",
             "title": "Reports Waiting",
             "type": "integer"
+          },
+          "rig_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The rig's name at the Allen Institute (AIBS_RIG_ID), if set",
+            "title": "Rig Id"
           },
           "run": {
             "anyOf": [

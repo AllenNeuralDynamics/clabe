@@ -4,6 +4,10 @@
     <a class="brand" href="@Home" aria-label="clabe @Context">
         <img src="logo.svg" alt="" />
         <span class="where">@Context</span>
+        @if (Version is { Length: > 0 })
+        {
+            <span class="version" title="clabe version">v@(Version)</span>
+        }
     </a>
     @if (Chips is not null)
     {
@@ -16,8 +20,10 @@
 </header>
 
 @code {
-    /// <summary>Where you are: "fleet", a hostname…</summary>
+    /// <summary>Where you are: "hub", a rig…</summary>
     [Parameter] public string Context { get; set; } = "";
+    /// <summary>The clabe version of what serves the page, shown next to it (once known).</summary>
+    [Parameter] public string? Version { get; set; }
     [Parameter] public string Home { get; set; } = "./";
     [Parameter] public RenderFragment? Chips { get; set; }
     [Parameter] public RenderFragment? Actions { get; set; }
