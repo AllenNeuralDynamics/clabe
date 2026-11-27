@@ -6,8 +6,9 @@
         <div class="who">
             <span class="ic"><HubIcon Name="server" Size="15" /></span>
             <div class="names">
-                <h3 class="truncate">@Rig.Id</h3>
-                <span class="host subtle truncate">@(Rig.Hostname ?? Host(Rig.Url))@(Rig.ClabeVersion is { } v ? $" · v{v}" : "")</span>
+                @* The rig's AIBS_RIG_ID first; "----" when the rig does not set it (or runs an older clabe). *@
+                <h3 class="truncate @(Rig.RigId is null ? "unset" : null)" title="AIBS_RIG_ID">@(Rig.RigId ?? "----")</h3>
+                <span class="host subtle truncate" title="@HostLine(Rig)">@HostLine(Rig)</span>
             </div>
         </div>
         @{ var chip = StatusChip(Rig); }
@@ -221,4 +222,14 @@
         };
 
     private static string Host(string url) => Uri.TryCreate(url, UriKind.Absolute, out var uri) ? uri.Authority : url;
+
+    /// <summary>Under the rig id: its hostname, its IP and its clabe; and its name in the hub when that differs.</summary>
+    private static string HostLine(RigStatus rig)
+    {
+        var hostname = rig.Hostname ?? Host(rig.Url);
+        var parts = new List<string?> { hostname, rig.Ip, rig.ClabeVersion is { } v ? $"v{v}" : null };
+        if (!string.Equals(rig.Id, hostname, StringComparison.OrdinalIgnoreCase))
+            parts.Insert(0, rig.Id);
+        return string.Join(" · ", parts.Where(p => !string.IsNullOrEmpty(p)));
+    }
 }

@@ -11,7 +11,7 @@
     return;
 }
 <div class="hub">
-    <HubTopBar Context="fleet" Home="@Navigation.Uri">
+    <HubTopBar Context="hub" Version="@_version" Home="@Navigation.Uri">
         <Chips>
             @if (_rigs is not null)
             {
@@ -93,7 +93,7 @@
                                     <div class="what">
                                         <div class="question">@waiting.Label</div>
                                         <div class="where small muted">
-                                            <span class="rig-id">@rig.Id</span>
+                                            <span class="rig-id" title="@rig.Id">@(rig.RigId ?? rig.Id)</span>
                                             @if (rig.Experiment is { } experiment)
                                             {
                                                 <span>· @experiment</span>
@@ -171,6 +171,7 @@
 
 @code {
     private List<RigStatus>? _rigs;
+    private string? _version; // the hub's clabe, next to its name
     private string? _error;
     private bool _unreachable;
     private bool _needsToken;
@@ -201,13 +202,13 @@
         .ThenBy(r => r.MovedFrom is null)
         .ThenBy(r => !r.NeedsToken)
         .ThenBy(r => r.Status != "busy")
-        .ThenBy(r => r.Id, StringComparer.OrdinalIgnoreCase)
+        .ThenBy(r => r.RigId ?? r.Id, StringComparer.OrdinalIgnoreCase)
         .ToList();
 
-    /// <summary>The rigs that do not answer, by name.</summary>
+    /// <summary>The rigs that do not answer, by name (their AIBS rig id when they have one).</summary>
     private List<RigStatus> OfflineRigs => (_rigs ?? [])
         .Where(r => !IsOnline(r))
-        .OrderBy(r => r.Id, StringComparer.OrdinalIgnoreCase)
+        .OrderBy(r => r.RigId ?? r.Id, StringComparer.OrdinalIgnoreCase)
         .ToList();
 
     protected override async Task OnInitializedAsync()
@@ -215,6 +216,14 @@
         var tab = System.Web.HttpUtility.ParseQueryString(new Uri(Navigation.Uri).Query)["tab"];
         _tab = tab is "reports" or "sessions" ? tab : "rigs";
         ReportTime.Changed += TimeChanged;
+        try
+        {
+            _version = (await Hub.InfoAsync()).ClabeVersion;
+        }
+        catch (Exception)
+        {
+            _version = null; // the page works without it
+        }
         await Refresh();
         _timer = new Timer(_ => InvokeAsync(async () => { await Refresh(); StateHasChanged(); }), null, 2000, 2000);
     }
@@ -228,11 +237,11 @@
             _shortcuts = await _ui.InvokeAsync<IJSObjectReference>("listenShortcuts", _self);
             StateHasChanged();
         }
-        // "(2) clabe fleet" and a dot on the icon while runs wait: seen from another tab
+        // "(2) clabe hub" and a dot on the icon while runs wait: seen from another tab
         if (_ui is not null && Waiting.Count != _attention)
         {
             _attention = Waiting.Count;
-            await _ui.InvokeVoidAsync("setAttention", "clabe fleet", _attention);
+            await _ui.InvokeVoidAsync("setAttention", "clabe hub", _attention);
         }
     }
 

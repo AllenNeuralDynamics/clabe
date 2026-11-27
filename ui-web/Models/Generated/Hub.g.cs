@@ -41,6 +41,10 @@ public sealed record Exclusion(
 public sealed record HTTPValidationError(
     [property: JsonPropertyName("detail")] List<ValidationError>? Detail = null);
 
+/// <summary>The hub itself.</summary>
+public sealed record HubInfo(
+    [property: JsonPropertyName("clabe_version")] string ClabeVersion);
+
 /// <summary>An export opened for a look (not stored): its id, its files, and its ``report.json`` if it has one.</summary>
 public sealed record InspectResult(
     [property: JsonPropertyName("inspect_id")] string InspectId,
@@ -85,6 +89,8 @@ public sealed record RigStatus(
     [property: JsonPropertyName("reachable")] bool Reachable = false,
     [property: JsonPropertyName("error")] string? Error = null,
     [property: JsonPropertyName("hostname")] string? Hostname = null,
+    [property: JsonPropertyName("rig_id")] string? RigId = null,
+    [property: JsonPropertyName("ip")] string? Ip = null,
     [property: JsonPropertyName("clabe_version")] string? ClabeVersion = null,
     [property: JsonPropertyName("status")] string Status = "offline",
     [property: JsonPropertyName("leased_by")] string? LeasedBy = null,

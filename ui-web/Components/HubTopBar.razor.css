@@ -9,5 +9,6 @@
 .brand { font-size: var(--text-lg); gap: var(--s2); }
 .brand:hover { text-decoration: none; }
 .where { font-weight: 550; color: var(--text-2); letter-spacing: -0.01em; }
+.version { font-family: var(--mono); font-size: var(--text-xs); font-weight: 500; color: var(--text-3); align-self: center; }
 .chips { display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; }
 .grow { flex: 1; }

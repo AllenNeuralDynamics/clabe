@@ -10,10 +10,18 @@
     return;
 }
 <div class="daemon">
-    <HubTopBar Context="@(_info?.Hostname ?? "machine")" Home="@Navigation.Uri">
+    <HubTopBar Context="@(_info is { } named ? named.RigId ?? named.Hostname : "machine")" Home="@Navigation.Uri">
         <Chips>
             @if (_info is { } info)
             {
+                @if (info.RigId is not null)
+                {
+                    <span class="chip plain mono" title="hostname">@info.Hostname</span>
+                }
+                @if (info.Ip is { } ip)
+                {
+                    <span class="chip plain mono" title="IP address">@ip</span>
+                }
                 <span class="chip plain mono" title="clabe version">v@(info.ClabeVersion)</span>
                 <span class="chip @(info.Status switch { "idle" => "idle", "busy" => "running", "leased" => "accent", _ => "" })">@info.Status</span>
                 @if (info.ReportsWaiting > 0)

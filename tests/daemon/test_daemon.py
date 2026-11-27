@@ -338,7 +338,8 @@ class TestDeployment:
 def test_probe_reads_the_daemon(daemon):
     base, _ = daemon
     port = int(base.rsplit(":", 1)[1])
-    assert _install.probe(port, "d4emon")["status"] == "idle"
+    info = _install.probe(port, "d4emon")
+    assert info["status"] == "idle" and {"rig_id", "ip"} <= info.keys()  # the hub shows both
     assert _install.probe(port, "wrong") == {"status": "unauthorized"}
     assert _install.probe(free_port("127.0.0.1", 18170), None) is None
 
@@ -389,3 +390,23 @@ def test_the_daemon_log_is_in_utc():
     record = logging.LogRecord("clabe", logging.INFO, __file__, 1, "hello", None, None)
     record.created, record.msecs = 0.25, 250
     assert _utc_formatter().format(record) == "1970-01-01T00:00:00.250Z INFO clabe: hello"
+
+
+@pytest.mark.parametrize("value, rig_id", [("RIG_12", "RIG_12"), ("  ", None), (None, None)])
+def test_the_daemon_tells_its_aibs_rig_id(monkeypatch, value, rig_id):
+    from clabe.daemon import _host
+
+    if value is None:
+        monkeypatch.delenv("AIBS_RIG_ID", raising=False)
+    else:
+        monkeypatch.setenv("AIBS_RIG_ID", value)
+    assert _host.rig_id() == rig_id
+
+
+def test_the_daemon_tells_its_ip_address():
+    import ipaddress
+
+    from clabe.daemon import _host
+
+    address = _host.ip_address()
+    assert address is None or ipaddress.ip_address(address).version == 4

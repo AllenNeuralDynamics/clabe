@@ -98,6 +98,8 @@ class RigStatus(BaseModel):
     reachable: bool = False
     error: str | None = None
     hostname: str | None = None
+    rig_id: str | None = Field(default=None, description="The rig's name at the Allen Institute (AIBS_RIG_ID), if set")
+    ip: str | None = Field(default=None, description="The rig's IPv4 address, as it reports it")
     clabe_version: str | None = None
     status: Literal["offline", "idle", "busy", "leased"] = "offline"
     leased_by: str | None = None
@@ -320,6 +322,7 @@ class Fleet:
             info = (await self._get(rig, "/api/daemon/info")).json()
             status.reachable = True
             status.hostname, status.clabe_version = info["hostname"], info["clabe_version"]
+            status.rig_id, status.ip = info.get("rig_id"), info.get("ip")  # older daemons send neither
             status.status, status.leased_by = info["status"], info.get("leased_by")
             status.reports_waiting = int(info.get("reports_waiting") or 0)
             run = info.get("run") or {}

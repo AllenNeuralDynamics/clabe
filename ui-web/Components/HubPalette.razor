@@ -67,20 +67,21 @@
 
     private IEnumerable<Item> All()
     {
-        foreach (var rig in Rigs.OrderBy(r => r.Waiting is null).ThenBy(r => r.Id, StringComparer.OrdinalIgnoreCase))
+        foreach (var rig in Rigs.OrderBy(r => r.Waiting is null).ThenBy(r => r.RigId ?? r.Id, StringComparer.OrdinalIgnoreCase))
         {
             var chip = HubRigCard.StatusChip(rig);
-            var detail = string.Join(" · ", new[] { rig.Hostname, rig.Experiment, rig.CurrentStepTitle ?? rig.CurrentStep }.Where(s => !string.IsNullOrEmpty(s)));
-            var search = $"{rig.Id} {rig.Hostname} {rig.Experiment} {rig.CurrentStepTitle}";
+            var name = rig.RigId ?? rig.Id; // the AIBS rig id when the rig has one
+            var detail = string.Join(" · ", new[] { rig.Hostname, rig.Ip, rig.Experiment, rig.CurrentStepTitle ?? rig.CurrentStep }.Where(s => !string.IsNullOrEmpty(s)));
+            var search = $"{rig.RigId} {rig.Id} {rig.Hostname} {rig.Ip} {rig.Experiment} {rig.CurrentStepTitle}";
             if (rig.Waiting is not null)
             {
-                yield return new Item($"Answer {rig.Id}", rig.Waiting.Label, "message", ("waiting", "waiting"), Hub.RigUrl(rig.Id, runPage: true), null, search + " answer run");
+                yield return new Item($"Answer {name}", rig.Waiting.Label, "message", ("waiting", "waiting"), Hub.RigUrl(rig.Id, runPage: true), null, search + " answer run");
             }
             else if (rig.Reachable && rig.Status == "busy")
             {
-                yield return new Item($"{rig.Id} — its run", detail, "play", null, Hub.RigUrl(rig.Id, runPage: true), null, search + " run");
+                yield return new Item($"{name} — its run", detail, "play", null, Hub.RigUrl(rig.Id, runPage: true), null, search + " run");
             }
-            yield return new Item(rig.Id, detail.Length > 0 ? detail : rig.Url, "server", chip, rig.Reachable ? Hub.RigUrl(rig.Id) : null, null, search);
+            yield return new Item(name, detail.Length > 0 ? detail : rig.Url, "server", chip, rig.Reachable ? Hub.RigUrl(rig.Id) : null, null, search);
         }
         yield return new Item("Reports", "The issue reports collected from the rigs", "inbox", null, null, "reports", "reports issues");
         yield return new Item("Rigs", "The fleet", "server", null, null, "rigs", "rigs fleet");

@@ -15,7 +15,9 @@ header { display: flex; align-items: flex-start; justify-content: space-between;
 }
 .rig.offline .ic { color: var(--text-3); }
 .names { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
-h3 { font-size: var(--text-md); font-weight: 650; font-family: var(--mono); letter-spacing: 0; }
+/* The AIBS rig id is the rig's name people know: it leads; hostname, IP and clabe follow, smaller. */
+h3 { font-size: var(--text-lg); font-weight: 700; font-family: var(--mono); letter-spacing: 0; }
+h3.unset { color: var(--text-3); font-weight: 600; }
 .host { font-size: var(--text-xs); }
 .rig-body { display: flex; flex-direction: column; gap: 6px; min-height: 52px; }
 .line { display: flex; gap: var(--s2); margin: 0; font-size: var(--text-sm); min-width: 0; }

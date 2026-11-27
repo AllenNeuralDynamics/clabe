@@ -401,3 +401,30 @@ def test_the_daemon_keeps_enrolling_until_stopped(monkeypatch):
 
     asyncio.run(asyncio.wait_for(flow(), timeout=10))
     assert set(calls) == {"/api/hub/enroll"}
+
+
+@pytest.mark.parametrize(
+    "info, shown",
+    [
+        ({"rig_id": "RIG_12", "ip": "10.128.1.7"}, ("RIG_12", "10.128.1.7")),
+        ({}, (None, None)),  # a rig without AIBS_RIG_ID, or an older daemon: the page shows "----"
+    ],
+)
+def test_the_hub_shows_a_rigs_aibs_rig_id_and_ip(info, shown):
+    def rig(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"hostname": "w10-rig", "clabe_version": "0", "status": "idle", **info})
+
+    fleet = Fleet(HubSettings())
+    fleet._client = httpx.AsyncClient(transport=httpx.MockTransport(rig))
+    fleet.enroll(EnrollBody(id="w10-rig", host="w10-rig", port=24070))
+    asyncio.run(fleet.poll_once())
+    status = fleet.statuses()[0]
+    assert (status.rig_id, status.ip, status.hostname) == (*shown, "w10-rig")
+
+
+def test_the_hub_tells_its_clabe_version():
+    from clabe import __version__
+
+    client = _hub(Fleet(HubSettings()))
+    assert client.get("/api/hub/info").status_code == 401  # like the rest of the API, behind the hub's token
+    assert client.get("/api/hub/info", headers=_HUB).json() == {"clabe_version": __version__}

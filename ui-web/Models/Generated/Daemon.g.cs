@@ -43,6 +43,8 @@ public sealed record HostInfo(
     [property: JsonPropertyName("clabe_version")] string ClabeVersion,
     [property: JsonPropertyName("status")] string Status,
     [property: JsonPropertyName("run")] RunInfo? Run,
+    [property: JsonPropertyName("rig_id")] string? RigId = null,
+    [property: JsonPropertyName("ip")] string? Ip = null,
     [property: JsonPropertyName("leased_by")] string? LeasedBy = null,
     [property: JsonPropertyName("reports_waiting")] long ReportsWaiting = 0);
 
