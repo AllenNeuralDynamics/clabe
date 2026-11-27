@@ -145,7 +145,7 @@ class Environment:
 
     @property
     def daemon(self) -> Path:
-        """What the task runs: the environment's windowless ``clabe-daemon`` (since 0.18), else its ``clabe``."""
+        """What the task runs: the environment's windowless ``clabe-daemon``, else its ``clabe``."""
         windowless = _scripts(self.path) / ("clabe-daemon.exe" if os.name == "nt" else "clabe-daemon")
         return windowless if windowless.is_file() else self.clabe
 

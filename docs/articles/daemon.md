@@ -73,8 +73,8 @@ DAEMON_CLABE_TOKEN=...
 | `clabe daemon run [--open-browser]` | Run in the foreground, e.g. to try it |
 | `clabe daemon open [--run-page]` | Open the daemon's page (or its run's) signed in, e.g. from a desktop shortcut |
 | `clabe daemon deploy [--version V \| --lock REPO \| --package SPEC] [--hubs H] [--force]` | Install that clabe for the daemon and switch it there; nothing when it already runs it. See [Deploy a rig](deployment.md#update-and-go-back) |
-| `clabe daemon install` | Register the `clabe-daemon` task (at logon and every 5 minutes; see [Running hidden](#running-hidden)) to run this clabe, and start it |
-| `clabe daemon stop [--force] [--if-installed] [--timeout 15]` | Disable and end the task, and wait until the port is free: it stays stopped until `start`, `restart` or `deploy`. Refused during a session unless `--force`; `--if-installed`: no task is not an error |
+| `clabe daemon install` | Register the `clabe-daemon` task (at logon and every 5 minutes) and start it |
+| `clabe daemon stop [--force] [--if-installed] [--timeout 15]` | Disable and end the task, and wait until the port is free; refused during a session unless `--force`; `--if-installed`: no task is not an error |
 | `clabe daemon start [--timeout 60]` | Enable and start the task, and wait until the daemon answers |
 | `clabe daemon restart [--force] [--timeout 60]` | `stop`, then `start`; refused during a session unless `--force` |
 | `clabe daemon status` | The task, whether the daemon answers, and the reports waiting |
@@ -82,7 +82,6 @@ DAEMON_CLABE_TOKEN=...
 | `clabe daemon uninstall` | Stop it and remove the task |
 
 - It runs as the logged-on user (not as a service), so experiments can open windows.
-- It runs without a window: see [Running hidden](#running-hidden).
 - Logs go to `%LOCALAPPDATA%\clabe\daemon.log`. They are also sent through OpenTelemetry when
   `DAEMON_CLABE_OTEL_ENDPOINT` is set.
 - To update, run `clabe daemon deploy --version <version>` (or [the installer](deployment.md#3-install)). The new
@@ -90,23 +89,16 @@ DAEMON_CLABE_TOKEN=...
 
 ## Running hidden
 
-The task runs `clabe-daemon.exe run`: the same daemon, from an executable without a console window, so there is no
-window to close by mistake. What it starts (uv, git, the run's `clabe run`) gets no window either; the windows
-experiments open (Bonsai) show as usual. Its output is in `daemon.log` (and OpenTelemetry).
+The task runs `clabe-daemon.exe run`, which has no console window. The processes it starts have none either; windows
+that experiments open (Bonsai) show as usual.
 
-It comes back by itself:
+| When the daemon | Then |
+|---|---|
+| Is not running | The task starts it within 5 minutes |
+| Does not answer for 2 minutes | It ends itself, and the task starts it again |
+| Was stopped with `clabe daemon stop` | It stays stopped until `start`, `restart` or `deploy` |
 
-- **Not running** (it crashed, or was ended in Task Manager): the task starts it again within 5 minutes. A start
-  while it runs does nothing.
-- **Hanging**: a watchdog in the daemon checks its own page every 30 s; after 2 minutes without an answer it logs why
-  and ends the daemon, which the task then starts again.
-- **Stopped on purpose** (`clabe daemon stop`): the task is disabled, so it stays stopped until `clabe daemon start`,
-  `restart` or `deploy`.
-
-From the [hub](hub.md#restarting-a-rigs-daemon), a rig's daemon can be restarted whether it answers or not.
-
-Older clabe versions (before 0.18) have no `clabe-daemon.exe`: deployed there, the task runs `clabe.exe daemon run`,
-in a console window, as before.
+The [hub](hub.md#restarting-a-rigs-daemon) can also restart it.
 
 ## Starting a run
 
@@ -154,7 +146,7 @@ uv run clabe shortcut --experiment-name vr-foraging --name "VR Foraging"
 | `GET /api/daemon/repositories/{name}/experiments` | Their experiments |
 | `POST /api/daemon/runs` | Start a run |
 | `GET /api/daemon/runs/current` | The current run, with the end of its output |
-| `POST /api/daemon/restart[?force=true]` | Restart: the daemon answers `202`, ends itself, and its task starts a new one within seconds. `409` during a session unless `force` (the run is stopped), or when the task did not start it |
+| `POST /api/daemon/restart[?force=true]` | Restart it; `409` during a session unless `force` |
 | `POST /api/daemon/runs/current/stop` | Stop it (only runs the daemon started) |
 | `POST /api/daemon/runs/attached` | A run started from a terminal announces itself |
 | `DELETE /api/daemon/runs/attached/{pid}` | It has ended |

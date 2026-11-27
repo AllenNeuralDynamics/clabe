@@ -23,7 +23,7 @@ if (-not (Get-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue)) {
     Write-Output '{"error": "no-task"}'; exit 3
 }
 Stop-ScheduledTask -TaskName $name
-# a daemon left over (ended badly, or started by hand): clabe-daemon.exe, its Python, or an older `clabe daemon run`
+# a daemon left over (ended badly, or started by hand): clabe-daemon.exe, its Python, or `clabe daemon run`
 $ended = @(Get-CimInstance Win32_Process | Where-Object {
     $_.CommandLine -and ($_.CommandLine -like '*clabe-daemon*run*' -or $_.CommandLine -like '*clabe*daemon run*')
 } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue; $_.ProcessId })
