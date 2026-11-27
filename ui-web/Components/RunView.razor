@@ -13,7 +13,7 @@
 <div class="run-shell @(_drawerOpen ? "drawer-open" : null) @(_logOpen ? "log-open" : null)">
     <header class="run-header">
         <div class="brand run-brand">
-            <img src="logo.svg" alt="clabe" />
+            <a class="home" href="@Connection.Api.HomeUrl" title="Home"><img src="logo.svg" alt="clabe: home" /></a>
             <span class="run-name truncate" title="@Workflow">@Workflow</span>
         </div>
         @if (Connection.State is not null)
