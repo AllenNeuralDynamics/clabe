@@ -6,12 +6,13 @@ import contextlib
 import logging
 from collections.abc import AsyncIterator
 from pathlib import Path
+from urllib.parse import urlparse
 
 import httpx
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SecretStr
 
 from .. import __version__
 from ..server._app import STATIC_DIR
@@ -20,6 +21,7 @@ from ._fleet import EnrollBody, Excluded, Fleet, RigStatus
 from ._registry import Exclusion, RigConfig
 from ._report_api import report_routes
 from ._reports import InspectCache
+from ._revive import ReviveError, revive
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +61,65 @@ class ExcludeResult(BaseModel):
 
     exclusion: Exclusion
     removed: list[str]
+
+
+class ReviveBody(BaseModel):
+    """The operator's rig credentials, for one revive: used for that SSH connection only, never stored or logged."""
+
+    username: str = Field(description="The SSH user: the rig's logged-on user or an administrator", min_length=1)
+    password: SecretStr = Field(description="Their password")
+
+
+class ReviveResult(BaseModel):
+    """What reviving a rig's daemon did."""
+
+    state: str = Field(description="The clabe-daemon task's state after (Running once the daemon started)")
+    ended: list[int] = Field(description="Daemon processes left over that were ended")
+    fingerprint: str = Field(description="The rig's SSH host key fingerprint")
+    first_connection: bool = Field(description="Whether the key was seen for the first time (it is now remembered)")
+
+
+def _revive_routes(api: APIRouter, fleet: Fleet) -> None:
+    """``POST /rigs/{rig_id}/revive``: restarts a rig's daemon over SSH, when its API cannot."""
+
+    @api.post(
+        "/rigs/{rig_id}/revive",
+        response_model=ReviveResult,
+        responses={
+            403: {"description": "The rig refused the credentials"},
+            404: {"description": "No such rig"},
+            409: {"description": "The rig's SSH host key changed, its move is unconfirmed, or it has no daemon task"},
+            501: {"description": "The hub has no SSH support (the ssh extra)"},
+            502: {"description": "The rig is not reachable over SSH, or the restart failed there"},
+        },
+    )
+    async def revive_rig(rig_id: str, body: ReviveBody) -> ReviveResult:
+        """Restarts a rig's daemon over SSH (it hangs or is not running): ends its task and any daemon left over, and
+        starts the task again. The credentials are used for this connection only. A rig whose SSH host key changed
+        since it was first revived is refused before they are sent. A run going on the rig is stopped."""
+        rig = fleet.rig(rig_id)
+        if rig is None:
+            raise HTTPException(status_code=404, detail=f"No rig {rig_id!r}.")
+        if rig.moved_from is not None:
+            raise HTTPException(status_code=409, detail=f"{rig_id} moved: confirm its new address first.")
+        host = urlparse(rig.url).hostname
+        if not host:
+            raise HTTPException(status_code=409, detail=f"{rig_id} has no address to reach ({rig.url}).")
+        known = fleet.registry.host_key(rig_id)
+        try:
+            revived = await revive(host, body.username, body.password.get_secret_value(), known_key=known)
+        except ReviveError as exc:
+            logger.warning("Reviving %s (%s) as %s failed: %s", rig_id, host, body.username, exc)
+            raise HTTPException(status_code=exc.status, detail=str(exc)) from exc
+        if known is None:
+            fleet.registry.set_host_key(rig_id, revived.host_key)
+        logger.info("Revived %s (%s) as %s: task %s", rig_id, host, body.username, revived.state)
+        return ReviveResult(
+            state=revived.state,
+            ended=revived.ended,
+            fingerprint=revived.fingerprint,
+            first_connection=revived.first_connection,
+        )
 
 
 def _enroll_routes(app: FastAPI, fleet: Fleet) -> None:
@@ -184,6 +245,7 @@ def create_hub_app(
 
     report_routes(api, fleet, inspections)
     _rig_routes(api, fleet)
+    _revive_routes(api, fleet)
     _enroll_routes(app, fleet)
     app.include_router(api)
     client = httpx.AsyncClient(timeout=httpx.Timeout(30.0, read=None))

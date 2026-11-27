@@ -14,6 +14,7 @@ builder.Services.AddScoped<RunApi>();
 builder.Services.AddScoped<RunConnection>();
 builder.Services.AddScoped<DaemonApi>();
 builder.Services.AddScoped<HubApi>();
+builder.Services.AddScoped<RigCredentials>();
 
 var host = builder.Build();
 Clabe.Web.Components.ReportTime.Init((IJSInProcessRuntime)host.Services.GetRequiredService<IJSRuntime>());

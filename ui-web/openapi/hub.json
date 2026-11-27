@@ -376,6 +376,66 @@
         "title": "ReportPage",
         "type": "object"
       },
+      "ReviveBody": {
+        "description": "The operator's rig credentials, for one revive: used for that SSH connection only, never stored or logged.",
+        "properties": {
+          "password": {
+            "description": "Their password",
+            "format": "password",
+            "title": "Password",
+            "type": "string",
+            "writeOnly": true
+          },
+          "username": {
+            "description": "The SSH user: the rig's logged-on user or an administrator",
+            "minLength": 1,
+            "title": "Username",
+            "type": "string"
+          }
+        },
+        "required": [
+          "username",
+          "password"
+        ],
+        "title": "ReviveBody",
+        "type": "object"
+      },
+      "ReviveResult": {
+        "description": "What reviving a rig's daemon did.",
+        "properties": {
+          "ended": {
+            "description": "Daemon processes left over that were ended",
+            "items": {
+              "type": "integer"
+            },
+            "title": "Ended",
+            "type": "array"
+          },
+          "fingerprint": {
+            "description": "The rig's SSH host key fingerprint",
+            "title": "Fingerprint",
+            "type": "string"
+          },
+          "first_connection": {
+            "description": "Whether the key was seen for the first time (it is now remembered)",
+            "title": "First Connection",
+            "type": "boolean"
+          },
+          "state": {
+            "description": "The clabe-daemon task's state after (Running once the daemon started)",
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "ended",
+          "fingerprint",
+          "first_connection"
+        ],
+        "title": "ReviveResult",
+        "type": "object"
+      },
       "RigConfig": {
         "description": "A rig the hub follows.",
         "properties": {
@@ -2024,6 +2084,71 @@
           }
         },
         "summary": "Confirm"
+      }
+    },
+    "/api/hub/rigs/{rig_id}/revive": {
+      "post": {
+        "description": "Restarts a rig's daemon over SSH (it hangs or is not running): ends its task and any daemon left over, and\nstarts the task again. The credentials are used for this connection only. A rig whose SSH host key changed\nsince it was first revived is refused before they are sent. A run going on the rig is stopped.",
+        "operationId": "revive_rig_api_hub_rigs__rig_id__revive_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "rig_id",
+            "required": true,
+            "schema": {
+              "title": "Rig Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviveBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviveResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "The rig refused the credentials"
+          },
+          "404": {
+            "description": "No such rig"
+          },
+          "409": {
+            "description": "The rig's SSH host key changed, its move is unconfirmed, or it has no daemon task"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "501": {
+            "description": "The hub has no SSH support (the ssh extra)"
+          },
+          "502": {
+            "description": "The rig is not reachable over SSH, or the restart failed there"
+          }
+        },
+        "summary": "Revive Rig"
       }
     },
     "/api/hub/rigs/{rig_id}/token": {

@@ -1,7 +1,8 @@
 """The rigs the hub follows: those that enrolled (``POST /api/hub/enroll``), and the patterns that keep rigs out.
 
 Both live in SQLite (``<data_dir>/hub.db``, next to the collected reports), so they survive restarts of the hub. A
-rig's daemon token, once entered, is kept there too, in plain text: the API sets and deletes it, never shows it.
+rig's daemon token, once entered, is kept there too, in plain text: the API sets and deletes it, never shows it. So is
+the SSH host key a rig showed the first time it was revived (`_revive`): a rig that shows another one is refused.
 """
 
 import datetime
@@ -67,6 +68,7 @@ class Registry:
             self._db.execute(
                 "CREATE TABLE IF NOT EXISTS exclusions (pattern TEXT PRIMARY KEY, comment TEXT, added_at TEXT NOT NULL)"
             )
+            self._db.execute("CREATE TABLE IF NOT EXISTS host_keys (rig_id TEXT PRIMARY KEY, key TEXT NOT NULL)")
 
     def close(self) -> None:
         """Closes the database."""
@@ -112,9 +114,24 @@ class Registry:
             )
 
     def remove(self, rig_id: str) -> bool:
-        """Removes a rig (and its token); whether it was enrolled."""
+        """Removes a rig (and its token and SSH host key); whether it was enrolled."""
         with self._lock, self._db:
+            self._db.execute("DELETE FROM host_keys WHERE rig_id = ?", (rig_id,))
             return self._db.execute("DELETE FROM rigs WHERE id = ?", (rig_id,)).rowcount > 0
+
+    def host_key(self, rig_id: str) -> str | None:
+        """The SSH host key a rig showed the first time it was revived (OpenSSH format), if any."""
+        with self._lock:
+            row = self._db.execute("SELECT key FROM host_keys WHERE rig_id = ?", (rig_id,)).fetchone()
+        return row["key"] if row else None
+
+    def set_host_key(self, rig_id: str, key: str) -> None:
+        """Remembers a rig's SSH host key."""
+        with self._lock, self._db:
+            self._db.execute(
+                "INSERT INTO host_keys (rig_id, key) VALUES (?, ?) ON CONFLICT(rig_id) DO UPDATE SET key = excluded.key",
+                (rig_id, key),
+            )
 
     def exclusions(self) -> list[Exclusion]:
         """The exclusions, oldest first."""

@@ -68,6 +68,9 @@ class _RunDaemonCli(DaemonSettings, cli_kebab_case=True):
         default_factory=lambda: _install.default_working_directory() / "daemon.log",
         description="Where the daemon logs (rotated at 5 MB, 3 kept)",
     )
+    watchdog: bool = Field(
+        default=True, description="End the daemon when its server stops answering (its task starts a new one)"
+    )
 
     def cli_cmd(self):
         """Serve until interrupted."""
@@ -94,7 +97,17 @@ class _RunDaemonCli(DaemonSettings, cli_kebab_case=True):
             import webbrowser
 
             webbrowser.open(url)
-        uvicorn.run(app, host=host, port=self.port, log_level="warning", log_config=None)
+        watchdog = None
+        if self.watchdog:
+            from ._watchdog import Watchdog
+
+            local = "127.0.0.1" if host in ("0.0.0.0", "::", "localhost") else host
+            watchdog = Watchdog(f"http://{local}:{self.port}/api/daemon/info").start()
+        try:
+            uvicorn.run(app, host=host, port=self.port, log_level="warning", log_config=None)
+        finally:
+            if watchdog is not None:
+                watchdog.stop()
 
 
 class _InstallCli(CliCommand, cli_kebab_case=True):
@@ -131,8 +144,8 @@ class _RestartCli(DaemonSettings, cli_kebab_case=True):
 class _StopCli(DaemonSettings, cli_kebab_case=True):
     """Stop the daemon (end its task) and wait until nothing answers on its port, e.g. before updating clabe.
 
-    Refuses while it runs an experiment or is leased by another machine's run, unless --force. It starts again at the
-    next logon, or with `clabe daemon start`.
+    Refuses while it runs an experiment or is leased by another machine's run, unless --force. It stays stopped (its
+    task is disabled, also at logon) until `clabe daemon start`, `restart` or `deploy`.
     """
 
     force: CliImplicitFlag[bool] = Field(default=False, description="Stop even if a session would be interrupted")
@@ -314,3 +327,15 @@ class DaemonCli(BaseSettings, cli_kebab_case=True):
     def cli_cmd(self):
         """Run the selected subcommand."""
         CliApp.run_subcommand(self)
+
+
+def main() -> None:
+    """``clabe-daemon``: the ``clabe daemon`` commands from a windowless executable (what the scheduled task runs).
+
+    A windowless program has no standard streams (``sys.stdout`` is None): they go to ``os.devnull``, so printing
+    and logging to them never fail.
+    """
+    for name in ("stdout", "stderr"):
+        if getattr(sys, name) is None:
+            setattr(sys, name, open(os.devnull, "w", encoding="utf-8"))  # noqa: SIM115 - lives as long as the process
+    CliApp.run(DaemonCli)

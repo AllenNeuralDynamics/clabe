@@ -742,6 +742,21 @@
         "title": "RepositoryInfo",
         "type": "object"
       },
+      "RestartResult": {
+        "description": "A restart that is under way.",
+        "properties": {
+          "detail": {
+            "description": "What happens next",
+            "title": "Detail",
+            "type": "string"
+          }
+        },
+        "required": [
+          "detail"
+        ],
+        "title": "RestartResult",
+        "type": "object"
+      },
       "RunInfo": {
         "description": "The run the host launched last.",
         "properties": {
@@ -1182,6 +1197,50 @@
           }
         },
         "summary": "Experiments"
+      }
+    },
+    "/api/daemon/restart": {
+      "post": {
+        "description": "Restarts the daemon: it answers, ends itself, and its task starts a new one (in a few seconds). Refused\nwhile it runs an experiment or is leased by another machine's run, unless ``force`` (the run is stopped).",
+        "operationId": "restart_api_daemon_restart_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "force",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Force",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RestartResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "409": {
+            "description": "A run is going (without force), or the daemon was not started by its task"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Restart"
       }
     },
     "/api/daemon/runs": {

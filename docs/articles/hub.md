@@ -75,6 +75,16 @@ presents each rig's token for them.
   `.env` file.
 - Enrolling again keeps a rig's token. Removing a rig deletes it.
 
+### Restarting a rig's daemon
+
+The restart button on a rig's card restarts its daemon:
+
+- When the daemon answers, through its API.
+- Otherwise over SSH, with a rig account (the rig's logged-on user or an administrator) entered on the card. The hub
+  uses it for that connection only and does not store or log it.
+
+A run going on the rig is stopped. The hub remembers each rig's SSH host key and refuses a rig that shows another
+one; removing the rig forgets it. SSH needs the `ssh` extra (`aind-clabe[ssh]`, included in the Docker image).
 
 ## Run it
 
@@ -115,6 +125,7 @@ Interactive docs at `/docs`.
 | `DELETE /api/hub/rigs/{id}` | Remove a rig and its token (it comes back if it enrolls again) |
 | `POST /api/hub/rigs/{id}/confirm` | Confirm a rig's move to the address it enrolled from |
 | `PUT /api/hub/rigs/{id}/token` | `{"token": "..."}`: the rig's `DAEMON_CLABE_TOKEN`; `null` deletes it |
+| `POST /api/hub/rigs/{id}/revive` | `{"username", "password"}`: restart its daemon over SSH |
 | `GET /api/hub/exclusions` | The exclusions: `[{pattern, comment, added_at}]` |
 | `POST /api/hub/exclusions` | `{"pattern", "comment"}`: exclude → `{exclusion, removed}` (the rigs removed) |
 | `DELETE /api/hub/exclusions?pattern=...` | Remove an exclusion |
