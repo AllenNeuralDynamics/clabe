@@ -48,8 +48,8 @@ BUILDS_RELEASE = "https://api.github.com/repos/AllenNeuralDynamics/clabe/release
 #: Where people see the builds.
 BUILDS_PAGE = "https://github.com/AllenNeuralDynamics/clabe/releases/tag/builds"
 
-#: A build's commit, in its version (``0.18.0+g<commit>``) or its wheel's name.
-_BUILD_COMMIT = re.compile(r"\+g([0-9a-f]{7,40})(?![0-9a-z])", re.IGNORECASE)
+#: A build's commit, in its version (``0.18.0+g<commit>``) or its wheel's name or URL (where ``+`` is ``%2B``).
+_BUILD_COMMIT = re.compile(r"(?:\+|%2B)g([0-9a-f]{7,40})(?![0-9a-z])", re.IGNORECASE)
 
 
 def versions_directory() -> Path:
