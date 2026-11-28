@@ -6,6 +6,8 @@ Server-Sent Events) are streamed back as they come.
 
 import hmac
 import json
+import logging
+from collections.abc import AsyncIterator
 from urllib.parse import parse_qsl, quote, urlencode
 
 import httpx
@@ -14,6 +16,8 @@ from fastapi.responses import StreamingResponse
 from starlette.background import BackgroundTask
 from starlette.responses import JSONResponse, RedirectResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
+
+logger = logging.getLogger(__name__)
 
 #: Hop-by-hop headers (and the caller's credentials), which a proxy must not forward.
 HOP_HEADERS = frozenset(
@@ -149,6 +153,16 @@ class TokenCookies:
         )  # fmt: skip
 
 
+async def _relay(response: httpx.Response, url: str) -> AsyncIterator[bytes]:
+    """The target's answer, as it arrives. A target that stops mid-answer (a run that ends while its events stream)
+    ends the answer here too, with one log line."""
+    try:
+        async for chunk in response.aiter_raw():
+            yield chunk
+    except httpx.HTTPError as exc:
+        logger.info("%s stopped answering mid-stream: %s", url, exc)
+
+
 async def forward(
     client: httpx.AsyncClient, request: Request, url: str, token: str | None, *, unreachable: str
 ) -> Response:
@@ -171,7 +185,7 @@ async def forward(
     except httpx.HTTPError as exc:
         raise HTTPException(status_code=502, detail=f"{unreachable}: {exc}") from exc
     return StreamingResponse(
-        response.aiter_raw(),
+        _relay(response, url),
         status_code=response.status_code,
         headers={k: v for k, v in response.headers.items() if k.lower() not in HOP_HEADERS},
         background=BackgroundTask(response.aclose),
