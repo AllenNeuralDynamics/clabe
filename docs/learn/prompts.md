@@ -26,7 +26,7 @@ sequenceDiagram
 Every client sees every prompt. The run validates each answer against the prompt and accepts the first valid one,
 so a step always gets a typed value.
 
-## Asking
+## Ask the user
 
 ```python
 from clabe import ui
@@ -77,10 +77,7 @@ clabe run --no-serve            # this terminal only
 The [run server reference](../reference/run-server.md) lists the API, the shortcuts, and how to write your own
 client. [Agents](../rigs/agents.md) covers MCP and AG-UI.
 
-## Export logs and report an issue
-
-Both are on every closing screen and in the browser's menu:
-
-- **Export logs** downloads the run's records and logs as one zip.
-- **Report an issue** saves the same zip on the rig with your comment; the [hub](../rigs/hub.md) collects it. In the
-  terminal UI, press `F3`.
+!!! tip "Export logs, report an issue"
+    Both are on every closing screen and in the browser's menu. **Export logs** downloads the run's records and logs
+    as one zip. **Report an issue** saves the same zip on the rig with your comment, for the [hub](../rigs/hub.md) to
+    collect (`F3` in the terminal UI).

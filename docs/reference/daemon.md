@@ -132,6 +132,21 @@ $env:DAEMON_CLABE_VERSION = "0.18.0"; irm https://raw.githubusercontent.com/Alle
 
 ## Over SSH
 
+```bash
+ssh rig-3 clabe daemon status      # the task, and whether the daemon answers (idle, busy, leased)
+ssh rig-3 clabe daemon restart     # refused during a session; --force interrupts it
+ssh rig-3 clabe daemon stop        # same; it stays stopped until `clabe daemon start`
+ssh rig-3 clabe daemon uninstall   # stop the daemon and remove the task
+ssh rig-3 type %LOCALAPPDATA%\clabe\daemon.log
+```
+
+- Do not start the daemon with `clabe daemon run` over SSH. Started that way, it cannot show windows and stops when
+  the SSH session disconnects.
+- To check that rigs are up, the hub shows each rig as online, offline, idle, busy or leased. `clabe daemon status`
+  checks a single rig.
+- A daemon that stops or hangs comes back by itself ([Set up a rig](../rigs/set-up.md#install)). The hub can also
+  restart it ([Manage rigs](../rigs/hub.md#manage-rigs)).
+- Without SSH, a rig admin can run `schtasks /S rig-3 /Run /TN clabe-daemon`.
 - `-Config -` reads the rig's `clabe.yml` from the pipe, so you do not copy the file first. Leave it out to keep the
   rig's current `clabe.yml`.
 - Pass the token through the SSH session's environment, or set it once on the rig. Do not put it on the command line.
@@ -151,24 +166,6 @@ the repository's environment is being rebuilt. For example:
 clabe daemon deploy --lock C:/git/Aind.Experiment.X --hubs "http://hub-vm/clabe/"
 ```
 
-## Operating
-
-```bash
-ssh rig-3 clabe daemon status      # the task, and whether the daemon answers (idle, busy, leased)
-ssh rig-3 clabe daemon restart     # refused during a session; --force interrupts it
-ssh rig-3 clabe daemon stop        # same; it stays stopped until `clabe daemon start`
-ssh rig-3 clabe daemon uninstall   # stop the daemon and remove the task
-ssh rig-3 type %LOCALAPPDATA%\clabe\daemon.log
-```
-
-- Do not start the daemon with `clabe daemon run` over SSH. Started that way, it cannot show windows and stops when
-  the SSH session disconnects.
-- To check that rigs are up, the hub shows each rig as online, offline, idle, busy or leased. `clabe daemon status`
-  checks a single rig.
-- A daemon that stops or hangs comes back by itself ([It looks after itself](../rigs/set-up.md#it-looks-after-itself)). The hub can also
-  restart it ([Restarting a rig's daemon](../rigs/hub.md#restarting-a-rigs-daemon)).
-- Without SSH, a rig admin can run `schtasks /S rig-3 /Run /TN clabe-daemon`.
-
 ## Starting a run
 
 When a run is started from the page or with `POST /api/daemon/runs`, the daemon runs this in the repository:
@@ -186,7 +183,7 @@ uv run --directory <repository> clabe run main.py --experiment-name <name> --fro
 
 ## Runs started from a terminal
 
-A `clabe run` started in a terminal (or from a [desktop shortcut](../rigs/set-up.md#running-experiments)) registers itself with the PC's
+A `clabe run` started in a terminal (or from a [desktop shortcut](../rigs/set-up.md#run-an-experiment)) registers itself with the PC's
 daemon:
 
 - The daemon serves it under `/run/` and reports the PC as busy, so the hub shows the run.

@@ -33,7 +33,7 @@ clabe replay <session>/Behavior/Logs/.launcher/events.jsonl main.py --allow-dirt
 The experiment runs again, headless, with the recorded answers, and stops at the first prompt that differs. Secrets
 cannot be replayed. In a test: `LocalClient(run, ReplayClient("events.jsonl")).drive()`.
 
-## How outputs are recorded { #how-outputs-are-recorded }
+## Choose how an output is recorded { #how-outputs-are-recorded }
 
 ```python
 from clabe.workflow import codecs
@@ -50,7 +50,7 @@ def frames() -> list[Frame]: ...
 The default records pydantic models as JSON and other values through pydantic. A codec that raises falls back to
 `repr`, marked `lossy`; the step does not fail.
 
-## Artifacts
+## Save files with the run
 
 ```python
 from clabe.workflow import export_artifact
@@ -67,7 +67,7 @@ def configure(rig: Rig) -> Path:
 For small provenance files, not session data. It works inside a running step (its tasks and `asyncio.to_thread`
 calls included), not from a new `threading.Thread`.
 
-## Reading them
+## Read the records in code
 
 ```python
 from clabe.workflow.events import EventLog, PromptClosed

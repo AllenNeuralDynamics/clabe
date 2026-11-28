@@ -20,7 +20,7 @@ The hub keeps no list of rigs: each rig enrolls itself, and the hub then follows
 served under `/rigs/<id>/` (page, run, APIs), so the web UI, [`RunClient`][clabe.server.RunClient] and
 [agents](agents.md) work across the fleet.
 
-## Run it
+## Run the hub
 
 ```bash
 cp docker/hub/.env.example docker/hub/.env      # set TOKEN: the hub can drive every rig it follows
@@ -30,7 +30,7 @@ docker compose -f docker/hub/compose.yml up -d --build
 Then point rigs at it: `DAEMON_CLABE_HUBS=https://hub-vm/clabe` (or `clabe daemon deploy --hubs …`). Every setting
 is in the [hub reference](../reference/hub.md).
 
-## Rigs
+## Manage rigs
 
 - **Moves are confirmed.** A known rig enrolling from another address shows **moved** and is not polled, nor sent
   its token, until someone clicks **Confirm move**. No machine can take over a rig's name.
@@ -38,19 +38,15 @@ is in the [hub reference](../reference/hub.md).
   People then need only the hub's token. Tokens are never shown back.
 - **Remove** a rig with the bin on its card; it comes back if it enrolls again. **Exclude** keeps rigs out by
   pattern (`BEH.*`, `rig-3`), under **Rigs ▸ Excluded**.
-
-### Restarting a rig's daemon { #restarting-a-rigs-daemon }
-
-The restart button on a card restarts the daemon through its API, or, when it does not answer, over SSH with a rig
-account typed on the card (used for that connection only, never stored). A run in progress is stopped. The hub
-remembers each rig's SSH host key and refuses a rig that shows another one.
+- **Restart** a rig's daemon with the button on its card: through the daemon's API, or, when it does not answer,
+  over SSH with a rig account typed on the card (used for that connection only, never stored). A run in progress is
+  stopped. The hub remembers each rig's SSH host key and refuses a rig that shows another one.
 
 ## Issue reports
 
 The hub collects every report filed on a rig, stores it, and only then deletes it from the rig. Reports live in the
 hub's data volume (`hub.db` and one zip each); each has a link to share (**Copy link**).
 
-## Settings
-
-**Settings** (or the gear in the top bar) sets the theme and whether times show in local time or UTC, for every
-clabe page in that browser. Times are stored in UTC everywhere.
+!!! tip "Theme and time zone"
+    **Settings** (or the gear in the top bar) sets the theme and whether times show in local time or UTC, for every
+    clabe page in that browser. Times are stored in UTC everywhere.

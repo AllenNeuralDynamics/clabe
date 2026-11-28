@@ -18,7 +18,7 @@ flowchart LR
 
 The [two-PC example](../docs_examples/remote_execution.md) is the full script.
 
-## 1. Prepare PC B
+## 1. Set up PC B
 
 [Set up the daemon](set-up.md) on it and clone the same repository under `C:/git`: commands run in that checkout's
 environment.
@@ -27,7 +27,7 @@ environment.
     Keep it on the rig network. With a token, `DAEMON_CLABE_TOKEN` on B and `worker_client: token:` in the
     experiment's `clabe.yml` must match.
 
-## 2. Connect
+## 2. Connect to PC B
 
 ```python
 wf.step(steps.remote(lambda ephys_rig: ephys_rig.computer_name))  # outputs `remote`, or None when it is this PC
@@ -37,7 +37,7 @@ The step reaches B's daemon (starting its task if needed) and checks B's checkou
 commit and submodules, nothing uncommitted (`allow_dirty=True` relaxes it). In code:
 `RemoteRepository.from_computer_name("rig-b")`, then `ensure_running()` and `verify()`.
 
-## 3. Run an app there
+## 3. Run an app on PC B
 
 Pass `executor=remote` to any app:
 
@@ -54,7 +54,17 @@ results = await concurrently(
 - Output streams into the run's UI. Aborting the run stops the command on B; `run.json` records each command.
 - Without an app: `remote.client.run_command(["python", "--version"])`, or `submit_command` to poll later.
 
-## 4. Its session folder
+!!! tip "If the run on PC A crashes"
+    B's commands keep running. Reattach within the daemon's `lease_grace` (5 minutes), with the crashed run's id from
+    its `run.json`:
+
+    ```python
+    remote = RemoteRepository.from_computer_name("rig-b")
+    for job in remote.reattach(crashed_run_id):
+        result = remote.wait_for(job.job_id)
+    ```
+
+## 4. Create the session folder on PC B
 
 ```python
 remote.register_session(session, ephys_rig.data_directory)  # creates D:\data\<session> on B
@@ -68,7 +78,7 @@ remote.register_session(session, ephys_rig.data_directory)  # creates D:\data\<s
 `remote.to_unc(path)` translates any of B's paths: from `data_roots` when given, else from the folders B shares,
 else from its drive's admin share (which needs admin rights on B).
 
-## 5. Upload both
+## 5. Upload both PCs' data
 
 ```python
 WatchdogDataTransferService(source=launcher.session_directories, settings=..., session=session).transfer()
@@ -77,17 +87,6 @@ WatchdogDataTransferService(source=launcher.session_directories, settings=..., s
 `launcher.session_directories` lists this PC's session folder, then every PC registered in this run, so one
 manifest covers both. Every source must be reachable by the watchdog's account. See
 [Data transfer](../reference/data-transfer.md) for splitting uploads.
-
-## After a crash
-
-B's commands keep running when the session on A crashes. Reattach within the daemon's `lease_grace` (5 minutes),
-with the crashed run's id from its `run.json`:
-
-```python
-remote = RemoteRepository.from_computer_name("rig-b")
-for job in remote.reattach(crashed_run_id):
-    result = remote.wait_for(job.job_id)
-```
 
 ## Troubleshooting
 

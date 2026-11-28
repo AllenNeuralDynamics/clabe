@@ -37,7 +37,7 @@ from clabe.aind.validators import validate_rig_computer_name
 STRICT_RIG = Kind.from_rig(MyRigModel, validators=[validate_rig_computer_name, my_extra_check])
 ```
 
-## Methods
+## Resolve, scope and write
 
 - `resolve` with no match raises `LookupError`; with one, returns it; with several, asks through the active session
   (raises [`NoSessionError`][clabe.ui.NoSessionError] when nothing can ask). `pick_kwargs` overrides the prompt's

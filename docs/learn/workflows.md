@@ -35,7 +35,7 @@ flowchart LR
 - Wiring mistakes (an unknown name, a duplicate) fail at import; `clabe check --strict` also checks annotations.
 - Return new values (`session.model_copy(update=...)`) rather than mutating inputs.
 
-## A step's life
+## How a step runs
 
 ```mermaid
 stateDiagram-v2
