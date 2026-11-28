@@ -377,9 +377,9 @@ class Launcher:
             # a headless client only logs its messages: print the address, so a closed tab can be reopened
             print(f"Run served at {url}", flush=True)
         if self.settings.open_browser:
-            import webbrowser
+            from .._process import open_in_browser
 
-            webbrowser.open(url)
+            open_in_browser(url)  # the browser stays open after the run
         from ..daemon._announce import announce
 
         withdraw = announce(

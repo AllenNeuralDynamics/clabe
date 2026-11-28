@@ -325,7 +325,7 @@ def _end_launched_run(host) -> None:
     current = host.current()
     process = getattr(current, "process", None)
     if process is not None and process.poll() is None:
-        process.kill()
+        current.kill()  # the run and all it started
         process.wait(10)
     deadline = time.monotonic() + 15
     while True:

@@ -46,6 +46,7 @@ public sealed record HostInfo(
     [property: JsonPropertyName("run")] RunInfo? Run,
     [property: JsonPropertyName("rig_id")] string? RigId = null,
     [property: JsonPropertyName("ip")] string? Ip = null,
+    [property: JsonPropertyName("terminals")] bool Terminals = false,
     [property: JsonPropertyName("leased_by")] string? LeasedBy = null,
     [property: JsonPropertyName("reports_waiting")] long ReportsWaiting = 0);
 
@@ -89,7 +90,10 @@ public sealed record LaunchBody(
     [property: JsonPropertyName("repository")] string Repository,
     [property: JsonPropertyName("file")] string File = "main.py",
     [property: JsonPropertyName("experiment")] string? Experiment = null,
-    [property: JsonPropertyName("frontend")] string Frontend = "none");
+    [property: JsonPropertyName("frontend")] string Frontend = "none",
+    [property: JsonPropertyName("window")] bool Window = true,
+    [property: JsonPropertyName("from_rig")] bool FromRig = false,
+    [property: JsonPropertyName("arguments")] List<string>? Arguments = null);
 
 /// <summary>The worker taken by a run; requests carrying it (``X-Clabe-Lease``) are served, others refused.</summary>
 public sealed record Lease(
@@ -146,6 +150,8 @@ public sealed record RunInfo(
     [property: JsonPropertyName("started_at")] DateTimeOffset StartedAt,
     [property: JsonPropertyName("pid")] long Pid,
     [property: JsonPropertyName("origin")] string Origin = "daemon",
+    [property: JsonPropertyName("from_rig")] bool FromRig = false,
+    [property: JsonPropertyName("terminal")] bool Terminal = false,
     [property: JsonPropertyName("port")] long? Port = null,
     [property: JsonPropertyName("exit_code")] long? ExitCode = null,
     [property: JsonPropertyName("log_tail")] List<string>? LogTail = null);
@@ -162,6 +168,11 @@ public sealed record StepInfo(
     [property: JsonPropertyName("barrier")] bool Barrier,
     [property: JsonPropertyName("optional")] string? Optional,
     [property: JsonPropertyName("conditional")] bool Conditional = false);
+
+/// <summary>Where a window on this machine reaches a run's terminal UI (see `clabe.daemon._terminal`).</summary>
+public sealed record TerminalAddress(
+    [property: JsonPropertyName("port")] long Port,
+    [property: JsonPropertyName("token")] string Token);
 
 public sealed record ValidationError(
     [property: JsonPropertyName("loc")] List<System.Text.Json.Nodes.JsonNode> Loc,

@@ -381,10 +381,7 @@ class TestTransfer:
         service = _service(behavior_dir, _settings(upload_groups=VIDEO_SPLIT), session)
         assert service._watch_config is not None
         service._watch_config.flag_dir = str(tmp_path / "flags")
-        with (
-            patch.object(WatchdogDataTransferService, "force_restart", return_value=None),
-            caplog.at_level("ERROR"),
-        ):
+        with caplog.at_level("WARNING"):
             service.transfer()
         assert "manifest_mock_session.yaml" in caplog.text
         assert "manifest_mock_session__videos.yaml" in caplog.text

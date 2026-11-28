@@ -22,9 +22,11 @@ from aind_watchdog_service.models.watch_config import WatchConfig
 from pydantic import BaseModel, SerializeAsAny, TypeAdapter
 from requests.exceptions import HTTPError
 
+from .. import ui
 from ..data_transfer import DataTransfer
 from ..runnable import runnable
 from ..settings import ServiceSettings
+from ..ui import MessageLevel
 
 logger = logging.getLogger(__name__)
 
@@ -259,12 +261,11 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
     A session is written as one manifest per upload group (see ``WatchdogSettings.upload_groups``).
 
     Methods:
-        transfer: Writes the session's manifests and starts the watchdog service
+        transfer: Writes the session's manifests, for the watchdog service to transfer
         plan: Builds the session's manifests without writing them
         validate: Validates the Watchdog service and its configuration
         is_valid_project_name: Checks if the project name is valid
         is_running: Checks if the Watchdog service is currently running
-        force_restart: Attempts to restart the Watchdog application
         dump_manifest_config: Dumps the manifest configuration to a YAML file
     """
 
@@ -323,12 +324,11 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
     @runnable(name="Transfer (watchdog)", notify="Transferring data (watchdog)…")
     def transfer(self) -> None:
         """
-        Writes the session's watchdog manifests, one per upload group, then starts the watchdog if needed.
+        Writes the session's watchdog manifests, one per upload group.
 
         The manifest of the group that creates the metadata record is written first, and nothing else is written if
         it fails. The manifests are written even if the service is not running, since it processes existing
-        manifests when it starts; the service is then started if needed. Failing to start it is logged, never
-        raised, since the manifests are already queued.
+        manifests when it starts; the user is then warned. clabe never starts the service: it runs on its own.
         """
         try:
             logger.debug("Creating watchdog manifest config(s).")
@@ -352,21 +352,15 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
             raise
 
         try:
-            if self.is_running():
-                return
-            logger.warning("Watchdog service is not running. Attempting to start it.")
-            self.force_restart(kill_if_running=False)
-            started = self.is_running()
-        except Exception as e:  # noqa: BLE001 -- the manifest is queued, so a failed start must not fail the transfer
-            logger.error("Failed to start watchdog service: %s", e)
-            started = False
-        if started:
-            logger.info("Watchdog service restarted successfully.")
-        else:
-            logger.error(
-                "Watchdog service is not running. The manifest(s) %s are written and will be transferred "
-                "once the watchdog service runs.",
-                ", ".join(str(p) for p in written),
+            running = self.is_running()
+        except (OSError, subprocess.SubprocessError) as e:  # the manifests are queued: never fail the transfer
+            logger.debug("Could not tell whether the watchdog service runs: %s", e)
+            running = False
+        if not running:
+            ui.notify(
+                "The watchdog service is not running: the data will be transferred once it runs. Manifest(s): "
+                + ", ".join(str(p) for p in written),
+                MessageLevel.WARNING,
             )
 
     def plan(self, session: Session | None = None) -> list[PlannedManifest]:
@@ -550,11 +544,7 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
             raise FileNotFoundError(f"Config file not found at {self.config_path}")
 
         if not self.is_running():
-            logger.warning(
-                "Watchdog service is not running. \
-                                After the session is over, \
-                                the launcher will attempt to forcefully restart it"
-            )
+            logger.warning("Watchdog service is not running: the session's data will wait until it runs.")
             return False
 
         if self.settings.project_name is None:
@@ -816,24 +806,6 @@ class WatchdogDataTransferService(DataTransfer[WatchdogSettings]):
         )
         processes = [line.split()[0] for line in output.splitlines()[2:]]
         return len(processes) > 0
-
-    def force_restart(self, kill_if_running: bool = True) -> subprocess.Popen[bytes]:
-        """
-        Attempts to restart the Watchdog application.
-
-        Args:
-            kill_if_running: Whether to terminate the service if it's already running
-
-        Returns:
-            A subprocess.Popen object representing the restarted service
-        """
-        if kill_if_running is True:
-            while self.is_running():
-                subprocess.run(["taskkill", "/IM", self.executable_path.name, "/F"], shell=True, check=True)
-
-        cmd_factory = f"{self.executable_path} -c {self.config_path}"
-
-        return subprocess.Popen(cmd_factory, start_new_session=True, shell=True)
 
     def dump_manifest_config(
         self, path: os.PathLike | None = None, make_dir: bool = True, manifest: ManifestConfig | None = None
