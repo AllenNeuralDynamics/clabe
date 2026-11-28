@@ -1,6 +1,7 @@
 """The hub's issue-report routes: browse, triage, download and delete collected reports; open an export for a look."""
 
 import asyncio
+import logging
 from collections.abc import Callable
 from pathlib import Path
 from typing import Annotated, Literal
@@ -26,6 +27,8 @@ from ._reports import (
     zip_entries,
     zip_text,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class StatusBody(BaseModel):
@@ -115,11 +118,14 @@ def report_routes(api: APIRouter, fleet: Fleet, inspections: InspectCache) -> No
         """Deletes a report (its row and its zip)."""
         if not store().delete([report_id]):
             raise HTTPException(status_code=404, detail=f"No report {report_id}.")
+        logger.info("Deleted report %s", report_id)
 
     @api.post("/reports/delete", response_model=DeleteResult)
     def delete_many(body: DeleteBody) -> DeleteResult:
         """Deletes several reports; unknown ids are skipped."""
-        return DeleteResult(deleted=store().delete(body.ids))
+        deleted = store().delete(body.ids)
+        logger.info("Deleted %s report(s)", deleted)
+        return DeleteResult(deleted=deleted)
 
     _zip_routes(api, store, stored_zip)
     _inspect_routes(api, inspections)
