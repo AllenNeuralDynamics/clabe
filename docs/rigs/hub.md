@@ -49,4 +49,5 @@ hub's data volume (`hub.db` and one zip each); each has a link to share (**Copy 
 
 !!! tip "Theme and time zone"
     **Settings** (or the gear in the top bar) sets the theme and whether times show in local time or UTC, for every
-    clabe page in that browser. Times are stored in UTC everywhere.
+    clabe page in that browser. Times are stored in UTC everywhere. On a rig's page the gear opens the
+    same settings; on the run page they are under **View**.

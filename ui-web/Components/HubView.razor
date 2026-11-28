@@ -11,7 +11,7 @@
     return;
 }
 <div class="hub">
-    <HubTopBar Context="hub" Version="@_version">
+    <HubTopBar Context="hub" Version="@_version" OnSettings='() => Show("settings")'>
         <Chips>
             @if (_rigs is not null)
             {
@@ -46,6 +46,10 @@
         <button type="button" role="tab" id="tab-reports" aria-selected="@(_tab == "reports")" aria-controls="panel-reports"
                 class="tab @(_tab == "reports" ? "on" : "")" @onclick='() => Show("reports")' @onkeydown="OnTabKey">
             <HubIcon Name="inbox" Size="15" /> Reports <span class="n">@Reports</span>
+        </button>
+        <button type="button" role="tab" id="tab-settings" aria-selected="@(_tab == "settings")" aria-controls="panel-settings"
+                class="tab settings-tab @(_tab == "settings" ? "on" : "")" @onclick='() => Show("settings")' @onkeydown="OnTabKey">
+            <HubIcon Name="settings" Size="15" /> Settings
         </button>
     </nav>
 
@@ -155,6 +159,25 @@
                 <LiveSessions Rigs="_rigs" />
             </div>
         }
+        else if (_tab == "settings")
+        {
+            <div id="panel-settings" role="tabpanel" aria-labelledby="tab-settings" class="settings-panel">
+                <SettingsPanel>
+                    <About>
+                        <dl class="about">
+                            <dt>Hub</dt>
+                            <dd><span class="mono">clabe @(_version ?? "…")</span></dd>
+                            <dt>Rigs</dt>
+                            <dd>@(_rigs?.Count ?? 0) enrolled, @Offline offline</dd>
+                            <dt>API</dt>
+                            <dd><a href="docs" target="_blank" rel="noopener">docs</a> (OpenAPI)</dd>
+                            <dt>Guide</dt>
+                            <dd><a href="https://allenneuraldynamics.github.io/clabe/articles/hub/" target="_blank" rel="noopener">The hub</a></dd>
+                        </dl>
+                    </About>
+                </SettingsPanel>
+            </div>
+        }
         else
         {
             <div id="panel-reports" role="tabpanel" aria-labelledby="tab-reports" class="reports-panel">
@@ -214,7 +237,7 @@
     protected override async Task OnInitializedAsync()
     {
         var tab = System.Web.HttpUtility.ParseQueryString(new Uri(Navigation.Uri).Query)["tab"];
-        _tab = tab is "reports" or "sessions" ? tab : "rigs";
+        _tab = tab is "reports" or "sessions" or "settings" ? tab : "rigs";
         ReportTime.Changed += TimeChanged;
         try
         {
@@ -310,7 +333,7 @@
 
     private void OnTabKey(KeyboardEventArgs e)
     {
-        string[] tabs = ["rigs", "sessions", "reports"];
+        string[] tabs = ["rigs", "sessions", "reports", "settings"];
         var at = Array.IndexOf(tabs, _tab);
         if (e.Key is "ArrowRight" or "ArrowLeft")
         {

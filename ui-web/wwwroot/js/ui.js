@@ -10,6 +10,10 @@ export function applyTheme(choice) {
   document.documentElement.dataset.theme = dark ? "dark" : "light";
   return theme;
 }
+/** What this computer prefers: "dark" or "light" (what the "system" theme follows). */
+export function systemTheme() {
+  return matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => applyTheme());
 applyTheme();
 

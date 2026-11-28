@@ -134,6 +134,29 @@ h3 { font-size: var(--text-lg); font-weight: 600; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .loading { padding: var(--s6); color: var(--text-3); }
 
+/* The loading screen (index.html while the page downloads, App.razor while it finds what serves it) */
+.boot {
+    min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--s4);
+    background: var(--bg); color: var(--text-3); font-family: var(--font); font-size: var(--text-sm);
+    animation: boot-in 300ms ease-out 150ms both; /* a fast load never flashes it */
+}
+.boot-logo { height: 44px; width: auto; border-radius: 10px; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12); }
+.boot-bar { position: relative; width: 200px; height: 3px; border-radius: 999px; background: var(--border); overflow: hidden; }
+.boot-bar > span {
+    position: absolute; inset: 0 auto 0 0; width: var(--blazor-load-percentage, 0%); border-radius: inherit;
+    background: var(--accent); transition: width 200ms ease-out;
+}
+.boot.connecting .boot-bar > span { width: 35%; animation: boot-sweep 1.1s ease-in-out infinite; }
+.boot-text { margin: 0; font-variant-numeric: tabular-nums; }
+.boot-percent::before { content: var(--blazor-load-percentage-text, ""); margin-left: 0.4em; }
+.boot-slow { margin: 0; max-width: 360px; text-align: center; color: var(--text-3); animation: boot-in 300ms ease-out 12s both; }
+@keyframes boot-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes boot-sweep { from { transform: translateX(-100%); } to { transform: translateX(290%); } }
+@media (prefers-reduced-motion: reduce) {
+    .boot, .boot-slow { animation-duration: 1ms; }
+    .boot.connecting .boot-bar > span { animation: none; width: 100%; opacity: 0.5; }
+}
+
 /* ---------- buttons ---------- */
 button, .btn {
     font: inherit;
