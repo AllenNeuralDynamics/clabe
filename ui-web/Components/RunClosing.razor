@@ -22,7 +22,7 @@
     <h2 class="closing-title">Run @Outcome</h2>
     @if (Connection.FinishedEvent?.Reason is { Length: > 0 } reason)
     {
-        <p class="closing-reason">@reason</p>
+        <ErrorText Text="@reason" Class="closing-reason" />
     }
 
     <dl class="closing-stats">

@@ -408,3 +408,31 @@ def test_a_failed_branch_is_retried_alone_from_the_web_ui(page):
             run.abort("test teardown")
         server.stop()
     assert run.status is RunStatus.COMPLETED and attempts == {"behavior": 1, "ephys": 2}
+
+
+def test_a_long_error_shows_its_first_and_last_lines_with_the_rest_folded(page):
+    wf = Workflow("failing")
+    warnings = "\n".join(f"UserWarning: deserialized field {i} will be coerced" for i in range(40))
+
+    @wf.step
+    def curriculum():
+        raise RuntimeError(f"Curriculum failed: exit code 1\nstderr:\n{warnings}\nValueError: no such stage")
+
+    run = Run(wf)
+    server = RunServer(run, port=18299)
+    url = server.start()
+    try:
+        run.start()
+        page.goto(url)
+        failure = page.locator(".prompt .error-text")
+        failure.wait_for()
+        assert "Curriculum failed: exit code 1" in failure.locator(".error-headline").inner_text()
+        assert failure.locator(".error-last").inner_text() == "ValueError: no such stage"
+        full = failure.locator("details pre")
+        assert not full.is_visible()
+        failure.get_by_text("Show full output (42 lines)").click()
+        assert "deserialized field 39" in full.inner_text()
+    finally:
+        if not run.wait(0):
+            run.abort("test teardown")
+        server.stop()
