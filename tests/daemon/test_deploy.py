@@ -121,6 +121,14 @@ class TestBuilds:
         request = _deploy.request_lock(tmp_path, ())
         assert request.spec == f"aind-clabe @ {WHEEL}" and request.key == "git-c7cc84fb0ad1"
 
+    def test_a_lock_s_build_as_github_writes_its_url(self, tmp_path):
+        """GitHub's download URL encodes the version's + as %2B; uv keeps it so in the lock."""
+        url = WHEEL.replace("+", "%2B")
+        (tmp_path / "uv.lock").write_text(
+            f'[[package]]\nname = "aind-clabe"\nversion = "0.18.0+g{SHA}"\nsource = {{ url = "{url}" }}\n'
+        )
+        assert _deploy.request_lock(tmp_path, ()).key == "git-c7cc84fb0ad1"
+
     def test_a_lock_s_other_wheel_is_keyed_once_installed(self, tmp_path):
         (tmp_path / "uv.lock").write_text(
             '[[package]]\nname = "aind-clabe"\nversion = "0.18.0"\n'
@@ -130,7 +138,14 @@ class TestBuilds:
 
     @pytest.mark.parametrize(
         "text, commit",
-        [(f"0.18.0+g{SHA}", SHA), (WHEEL, SHA), ("0.18.0", None), ("0.18.0+local", None), (None, None)],
+        [
+            (f"0.18.0+g{SHA}", SHA),
+            (WHEEL, SHA),
+            (WHEEL.replace("+", "%2B"), SHA),
+            ("0.18.0", None),
+            ("0.18.0+local", None),
+            (None, None),
+        ],
     )
     def test_a_build_s_commit(self, text, commit):
         assert _deploy.build_commit(text) == commit
