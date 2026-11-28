@@ -15,7 +15,7 @@ import time
 from pathlib import Path
 from xml.sax.saxutils import escape
 
-from ._process import NO_WINDOW
+from .._process import NO_WINDOW
 
 #: The scheduled task's name.
 TASK_NAME = "clabe-daemon"

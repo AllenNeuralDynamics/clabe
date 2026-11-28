@@ -3,6 +3,7 @@ import os
 import subprocess
 from typing import TYPE_CHECKING, Any
 
+from .._process import start_detached
 from ..runnable import runnable
 from ._base import AsyncExecutor, Command, CommandResult, Executor
 
@@ -216,11 +217,10 @@ class LocalDetachedExecutor(Executor):
     """
     Fire-and-forget executor that spawns a subprocess and returns immediately.
 
-    Launches the command via ``subprocess.Popen`` without waiting for it to
-    finish.  stdout and stderr are redirected to ``DEVNULL`` so that no pipe
-    handles are left open.  The returned ``CommandResult`` is a placeholder
-    with ``exit_code=0`` and no captured output; callers must not rely on it
-    to reflect the actual process outcome.
+    The process outlives the run: it is started outside the run's job and console, so it stays open when the
+    run ends, however it ends. Every other process a run starts ends with it. Its standard streams are not
+    inherited. The returned ``CommandResult`` is a placeholder with ``exit_code=0`` and no captured output;
+    callers must not rely on it to reflect the actual process outcome.
 
     Attributes:
         cwd: Working directory for command execution
@@ -261,15 +261,7 @@ class LocalDetachedExecutor(Executor):
             result = executor.run(cmd)  # fire-and-forget
             ```
         """
-        subprocess.Popen(
-            command.cmd,
-            cwd=self.cwd,
-            env=self.env,
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            shell=False,
-        )
+        start_detached(command.cmd, cwd=self.cwd, env=self.env, shell=False)
         return CommandResult(stdout=None, stderr=None, exit_code=0)
 
 

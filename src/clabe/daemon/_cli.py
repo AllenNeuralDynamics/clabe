@@ -301,6 +301,27 @@ class _UpgradeCli(BaseSettings):
         _report(_install.upgrade)
 
 
+class _ViewCli(BaseSettings):
+    """Show the terminal UI of the run the daemon hosts in this window. Closing the window stops the run."""
+
+    def cli_cmd(self):
+        """Show the run until it ends."""
+        from ._local import DaemonRefused, reach
+        from ._viewer import view
+
+        daemon = reach(start=False)
+        if daemon is None:
+            print("The daemon on this machine does not answer.", file=sys.stderr)
+            raise SystemExit(1)
+        try:
+            code = view(daemon)
+        except (DaemonRefused, OSError, RuntimeError) as exc:
+            print(f"Cannot show the run: {exc}", file=sys.stderr)
+            time.sleep(5)  # this window may have been opened for it: leave the message readable
+            raise SystemExit(1) from exc
+        raise SystemExit(code)
+
+
 def _report(action) -> None:
     """Runs ``action`` and prints its outcome; an OS error exits with status 1."""
     try:
@@ -321,6 +342,7 @@ class DaemonCli(BaseSettings, cli_kebab_case=True):
     restart: CliSubCommand[_RestartCli]
     status: CliSubCommand[_StatusCli]
     open: CliSubCommand[_OpenCli]
+    view: CliSubCommand[_ViewCli]
     uninstall: CliSubCommand[_UninstallCli]
     upgrade: CliSubCommand[_UpgradeCli]
 

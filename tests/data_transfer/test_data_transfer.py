@@ -5,7 +5,7 @@ import sys
 import tempfile
 from datetime import UTC, datetime, time
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from aind_behavior_services import Session
@@ -388,62 +388,28 @@ class TestWatchdogDataTransferService:
         )
 
     @patch("clabe.aind.watchdog.WatchdogDataTransferService.is_running", return_value=False)
-    @patch("clabe.aind.watchdog.WatchdogDataTransferService.force_restart", return_value=None)
-    @patch("clabe.aind.watchdog.WatchdogDataTransferService.dump_manifest_config")
-    def test_transfer_service_not_running_restart_success(
-        self,
-        mock_dump_manifest_config,
-        mock_force_restart,
-        mock_is_running,
-        watchdog_service,
-    ):
-        mock_is_running.side_effect = [False, True]  # First call returns False, second returns True
-        watchdog_service.transfer()
-        mock_force_restart.assert_called_once_with(kill_if_running=False)
-        mock_dump_manifest_config.assert_called_once()
-
-    @patch("clabe.aind.watchdog.WatchdogDataTransferService.is_running", return_value=False)
-    @patch(
-        "clabe.aind.watchdog.WatchdogDataTransferService.force_restart",
-        side_effect=subprocess.CalledProcessError(1, "cmd"),
-    )
     @patch(
         "clabe.aind.watchdog.WatchdogDataTransferService.dump_manifest_config",
         return_value=Path("flag_dir/manifest_session.yaml"),
     )
-    def test_transfer_service_not_running_restart_fail(
-        self, mock_dump_manifest_config, mock_force_restart, mock_is_running, watchdog_service, caplog
+    @patch("subprocess.Popen")
+    def test_a_service_not_running_is_warned_about_never_started(
+        self, mock_popen, mock_dump_manifest_config, mock_is_running, watchdog_service, caplog
     ):
-        with caplog.at_level("ERROR"):
+        with caplog.at_level("WARNING"):
             watchdog_service.transfer()  # never raises once the manifest is written
-        mock_force_restart.assert_called_once_with(kill_if_running=False)
-        assert "manifest_session.yaml" in caplog.text
+        assert "not running" in caplog.text and "manifest_session.yaml" in caplog.text
+        mock_popen.assert_not_called()
         # The watchdog processes existing manifests when it starts, so the session is still queued
         mock_dump_manifest_config.assert_called_once()
 
-    @patch("clabe.aind.watchdog.WatchdogDataTransferService.is_running", return_value=False)
-    @patch("clabe.aind.watchdog.WatchdogDataTransferService.force_restart", return_value=None)
     @patch(
-        "clabe.aind.watchdog.WatchdogDataTransferService.dump_manifest_config",
-        return_value=Path("flag_dir/manifest_session.yaml"),
-    )
-    def test_transfer_writes_manifest_before_starting_service(
-        self, mock_dump_manifest_config, mock_force_restart, mock_is_running, watchdog_service
-    ):
-        calls = Mock()
-        calls.attach_mock(mock_dump_manifest_config, "dump")
-        calls.attach_mock(mock_force_restart, "restart")
-        watchdog_service.transfer()
-        assert [c[0] for c in calls.mock_calls] == ["dump", "restart"]
-
-    @patch("clabe.aind.watchdog.WatchdogDataTransferService.is_running", return_value=False)
-    @patch(
-        "clabe.aind.watchdog.WatchdogDataTransferService.force_restart",
-        side_effect=FileNotFoundError("watchdog.exe"),
+        "clabe.aind.watchdog.WatchdogDataTransferService.is_running",
+        side_effect=subprocess.CalledProcessError(1, "tasklist"),
     )
     @patch("clabe.aind.watchdog.WatchdogDataTransferService.dump_manifest_config")
-    def test_transfer_never_raises_when_service_cannot_start(
-        self, mock_dump_manifest_config, mock_force_restart, mock_is_running, watchdog_service
+    def test_transfer_never_raises_when_the_service_cannot_be_checked(
+        self, mock_dump_manifest_config, mock_is_running, watchdog_service
     ):
         watchdog_service.transfer()
         mock_dump_manifest_config.assert_called_once()

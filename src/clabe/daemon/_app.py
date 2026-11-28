@@ -27,6 +27,17 @@ from ._worker import Worker, worker_router
 logger = logging.getLogger(__name__)
 
 
+#: The addresses of a client on this machine.
+LOOPBACK = frozenset({"127.0.0.1", "::1", "localhost"})
+
+
+class TerminalAddress(BaseModel):
+    """Where a window on this machine reaches a run's terminal UI (see `clabe.daemon._terminal`)."""
+
+    port: int
+    token: str
+
+
 def _guarded(call):
     """Calls ``call``, answering a `HostError` with its HTTP status."""
     try:
@@ -118,6 +129,31 @@ def _restart_routes(api: APIRouter, host: Host) -> None:
         return RestartResult(detail="The daemon restarts: it answers again in a few seconds.")
 
 
+def _current_run_routes(api: APIRouter, host: Host) -> None:
+    """The routes of the run the daemon hosts: what it is, stopping it, and its terminal UI's address."""
+
+    @api.get("/runs/current", response_model=RunInfo | None)
+    def current() -> RunInfo | None:
+        """The run launched last (running or not), with the end of its output."""
+        launched = host.current()
+        return launched.info() if launched is not None else None
+
+    @api.post("/runs/current/stop", response_model=RunInfo)
+    def stop(wait: bool = False) -> RunInfo:
+        """Stops the current run: it is asked to abort and close, and ended with all it started if it has not within
+        the daemon's ``stop_grace``. Answers once it is asked, or, with ``wait``, once it has ended."""
+        return _guarded(lambda: host.stop(wait=wait))
+
+    @api.get("/runs/current/terminal", response_model=TerminalAddress, responses={403: {}, 404: {}, 409: {}})
+    def terminal(request: Request) -> TerminalAddress:
+        """Where a window on this machine reaches the current run's terminal UI (`clabe daemon view`). Only
+        answered to this machine."""
+        if request.client is None or request.client.host not in LOOPBACK:
+            raise HTTPException(status_code=403, detail="Only a window on the rig shows its terminal UI.")
+        port, token = _guarded(host.terminal_address)
+        return TerminalAddress(port=port, token=token)
+
+
 async def _end_soon() -> None:
     """Ends the daemon once its answer is sent (`_watchdog.end_process` flushes the logs first)."""
     await asyncio.sleep(0.5)
@@ -174,16 +210,7 @@ def create_daemon_app(
     _report_routes(api, reports_directory)
     _restart_routes(api, host)
 
-    @api.get("/runs/current", response_model=RunInfo | None)
-    def current() -> RunInfo | None:
-        """The run launched last (running or not), with the end of its output."""
-        launched = host.current()
-        return launched.info() if launched is not None else None
-
-    @api.post("/runs/current/stop", response_model=RunInfo)
-    def stop() -> RunInfo:
-        """Stops the current run's process. Prefer aborting it (POST /run/api/abort): that lets it clean up."""
-        return _guarded(host.stop)
+    _current_run_routes(api, host)
 
     app.include_router(api)
     if worker is not None:
