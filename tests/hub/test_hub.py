@@ -162,3 +162,29 @@ def test_polling_an_unreachable_rig_marks_it_offline():
     asyncio.run(fleet.poll_once())
     status = fleet.status["gone"]
     assert (status.reachable, status.status) == (False, "offline") and status.error
+
+
+def test_the_rig_s_page_offers_the_frontend_the_hub_remembers(fleet):
+    playwright_api = pytest.importorskip("playwright.sync_api")
+    from clabe.server._app import STATIC_DIR
+
+    if not (STATIC_DIR / "index.html").is_file():
+        pytest.skip("the web UI is not built")
+    base = fleet
+    assert _hub(base, "/api/hub/rigs/rig-3/frontend", "PUT", json={"frontend": "browser"}).status_code == 204
+    with playwright_api.sync_playwright() as p:
+        try:
+            browser = p.chromium.launch(channel=os.environ.get("CLABE_TEST_BROWSER_CHANNEL") or None)
+        except playwright_api.Error as exc:
+            pytest.skip(f"no browser for Playwright: {exc}")
+        page = browser.new_page()
+        page.set_default_timeout(60_000)
+        page.goto(f"{base}/rigs/rig-3/?token=hub-secret")
+        choice = page.get_by_label("Show on the rig")
+        page.wait_for_function("() => document.querySelector('.frontend select')?.value === 'browser'")
+        choice.select_option("none")  # nothing opens on this PC
+        page.get_by_role("button", name="Start").click()
+        page.get_by_label("Subject").wait_for()
+        browser.close()
+    rigs = {r["id"]: r for r in _hub(base, "/api/hub/rigs").json()}
+    assert rigs["rig-3"]["frontend"] == "none"

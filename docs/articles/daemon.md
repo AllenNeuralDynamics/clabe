@@ -110,6 +110,9 @@ uv run --directory <repository> clabe run main.py --experiment-name <name> --fro
 
 - The run uses the repository's own locked environment (and its clabe version).
 - Prompts are answered in the web UI.
+- **Show on the rig** (`frontend`) also shows the run on the rig's screen: `tui` opens the terminal UI in a console
+  window, `browser` opens the run's page in the default browser, `none` (default) shows nothing. Through the hub,
+  the page offers the rig's last choice.
 - Only one run at a time: a second start returns `409`.
 
 ## Runs started from a terminal
@@ -144,7 +147,7 @@ uv run clabe shortcut --experiment-name vr-foraging --name "VR Foraging"
 | `GET /api/daemon/info` | Idle, busy or leased |
 | `GET /api/daemon/repositories` | The repositories |
 | `GET /api/daemon/repositories/{name}/experiments` | Their experiments |
-| `POST /api/daemon/runs` | Start a run |
+| `POST /api/daemon/runs` | Start a run: `{"repository", "file", "experiment", "frontend"}` |
 | `GET /api/daemon/runs/current` | The current run, with the end of its output |
 | `POST /api/daemon/restart[?force=true]` | Restart it; `409` during a session unless `force` |
 | `POST /api/daemon/runs/current/stop` | Stop it (only runs the daemon started) |

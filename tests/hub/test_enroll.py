@@ -428,3 +428,21 @@ def test_the_hub_tells_its_clabe_version():
     client = _hub(Fleet(HubSettings()))
     assert client.get("/api/hub/info").status_code == 401  # like the rest of the API, behind the hub's token
     assert client.get("/api/hub/info", headers=_HUB).json() == {"clabe_version": __version__}
+
+
+def test_the_hub_remembers_each_rig_s_last_frontend(tmp_path):
+    client = _hub(Fleet(HubSettings(), registry=Registry(tmp_path)))
+    client.post("/api/hub/enroll", json={"id": "rig-3", "host": "rig-3", "port": 24070})
+
+    def frontend():
+        return client.get("/api/hub/rigs", headers=_HUB).json()[0]["frontend"]
+
+    assert frontend() is None
+    assert client.put("/api/hub/rigs/rig-3/frontend", json={"frontend": "tui"}, headers=_HUB).status_code == 204
+    assert frontend() == "tui"
+    assert (
+        _hub(Fleet(HubSettings(), registry=Registry(tmp_path))).get("/api/hub/rigs", headers=_HUB).json()[0]["frontend"]
+        == "tui"
+    )  # kept in hub.db
+    assert client.put("/api/hub/rigs/rig-3/frontend", json={"frontend": "tv"}, headers=_HUB).status_code == 422
+    assert client.put("/api/hub/rigs/nobody/frontend", json={"frontend": "tui"}, headers=_HUB).status_code == 404

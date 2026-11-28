@@ -127,6 +127,7 @@ Interactive docs at `/docs`.
 | `DELETE /api/hub/rigs/{id}` | Remove a rig and its token (it comes back if it enrolls again) |
 | `POST /api/hub/rigs/{id}/confirm` | Confirm a rig's move to the address it enrolled from |
 | `PUT /api/hub/rigs/{id}/token` | `{"token": "..."}`: the rig's `DAEMON_CLABE_TOKEN`; `null` deletes it |
+| `PUT /api/hub/rigs/{id}/frontend` | `{"frontend": "none" \| "tui" \| "browser"}`: what the rig's page offers next |
 | `POST /api/hub/rigs/{id}/revive` | `{"username", "password"}`: restart its daemon over SSH |
 | `GET /api/hub/exclusions` | The exclusions: `[{pattern, comment, added_at}]` |
 | `POST /api/hub/exclusions` | `{"pattern", "comment"}`: exclude → `{exclusion, removed}` (the rigs removed) |

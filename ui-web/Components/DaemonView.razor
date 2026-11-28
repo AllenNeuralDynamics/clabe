@@ -59,6 +59,14 @@
                 {
                     <span class="subtle small">Start is available once the current run ends.</span>
                 }
+                <label class="frontend subtle small" title="What a run started here shows on the rig's screen">
+                    Show on the rig
+                    <select @bind="_frontend">
+                        <option value="none">Nothing</option>
+                        <option value="tui">Terminal</option>
+                        <option value="browser">Browser</option>
+                    </select>
+                </label>
             </div>
             @if (_repositories is null)
             {
@@ -108,6 +116,7 @@
         try
         {
             _repositories = await Daemon.RepositoriesAsync();
+            _frontend = await Daemon.RememberedFrontendAsync() ?? "none";
             await Refresh();
         }
         catch (Exception exc) when (exc is HttpRequestException or InvalidOperationException)
@@ -136,11 +145,14 @@
         }
     }
 
+    private string _frontend = "none";
+
     private async Task Launch(string repository, ExperimentInfo experiment)
     {
         try
         {
-            await Daemon.LaunchAsync(repository, experiment.File, experiment.Name);
+            await Daemon.LaunchAsync(repository, experiment.File, experiment.Name, _frontend);
+            await Daemon.RememberFrontendAsync(_frontend);
             _openWhenRunning = true;
             await Refresh();
         }

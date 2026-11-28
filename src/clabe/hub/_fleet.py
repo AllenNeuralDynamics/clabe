@@ -120,6 +120,9 @@ class RigStatus(BaseModel):
     reports_stored: int = Field(default=0, description="Issue reports from this rig stored in the hub")
     has_token: bool = Field(default=False, description="Whether this rig's token is entered in the hub")
     needs_token: bool = Field(default=False, description="Whether the rig answers but refuses the hub's token")
+    frontend: Literal["none", "tui", "browser"] | None = Field(
+        default=None, description="What the last run started from the hub showed on the rig (none, tui or browser)"
+    )
     moved_from: str | None = Field(
         default=None,
         description="Where the rig was confirmed, when it enrolled from another address since: it is not polled, "
@@ -174,6 +177,7 @@ class Fleet:
         self.rigs = {rig.id: rig for rig in self.registry.rigs()}
         self.status = {rig.id: RigStatus(id=rig.id, url=rig.url) for rig in self.rigs.values()}
         self._tokens = self.registry.tokens()
+        self._frontends = self.registry.frontends()
         self.reports = reports
         self._client = client or httpx.AsyncClient(timeout=5.0)
         self._task: asyncio.Task | None = None
@@ -201,6 +205,13 @@ class Fleet:
         else:
             self._tokens[rig_id] = token
         logger.info("%s: token %s", rig_id, "cleared" if token is None else "set")
+        return True
+
+    def set_frontend(self, rig_id: str, frontend: str) -> bool:
+        """Remembers what the last run started on a rig from the hub showed there; whether the rig is enrolled."""
+        if not self.registry.set_frontend(rig_id, frontend):
+            return False
+        self._frontends[rig_id] = frontend
         return True
 
     def enroll(self, body: EnrollBody) -> RigConfig:
@@ -258,6 +269,7 @@ class Fleet:
         self.rigs.pop(rig_id, None)
         self.status.pop(rig_id, None)
         self._tokens.pop(rig_id, None)
+        self._frontends.pop(rig_id, None)
         removed = self.registry.remove(rig_id)
         if removed:
             logger.info("%s removed", rig_id)
@@ -283,6 +295,7 @@ class Fleet:
                 update={
                     "reports_stored": counts.get(s.id, 0),
                     "has_token": s.id in self._tokens,
+                    "frontend": self._frontends.get(s.id),
                     "moved_from": rig.moved_from if (rig := self.rigs.get(s.id)) is not None else None,
                 }
             )
