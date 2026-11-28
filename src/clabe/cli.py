@@ -35,6 +35,11 @@ class _RunCli(LauncherCliArgs):
         description="Name of the workflow to run when the file defines more than one. "
         "If omitted, prompts interactively (or runs the only one found).",
     )
+    here: CliImplicitFlag[bool] = Field(
+        default=False,
+        description="Run in this terminal. On a Windows rig a run otherwise goes to the daemon, which shows it here "
+        "and keeps it if this window is lost",
+    )
 
     def _run(self):
         """Builds the launcher, selects the workflow and runs it."""
@@ -43,7 +48,15 @@ class _RunCli(LauncherCliArgs):
         launcher.run_experiment(workflow)
 
     def cli_cmd(self):
-        """Run the specified experiment, optionally under a single-session lock."""
+        """Run the specified experiment (through this machine's daemon, on a rig), optionally under a
+        single-session lock."""
+        from ._process import contain_children
+        from .daemon._handoff import run_through_daemon
+
+        code = run_through_daemon(self)
+        if code is not None:
+            raise SystemExit(code)
+        contain_children()  # what the run starts ends with it
         if not self.single_session:
             self._run()
             return
