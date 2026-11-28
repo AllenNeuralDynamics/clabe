@@ -240,7 +240,7 @@ class Workflow:
 
     Example:
         ```python
-        wf = Workflow("vr-foraging", exit_prompt_timeout=60)
+        wf = Workflow("vr-foraging", description="Patch foraging in virtual reality.", exit_prompt_timeout=60)
 
         @wf.step
         def session(launcher) -> Session: ...
@@ -254,15 +254,19 @@ class Workflow:
 
     Args:
         name: Human-readable name of the workflow (what ``clabe run`` lists).
+        description: What the workflow does, shown under its name where experiments are listed (the daemon's page).
         order: Sort key when a module defines several workflows (lower first).
         exit_prompt_timeout: Seconds the launcher waits at its exit prompt; ``None`` waits, ``0`` skips it (after a
             successful run only: after a failure or abort it waits).
     """
 
-    def __init__(self, name: str, *, order: int = 0, exit_prompt_timeout: float | None = None) -> None:
+    def __init__(
+        self, name: str, *, description: str | None = None, order: int = 0, exit_prompt_timeout: float | None = None
+    ) -> None:
         if exit_prompt_timeout is not None and exit_prompt_timeout < 0:
             raise ValueError(f"exit_prompt_timeout must be None or >= 0, got {exit_prompt_timeout}.")
         self.name = name
+        self.description = description
         self.order = order
         self.exit_prompt_timeout = exit_prompt_timeout
         self._steps: tuple[Step, ...] = ()
@@ -331,17 +335,24 @@ class Workflow:
         return result
 
     def variant(
-        self, name: str, *, order: int | None = None, exit_prompt_timeout: float | None | EllipsisType = ...
+        self,
+        name: str,
+        *,
+        description: str | None | EllipsisType = ...,
+        order: int | None = None,
+        exit_prompt_timeout: float | None | EllipsisType = ...,
     ) -> "Workflow":
         """Returns a copy named ``name`` with the same steps, to customise further.
 
         Args:
             name: The copy's name.
+            description: The copy's ``description`` (``None`` included); this workflow's by default.
             order: The copy's ``order``; this workflow's by default.
             exit_prompt_timeout: The copy's ``exit_prompt_timeout`` (``None`` included); this workflow's by default.
         """
         copy = Workflow(
             name,
+            description=self.description if description is ... else description,
             order=self.order if order is None else order,
             exit_prompt_timeout=self.exit_prompt_timeout if exit_prompt_timeout is ... else exit_prompt_timeout,
         )
@@ -353,7 +364,7 @@ class Workflow:
 
         ``other`` is a complete workflow, so its steps only take its own outputs and the built-ins (``launcher``,
         ``run``): nothing passes from this workflow's steps to ``other``'s. Use it for blocks every experiment shares,
-        e.g. a data hand-off at the end. The new workflow keeps this one's ``order`` and ``exit_prompt_timeout``.
+        e.g. a data hand-off at the end. The new workflow keeps this one's ``description``, ``order`` and ``exit_prompt_timeout``.
 
         Args:
             other: The workflow whose steps come after this one's.
@@ -367,7 +378,12 @@ class Workflow:
             raise WorkflowDefinitionError(
                 f"Cannot concatenate {other.name!r} after {self.name!r}: both have step(s) {', '.join(map(repr, shared))}."
             )
-        combined = Workflow(name or self.name, order=self.order, exit_prompt_timeout=self.exit_prompt_timeout)
+        combined = Workflow(
+            name or self.name,
+            description=self.description,
+            order=self.order,
+            exit_prompt_timeout=self.exit_prompt_timeout,
+        )
         combined._set_steps([*self._steps, *other.steps])
         return combined
 

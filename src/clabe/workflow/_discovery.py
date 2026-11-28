@@ -125,6 +125,7 @@ class ExperimentInfo(BaseModel):
 
     file: str
     name: str
+    description: str | None = None
     steps: list[StepInfo]
 
 
@@ -167,5 +168,7 @@ def list_experiments(path: str | Path) -> ExperimentListing:
                 )
                 for s in workflow.steps
             ]
-            experiments.append(ExperimentInfo(file=str(file), name=workflow.name, steps=steps))
+            experiments.append(
+                ExperimentInfo(file=str(file), name=workflow.name, description=workflow.description, steps=steps)
+            )
     return ExperimentListing(experiments=experiments, errors=errors)

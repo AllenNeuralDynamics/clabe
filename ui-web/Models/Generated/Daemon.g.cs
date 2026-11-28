@@ -20,7 +20,8 @@ public sealed record AttachBody(
 public sealed record ExperimentInfo(
     [property: JsonPropertyName("file")] string File,
     [property: JsonPropertyName("name")] string Name,
-    [property: JsonPropertyName("steps")] List<StepInfo> Steps);
+    [property: JsonPropertyName("steps")] List<StepInfo> Steps,
+    [property: JsonPropertyName("description")] string? Description = null);
 
 /// <summary>What an experiment file or directory offers (see ``clabe list``).</summary>
 public sealed record ExperimentListing(

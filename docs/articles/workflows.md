@@ -11,10 +11,11 @@ from clabe import checks, steps
 from clabe.launcher import Launcher
 from clabe.workflow import Workflow
 
-wf = Workflow("vr-foraging", exit_prompt_timeout=60)
+wf = Workflow("vr-foraging", description="Patch foraging in virtual reality.", exit_prompt_timeout=60)
 wf.step(steps.session())  # a `session` step: who is running, on which animal
 ```
 
+- `description`: shown under the workflow's name on the daemon's page (optional).
 - `exit_prompt_timeout`: with `None` the run waits for a client to close the session, with `0` it exits at once, and
   with `N` it counts down `N` seconds. After a failure or abort, `0` waits as `None` does, so the error stays on
   screen. A run that failed with an error waits until someone closes it, or headless, until no browser has had it
@@ -172,7 +173,7 @@ fip = wf.variant("vr-foraging-fip").insert_after("rig", fip_rig).replace("qc", m
 recovery = wf.variant("recovery", order=10).remove("qc")
 ```
 
-- `variant` keeps `order` and `exit_prompt_timeout` unless given.
+- `variant` keeps `description`, `order` and `exit_prompt_timeout` unless given.
 - To reuse one step of another workflow with its options, pass the step: `recovery.step(wf.get("qc"))`, with keyword
   overrides if needed (`insert_before`, `insert_after` and `replace` take a step too).
 - `remove` refuses a step whose output a later step takes: remove or `replace` that one first.
