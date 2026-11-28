@@ -1,0 +1,81 @@
+# Set up a rig
+
+Every rig PC runs the clabe **daemon**: it lists the PC's experiments, starts them, and serves the run in progress
+at one address, for browsers, the hub and other rigs.
+
+```mermaid
+flowchart LR
+  task["Scheduled task<br/><small>at logon, every 5 min</small>"] --> daemon["Daemon<br/><small>:24070, hidden</small>"]
+  daemon -->|uv run … clabe run| run(("Run"))
+  daemon -. finds .-> repos[("C:/git/*<br/><small>main.py + aind-clabe</small>")]
+  browser["Browser · hub · other rigs"] --> daemon
+```
+
+| Address | Shows |
+|---|---|
+| `http://<rig>:24070/` | The PC and its experiments: start one from here |
+| `http://<rig>:24070/run/` | The run in progress |
+
+## Install
+
+You need a Windows user that stays logged on (the daemon runs in its desktop session), the experiment repositories
+cloned under `C:/git`, and port 24070 reachable. As that user:
+
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/AllenNeuralDynamics/clabe/main/scripts/install.ps1 | iex"
+```
+
+It installs uv if needed, the `clabe` command, and the daemon with its scheduled task. Running it again updates or
+repairs. **Pin the version on rigs** (`-Version 0.18.0`); every parameter is in the
+[daemon reference](../reference/daemon.md#installer).
+
+- The daemon needs no settings beyond an optional token (`DAEMON_CLABE_TOKEN`). Experiments read the rig's
+  `%PROGRAMDATA%\clabe.yml` (the installer's `-Config` writes it).
+- A repository is any folder right under `C:/git` with a `main.py` and a `pyproject.toml` depending on `aind-clabe`.
+  Its experiments run in its own locked environment.
+
+## Update, go back
+
+```powershell
+clabe daemon deploy --version 0.18.1                  # a release
+clabe daemon deploy --lock C:/git/Aind.Experiment.X   # the release that repository locks
+clabe daemon deploy --version 0.18.0                  # go back
+```
+
+The new release installs beside the running one and the daemon switches only once it starts from it; a failed
+install leaves the daemon as it was. Deploy refuses during a session unless `--force`.
+
+## Over SSH
+
+```bash
+ssh rig-3 'powershell -NoProfile -ExecutionPolicy ByPass -c "& ([scriptblock]::Create((irm https://raw.githubusercontent.com/AllenNeuralDynamics/clabe/main/scripts/install.ps1))) -Version 0.18.0 -Config -"' < clabe.yml
+ssh rig-3 clabe daemon status      # idle, busy or leased
+ssh rig-3 clabe daemon restart     # refused during a session; --force interrupts it
+```
+
+Never start it with `clabe daemon run` over SSH: it could not show windows and would stop with the session.
+
+## It looks after itself
+
+The daemon has no window, and nor do the processes it starts (windows that experiments open, like Bonsai, show as
+usual).
+
+| When the daemon | Then |
+|---|---|
+| Is not running | Its task starts it within 5 minutes |
+| Does not answer for 2 minutes | It ends itself, and the task starts it again |
+| Was stopped (`clabe daemon stop`) | It stays stopped until `start`, `restart` or `deploy` |
+
+The [hub](hub.md#restarting-a-rigs-daemon) can restart it too.
+
+## Running experiments
+
+- **From a browser** (the daemon's page, or the hub): the run starts headless and is answered in the browser.
+  **Show on the rig** also opens the terminal UI or the browser on the rig's screen. One run at a time.
+- **From the rig**: a desktop icon runs an experiment in a terminal, and the daemon serves it under `/run/` too.
+
+```bash
+uv run clabe shortcut --experiment-name vr-foraging --name "VR Foraging"   # in the repository
+```
+
+**Report an issue** saves a report on the rig until the hub collects it.

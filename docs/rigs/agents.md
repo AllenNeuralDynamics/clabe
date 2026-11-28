@@ -13,7 +13,7 @@ The [hub](hub.md) serves MCP for every rig at one address (streamable HTTP):
 
 - Every tool takes the `rig` to act on (see `list_rigs`). Leave the header out when the hub has no token.
 
-Without a hub, `clabe mcp` serves a run server, a rig's [daemon](daemon.md) (or a hub) over stdio:
+Without a hub, `clabe mcp` serves a run server, a rig's [daemon](set-up.md) (or a hub) over stdio:
 
 ```bash
 uv add "aind-clabe[agents]"

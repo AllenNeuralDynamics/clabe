@@ -226,10 +226,10 @@ def generate_service_settings_table() -> None:
 
     # Build markdown content
     content = [
-        "# Service Settings",
+        "# Settings",
         "",
         "This table lists all service settings classes and their YAML section names.",
-        "See [Configuration](configuration.md) for where settings are loaded from.",
+        "See [Configuration](../learn/configuration.md) for where settings are loaded from.",
         "",
     ]
     content.append("| Class Name | YAML Section |")
@@ -239,10 +239,10 @@ def generate_service_settings_table() -> None:
         section_display = yml_section if yml_section else "None"
         content.append(f"| `{class_name}` | `{section_display}` |")
 
-    # Write to file in articles directory
-    articles_dir = DOCS_DIR / "articles"
+    # Write to file in the reference directory
+    articles_dir = DOCS_DIR / "reference"
     articles_dir.mkdir(exist_ok=True)
-    output_path = articles_dir / "service_settings.md"
+    output_path = articles_dir / "settings.md"
     with open(output_path, "w", encoding="utf-8") as f:
         f.write("\n".join(content))
 

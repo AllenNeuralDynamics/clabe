@@ -84,7 +84,7 @@ local
 docs/api/
 docs/examples/
 docs/LICENSE
-docs/articles/service_settings.md
+docs/reference/settings.md
 
 # Web UI: build output (scripts/build_web.py publishes into the package; CI builds it before the wheel)
 src/clabe/server/static/

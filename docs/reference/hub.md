@@ -1,20 +1,6 @@
-# The clabe hub
+# Hub reference
 
-The hub is an optional page for the whole fleet. It shows every rig's status and every run waiting for an answer at
-one address.
-
-- "Waiting for an answer" lists the runs waiting on a prompt, longest first, each with a link to answer it.
-- "Rigs" shows each rig's status (idle, running, leased, offline), experiment and current step.
-- "Live sessions" shows the session each rig is running now, filled in as it progresses: subject, experimenter,
-  session id (once registered), progress and duration. A row opens its run page. The hub stores none of this: the
-  data comes from each poll (`session` in `GET /api/hub/rigs`, read from the run's `/run/api/session`).
-- "Reports" lists the issue reports collected from the rigs ([below](#issue-reports)).
-- The hub serves MCP at `/mcp`, so agents can act on every rig through one address ([Agents](agents.md#mcp)).
-- The page asks for the hub's token (Sign in) and keeps it in a cookie. The browser tab shows "(n)" while runs wait.
-- Times are stored in UTC everywhere (records, logs, reports). The pages show them in local time, or in UTC with the
-  clock toggle in the top bar. The browser remembers the choice. On the run page, the toggle is under View ▸ Times.
-- Each rig is proxied under `/rigs/<id>/` (page, run, APIs), so the web UI, [`RunClient`][clabe.server.RunClient]
-  and [agents](agents.md) work across the fleet with one token.
+Settings, enrollment and API of the hub. [The hub](../rigs/hub.md) explains what it does.
 
 ## Configure
 
@@ -35,6 +21,8 @@ TOKEN=...                                                # the hub's own token
 | `REPORT_RETENTION_DAYS` | none | Optional: delete reports collected longer ago; kept forever if unset |
 | `LOG_LEVEL` | `INFO` | What the hub logs to stdout: rigs enrolling, reachable or lost, runs starting and finishing, prompts waiting, reports collected |
 | `ACCESS_LOG` | `false` | Also log every HTTP request |
+
+Without Docker, run `clabe hub run` in a folder that has that `.env` (or with those variables set).
 
 ## Rigs enroll themselves
 
@@ -76,26 +64,6 @@ presents each rig's token for them.
 - Tokens are kept in `hub.db` as plain text: the hub must send them to the rigs. Protect the data volume like the
   `.env` file.
 - Enrolling again keeps a rig's token. Removing a rig deletes it.
-
-### Restarting a rig's daemon
-
-The restart button on a rig's card restarts its daemon:
-
-- When the daemon answers, through its API.
-- Otherwise over SSH, with a rig account (the rig's logged-on user or an administrator) entered on the card. The hub
-  uses it for that connection only and does not store or log it.
-
-A run going on the rig is stopped. The hub remembers each rig's SSH host key and refuses a rig that shows another
-one; removing the rig forgets it. SSH needs the `ssh` extra (`aind-clabe[ssh]`, included in the Docker image).
-
-## Run it
-
-```bash
-cp docker/hub/.env.example docker/hub/.env   # then fill it in
-docker compose -f docker/hub/compose.yml up -d --build
-```
-
-Without Docker, run `clabe hub run` in a folder that has that `.env` (or with those variables set).
 
 ## Issue reports
 
