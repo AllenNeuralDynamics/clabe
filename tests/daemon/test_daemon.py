@@ -18,7 +18,7 @@ _EXPERIMENT = """
 from clabe import ui
 from clabe.workflow import Workflow
 
-demo = Workflow("demo", exit_prompt_timeout=0)
+demo = Workflow("demo", description="A two-step demo.", exit_prompt_timeout=0)
 
 
 @demo.step
@@ -200,7 +200,8 @@ def test_the_daemon_page_starts_an_experiment_and_opens_its_run(daemon):
         page = browser.new_page()
         page.set_default_timeout(90_000)
         page.goto(f"{base}/?token=d4emon")
-        page.get_by_role("button", name="Start").click()  # the experiments are listed at once
+        page.get_by_text("A two-step demo.").wait_for()  # the experiment's description
+        page.get_by_role("button", name="Start").click()
         page.get_by_label("Subject").fill("mouse-9")  # the page opens the run once it is served
         page.get_by_role("button", name="Submit").click()
         page.get_by_label("Trials").fill("12")

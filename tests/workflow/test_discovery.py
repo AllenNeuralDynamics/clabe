@@ -41,6 +41,23 @@ def test_files_of_a_package_load_with_their_relative_imports(tmp_path):
     assert load_module(package / "vr.py").__name__ == "_clabe_pkg_experiments.vr"
 
 
+def test_a_workflow_s_description_is_listed_and_kept_by_its_copies(tmp_path):
+    from clabe.workflow import list_experiments
+
+    (tmp_path / "main.py").write_text(
+        "from clabe.workflow import Workflow\n"
+        "wf = Workflow('vr', description='Patch foraging.')\n"
+        "plain = Workflow('plain', order=1)\n"
+    )
+    listed = {e.name: e.description for e in list_experiments(tmp_path / "main.py").experiments}
+    assert listed == {"vr": "Patch foraging.", "plain": None}
+
+    wf = Workflow("vr", description="Patch foraging.")
+    assert wf.variant("vr-dev").description == "Patch foraging."
+    assert wf.variant("vr-dev", description=None).description is None
+    assert wf.concatenate(Workflow("handoff")).description == "Patch foraging."
+
+
 def test_as_workflow_accepts_workflows_and_plain_callables():
     wf = Workflow("w")
     assert as_workflow(wf) is wf
