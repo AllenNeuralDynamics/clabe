@@ -34,13 +34,26 @@ repairs. **Pin the version on rigs** (`-Version 0.18.0`); every parameter is in 
 - A repository is any folder right under `C:/git` with a `main.py` and a `pyproject.toml` depending on `aind-clabe`.
   Its experiments run in its own locked environment.
 
-To change the version later, deploy the one you want. The new release installs beside the running one, and a failed
-install leaves the daemon as it was. Deploy refuses during a session unless `--force`.
+To change it later, deploy the one you want. It installs beside the running one, and a failed install leaves the
+daemon as it was. Deploy refuses during a session unless `--force`.
 
 ```powershell
+clabe daemon deploy --lock C:/git/Aind.Experiment.X   # the clabe that repository locks
 clabe daemon deploy --version 0.18.1                  # a release, newer or older
-clabe daemon deploy --lock C:/git/Aind.Experiment.X   # the release that repository locks
+clabe daemon deploy --commit 82d2107                  # a commit of clabe's main branch
 ```
+
+!!! tip "Use a commit without a release"
+    Every commit pushed to clabe's main branch has a build (web UI included) in the
+    [builds release](https://github.com/AllenNeuralDynamics/clabe/releases/tag/builds). Pin an experiment to one with
+    its wheel's URL, then deploy with `--lock`:
+
+    ```toml
+    [tool.uv.sources]
+    aind-clabe = { url = "https://github.com/AllenNeuralDynamics/clabe/releases/download/builds/aind_clabe-<version>+g<commit>-py3-none-any.whl" }
+    ```
+
+    A `git+https://…` pin installs clabe without its web UI.
 
 Over SSH, pipe the rig's `clabe.yml` to the installer:
 

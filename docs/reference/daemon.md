@@ -65,7 +65,7 @@ DAEMON_CLABE_TOKEN=...
 |---|---|
 | `clabe daemon run [--open-browser]` | Run in the foreground, e.g. to try it |
 | `clabe daemon open [--run-page]` | Open the daemon's page (or its run's) signed in, e.g. from a desktop shortcut |
-| `clabe daemon deploy [--version V \| --lock REPO \| --package SPEC] [--hubs H] [--force]` | Install that clabe for the daemon and switch it there; nothing when it already runs it. See [Deploy](#deploy) |
+| `clabe daemon deploy [--version V \| --commit C \| --lock REPO \| --package SPEC] [--hubs H] [--force]` | Install that clabe for the daemon and switch it there; nothing when it already runs it. See [Deploy](#deploy) |
 | `clabe daemon install` | Register the `clabe-daemon` task (at logon and every 5 minutes) and start it |
 | `clabe daemon stop [--force] [--if-installed] [--timeout 15]` | Disable and end the task, and wait until the port is free; refused during a session unless `--force`; `--if-installed`: no task is not an error |
 | `clabe daemon start [--timeout 60]` | Enable and start the task, and wait until the daemon answers |
@@ -87,7 +87,7 @@ The installer:
 
 1. Installs uv if it is missing. Stops if the daemon runs a session (busy or leased) and `-Force` is not set.
 2. Sets `DAEMON_CLABE_TOKEN` and `%PROGRAMDATA%\clabe.yml`, when given.
-3. Installs or updates the `clabe` command to the latest release (`uv tool install --upgrade --force`), and adds it to the user's PATH (`uv tool update-shell`).
+3. Installs or updates the `clabe` command to the latest release, or to the build of `-Commit` or `-Lock` (`uv tool install --upgrade --force`), and adds it to the user's PATH (`uv tool update-shell`).
 4. Runs [`clabe daemon deploy`](#deploy), which installs the daemon's clabe and starts the daemon.
 
 Running it again is safe: the same command installs, updates and repairs.
@@ -95,13 +95,14 @@ Running it again is safe: the same command installs, updates and repairs.
 | Parameter | Variable | Meaning |
 |---|---|---|
 | `-Version` | `DAEMON_CLABE_VERSION` | clabe release for the daemon (default: latest). **Pin it on rigs.** |
-| `-Lock` | `DAEMON_CLABE_LOCK` | A repository (or its `uv.lock`): the clabe release it locks |
+| `-Commit` | `DAEMON_CLABE_COMMIT` | A commit of clabe's main branch: its [build](#builds-of-main) |
+| `-Lock` | `DAEMON_CLABE_LOCK` | A repository (or its `uv.lock`): the clabe it locks (a release or a build) |
 | `-Package` | `DAEMON_CLABE_PACKAGE` | Any uv requirement instead, e.g. `aind-clabe[frontend,otel,agents]==0.18.0` |
 | `-Extras` | `DAEMON_CLABE_EXTRAS` | aind-clabe's extras for the daemon (default `frontend,otel`) |
 | `-Hubs` | `DAEMON_CLABE_DEPLOY_HUBS` | Hubs to enroll with, `;`-separated; `none` for no hub (default: unchanged) |
 | `-Token` | `DAEMON_CLABE_TOKEN` | Daemon token, saved as the user's `DAEMON_CLABE_TOKEN` |
 | `-Config` | `DAEMON_CLABE_CONFIG` | The experiments' `clabe.yml` to install as `%PROGRAMDATA%\clabe.yml`; `-` reads it from standard input |
-| `-CliPackage` | `DAEMON_CLABE_CLI_PACKAGE` | uv requirement of the `clabe` command (default: the latest release, whatever `-Version` the daemon runs) |
+| `-CliPackage` | `DAEMON_CLABE_CLI_PACKAGE` | uv requirement of the `clabe` command (default: the build of `-Commit`, or the build `-Lock` pins; else the latest release) |
 | `-StopDaemon` | `DAEMON_CLABE_STOP=1` | Only install the `clabe` command and stop the daemon; deploy later |
 | `-Force` | `DAEMON_CLABE_FORCE=1` | Stop or restart the daemon even during a session (it is interrupted) |
 | `-DryRun` | `DAEMON_CLABE_DRY_RUN=1` | Print the commands only |
@@ -116,7 +117,8 @@ $env:DAEMON_CLABE_VERSION = "0.18.0"; irm https://raw.githubusercontent.com/Alle
 
 ## Deploy
 
-`clabe daemon deploy` installs a clabe release for the daemon and switches the daemon to it.
+`clabe daemon deploy` installs a clabe (a release or a [build](#builds-of-main)) for the daemon and switches the
+daemon to it.
 
 - Each clabe gets its own environment in `%LOCALAPPDATA%\clabe\versions` (e.g. `0.18.0-frontend-otel`), and the
   `clabe-daemon` task runs that environment's `clabe.exe`.
@@ -131,6 +133,18 @@ $env:DAEMON_CLABE_VERSION = "0.18.0"; irm https://raw.githubusercontent.com/Alle
 - The last 3 environments are kept, so going back to one of them is just a restart.
 - `--dry-run` says what would be done.
 - This is the daemon's own install. Experiments still run in their repository's environment.
+
+## Builds of main
+
+CI builds a wheel of every commit pushed to main, web UI included, into one pre-release,
+[`builds`](https://github.com/AllenNeuralDynamics/clabe/releases/tag/builds). Its version is the release it follows
+plus the commit (`0.18.0rc8+g82d2107…`). The newest 100 are kept.
+
+- `--commit 82d2107` (7 to 40 characters) installs that commit's build, in the environment `git-<commit>`. It looks
+  the build up through GitHub's API (60 requests an hour per address without a token).
+- An experiment pins one with the wheel's URL in `[tool.uv.sources]`. `--lock` then installs the same wheel,
+  without asking GitHub.
+- The installer's `-Commit`, and its `-Lock` on such a repository, also install that build as the `clabe` command.
 
 ## Over SSH
 
@@ -244,7 +258,8 @@ run to the daemon, which shows it in the same window:
 | `restart`: task `Ready`, daemon starts at logon | Log the rig's user on. |
 | `restart` or `deploy` times out, task `Running` | Read `daemon.log`: port taken, or a `DAEMON_CLABE_*` variable invalid. |
 | `The installed clabe cannot run the daemon` | The extras lack `frontend` (`--extras`), or that clabe is broken. The daemon kept running. |
-| `... no web UI` / `... not a release` | The daemon runs PyPI releases only: their wheels carry the web UI CI builds. A git commit built on the rig has none. Lock or pass a release (a pre-release such as `0.19.0rc1` works). |
+| `... no web UI` | clabe was built from source (a `git+` or path pin), without the web UI CI builds. Lock a release or a [build](#builds-of-main). |
+| `No build of clabe for commit …` | Only commits pushed to main have a build, and only the newest 100 are kept. |
 | `uv's installer did not install uv` | Install uv for the rig's user, then run the installer again. |
 | Cannot download clabe | Give the rig internet (or a uv index mirror) while installing. |
 | Daemon answers with no repositories | Each needs a `main.py` and a `pyproject.toml` depending on `aind-clabe` in a folder right under a root (default `C:/git`); or list it under `repositories`. |

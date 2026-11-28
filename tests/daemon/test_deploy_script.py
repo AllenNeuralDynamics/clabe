@@ -29,6 +29,8 @@ def _isolated(tmp_path, monkeypatch):
     monkeypatch.setenv("DAEMON_CLABE_PORT", str(free_port("127.0.0.1", 24900)))
     for name in (
         "DAEMON_CLABE_VERSION",
+        "DAEMON_CLABE_COMMIT",
+        "DAEMON_CLABE_BUILDS",
         "DAEMON_CLABE_LOCK",
         "DAEMON_CLABE_PACKAGE",
         "DAEMON_CLABE_FORCE",
@@ -112,6 +114,59 @@ def test_as_a_script_block_with_arguments():
     commands = _commands(_powershell("-Command", command))
     assert commands[0].endswith("tool install --upgrade --force aind-clabe==0.18.0")
     assert commands[2].endswith("daemon deploy --timeout 120 --package aind-clabe[agents]==0.18.0")
+
+
+SHA = "c7cc84fb0ad1e2f3a4b5c6d7e8f9a0b1c2d3e4f5"
+WHEEL = (
+    f"https://github.com/AllenNeuralDynamics/clabe/releases/download/builds/aind_clabe-0.18.0+g{SHA}-py3-none-any.whl"
+)
+
+
+@pytest.fixture
+def builds():
+    """The builds release's API (the release, then its files: one wheel); the release's URL."""
+    assets = json.dumps([{"name": WHEEL.rsplit("/", 1)[1], "browser_download_url": WHEEL}]).encode()
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            base = f"http://127.0.0.1:{self.server.server_address[1]}"
+            body = assets if self.path.startswith("/assets") else json.dumps({"assets_url": f"{base}/assets"}).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *args):
+            pass
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    yield f"http://127.0.0.1:{server.server_address[1]}/builds"
+    server.shutdown()
+
+
+def test_a_commit_installs_its_build_as_the_command_and_for_the_daemon(builds):
+    commands = _commands(
+        _powershell("-File", str(SCRIPT), "-Commit", "C7CC84F", "-DryRun", env={"DAEMON_CLABE_BUILDS": builds})
+    )
+    assert commands[0].endswith(f"tool install --upgrade --force aind-clabe[frontend,otel] @ {WHEEL}")
+    assert commands[2].endswith("daemon deploy --timeout 120 --commit C7CC84F")
+
+
+def test_a_commit_without_a_build_installs_nothing(builds):
+    done = _run("-File", str(SCRIPT), "-Commit", "fedcba9", "-DryRun", env={"DAEMON_CLABE_BUILDS": builds})
+    assert done.returncode != 0 and "No build" in done.stderr + done.stdout
+    assert "Installing the clabe command" not in done.stdout
+
+
+def test_a_lock_on_a_build_installs_that_build_as_the_command(tmp_path):
+    (tmp_path / "uv.lock").write_text(
+        f'version = 1\n\n[[package]]\nname = "aind-clabe"\nversion = "0.18.0+g{SHA}"\nsource = {{ url = "{WHEEL}" }}\n'
+        '\n[[package]]\nname = "other"\nversion = "1"\n'
+    )
+    commands = _commands(_powershell("-File", str(SCRIPT), "-Lock", str(tmp_path), "-DryRun"))
+    assert commands[0].endswith(f"tool install --upgrade --force aind-clabe[frontend,otel] @ {WHEEL}")
+    assert commands[2].endswith(f"daemon deploy --timeout 120 --lock {tmp_path}")
 
 
 def test_stop_daemon_only_installs_the_command_and_stops_it():
