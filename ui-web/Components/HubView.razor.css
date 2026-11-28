@@ -71,3 +71,11 @@
     .needs-list li { grid-template-columns: 12px minmax(0, 1fr) auto; }
     .needs-list .since { display: none; }
 }
+
+/* Settings sits at the end of the tab bar, apart from what the hub shows */
+.settings-tab { margin-left: auto; }
+.settings-panel { width: 100%; max-width: 640px; margin: 0 auto; }
+.about { display: grid; grid-template-columns: max-content 1fr; gap: var(--s2) var(--s5); margin: 0; font-size: var(--text-sm); }
+.about dt { color: var(--text-3); }
+.about dd { margin: 0; color: var(--text); }
+.about .mono { font-family: var(--mono); }
