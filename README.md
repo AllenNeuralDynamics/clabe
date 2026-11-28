@@ -87,7 +87,7 @@ uv add "aind-clabe[agents]"           # the MCP server (clabe mcp)
 The `frontend` extra adds the terminal UI and the browser page (and the web server the daemon and the hub run on).
 Without it, clabe asks its questions as plain console prompts and the rest works the same.
 
-To install the daemon on a rig PC, see [Deploy a rig](https://allenneuraldynamics.github.io/clabe/articles/deployment/).
+To install the daemon on a rig PC, see [Deploy a rig](https://allenneuraldynamics.github.io/clabe/rigs/set-up/).
 
 ## Documentation
 

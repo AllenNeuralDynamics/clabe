@@ -1,4 +1,4 @@
-# Uploading data with the watchdog
+# Data transfer
 
 [`WatchdogDataTransferService`][clabe.aind.watchdog.WatchdogDataTransferService] hands a session to
 [aind-watchdog-service](https://github.com/AllenNeuralDynamics/aind-watchdog-service), which copies it to
@@ -71,20 +71,6 @@ Preview the manifests without writing them:
 ```python
 for planned in transfer_service.plan():
     print(planned.group, planned.filename, list(planned.manifest.modalities))
-```
-
-### Migrating from single-job settings
-
-The top-level `job_type`, `schedule_time`, `delete_modalities_source_after_success` and `upload_tasks` are deprecated
-(ignored, with a warning, when `upload_groups` is set). Move them into one group:
-
-```yaml
-watchdog:
-  upload_groups:
-    - name: primary
-      job_type: vr_foraging_v2
-      creates_record: true
-      delete_modalities_source_after_success: true
 ```
 
 ## Data in several folders or on another machine

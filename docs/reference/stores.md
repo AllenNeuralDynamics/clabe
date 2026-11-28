@@ -1,6 +1,6 @@
-# Store Backends
+# Stores
 
-Every store backend clabe ships, and how to combine them. See [Stores](stores.md) for `Kind` and the store methods.
+Every store backend clabe ships, how to combine them, and how to write one. [Configuration and stores](../learn/configuration.md#stores) introduces them.
 
 | Backend | Serves | Prompts | Extra |
 | --- | --- | --- | --- |
@@ -15,6 +15,43 @@ flowchart LR
     C[CompositeStore] -->|"rig, task (default)"| L[LocalFileStore]
     C -->|trainer_state| D[DataverseStore]
 ```
+
+## Kinds
+
+| Constructor | Name | Validates |
+| --- | --- | --- |
+| `Kind.from_rig(model)` | `"rig"` | The rig's computer name (override with `validators=`) |
+| `Kind.from_task(model)` | `"task"` | — |
+| `Kind.from_session()` | `"session"` | — (always `Session`) |
+| `Kind.from_trainer_state()` | `"trainer_state"` | The trainer state has a stage |
+| `Kind(model)` | snake-cased class name | — |
+
+!!! warning
+    `Kind(MyRigModel)` is named `"my_rig_model"` instead of `"rig"`, and no error is raised. Use the `from_*` constructors for framework records.
+
+Add your own checks with `validators=` (one callable or a list, applied to every record read):
+
+```python
+from clabe.aind.validators import validate_rig_computer_name
+
+STRICT_RIG = Kind.from_rig(MyRigModel, validators=[validate_rig_computer_name, my_extra_check])
+```
+
+## Resolve, scope and write
+
+- `resolve` with no match raises `LookupError`; with one, returns it; with several, asks through the active session
+  (raises [`NoSessionError`][clabe.ui.NoSessionError] when nothing can ask). `pick_kwargs` overrides the prompt's
+  label and the like.
+- `scoped` returns a new store; repeated calls add to the scope. Keys (`subject`, `computer_name`, `task_name`) are
+  plain strings each backend interprets.
+
+What a write does:
+
+| Backend | A write… |
+| --- | --- |
+| `LocalFileStore` | Overwrites the file |
+| `MemoryStore`, `DataverseStore` | Appends |
+| `ConfiergeStore` | Goes to the ficus layer the scope names |
 
 ## CompositeStore: routing by kind
 
@@ -236,3 +273,25 @@ from clabe import ui
 with ui.bind(ui.ClientSession(fake_client)):
     rig = store.resolve(RIG)
 ```
+
+## Writing your own store
+
+Subclass [`StoreBase`][clabe.stores.StoreBase] and implement two methods. `StoreBase` provides `resolve`, `list` and
+`scoped`.
+
+```python
+from collections.abc import Sequence
+from clabe.stores import Candidate, Kind, KindLike, Scope, StoreBase, as_kind
+
+
+class MyStore(StoreBase):
+    def _candidates(self, kind: Kind, scope: Scope) -> Sequence[Candidate]:
+        """Every record of this kind in scope, each with a display label."""
+        return [Candidate(label="...", value=...)]
+
+    def write(self, kind: KindLike, value, *, scope: Scope | None = None) -> None:
+        _kind = as_kind(kind)
+        ...
+```
+
+Override `resolve` only when the backend can show something better than a pick list.
