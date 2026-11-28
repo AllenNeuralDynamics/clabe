@@ -1,4 +1,4 @@
-@* The top bar of the hub's and the daemon's pages: the brand and where you are, status chips, actions, theme. *@
+@* The top bar of the hub's and the daemon's pages: the brand and where you are, status chips, actions, settings. *@
 @inject RunApi Api
 
 <header class="topbar">
@@ -16,8 +16,20 @@
     }
     <span class="grow"></span>
     @Actions
-    <TimeToggle />
-    <HubThemeMenu />
+    <div class="settings-menu">
+        <button type="button" class="ghost icon" aria-label="Settings" title="Settings (theme, times)"
+                aria-haspopup="@(OnSettings.HasDelegate ? null : "dialog")" aria-expanded="@(OnSettings.HasDelegate ? null : _open ? "true" : "false")"
+                @onclick="OpenSettings">
+            <HubIcon Name="settings" />
+        </button>
+        @if (_open)
+        {
+            <div class="scrim" @onclick="() => _open = false"></div>
+            <div class="popover" role="dialog" aria-label="Settings" @onkeydown="OnKey">
+                <SettingsPanel Compact="true" />
+            </div>
+        }
+    </div>
 </header>
 
 @code {
@@ -29,4 +41,26 @@
     [Parameter] public string? Home { get; set; }
     [Parameter] public RenderFragment? Chips { get; set; }
     [Parameter] public RenderFragment? Actions { get; set; }
+    /// <summary>Opens the page's own settings (the hub's Settings tab); without it, the gear opens them in a popover.</summary>
+    [Parameter] public EventCallback OnSettings { get; set; }
+
+    private bool _open;
+
+    private async Task OpenSettings()
+    {
+        if (OnSettings.HasDelegate)
+        {
+            await OnSettings.InvokeAsync();
+            return;
+        }
+        _open = !_open;
+    }
+
+    private void OnKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            _open = false;
+        }
+    }
 }

@@ -1,0 +1,148 @@
+@* What this browser shows, for every clabe page (kept in the browser): the theme, and times in local time or UTC.
+   The hub shows it as its Settings tab, with an About section; other pages in a popover. *@
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<div class="settings @(Compact ? "compact" : "")">
+    <section aria-labelledby="settings-theme">
+        <h2 id="settings-theme">Theme</h2>
+        <div class="choices" role="radiogroup" aria-labelledby="settings-theme" @onkeydown="e => OnArrows(e, Themes.Select(t => t.Value).ToArray(), _theme, SetTheme)">
+            @foreach (var (value, label, icon) in Themes)
+            {
+                var on = _theme == value;
+                <button type="button" role="radio" aria-checked="@(on ? "true" : "false")" tabindex="@(on ? 0 : -1)" class="choice @(on ? "on" : "")"
+                        @onclick="() => SetTheme(value)">
+                    <HubIcon Name="@icon" Size="15" /> @label
+                </button>
+            }
+        </div>
+        @if (_theme == "system" && _system is not null)
+        {
+            <p class="hint">Follows this computer's setting (@_system now).</p>
+        }
+    </section>
+
+    <section aria-labelledby="settings-time">
+        <h2 id="settings-time">Times</h2>
+        <div class="choices" role="radiogroup" aria-labelledby="settings-time" @onkeydown='e => OnArrows(e, ["local", "utc"], ReportTime.Utc ? "utc" : "local", SetZone)'>
+            <button type="button" role="radio" aria-checked="@(ReportTime.Utc ? "false" : "true")" tabindex="@(ReportTime.Utc ? -1 : 0)"
+                    class="choice @(ReportTime.Utc ? "" : "on")" @onclick='() => SetZone("local")'>
+                <HubIcon Name="clock" Size="15" /> Local time
+            </button>
+            <button type="button" role="radio" aria-checked="@(ReportTime.Utc ? "true" : "false")" tabindex="@(ReportTime.Utc ? 0 : -1)"
+                    class="choice @(ReportTime.Utc ? "on" : "")" @onclick='() => SetZone("utc")'>
+                <HubIcon Name="clock" Size="15" /> UTC
+            </button>
+        </div>
+        <p class="hint">Now <span class="mono">@ReportTime.Exact(_now)</span>@(ReportTime.Utc ? "" : $" ({Offset(_now)})"). Times are kept in UTC; only how they are shown changes.</p>
+    </section>
+
+    @if (About is not null)
+    {
+        <section aria-labelledby="settings-about">
+            <h2 id="settings-about">About</h2>
+            @About
+        </section>
+    }
+
+    <p class="saved">Saved in this browser, for every clabe page.</p>
+</div>
+
+@code {
+    private static readonly (string Value, string Label, string Icon)[] Themes =
+        [("light", "Light", "sun"), ("dark", "Dark", "moon"), ("system", "System", "monitor")];
+
+    /// <summary>Tighter, for a popover.</summary>
+    [Parameter] public bool Compact { get; set; }
+    /// <summary>What serves the page (the hub's Settings tab).</summary>
+    [Parameter] public RenderFragment? About { get; set; }
+
+    private IJSObjectReference? _ui;
+    private string _theme = "system";
+    private string? _system; // "dark" or "light": what the computer prefers
+    private DateTimeOffset _now = DateTimeOffset.UtcNow;
+    private Timer? _clock;
+
+    protected override void OnInitialized()
+    {
+        ReportTime.Changed += Redraw;
+        _clock = new Timer(_ => InvokeAsync(() => { _now = DateTimeOffset.UtcNow; StateHasChanged(); }), null, 1000, 1000);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _ui = await JS.InvokeAsync<IJSObjectReference>("import", "./js/ui.js");
+            _theme = await _ui.InvokeAsync<string>("applyTheme", (string?)null);
+            _system = await SystemTheme();
+            StateHasChanged();
+        }
+    }
+
+    private async Task SetTheme(string value)
+    {
+        _theme = value;
+        if (_ui is not null)
+        {
+            await _ui.InvokeAsync<string>("applyTheme", value);
+            _system = await SystemTheme();
+        }
+    }
+
+    /// <summary>What this computer prefers ("dark" or "light"); null from a ui.js the browser kept from before.</summary>
+    private async Task<string?> SystemTheme()
+    {
+        try
+        {
+            return await _ui!.InvokeAsync<string>("systemTheme");
+        }
+        catch (JSException)
+        {
+            return null;
+        }
+    }
+
+    private Task SetZone(string value)
+    {
+        ReportTime.SetUtc(value == "utc");
+        return Task.CompletedTask;
+    }
+
+    /// <summary>Arrow keys move the choice of a radio group, as in any radio group.</summary>
+    private static async Task OnArrows(KeyboardEventArgs e, string[] values, string current, Func<string, Task> choose)
+    {
+        var step = e.Key switch { "ArrowRight" or "ArrowDown" => 1, "ArrowLeft" or "ArrowUp" => -1, _ => 0 };
+        if (step != 0)
+        {
+            var at = Array.IndexOf(values, current);
+            await choose(values[(at + step + values.Length) % values.Length]);
+        }
+    }
+
+    /// <summary>"UTC−08:00": this browser's offset from UTC at that instant.</summary>
+    private static string Offset(DateTimeOffset time)
+    {
+        var offset = ReportTime.Local(time).Offset;
+        var sign = offset < TimeSpan.Zero ? "−" : "+";
+        return $"UTC{sign}{offset.Duration():hh\\:mm}";
+    }
+
+    private void Redraw() => InvokeAsync(StateHasChanged);
+
+    public async ValueTask DisposeAsync()
+    {
+        ReportTime.Changed -= Redraw;
+        _clock?.Dispose();
+        if (_ui is not null)
+        {
+            try
+            {
+                await _ui.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+    }
+}

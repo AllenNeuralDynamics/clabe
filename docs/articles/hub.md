@@ -11,8 +11,9 @@ one address.
 - "Reports" lists the issue reports collected from the rigs ([below](#issue-reports)).
 - The hub serves MCP at `/mcp`, so agents can act on every rig through one address ([Agents](agents.md#mcp)).
 - The page asks for the hub's token (Sign in) and keeps it in a cookie. The browser tab shows "(n)" while runs wait.
-- Times are stored in UTC everywhere (records, logs, reports). The pages show them in local time, or in UTC with the
-  clock toggle in the top bar. The browser remembers the choice. On the run page, the toggle is under View ▸ Times.
+- "Settings" (also the gear in the top bar) sets the theme (light, dark, or the system's) and whether times show in
+  local time or UTC; times are stored in UTC everywhere. The browser remembers both, for every clabe page. On a rig's
+  page the gear opens them; on the run page they are under View.
 - Each rig is proxied under `/rigs/<id>/` (page, run, APIs), so the web UI, [`RunClient`][clabe.server.RunClient]
   and [agents](agents.md) work across the fleet with one token.
 

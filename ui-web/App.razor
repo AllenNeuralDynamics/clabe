@@ -17,7 +17,11 @@
         <RunView />
         break;
     default:
-        <p class="loading">Loading clabe…</p>
+        <div class="boot connecting" role="status" aria-live="polite">
+            <img class="boot-logo" src="logo.svg" alt="clabe" />
+            <div class="boot-bar" aria-hidden="true"><span></span></div>
+            <p class="boot-text">Connecting…</p>
+        </div>
         break;
 }
 

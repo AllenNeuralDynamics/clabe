@@ -27,7 +27,14 @@
 
 <body>
     <div id="app">
-        <p class="loading">Loading clabe…</p>
+        <!-- while the page downloads: the bar follows Blazor's progress (--blazor-load-percentage) -->
+        <div class="boot" role="status" aria-live="polite">
+            <img class="boot-logo" src="logo.svg" alt="clabe" />
+            <div class="boot-bar" aria-hidden="true"><span></span></div>
+            <p class="boot-text">Loading<span class="boot-percent"></span></p>
+            <p class="boot-slow">Still loading. The first visit downloads the page (a few MB); later visits are quick.
+                <a href="">Reload</a></p>
+        </div>
     </div>
 
     <div id="blazor-error-ui">
