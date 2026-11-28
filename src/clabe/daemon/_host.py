@@ -44,12 +44,20 @@ class RepositoryInfo(BaseModel):
     exists: bool
 
 
+#: What a launched run shows on the rig's screen, besides being served to browsers: nothing, the terminal UI in a
+#: console window, or the run's page in the rig's default browser.
+Frontend = Literal["none", "tui", "browser"]
+
+
 class LaunchBody(BaseModel):
     """Which experiment to run."""
 
     repository: str
     file: str = MAIN_FILE
     experiment: str | None = None
+    frontend: Frontend = Field(
+        default="none", description="What the run shows on the rig: nothing, the terminal UI (tui), or the browser"
+    )
 
 
 class AttachBody(BaseModel):
@@ -218,6 +226,18 @@ def pid_alive(pid: int) -> bool:
     return True
 
 
+def run_arguments(body: LaunchBody, port: int, token: str) -> list[str]:
+    """The ``clabe run`` arguments of a launched run: served on ``port`` with ``token``, showing ``body.frontend``."""
+    frontend = "tui" if body.frontend == "tui" else "headless"
+    args = ["run", body.file, "--frontend", frontend, "--serve", "--host", "127.0.0.1"]
+    args += ["--port", str(port), f"--token={token}", "--single-session"]  # "=": a token may start with "-"
+    if body.frontend == "browser":
+        args.append("--open-browser")
+    if body.experiment:
+        args += ["--experiment-name", body.experiment]
+    return args
+
+
 class Host:
     """Lists the configured repositories and runs one experiment at a time.
 
@@ -276,6 +296,8 @@ class Host:
 
     def launch(self, body: LaunchBody) -> RunInfo:
         """Starts ``body``'s experiment; refused while another run is going."""
+        if body.frontend == "tui" and sys.platform != "win32":
+            raise HostError("The terminal UI can only be opened on a Windows rig.", status=400)
         repository = self.repository(body.repository)
         with self._lock:
             if self._current is not None and self._current.alive():
@@ -288,10 +310,7 @@ class Host:
             announce = self._runs_dir / f"{stamp}-{repository.display_name}.json"
             token = secrets.token_urlsafe(24)
             port = free_port("127.0.0.1", self.settings.port + 21)
-            args = ["run", body.file, "--frontend", "headless", "--serve", "--host", "127.0.0.1"]
-            args += ["--port", str(port), f"--token={token}", "--single-session"]  # "=": a token may start with "-"
-            if body.experiment:
-                args += ["--experiment-name", body.experiment]
+            args = run_arguments(body, port, token)
             command = self._command(repository, *args, *self.settings.run_arguments)
             hidden = ("CLABE_TOKEN", "DAEMON_CLABE_TOKEN")  # the run gets its own token, not the daemon's
             env = {k: v for k, v in os.environ.items() if k not in hidden} | {
@@ -300,14 +319,19 @@ class Host:
             }
             logger.info("Launching %s", " ".join(command))
             with log.open("w", encoding="utf-8") as output:
+                if body.frontend == "tui":  # the terminal UI needs a console of its own, on the rig's screen
+                    output.write("Started with the terminal UI: its output is in its console window.\n")
+                    streams = {}
+                    flags = subprocess.CREATE_NEW_CONSOLE
+                else:
+                    streams = {"stdin": subprocess.DEVNULL, "stdout": output, "stderr": subprocess.STDOUT}
+                    flags = NO_WINDOW
                 process = subprocess.Popen(
                     command,
                     cwd=repository.path,
-                    stdin=subprocess.DEVNULL,
-                    stdout=output,
-                    stderr=subprocess.STDOUT,
                     env=env,
-                    creationflags=(subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0) | NO_WINDOW,
+                    creationflags=(subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0) | flags,
+                    **streams,
                 )
             self._current = _Launched(body, process, log, announce, token)
             return self._current.info()

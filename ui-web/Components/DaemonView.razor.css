@@ -5,6 +5,8 @@
 .no-pulse::before { animation: none; }
 .section-head { display: flex; align-items: baseline; gap: var(--s3); margin-bottom: var(--s3); }
 .section-head h2 { font-size: var(--text-md); font-weight: 650; }
+.frontend { margin-left: auto; display: flex; align-items: center; gap: var(--s2); }
+.frontend select { height: 28px; }
 .calm { display: flex; align-items: center; gap: var(--s3); padding: var(--s3) var(--s4); font-size: var(--text-sm); }
 .repos { display: flex; flex-direction: column; gap: var(--s4); }
 @media (max-width: 720px) { .content { padding: var(--s4); } }

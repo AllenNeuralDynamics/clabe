@@ -87,7 +87,8 @@ public sealed record JobSummary(
 public sealed record LaunchBody(
     [property: JsonPropertyName("repository")] string Repository,
     [property: JsonPropertyName("file")] string File = "main.py",
-    [property: JsonPropertyName("experiment")] string? Experiment = null);
+    [property: JsonPropertyName("experiment")] string? Experiment = null,
+    [property: JsonPropertyName("frontend")] string Frontend = "none");
 
 /// <summary>The worker taken by a run; requests carrying it (``X-Clabe-Lease``) are served, others refused.</summary>
 public sealed record Lease(

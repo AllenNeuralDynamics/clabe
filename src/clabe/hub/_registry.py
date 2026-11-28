@@ -62,7 +62,7 @@ class Registry:
                 "enrolled_at TEXT, last_enrolled_at TEXT, token TEXT, moved_from TEXT)"
             )
             columns = {row["name"] for row in self._db.execute("PRAGMA table_info(rigs)")}
-            for column in ("token", "moved_from"):  # a hub.db made before rigs had them
+            for column in ("token", "moved_from", "frontend"):  # a hub.db made before rigs had them
                 if column not in columns:
                     self._db.execute(f"ALTER TABLE rigs ADD COLUMN {column} TEXT")
             self._db.execute(
@@ -88,6 +88,17 @@ class Registry:
         with self._lock:
             rows = self._db.execute("SELECT id, token FROM rigs WHERE token IS NOT NULL").fetchall()
         return {row["id"]: row["token"] for row in rows}
+
+    def frontends(self) -> dict[str, str]:
+        """The front end last used to start a run on each rig from the hub (``none``, ``tui`` or ``browser``)."""
+        with self._lock:
+            rows = self._db.execute("SELECT id, frontend FROM rigs WHERE frontend IS NOT NULL").fetchall()
+        return {row["id"]: row["frontend"] for row in rows}
+
+    def set_frontend(self, rig_id: str, frontend: str) -> bool:
+        """Remembers the front end last used on a rig; whether the rig is enrolled."""
+        with self._lock, self._db:
+            return self._db.execute("UPDATE rigs SET frontend = ? WHERE id = ?", (frontend, rig_id)).rowcount > 0
 
     def set_token(self, rig_id: str, token: str | None) -> bool:
         """Enters a rig's daemon token, or deletes it (None); whether the rig is enrolled."""

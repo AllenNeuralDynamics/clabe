@@ -6,6 +6,7 @@ import contextlib
 import logging
 from collections.abc import AsyncIterator
 from pathlib import Path
+from typing import Literal
 from urllib.parse import urlparse
 
 import httpx
@@ -54,6 +55,12 @@ class TokenBody(BaseModel):
     """A rig's own daemon token, or null to clear it."""
 
     token: str | None = Field(description="The rig's DAEMON_CLABE_TOKEN; null or empty deletes it")
+
+
+class FrontendBody(BaseModel):
+    """What a run started on the rig shows there."""
+
+    frontend: Literal["none", "tui", "browser"] = Field(description="Nothing, the terminal UI, or the browser")
 
 
 class ExcludeResult(BaseModel):
@@ -161,6 +168,12 @@ def _rig_routes(api: APIRouter, fleet: Fleet) -> None:
         deletes it. It is never shown back."""
         token = (body.token or "").strip() or None
         if not fleet.set_token(rig_id, token):
+            raise HTTPException(status_code=404, detail=f"No rig {rig_id!r}.")
+
+    @api.put("/rigs/{rig_id}/frontend", status_code=204)
+    def set_frontend(rig_id: str, body: FrontendBody) -> None:
+        """Remembers what the last run started on the rig showed there; the rig's page offers it next time."""
+        if not fleet.set_frontend(rig_id, body.frontend):
             raise HTTPException(status_code=404, detail=f"No rig {rig_id!r}.")
 
     @api.get("/exclusions", response_model=list[Exclusion])

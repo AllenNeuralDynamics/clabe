@@ -158,6 +158,26 @@
         "title": "Exclusion",
         "type": "object"
       },
+      "FrontendBody": {
+        "description": "What a run started on the rig shows there.",
+        "properties": {
+          "frontend": {
+            "description": "Nothing, the terminal UI, or the browser",
+            "enum": [
+              "none",
+              "tui",
+              "browser"
+            ],
+            "title": "Frontend",
+            "type": "string"
+          }
+        },
+        "required": [
+          "frontend"
+        ],
+        "title": "FrontendBody",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -565,6 +585,23 @@
               }
             ],
             "title": "Experiment"
+          },
+          "frontend": {
+            "anyOf": [
+              {
+                "enum": [
+                  "none",
+                  "tui",
+                  "browser"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What the last run started from the hub showed on the rig (none, tui or browser)",
+            "title": "Frontend"
           },
           "has_token": {
             "default": false,
@@ -2084,6 +2121,49 @@
           }
         },
         "summary": "Confirm"
+      }
+    },
+    "/api/hub/rigs/{rig_id}/frontend": {
+      "put": {
+        "description": "Remembers what the last run started on the rig showed there; the rig's page offers it next time.",
+        "operationId": "set_frontend_api_hub_rigs__rig_id__frontend_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "rig_id",
+            "required": true,
+            "schema": {
+              "title": "Rig Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FrontendBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Frontend"
       }
     },
     "/api/hub/rigs/{rig_id}/revive": {

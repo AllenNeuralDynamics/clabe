@@ -38,6 +38,10 @@ public sealed record Exclusion(
     [property: JsonPropertyName("added_at")] DateTimeOffset AddedAt,
     [property: JsonPropertyName("comment")] string? Comment = null);
 
+/// <summary>What a run started on the rig shows there.</summary>
+public sealed record FrontendBody(
+    [property: JsonPropertyName("frontend")] string Frontend);
+
 public sealed record HTTPValidationError(
     [property: JsonPropertyName("detail")] List<ValidationError>? Detail = null);
 
@@ -119,6 +123,7 @@ public sealed record RigStatus(
     [property: JsonPropertyName("reports_stored")] long ReportsStored = 0,
     [property: JsonPropertyName("has_token")] bool HasToken = false,
     [property: JsonPropertyName("needs_token")] bool NeedsToken = false,
+    [property: JsonPropertyName("frontend")] string? Frontend = null,
     [property: JsonPropertyName("moved_from")] string? MovedFrom = null);
 
 /// <summary>What a run is about, as far as known so far: the hub lists it as a session.</summary>

@@ -470,6 +470,17 @@
             "title": "File",
             "type": "string"
           },
+          "frontend": {
+            "default": "none",
+            "description": "What the run shows on the rig: nothing, the terminal UI (tui), or the browser",
+            "enum": [
+              "none",
+              "tui",
+              "browser"
+            ],
+            "title": "Frontend",
+            "type": "string"
+          },
           "repository": {
             "title": "Repository",
             "type": "string"

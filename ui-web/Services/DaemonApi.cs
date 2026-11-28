@@ -40,10 +40,67 @@ public sealed class DaemonApi(HttpClient http, RunApi run)
     public async Task<RunInfo?> CurrentAsync() =>
         await http.GetFromJsonAsync<RunInfo?>("api/daemon/runs/current", Json.Options);
 
-    public async Task LaunchAsync(string repository, string file, string experiment)
+    /// <summary>Starts an experiment; <paramref name="frontend"/> is what it shows on the rig: none, tui or browser.</summary>
+    public async Task LaunchAsync(string repository, string file, string experiment, string frontend = "none")
     {
-        var body = new JsonObject { ["repository"] = repository, ["file"] = file, ["experiment"] = experiment };
+        var body = new JsonObject
+        {
+            ["repository"] = repository, ["file"] = file, ["experiment"] = experiment, ["frontend"] = frontend,
+        };
         await EnsureOk(await http.PostAsJsonAsync("api/daemon/runs", body, Json.Options));
+    }
+
+    /// <summary>When a hub serves this page (under <c>rigs/&lt;id&gt;/</c>): the hub's address and the rig's id.</summary>
+    public (Uri Hub, string Rig)? ThroughHub
+    {
+        get
+        {
+            var path = http.BaseAddress!.AbsolutePath;
+            var at = path.IndexOf("/rigs/", StringComparison.Ordinal);
+            if (at < 0)
+            {
+                return null;
+            }
+            var rig = Uri.UnescapeDataString(path[(at + "/rigs/".Length)..].Split('/')[0]);
+            return rig.Length == 0 ? null : (new Uri(http.BaseAddress, path[..(at + 1)]), rig);
+        }
+    }
+
+    /// <summary>The front end last used on this rig, as the hub remembers it; null without a hub or a choice.</summary>
+    public async Task<string?> RememberedFrontendAsync()
+    {
+        if (ThroughHub is not { } through)
+        {
+            return null;
+        }
+        try
+        {
+            var rigs = await http.GetFromJsonAsync<JsonArray>(new Uri(through.Hub, "api/hub/rigs"), Json.Options);
+            var rig = rigs?.FirstOrDefault(r => (string?)r?["id"] == through.Rig);
+            return (string?)rig?["frontend"];
+        }
+        catch (Exception exc) when (exc is HttpRequestException or System.Text.Json.JsonException or InvalidOperationException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Has the hub remember the front end used on this rig (nothing without a hub).</summary>
+    public async Task RememberFrontendAsync(string frontend)
+    {
+        if (ThroughHub is not { } through)
+        {
+            return;
+        }
+        try
+        {
+            var url = new Uri(through.Hub, $"api/hub/rigs/{Uri.EscapeDataString(through.Rig)}/frontend");
+            await http.PutAsJsonAsync(url, new JsonObject { ["frontend"] = frontend }, Json.Options);
+        }
+        catch (HttpRequestException)
+        {
+            // remembering is a convenience
+        }
     }
 
     public async Task StopAsync() => await EnsureOk(await http.PostAsync("api/daemon/runs/current/stop", null));
