@@ -20,6 +20,8 @@ import subprocess
 import sys
 import time
 import tomllib
+import urllib.error
+import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -39,6 +41,15 @@ KEEP = 3
 
 #: The daemon's settings file entry for the hubs.
 HUBS_VARIABLE = "DAEMON_CLABE_HUBS"
+
+#: The GitHub release that holds a wheel (web UI included) of every commit pushed to clabe's main branch.
+BUILDS_RELEASE = "https://api.github.com/repos/AllenNeuralDynamics/clabe/releases/tags/builds"
+
+#: Where people see the builds.
+BUILDS_PAGE = "https://github.com/AllenNeuralDynamics/clabe/releases/tag/builds"
+
+#: A build's commit, in its version (``0.18.0+g<commit>``) or its wheel's name.
+_BUILD_COMMIT = re.compile(r"\+g([0-9a-f]{7,40})(?![0-9a-z])", re.IGNORECASE)
 
 
 def versions_directory() -> Path:
@@ -100,12 +111,65 @@ def request_package(spec: str, extras: tuple[str, ...] = DEFAULT_EXTRAS) -> Requ
     return Request(spec.strip(), extras)
 
 
-def request_lock(path: Path, extras: tuple[str, ...] = DEFAULT_EXTRAS) -> Request:
-    """The clabe a repository's ``uv.lock`` pins (``path`` is the file, or the repository): its release, or its git
-    commit.
+def build_commit(text: str | None) -> str | None:
+    """The commit of a build of main, from its version or its wheel's URL; ``None`` for anything else."""
+    found = _BUILD_COMMIT.search(text or "")
+    return found.group(1).lower() if found else None
+
+
+def _builds() -> list[dict]:
+    """The files in the builds release (``name`` and ``browser_download_url`` of each; CI keeps 100)."""
+
+    def get(url: str):
+        request = urllib.request.Request(url, headers={"Accept": "application/vnd.github+json"})
+        with urllib.request.urlopen(request, timeout=30) as response:
+            return json.load(response)
+
+    try:
+        return get(get(BUILDS_RELEASE)["assets_url"] + "?per_page=100")
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise OSError(f"Cannot list clabe's builds ({BUILDS_RELEASE}): {exc}") from exc
+
+
+def build_url(commit: str) -> str:
+    """The wheel of the build of ``commit`` (7 to 40 hex characters) of clabe's main branch.
 
     Raises:
-        OSError: There is no such file, it has no aind-clabe, or aind-clabe comes from elsewhere (a path...).
+        OSError: ``commit`` is not a commit, the builds cannot be listed, or none (or several) match.
+    """
+    commit = commit.strip().lower()
+    if not re.fullmatch(r"[0-9a-f]{7,40}", commit):
+        raise OSError(f"{commit!r} is not a commit: give 7 to 40 hex characters.")
+    found = [
+        asset["browser_download_url"]
+        for asset in _builds()
+        if asset.get("name", "").endswith(".whl") and (build_commit(asset["name"]) or "").startswith(commit)
+    ]
+    if not found:
+        raise OSError(f"No build of clabe for commit {commit}: every commit pushed to main has one ({BUILDS_PAGE}).")
+    if len(found) > 1:
+        raise OSError(f"Several builds of clabe start with {commit}: give more of the commit.")
+    return found[0]
+
+
+def _request_wheel(url: str, extras: tuple[str, ...]) -> Request:
+    """A wheel by URL; a build of main gets its commit's environment."""
+    commit = build_commit(url)
+    key = environment_key(None, extras, commit=commit) if commit else None
+    return Request(f"{PACKAGE}{_extras_part(extras)} @ {url}", extras, key)
+
+
+def request_commit(commit: str, extras: tuple[str, ...] = DEFAULT_EXTRAS) -> Request:
+    """The build of a commit of clabe's main branch, e.g. ``c7cc84f``."""
+    return _request_wheel(build_url(commit), extras)
+
+
+def request_lock(path: Path, extras: tuple[str, ...] = DEFAULT_EXTRAS) -> Request:
+    """The clabe a repository's ``uv.lock`` pins (``path`` is the file, or the repository): a release, or a wheel
+    (e.g. a build of main).
+
+    Raises:
+        OSError: There is no such file, it has no aind-clabe, or aind-clabe comes from elsewhere (git, a path...).
     """
     lock = path / "uv.lock" if path.is_dir() else path
     try:
@@ -119,11 +183,13 @@ def request_lock(path: Path, extras: tuple[str, ...] = DEFAULT_EXTRAS) -> Reques
     source = package.get("source", {})
     if "registry" in source:
         return request_version(package["version"], extras)
-    # A git commit (or a path) is built from source on the rig, without the web UI (built by CI for releases only).
+    if str(source.get("url", "")).endswith(".whl"):
+        return _request_wheel(source["url"], extras)
+    # Git (or a path) is built from source on the rig, without the web UI: CI builds it into releases and builds.
     kind = next(iter(source), "unknown")
     raise OSError(
-        f"{lock} pins {PACKAGE} from a {kind} source ({source.get(kind)}), not a release: the daemon runs released "
-        "clabes only (built with their web UI). Lock a release, or pass --version."
+        f"{lock} pins {PACKAGE} from a {kind} source ({source.get(kind)}): built from source, it has no web UI. "
+        f"Lock a release, or the wheel of a build of main ({BUILDS_PAGE})."
     )
 
 
@@ -216,7 +282,7 @@ direct = json.loads(dist.read_text("direct_url.json") or "null") or {}
 import clabe.daemon._app  # the daemon's web server: fails without the frontend extra
 from clabe.server._app import STATIC_DIR
 if not (STATIC_DIR / "index.html").is_file():  # built from source: releases carry the web UI CI builds
-    raise SystemExit(f"this clabe has no web UI ({STATIC_DIR} is empty): it was built from source, use a release")
+    raise SystemExit(f"this clabe has no web UI ({STATIC_DIR} is empty): it was built from source, use a release or a build")
 print(json.dumps({"version": dist.version, "url": direct.get("url"),
                   "commit": (direct.get("vcs_info") or {}).get("commit_id")}))
 """
@@ -263,7 +329,7 @@ def install_environment(request: Request, *, python: str | None = None) -> tuple
             ]
         )
         found = _probe(staging)
-        commit = found.get("commit")
+        commit = found.get("commit") or build_commit(found["version"])
         url = None if commit or not found.get("url") else found["url"]
         key = request.key or environment_key(found["version"], request.extras, commit=commit, url=url)
         target = root / key

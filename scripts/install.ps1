@@ -11,6 +11,7 @@
     Options come from parameters, or — for `irm ... | iex`, which cannot pass any — from environment variables:
 
         -Version    / DAEMON_CLABE_VERSION      clabe release for the daemon (default: the latest)
+        -Commit     / DAEMON_CLABE_COMMIT       a commit of clabe's main branch: its build, instead
         -Lock       / DAEMON_CLABE_LOCK         a repository (or its uv.lock): the clabe it locks, instead
         -Package    / DAEMON_CLABE_PACKAGE      any uv requirement for the daemon instead
         -Extras     / DAEMON_CLABE_EXTRAS       aind-clabe's extras for the daemon (default frontend,otel)
@@ -18,8 +19,8 @@
         -Token      / DAEMON_CLABE_TOKEN        the daemon's token, saved as this user's DAEMON_CLABE_TOKEN
         -Config     / DAEMON_CLABE_CONFIG       a clabe.yml to install as %PROGRAMDATA%\clabe.yml: a path on this PC, or -
                                                 to read it from standard input (over SSH: ssh rig "..." < clabe.yml)
-        -CliPackage / DAEMON_CLABE_CLI_PACKAGE  the uv requirement of the `clabe` command (default: the latest
-                                                release, whatever -Version the daemon runs)
+        -CliPackage / DAEMON_CLABE_CLI_PACKAGE  the uv requirement of the `clabe` command (default: the build of
+                                                -Commit, or the wheel -Lock pins; else the latest release)
         -StopDaemon / DAEMON_CLABE_STOP=1       only install the clabe command and stop the daemon (e.g. before updating
                                                 an experiment's environment); deploy later
         -Force      / DAEMON_CLABE_FORCE=1      stop or restart the daemon even if it runs a session (it is interrupted)
@@ -37,6 +38,7 @@
 #>
 param(
     [string]$Version = $env:DAEMON_CLABE_VERSION,
+    [string]$Commit = $env:DAEMON_CLABE_COMMIT,
     [string]$Lock = $env:DAEMON_CLABE_LOCK,
     [string]$Package = $env:DAEMON_CLABE_PACKAGE,
     [string]$Extras = $env:DAEMON_CLABE_EXTRAS,
@@ -49,6 +51,29 @@ param(
     [switch]$DryRun = ($env:DAEMON_CLABE_DRY_RUN -eq '1'),
     [int]$Timeout = 120
 )
+
+# The wheel of the build of a commit of clabe's main branch (the builds release holds one per commit pushed to main).
+function Get-BuildWheel([string]$Commit) {
+    $Commit = $Commit.Trim().ToLowerInvariant()
+    if ($Commit -notmatch '^[0-9a-f]{7,40}$') { throw "'$Commit' is not a commit: give 7 to 40 hex characters." }
+    $release = if ($env:DAEMON_CLABE_BUILDS) { $env:DAEMON_CLABE_BUILDS } else { 'https://api.github.com/repos/AllenNeuralDynamics/clabe/releases/tags/builds' }
+    $assets = Invoke-RestMethod -UseBasicParsing "$((Invoke-RestMethod -UseBasicParsing $release).assets_url)?per_page=100"
+    $found = @($assets | Where-Object { $_.name -match "\+g$Commit[0-9a-f]*-.*\.whl$" })
+    if ($found.Count -eq 0) { throw "No build of clabe for commit ${Commit}: every commit pushed to main has one (https://github.com/AllenNeuralDynamics/clabe/releases/tag/builds)." }
+    if ($found.Count -gt 1) { throw "Several builds of clabe start with ${Commit}: give more of the commit." }
+    return $found[0].browser_download_url
+}
+
+# The wheel a repository's uv.lock pins aind-clabe to (a build of main), or nothing (a release, or no lock here).
+function Get-LockedWheel([string]$Lock) {
+    $file = if (Test-Path -LiteralPath $Lock -PathType Container) { Join-Path $Lock 'uv.lock' } else { $Lock }
+    if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { return $null }
+    $text = Get-Content -Raw -LiteralPath $file
+    $package = [regex]::Match($text, '(?ms)^\[\[package\]\]\s*\r?\nname = "aind[-_]clabe"\r?\n.*?(?=^\[\[package\]\]|\z)')
+    if (-not $package.Success) { return $null }
+    $url = [regex]::Match($package.Value, '(?m)^source = \{ url = "([^"]+\.whl)" \}')
+    if ($url.Success) { return $url.Groups[1].Value } else { return $null }
+}
 
 function Install-Clabe {
     $ErrorActionPreference = 'Stop'
@@ -154,10 +179,14 @@ function Install-Clabe {
         $stoppedOld = $true
     }
 
-    # The latest clabe, whatever the daemon runs: it is only the command (`clabe daemon deploy` installs the daemon's
-    # own), and an older release has no `clabe daemon deploy`. --force replaces a clabe.exe in uv's executables folder
-    # that no tool uv knows owns (one installed with other uv folders).
-    $cliSpec = if ($CliPackage) { $CliPackage } else { 'aind-clabe[frontend,otel]>=0.18.0rc2' }
+    # The command runs `clabe daemon deploy`, so it must know what it is asked: the build of -Commit, or the wheel
+    # -Lock pins (a build of main); else the latest release, whatever the daemon runs (an older one has no deploy).
+    # --force replaces a clabe.exe in uv's executables folder that no tool uv knows owns (one installed with other uv
+    # folders).
+    $wheel = if ($Commit) { Get-BuildWheel $Commit } elseif ($Lock) { Get-LockedWheel $Lock } else { $null }
+    $cliSpec = if ($CliPackage) { $CliPackage }
+        elseif ($wheel) { "aind-clabe[frontend,otel] @ $wheel" }
+        else { 'aind-clabe[frontend,otel]>=0.18.0rc2' }
     try {
         Invoke-Step "Installing the clabe command ($cliSpec)" $uv @('tool', 'install', '--upgrade', '--force', $cliSpec)
     } catch {
@@ -179,6 +208,7 @@ function Install-Clabe {
 
     $deploy = @('daemon', 'deploy', '--timeout', "$Timeout")
     if ($Version) { $deploy += @('--version', $Version) }
+    if ($Commit) { $deploy += @('--commit', $Commit) }
     if ($Lock) { $deploy += @('--lock', $Lock) }
     if ($Package) { $deploy += @('--package', $Package) }
     if ($Extras) { $deploy += @('--extras', $Extras) }

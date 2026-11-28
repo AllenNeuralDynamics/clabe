@@ -24,8 +24,12 @@ served under `/rigs/<id>/` (page, run, APIs), so the web UI, [`RunClient`][clabe
 
 ```bash
 cp docker/hub/.env.example docker/hub/.env      # set TOKEN: the hub can drive every rig it follows
-docker compose -f docker/hub/compose.yml up -d --build
+docker compose -f docker/hub/compose.yml pull
+docker compose -f docker/hub/compose.yml up -d
 ```
+
+It runs the image `HUB_TAG` names in `.env`: `main` (the default), `sha-<commit>` for any commit of main, or a release
+(`v0.18.0`). `up -d --build` builds this checkout instead.
 
 Then point rigs at it: `DAEMON_CLABE_HUBS=https://hub-vm/clabe` (or `clabe daemon deploy --hubs …`). Every setting
 is in the [hub reference](../reference/hub.md).

@@ -57,9 +57,9 @@ class TestRequests:
                     '[[package]]\nname = "aind_clabe"\nversion = "0.19.0"\n'
                     'source = { git = "https://github.com/AllenNeuralDynamics/clabe?branch=main#c7cc84fb" }\n'
                 ),
-                "git source .* not a release",
+                "git source .* no web UI",
             ),
-            ('[[package]]\nname = "aind-clabe"\nversion = "0.1"\nsource = { editable = "." }\n', "not a release"),
+            ('[[package]]\nname = "aind-clabe"\nversion = "0.1"\nsource = { editable = "." }\n', "no web UI"),
             ('[[package]]\nname = "other"\nversion = "1"\n', "not in"),
         ],
     )
@@ -71,6 +71,69 @@ class TestRequests:
     def test_one_source_only(self):
         with pytest.raises(SystemExit, match="one of"):
             _DeployCli(version="0.18.0", package="aind-clabe").request()
+        with pytest.raises(SystemExit, match="one of"):
+            _DeployCli(version="0.18.0", commit="c7cc84f").request()
+
+
+SHA = "c7cc84fb0ad1e2f3a4b5c6d7e8f9a0b1c2d3e4f5"
+WHEEL = (
+    f"https://github.com/AllenNeuralDynamics/clabe/releases/download/builds/aind_clabe-0.18.0+g{SHA}-py3-none-any.whl"
+)
+
+
+class TestBuilds:
+    @pytest.fixture(autouse=True)
+    def _builds(self, monkeypatch):
+        """The builds release: this commit's wheel, another one's, and a file that is not a wheel."""
+        assets = [
+            {"name": f"aind_clabe-0.18.0+g{SHA}-py3-none-any.whl", "browser_download_url": WHEEL},
+            {
+                "name": "aind_clabe-0.18.0+g0123456789abcdef0123456789abcdef01234567-py3-none-any.whl",
+                "browser_download_url": "https://example.invalid/other.whl",
+            },
+            {"name": f"notes-{SHA}.txt", "browser_download_url": "https://example.invalid/notes.txt"},
+        ]
+        monkeypatch.setattr(_deploy, "_builds", lambda: assets)
+        return assets
+
+    @pytest.mark.parametrize("commit", ["c7cc84f", "C7CC84FB0AD1", SHA])
+    def test_a_commit_is_its_build_in_its_own_environment(self, commit):
+        request = _DeployCli(commit=commit).request()
+        assert request.spec == f"aind-clabe[frontend,otel] @ {WHEEL}"
+        assert request.key == "git-c7cc84fb0ad1-frontend-otel"
+
+    @pytest.mark.parametrize(
+        "commit, message", [("abc", "not a commit"), ("main", "not a commit"), ("fedcba9", "No build")]
+    )
+    def test_a_commit_without_a_build_is_refused(self, commit, message):
+        with pytest.raises(SystemExit, match=message):
+            _DeployCli(commit=commit).request()
+
+    def test_a_short_commit_matching_several_builds_is_refused(self, _builds):
+        _builds.append({"name": f"aind_clabe-0.18.1+gc7cc84f{'0' * 33}-py3-none-any.whl", "browser_download_url": "x"})
+        with pytest.raises(SystemExit, match="Several"):
+            _DeployCli(commit="c7cc84f").request()
+
+    def test_a_lock_s_build(self, tmp_path):
+        (tmp_path / "uv.lock").write_text(
+            f'version = 1\n[[package]]\nname = "aind-clabe"\nversion = "0.18.0+g{SHA}"\nsource = {{ url = "{WHEEL}" }}\n'
+        )
+        request = _deploy.request_lock(tmp_path, ())
+        assert request.spec == f"aind-clabe @ {WHEEL}" and request.key == "git-c7cc84fb0ad1"
+
+    def test_a_lock_s_other_wheel_is_keyed_once_installed(self, tmp_path):
+        (tmp_path / "uv.lock").write_text(
+            '[[package]]\nname = "aind-clabe"\nversion = "0.18.0"\n'
+            'source = { url = "https://example.invalid/aind_clabe-0.18.0-py3-none-any.whl" }\n'
+        )
+        assert _deploy.request_lock(tmp_path).key is None
+
+    @pytest.mark.parametrize(
+        "text, commit",
+        [(f"0.18.0+g{SHA}", SHA), (WHEEL, SHA), ("0.18.0", None), ("0.18.0+local", None), (None, None)],
+    )
+    def test_a_build_s_commit(self, text, commit):
+        assert _deploy.build_commit(text) == commit
 
 
 class TestHubs:

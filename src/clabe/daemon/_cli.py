@@ -168,12 +168,13 @@ class _DeployCli(CliCommand, cli_kebab_case=True):
 
     Each clabe gets its own environment under %LOCALAPPDATA%\\clabe\\versions, installed while the daemon keeps
     running; the daemon only restarts when its clabe or its hubs change, and refuses while it runs a session unless
-    --force. If the new clabe does not start, the previous one is started again. With none of --version, --lock or
-    --package: the latest release.
+    --force. If the new clabe does not start, the previous one is started again. With none of --version, --commit,
+    --lock or --package: the latest release.
     """
 
     version: str | None = Field(default=None, description="A clabe release, e.g. 0.18.0")
-    lock: Path | None = Field(default=None, description="A repository (or its uv.lock): the clabe release it locks")
+    commit: str | None = Field(default=None, description="A commit of clabe's main branch: its build, e.g. c7cc84f")
+    lock: Path | None = Field(default=None, description="A repository (or its uv.lock): the clabe it locks")
     package: str | None = Field(default=None, description="Any uv requirement instead, e.g. aind-clabe[frontend]==0.18")
     extras: str = Field(default=",".join(_deploy.DEFAULT_EXTRAS), description="aind-clabe's extras to install")
     hubs: str | None = Field(
@@ -187,17 +188,19 @@ class _DeployCli(CliCommand, cli_kebab_case=True):
 
     def request(self) -> "_deploy.Request":
         """The clabe asked for."""
-        given = [name for name in ("version", "lock", "package") if getattr(self, name)]
+        given = [name for name in ("version", "commit", "lock", "package") if getattr(self, name)]
         if len(given) > 1:
-            raise SystemExit(f"Pass one of --version, --lock and --package (got {', '.join(given)}).")
+            raise SystemExit(f"Pass one of --version, --commit, --lock and --package (got {', '.join(given)}).")
         extras = _deploy._extras(self.extras)
         if self.version:
             return _deploy.request_version(self.version, extras)
-        if self.lock:
-            try:
+        try:
+            if self.commit:
+                return _deploy.request_commit(self.commit, extras)
+            if self.lock:
                 return _deploy.request_lock(self.lock, extras)
-            except OSError as exc:
-                raise SystemExit(str(exc)) from None
+        except OSError as exc:
+            raise SystemExit(str(exc)) from None
         if self.package:
             return _deploy.request_package(self.package, extras)
         return _deploy.request_latest(extras)

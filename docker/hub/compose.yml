@@ -1,10 +1,12 @@
-# docker compose -f docker/hub/compose.yml up -d   (from the repository root)
+# From the repository root:
+#   docker compose -f docker/hub/compose.yml pull && docker compose -f docker/hub/compose.yml up -d    the image of HUB_TAG
+#   docker compose -f docker/hub/compose.yml up -d --build                                            built from this checkout
 services:
   hub:
+    image: ghcr.io/allenneuraldynamics/clabe-hub:${HUB_TAG:-main}  # sha-<commit> (any commit of main), main, or a release (v0.18.0)
     build:
       context: ../..
       dockerfile: docker/hub/Dockerfile
-    image: clabe-hub
     ports: ["8080:8080"]
     env_file: .env
     volumes: ["hub-data:/data"]  # hub.db (enrolled rigs, exclusions, reports) and the reports' zips
