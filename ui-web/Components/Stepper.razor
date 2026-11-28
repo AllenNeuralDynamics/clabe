@@ -112,7 +112,7 @@
         }
         if (step.Status == "failed" && Connection.FailureOf(step.Name) is { Error: { } error })
         {
-            return error;
+            return RunText.SplitError(error).Headline;
         }
         if (step.Status == "running" && step.Name == Current && State.Prompt is not null)
         {

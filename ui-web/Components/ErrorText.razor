@@ -1,0 +1,23 @@
+@* An error message: its first line, the last line of what follows (often the actual exception), and the full text
+   folded under "Show full output". A one-line message is shown as it is. *@
+
+@{ var (headline, details) = RunText.SplitError(Text); }
+<div class="error-text @Class">
+    <p class="error-headline">@headline</p>
+    @if (details is not null)
+    {
+        @if (RunText.LastLine(details) is { } last && last != headline)
+        {
+            <p class="error-last mono" title="@last">@last</p>
+        }
+        <details class="traceback">
+            <summary>Show full output (@RunText.LineCount(details) lines)</summary>
+            <pre class="code">@details</pre>
+        </details>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Text { get; set; } = "";
+    [Parameter] public string? Class { get; set; }
+}

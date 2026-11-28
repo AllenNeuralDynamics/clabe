@@ -51,6 +51,8 @@ class HubSettings(EnvSettings):
     report_retention_days: int | None = Field(
         default=None, description="Collected reports older than this many days are deleted; kept forever if unset"
     )
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = Field(default="INFO", description="What the hub logs")
+    access_log: bool = Field(default=False, description="Also log every HTTP request")
 
 
 class EnrollBody(BaseModel):
@@ -128,6 +130,32 @@ class RigStatus(BaseModel):
     )
 
 
+def log_change(previous: RigStatus | None, status: RigStatus) -> None:
+    """Logs what changed on a rig since its last poll: reachable or not, its token, its clabe, its run."""
+    rig = status.id
+    first = previous is None or previous.seen_at is None
+    if status.needs_token:
+        if first or not previous.needs_token:
+            logger.warning("%s refuses the hub's token: enter its DAEMON_CLABE_TOKEN on its card", rig)
+        return
+    if not status.reachable:
+        if first or previous.reachable:
+            logger.warning("%s is not reachable: %s", rig, status.error)
+        return
+    if first or not previous.reachable:
+        logger.info("%s is reachable: clabe %s, %s", rig, status.clabe_version, status.status)
+    elif previous.clabe_version != status.clabe_version:
+        logger.info("%s runs clabe %s (was %s)", rig, status.clabe_version, previous.clabe_version)
+    was_busy = not first and previous.reachable and previous.status == "busy"
+    if status.status == "busy" and not was_busy:
+        logger.info("%s started %s (%s)", rig, status.experiment, status.repository)
+    elif was_busy and status.status != "busy":
+        logger.info("%s finished %s", rig, previous.experiment)
+    asked = status.waiting.label if status.waiting else None
+    if asked and (first or not previous.waiting or previous.waiting.label != asked):
+        logger.info("%s waits for an answer: %s", rig, asked)
+
+
 class Fleet:
     """Polls every enrolled rig's daemon (and, when it runs an experiment, the run) and keeps what it saw.
 
@@ -176,6 +204,7 @@ class Fleet:
             self._tokens.pop(rig_id, None)
         else:
             self._tokens[rig_id] = token
+        logger.info("%s: token %s", rig_id, "cleared" if token is None else "set")
         return True
 
     def set_frontend(self, rig_id: str, frontend: str) -> bool:
@@ -241,7 +270,10 @@ class Fleet:
         self.status.pop(rig_id, None)
         self._tokens.pop(rig_id, None)
         self._frontends.pop(rig_id, None)
-        return self.registry.remove(rig_id)
+        removed = self.registry.remove(rig_id)
+        if removed:
+            logger.info("%s removed", rig_id)
+        return removed
 
     def exclude(self, pattern: str, comment: str | None = None) -> tuple[Exclusion, list[str]]:
         """Keeps out the rigs matching ``pattern`` (now and when they enroll); the exclusion, and the rigs removed."""
@@ -250,6 +282,7 @@ class Fleet:
         removed = [r.id for r in list(self.rigs.values()) if excluded(r.id, httpx.URL(r.url).host) is not None]
         for rig_id in removed:
             self.remove(rig_id)
+        logger.info("Excluded %s%s", pattern, f": removed {', '.join(removed)}" if removed else "")
         return exclusion, removed
 
     def statuses(self, statuses: list[RigStatus] | None = None) -> list[RigStatus]:
@@ -352,12 +385,9 @@ class Fleet:
                 status.error = str(exc) or type(exc).__name__
         except (httpx.HTTPError, KeyError, ValueError) as exc:
             status.error = str(exc) or type(exc).__name__
-        if status.error is not None:
-            previous = self.status.get(rig.id)
-            if previous is not None and previous.reachable:
-                logger.warning("Lost %s: %s", rig.id, status.error)
         if self.rigs.get(rig.id) is not rig:
             return  # removed, excluded or moved while it was polled: what was seen is not this rig's any more
+        log_change(self.status.get(rig.id), status)
         self.status[rig.id] = status
         now = time.monotonic()
         due = collect or now - self._collected_at.get(rig.id, -math.inf) >= self.settings.report_interval

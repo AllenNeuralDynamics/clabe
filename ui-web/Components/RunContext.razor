@@ -69,7 +69,7 @@
                     <li class="message @message.Level">
                         <span class="dot"></span>
                         <time title="@ReportTime.Both(message.Ts)">@ReportTime.Clock(message.Ts)</time>
-                        <p>@message.Message</p>
+                        <ErrorText Text="@message.Message" />
                     </li>
                 }
             </ol>

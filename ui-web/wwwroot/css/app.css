@@ -282,6 +282,10 @@ table.review td.bool { color: var(--info); font-family: var(--mono); font-size: 
 .failure { margin-bottom: var(--s2); }
 .failure-body { min-width: 0; flex: 1; }
 .failure-message { margin: 0; font-weight: 550; overflow-wrap: anywhere; }
+.error-text { min-width: 0; }
+.error-text p { margin: 0; overflow-wrap: anywhere; }
+.error-last { margin-top: var(--s1) !important; font-size: var(--text-xs); color: var(--text-2);
+    font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .traceback { margin-top: var(--s2); }
 .traceback summary { cursor: pointer; color: var(--text-2); font-size: var(--text-sm); user-select: none; }
 .traceback pre { margin: var(--s2) 0 0; max-height: 280px; font-size: var(--text-xs); background: var(--surface); }
@@ -314,7 +318,8 @@ table.review td.bool { color: var(--info); font-family: var(--mono); font-size: 
 .closing.completed .closing-icon { color: var(--ok); background: var(--ok-soft); }
 .closing.aborted .closing-icon { color: var(--warn); background: var(--warn-soft); }
 .closing-title { font-size: var(--text-2xl); font-weight: 650; letter-spacing: -0.02em; }
-.closing-reason { color: var(--text-2); margin: var(--s2) 0 0; }
+.closing-reason { color: var(--text-2); margin: var(--s2) 0 0; max-width: 100%; }
+.closing-reason pre, .closing-reason summary { text-align: left; }
 .closing-stats {
     display: grid; grid-template-columns: repeat(4, 1fr); margin: var(--s5) 0 0;
     border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden;
@@ -366,6 +371,7 @@ table.review td.bool { color: var(--info); font-family: var(--mono); font-size: 
 .timeline .dot { width: 9px; height: 9px; margin: 6px 0 0 1px; border-radius: 50%; background: var(--border-strong); }
 .timeline time { font-size: var(--text-xs); color: var(--text-3); font-variant-numeric: tabular-nums; line-height: 20px; }
 .timeline p { grid-column: 2; margin: 0; font-size: var(--text-sm); overflow-wrap: anywhere; }
+.timeline .error-text { grid-column: 2; font-size: var(--text-sm); }
 .timeline .info .dot { background: var(--info); }
 .timeline .success .dot { background: var(--ok); }
 .timeline .warning .dot { background: var(--warn); }

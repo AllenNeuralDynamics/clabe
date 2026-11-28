@@ -55,6 +55,17 @@
       "ExperimentInfo": {
         "description": "A workflow offered by an experiment file, as listed by `list_experiments`.",
         "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
           "file": {
             "title": "File",
             "type": "string"

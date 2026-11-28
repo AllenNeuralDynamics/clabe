@@ -192,6 +192,7 @@ def _rig_routes(api: APIRouter, fleet: Fleet) -> None:
         """Removes an exclusion: the rigs it kept out are followed again once they enroll (within minutes)."""
         if not fleet.registry.unexclude(pattern):
             raise HTTPException(status_code=404, detail=f"No exclusion {pattern!r}.")
+        logger.info("Exclusion %s removed", pattern)
 
 
 def create_hub_app(

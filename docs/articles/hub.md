@@ -33,6 +33,8 @@ TOKEN=...                                                # the hub's own token
 | `DATA_DIR` | `./hub-data` (`/data` in Docker) | Where enrolled rigs, exclusions and collected issue reports are kept |
 | `REPORT_INTERVAL` | `5` | Seconds between collections of a rig's reports |
 | `REPORT_RETENTION_DAYS` | none | Optional: delete reports collected longer ago; kept forever if unset |
+| `LOG_LEVEL` | `INFO` | What the hub logs to stdout: rigs enrolling, reachable or lost, runs starting and finishing, prompts waiting, reports collected |
+| `ACCESS_LOG` | `false` | Also log every HTTP request |
 
 ## Rigs enroll themselves
 

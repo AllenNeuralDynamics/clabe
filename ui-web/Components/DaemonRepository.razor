@@ -41,14 +41,14 @@
             {
                 <li>
                     <div class="exp">
-                        <div class="exp-title">
+                        <div class="exp-title" title="@string.Join(" → ", experiment.Steps.Select(s => s.Title))">
                             <strong>@experiment.Name</strong>
                             <span class="file mono subtle">@experiment.File</span>
                         </div>
-                        <div class="step-list subtle small truncate" title="@string.Join(" → ", experiment.Steps.Select(s => s.Title))">
-                            <span class="n">@experiment.Steps.Count step@(experiment.Steps.Count == 1 ? "" : "s")</span>
-                            @string.Join(" → ", experiment.Steps.Select(s => s.Title))
-                        </div>
+                        @if (experiment.Description is { Length: > 0 } description)
+                        {
+                            <p class="description subtle small" title="@description">@description</p>
+                        }
                     </div>
                     <button type="button" class="primary sm start" disabled="@Busy" aria-label="Start @experiment.Name"
                             title="@(Busy ? "A run is going on this machine" : $"Start {experiment.Name}")"
