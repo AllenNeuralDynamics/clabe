@@ -20,7 +20,7 @@
         <div class="alert error failure" role="alert">
             <RunIcon Name="alert" Size="18" Class="alert-icon" />
             <div class="failure-body">
-                <p class="failure-message">@FailureMessage</p>
+                <ErrorText Text="@FailureMessage" Class="failure-message" />
                 @if (Failure?.Traceback is { Length: > 0 } traceback)
                 {
                     <details class="traceback">

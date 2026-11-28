@@ -7,6 +7,29 @@ namespace Clabe.Web.Components;
 /// <summary>Readable text for the run page: step titles, durations and short summaries of step outputs.</summary>
 public static partial class RunText
 {
+    /// <summary>Longest headline of an error that has no line break.</summary>
+    private const int HeadlineLength = 200;
+
+    /// <summary>An error's headline (its first line) and the rest (null when there is none).</summary>
+    public static (string Headline, string? Details) SplitError(string? text)
+    {
+        text = (text ?? "").Trim();
+        var newline = text.IndexOf('\n');
+        if (newline >= 0)
+        {
+            var rest = text[(newline + 1)..].Trim();
+            return (text[..newline].TrimEnd(), rest.Length > 0 ? rest : null);
+        }
+        return text.Length <= HeadlineLength ? (text, null) : (text[..HeadlineLength].TrimEnd() + "…", text);
+    }
+
+    /// <summary>The last non-empty line of a text.</summary>
+    public static string? LastLine(string text) =>
+        text.Split('\n').Select(l => l.Trim()).LastOrDefault(l => l.Length > 0);
+
+    /// <summary>How many lines a text has.</summary>
+    public static int LineCount(string text) => text.Split('\n').Length;
+
     /// <summary>The launcher's own first step.</summary>
     public const string PreflightStep = "clabe_preflight";
 
