@@ -44,7 +44,7 @@ if ui.confirm("Start the session?", default=True):
 | `ui.pick(options)`, `ui.autocomplete(options=fn)` | One of several; options may come from a function, called as the user types |
 | `ui.form(Model)`, `ui.field(Model, "name")` | A pydantic model, or one of its fields, with its constraints |
 | `ui.group(title, **requests)` | Several values on one screen |
-| `ui.markdown`, `ui.image`, `ui.html`, `ui.url`, `ui.table` | Nothing: shows it and waits (images, HTML and URLs show in the browser only) |
+| `ui.markdown`, `ui.image`, `ui.html`, `ui.url`, `ui.table` | Nothing: shows it and waits. `ui.html` takes a file or the HTML itself; the terminal opens HTML and URLs in the browser, and shows images in the web UI only |
 | `ui.notify`, `ui.header` | Nothing: a message |
 
 - After **Go back**, a prompt answered before opens with that answer; **Forward** submits it again.

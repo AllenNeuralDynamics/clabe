@@ -299,8 +299,9 @@ class MediaRequest(Request):
     Shows an image, an HTML page or a web page, and blocks until the user continues (no answer is collected).
 
     The web UI shows all three: local files are served by the run server (only the file of this prompt), URLs are
-    loaded by the browser and inline HTML is shown in a sandboxed frame. Clients that cannot show the media (the
-    console, the TUI) log a warning naming the file or URL instead, and still wait for the user to continue.
+    loaded by the browser and inline HTML is shown in a sandboxed frame. The terminal clients (the console, the TUI)
+    open HTML pages and web pages in the OS browser instead (inline HTML through a temporary file), where they stay
+    open after the run; an image they log a warning naming the file. Either way they wait for the user to continue.
 
     Attributes:
         source: A local file (image or HTML page), an ``http(s)`` URL, or — for ``media="html"`` — the HTML itself.

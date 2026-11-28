@@ -584,11 +584,17 @@ class ConsoleClient:
 
     @_new_prompt
     def _ask_media(self, request: MediaRequest) -> None:
-        """Cannot show media: warns, names the file or URL, then waits for Enter."""
-        logger.warning("The console cannot show the %s; open it yourself: %s", request.media, request.describe())
+        """Opens an HTML or web page in the browser (an image: warns), names it, then waits for Enter."""
+        from ._browser import open_page
+
+        opened = open_page(request)
+        if opened is None:
+            logger.warning("The console cannot show the %s; open it yourself: %s", request.media, request.describe())
         if request.title:
             self._console.print(Text(f"\n{request.title}", style="bold"))
-        if request.location != "inline":
+        if opened is not None:
+            self._console.print(Text(f"  Opened in your browser: {opened}", style="yellow"))
+        elif request.location != "inline":
             self._console.print(Text(f"  {request.media}: {request.source}", style="yellow"))
         if request.caption:
             self._console.print(request.caption)

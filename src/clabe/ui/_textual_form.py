@@ -224,10 +224,12 @@ class _AcknowledgeScreen(ModalScreen):
         Binding("escape", "ok", "", show=False),
     ]
 
-    def __init__(self, request: AcknowledgeRequest | MarkdownRequest | MediaRequest) -> None:
-        """Initialize with the request to show: a message, a Markdown document, or media the TUI cannot show."""
+    def __init__(self, request: AcknowledgeRequest | MarkdownRequest | MediaRequest, opened: str | None = None) -> None:
+        """Initialize with the request to show: a message, a Markdown document, or media (``opened``: what was opened
+        in the browser for it, if anything)."""
         super().__init__(classes="wide" if isinstance(request, MarkdownRequest) else "")
         self._request = request
+        self._opened = opened
 
     def compose(self) -> ComposeResult:
         """Build the acknowledge dialog layout."""
@@ -239,7 +241,11 @@ class _AcknowledgeScreen(ModalScreen):
                 yield Markdown(request.markdown, id="ack-markdown")
             elif isinstance(request, MediaRequest):
                 shown = "" if request.location == "inline" else f": {request.source}"
-                text = f"The terminal cannot show this {request.media}{shown}"
+                text = (
+                    f"Opened in your browser: {self._opened}"
+                    if self._opened
+                    else f"The terminal cannot show this {request.media}{shown}"
+                )
                 yield Label(f"{text}\n\n{request.caption}" if request.caption else text, id="ack-body")
             else:
                 yield Label(request.message, id="ack-body")

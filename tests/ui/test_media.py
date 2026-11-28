@@ -106,11 +106,101 @@ class TestTextual:
             body = str(app.screen.query_one("#ack-body", Label).render())
             assert "cannot show this url" in body and "https://example.org/qc" in body
 
-    def test_the_client_warns_for_media(self, monkeypatch, caplog):
+    def test_the_client_warns_for_an_image(self, monkeypatch, caplog, opened):
         from clabe.ui import TextualClient
 
         client = TextualClient()
-        monkeypatch.setattr(client, "_ask_acknowledge", lambda request: None)
+        monkeypatch.setattr(client, "_ask_acknowledge", lambda request, shown=None: None)
         with caplog.at_level(logging.WARNING):
-            client._ask_media(MediaRequest("https://example.org/qc", "url"))
-        assert "TUI cannot show the url" in caplog.text
+            client._ask_media(MediaRequest("frame.png"))
+        assert "TUI cannot show the image" in caplog.text and opened == []
+
+    @pytest.mark.asyncio
+    async def test_the_dialog_says_what_was_opened(self):
+        from textual.widgets import Label
+
+        app = _LauncherApp()
+        async with app.run_test() as pilot:
+            reply: queue.Queue = queue.Queue()
+            await app.ask_acknowledge(MediaRequest("https://example.org/qc", "url"), reply, "https://example.org/qc")
+            await pilot.pause()
+            body = str(app.screen.query_one("#ack-body", Label).render())
+            assert "Opened in your browser: https://example.org/qc" in body
+
+
+@pytest.fixture
+def opened(monkeypatch) -> list[str]:
+    """What the terminal clients open in the browser (nothing is opened)."""
+    targets: list[str] = []
+    monkeypatch.setattr("clabe._process.open_in_browser", targets.append)
+    return targets
+
+
+def _cases(tmp_path: Path) -> list[tuple[MediaRequest, str]]:
+    """A local HTML file, a URL and inline HTML, each with what the browser should open."""
+    report = tmp_path / "qc report.html"
+    report.write_text("<h1>QC</h1>")
+    return [
+        (MediaRequest(report, "html"), report.resolve().as_uri()),
+        (MediaRequest("https://example.org/qc", "url"), "https://example.org/qc"),
+        (MediaRequest("<h1>Inline</h1>", "html"), "inline"),
+    ]
+
+
+class TestTerminalsOpenPagesInTheBrowser:
+    @pytest.mark.parametrize("index", [0, 1, 2])
+    def test_the_console_opens_it_once_and_still_waits(self, monkeypatch, tmp_path, opened, index):
+        request, expected = _cases(tmp_path)[index]
+        waited: list[str] = []
+        out = io.StringIO()
+        client = ConsoleClient(console=Console(file=out, force_terminal=False, width=200))
+        monkeypatch.setattr(client._console, "input", lambda prompt, **k: waited.append(prompt) or "")
+        client.ask(request)
+        assert len(opened) == 1 and len(waited) == 1
+        _check_target(opened[0], expected)
+        assert "Opened in your browser" in out.getvalue()
+
+    @pytest.mark.parametrize("index", [0, 1, 2])
+    def test_the_tui_opens_it_once_and_still_waits(self, monkeypatch, tmp_path, opened, index):
+        from clabe.ui import TextualClient
+
+        request, expected = _cases(tmp_path)[index]
+        shown: list[tuple] = []
+        client = TextualClient()
+        monkeypatch.setattr(client, "_ask_acknowledge", lambda request, what=None: shown.append((request, what)))
+        client._ask_media(request)
+        assert len(opened) == 1 and shown == [(request, opened[0])]
+        _check_target(opened[0], expected)
+
+    def test_an_image_or_a_missing_file_opens_nothing(self, monkeypatch, tmp_path, opened):
+        monkeypatch.setattr("builtins.input", lambda *a, **k: "")
+        client = ConsoleClient(console=Console(file=io.StringIO(), force_terminal=False))
+        client.ask(MediaRequest(tmp_path / "frame.png"))
+        client.ask(MediaRequest(tmp_path / "missing.html", "html"))
+        assert opened == []
+
+    def test_a_failure_to_open_is_logged_and_the_prompt_still_waits(self, monkeypatch, tmp_path, caplog):
+        def fail(target: str) -> None:
+            raise OSError("no browser")
+
+        monkeypatch.setattr("clabe._process.open_in_browser", fail)
+        waited: list[str] = []
+        client = ConsoleClient(console=Console(file=io.StringIO(), force_terminal=False))
+        monkeypatch.setattr(client._console, "input", lambda prompt, **k: waited.append(prompt) or "")
+        with caplog.at_level(logging.WARNING):
+            client.ask(MediaRequest("https://example.org/qc", "url"))
+        assert "Could not open the url" in caplog.text and "no browser" in caplog.text and len(waited) == 1
+
+
+def _check_target(target: str, expected: str) -> None:
+    """``target`` is ``expected``; for inline HTML, a temporary .html file holding it."""
+    if expected != "inline":
+        assert target == expected
+        return
+    from urllib.parse import urlparse
+    from urllib.request import url2pathname
+
+    page = Path(url2pathname(urlparse(target).path))
+    assert target.startswith("file:") and page.suffix == ".html"
+    assert page.read_text(encoding="utf-8") == "<h1>Inline</h1>"
+    page.unlink()
