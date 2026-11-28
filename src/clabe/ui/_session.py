@@ -364,7 +364,7 @@ def html(
 ) -> None:
     """Shows an HTML page (a local file, a URL, or the HTML itself) and blocks until the user continues.
 
-    The page is sandboxed. Clients that cannot show HTML log a warning instead (see [`MediaRequest`][clabe.ui.MediaRequest]).
+    The web UI shows it sandboxed; the terminal opens it in the browser (see [`MediaRequest`][clabe.ui.MediaRequest]).
     """
     ask(MediaRequest(source, "html", title=title, caption=caption, button_label=button_label, field=field))
 
@@ -379,8 +379,8 @@ def url(
 ) -> None:
     """Shows a web page and blocks until the user continues.
 
-    Sites that refuse to be framed still get a link to open them. Clients that cannot show web pages log a warning
-    with the URL instead (see [`MediaRequest`][clabe.ui.MediaRequest]).
+    Sites that refuse to be framed still get a link to open them. The terminal opens it in the browser (see
+    [`MediaRequest`][clabe.ui.MediaRequest]).
     """
     ask(MediaRequest(address, "url", title=title, caption=caption, button_label=button_label, field=field))
 
