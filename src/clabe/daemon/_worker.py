@@ -27,6 +27,7 @@ from opentelemetry import propagate, trace
 from opentelemetry.trace import Status, StatusCode
 
 from .. import __version__
+from .._process import NO_WINDOW
 from ..remote._models import (
     LEASE_HEADER,
     FileInfo,
@@ -41,7 +42,6 @@ from ..remote._models import (
     Share,
     WorkerInfo,
 )
-from ._process import NO_WINDOW
 from ._settings import DaemonSettings, RepositoryConfig
 
 logger = logging.getLogger(__name__)

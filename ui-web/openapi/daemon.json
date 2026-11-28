@@ -229,6 +229,12 @@
             ],
             "title": "Status",
             "type": "string"
+          },
+          "terminals": {
+            "default": false,
+            "description": "Runs launched here can show the terminal UI in windows that close and reopen",
+            "title": "Terminals",
+            "type": "boolean"
           }
         },
         "required": [
@@ -465,6 +471,14 @@
       "LaunchBody": {
         "description": "Which experiment to run.",
         "properties": {
+          "arguments": {
+            "description": "More `clabe run` arguments",
+            "items": {
+              "type": "string"
+            },
+            "title": "Arguments",
+            "type": "array"
+          },
           "experiment": {
             "anyOf": [
               {
@@ -481,6 +495,12 @@
             "title": "File",
             "type": "string"
           },
+          "from_rig": {
+            "default": false,
+            "description": "Launched at the rig (its desktop icon) rather than remotely",
+            "title": "From Rig",
+            "type": "boolean"
+          },
           "frontend": {
             "default": "none",
             "description": "What the run shows on the rig: nothing, the terminal UI (tui), or the browser",
@@ -495,6 +515,12 @@
           "repository": {
             "title": "Repository",
             "type": "string"
+          },
+          "window": {
+            "default": true,
+            "description": "With the terminal UI: open a window on the rig showing it (false: whoever launched shows it)",
+            "title": "Window",
+            "type": "boolean"
           }
         },
         "required": [
@@ -808,6 +834,12 @@
             "title": "File",
             "type": "string"
           },
+          "from_rig": {
+            "default": false,
+            "description": "Launched at the rig rather than remotely",
+            "title": "From Rig",
+            "type": "boolean"
+          },
           "log_tail": {
             "default": [],
             "items": {
@@ -857,6 +889,12 @@
             ],
             "title": "Status",
             "type": "string"
+          },
+          "terminal": {
+            "default": false,
+            "description": "It shows the terminal UI, which a window on the rig can show",
+            "title": "Terminal",
+            "type": "boolean"
           }
         },
         "required": [
@@ -930,6 +968,25 @@
           "optional"
         ],
         "title": "StepInfo",
+        "type": "object"
+      },
+      "TerminalAddress": {
+        "description": "Where a window on this machine reaches a run's terminal UI (see `clabe.daemon._terminal`).",
+        "properties": {
+          "port": {
+            "title": "Port",
+            "type": "integer"
+          },
+          "token": {
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "port",
+          "token"
+        ],
+        "title": "TerminalAddress",
         "type": "object"
       },
       "ValidationError": {
@@ -1405,8 +1462,20 @@
     },
     "/api/daemon/runs/current/stop": {
       "post": {
-        "description": "Stops the current run's process. Prefer aborting it (POST /run/api/abort): that lets it clean up.",
+        "description": "Stops the current run: it is asked to abort and close, and ended with all it started if it has not within\nthe daemon's ``stop_grace``. Answers once it is asked, or, with ``wait``, once it has ended.",
         "operationId": "stop_api_daemon_runs_current_stop_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "wait",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Wait",
+              "type": "boolean"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -1417,9 +1486,47 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "summary": "Stop"
+      }
+    },
+    "/api/daemon/runs/current/terminal": {
+      "get": {
+        "description": "Where a window on this machine reaches the current run's terminal UI (`clabe daemon view`). Only\nanswered to this machine.",
+        "operationId": "terminal_api_daemon_runs_current_terminal_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TerminalAddress"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "Conflict"
+          }
+        },
+        "summary": "Terminal"
       }
     },
     "/api/worker/files": {

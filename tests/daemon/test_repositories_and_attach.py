@@ -79,10 +79,18 @@ class TestAttach:
         assert host.busy() and host.info().status == "busy"
         assert host.current().poll_port() == 9999 and host.current().token == "t"
         host.attach(AttachBody(port=9998, pid=os.getpid(), repository="Repo"))  # announcing again is fine
-        with pytest.raises(HostError, match="started from a terminal"):
-            host.stop()
         host.detach(os.getpid())
         assert not host.busy()
+
+    def test_stopping_a_terminal_run_ends_it_when_it_does_not_abort(self, tmp_path):
+        host = Host(DaemonSettings(repository_roots=[], runs_directory=tmp_path, stop_grace=1.0))
+        run = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+        try:
+            host.attach(AttachBody(port=free_port("127.0.0.1", 19480), pid=run.pid, repository="Repo"))
+            host.stop(wait=True)  # its API does not answer: it is ended
+            assert run.wait(10) is not None and not host.busy()
+        finally:
+            run.kill()
 
     def test_refused_while_another_run_is_going_or_the_machine_is_leased(self, tmp_path):
         import os

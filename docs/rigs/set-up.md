@@ -62,11 +62,16 @@ ssh rig-3 clabe daemon restart     # refused during a session; --force interrupt
 
 - **From a browser** (the daemon's page, or the hub): the run starts headless and is answered in the browser.
   **Show on the rig** also opens the terminal UI or the browser on the rig's screen. One run at a time.
-- **From the rig**: a desktop icon runs an experiment in a terminal, and the daemon serves it under `/run/` too.
+- **From the rig**: a desktop icon runs an experiment in a terminal. The daemon hosts the run, so the hub and
+  browsers see it too. Closing the window stops the run.
 
 ```bash
 uv run clabe shortcut --experiment-name vr-foraging --name "VR Foraging"   # in the repository
 ```
+
+!!! info "If the window dies"
+    A terminal ended from the Task Manager leaves the run going. The next click on the icon asks to **Resume** it or
+    **Abort** it and start a new one. **Stop** (the page, the hub) asks the run to abort, and ends it after 30 s.
 
 Neither the daemon nor the runs it starts open a window of their own. Windows the experiment opens, like Bonsai's,
 show as usual. **Report an issue** saves a report on the rig until the hub collects it.

@@ -35,6 +35,7 @@ setx DAEMON_CLABE_OTEL_ENDPOINT "collector:4317"               :: where to send 
 | `DAEMON_CLABE_HOST` | `0.0.0.0` | Interface to bind (`127.0.0.1`: this PC only) |
 | `DAEMON_CLABE_COMMAND` | `uv;run;--directory;{repository};clabe` | How clabe is called in a repository |
 | `DAEMON_CLABE_RUNS_DIRECTORY` | `%TEMP%\clabe-daemon` | Logs of the runs it starts |
+| `DAEMON_CLABE_STOP_GRACE` | `30` | Seconds a stopped run has to abort and close before it is ended |
 | `DAEMON_CLABE_REPORTS_DIRECTORY` | `%LOCALAPPDATA%\clabe\reports` | Issue reports waiting for the hub |
 | `DAEMON_CLABE_MAX_JOBS` | `4` | Worker: commands run at once for a remote run |
 | `DAEMON_CLABE_MAX_FILE_SIZE` | 50 MB | Worker: largest file a remote run uploads |
@@ -70,6 +71,7 @@ DAEMON_CLABE_TOKEN=...
 | `clabe daemon start [--timeout 60]` | Enable and start the task, and wait until the daemon answers |
 | `clabe daemon restart [--force] [--timeout 60]` | `stop`, then `start`; refused during a session unless `--force` |
 | `clabe daemon status` | The task, whether the daemon answers, and the reports waiting |
+| `clabe daemon view` | Show the terminal UI of the run it hosts in this window; closing the window stops the run |
 | `clabe daemon upgrade` | Deprecated. Use `clabe daemon deploy --version <version>` |
 | `clabe daemon uninstall` | Stop it and remove the task |
 
@@ -176,20 +178,38 @@ uv run --directory <repository> clabe run main.py --experiment-name <name> --fro
 
 - The run uses the repository's own locked environment (and its clabe version).
 - Prompts are answered in the web UI.
-- **Show on the rig** (`frontend`) also shows the run on the rig's screen: `tui` opens the terminal UI in a console
-  window, `browser` opens the run's page in the default browser, `none` (default) shows nothing. Through the hub,
-  the page offers the rig's last choice.
+- **Show on the rig** (`frontend`) also shows the run on the rig's screen: `tui` shows the terminal UI in a window
+  (see [The terminal UI on the rig](#the-terminal-ui-on-the-rig)), `browser` opens the run's page in the default
+  browser, `none` (default) shows nothing. Through the hub, the page offers the rig's last choice.
 - Only one run at a time: a second start returns `409`.
+- A restarted daemon finds the run it had started again.
 
-## Runs started from a terminal
+## Stopping a run
 
-A `clabe run` started in a terminal (or from a [desktop shortcut](../rigs/set-up.md#run-an-experiment)) registers itself with the PC's
-daemon:
+Stop (the page, the hub, `POST /api/daemon/runs/current/stop`) asks the run to abort and close. A run that has not
+ended within `DAEMON_CLABE_STOP_GRACE` seconds is ended.
 
-- The daemon serves it under `/run/` and reports the PC as busy, so the hub shows the run.
-- If there is no daemon, or the daemon is busy, the run continues but the daemon does not show it. Registering never
-  waits more than a second.
-- The daemon's page cannot stop it. Abort it from the run itself.
+A run ends every process it started, however it ends (stopped, crashed, ended from the Task Manager): nothing it
+started keeps the rig's hardware. Waterlog, and the browser `--open-browser` opens, stay open.
+
+## The terminal UI on the rig
+
+`clabe run` at the rig (in a terminal, or from a [desktop shortcut](../rigs/set-up.md#run-an-experiment)) gives the
+run to the daemon, which shows it in the same window:
+
+- Closing the window stops the run.
+- A window that dies without closing (ended from the Task Manager) leaves the run going. The next `clabe run` asks:
+
+  ```text
+   A previous run was not closed: Aind.Experiment.Vr · vr · started 15:42
+     [R] Resume    [A] Abort it and start a new run    [Q] Quit
+  ```
+
+  For a run started remotely it says `A run started remotely is in progress`. Abort stops it, then starts the new
+  run.
+- When the daemon does not answer, `clabe run` starts its task and waits up to 10 seconds. Without a daemon, outside
+  its repositories, on a rig reserved remotely, or with `--here`, the run happens in the window and registers itself
+  with the daemon, which serves it under `/run/` and reports the PC as busy.
 
 ## Issue reports
 
@@ -205,10 +225,11 @@ daemon:
 | `GET /api/daemon/info` | Idle, busy or leased |
 | `GET /api/daemon/repositories` | The repositories |
 | `GET /api/daemon/repositories/{name}/experiments` | Their experiments |
-| `POST /api/daemon/runs` | Start a run: `{"repository", "file", "experiment", "frontend"}` |
+| `POST /api/daemon/runs` | Start a run: `{"repository", "file", "experiment", "frontend", "window", "arguments"}` |
 | `GET /api/daemon/runs/current` | The current run, with the end of its output |
 | `POST /api/daemon/restart[?force=true]` | Restart it; `409` during a session unless `force` |
-| `POST /api/daemon/runs/current/stop` | Stop it (only runs the daemon started) |
+| `POST /api/daemon/runs/current/stop[?wait=true]` | Stop it (see [Stopping a run](#stopping-a-run)) |
+| `GET /api/daemon/runs/current/terminal` | Where a window on the rig reaches the run's terminal UI (this PC only) |
 | `POST /api/daemon/runs/attached` | A run started from a terminal announces itself |
 | `DELETE /api/daemon/runs/attached/{pid}` | It has ended |
 | `GET /api/daemon/reports` | The issue reports waiting here |

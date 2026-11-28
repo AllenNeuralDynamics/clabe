@@ -96,6 +96,10 @@ class DaemonSettings(EnvSettings):
     run_arguments: Annotated[list[str], NoDecode] = Field(
         default_factory=list, description="Extra arguments for every `clabe run`, e.g. --skip-hardware-validation"
     )
+    stop_grace: float = Field(
+        default=30.0,
+        description="Seconds a stopped run has to abort and close before it is killed (with all it started)",
+    )
     lease_grace: float = Field(
         default=300.0,
         description="Worker role: seconds after a lease expires during which only the same run may take it back "

@@ -16,10 +16,11 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, ValidationError
 
+from .._process import NO_WINDOW, Job, popen_in_job
 from ..server import free_port
 from ..server._server import ANNOUNCE_ENV
 from ..workflow import ExperimentListing
-from ._process import NO_WINDOW
+from . import _terminal
 from ._settings import MAIN_FILE, DaemonSettings, RepositoryConfig
 
 logger = logging.getLogger(__name__)
@@ -58,6 +59,12 @@ class LaunchBody(BaseModel):
     frontend: Frontend = Field(
         default="none", description="What the run shows on the rig: nothing, the terminal UI (tui), or the browser"
     )
+    window: bool = Field(
+        default=True,
+        description="With the terminal UI: open a window on the rig showing it (false: whoever launched shows it)",
+    )
+    from_rig: bool = Field(default=False, description="Launched at the rig (its desktop icon) rather than remotely")
+    arguments: list[str] = Field(default_factory=list, description="More `clabe run` arguments")
 
 
 class AttachBody(BaseModel):
@@ -81,6 +88,8 @@ class RunInfo(BaseModel):
     started_at: datetime.datetime
     pid: int
     origin: Literal["daemon", "terminal"] = "daemon"
+    from_rig: bool = Field(default=False, description="Launched at the rig rather than remotely")
+    terminal: bool = Field(default=False, description="It shows the terminal UI, which a window on the rig can show")
     port: int | None = None
     exit_code: int | None = None
     log_tail: list[str] = []
@@ -119,6 +128,9 @@ class HostInfo(BaseModel):
     rig_id: str | None = Field(default=None, description="The rig's name at the Allen Institute (AIBS_RIG_ID), if set")
     ip: str | None = Field(default=None, description="This machine's IPv4 address, if it has one")
     clabe_version: str
+    terminals: bool = Field(
+        default=False, description="Runs launched here can show the terminal UI in windows that close and reopen"
+    )
     status: Literal["idle", "busy", "leased"]
     run: RunInfo | None
     leased_by: str | None = None
@@ -126,20 +138,42 @@ class HostInfo(BaseModel):
 
 
 class _Launched:
-    """A `clabe run` process started by the host."""
+    """A `clabe run` process started by the host (directly, or under a terminal host), or found again after a
+    daemon restart (then only known by its process id)."""
 
-    def __init__(self, body: LaunchBody, process: subprocess.Popen, log: Path, announce: Path, token: str) -> None:
+    def __init__(
+        self,
+        body: LaunchBody,
+        process: subprocess.Popen | None,
+        log: Path,
+        announce: Path,
+        token: str,
+        *,
+        pid: int | None = None,
+        job: Job | None = None,
+        terminal: Path | None = None,
+        terminal_token: str | None = None,
+        started_at: datetime.datetime | None = None,
+    ) -> None:
         self.body = body
         self.process = process
+        self.pid = process.pid if process is not None else int(pid or 0)
         self.log = log
         self.announce = announce
         self.token = token
-        self.started_at = datetime.datetime.now(datetime.UTC)
+        self.job = job
+        self.terminal = terminal
+        self.terminal_token = terminal_token
+        self.started_at = started_at or datetime.datetime.now(datetime.UTC)
         self.port: int | None = None
 
     def alive(self) -> bool:
         """Whether the run's process is still going."""
-        return self.process.poll() is None
+        return self.process.poll() is None if self.process is not None else pid_alive(self.pid)
+
+    def exit_code(self) -> int | None:
+        """The run's exit code, once it has ended and when it is known."""
+        return self.process.poll() if self.process is not None else None
 
     def poll_port(self) -> int | None:
         """The run server's port, once it has announced it."""
@@ -150,13 +184,33 @@ class _Launched:
                 return None
         return self.port
 
+    def terminal_address(self) -> tuple[int, str] | None:
+        """Where windows reach the run's terminal UI (port and token), once its host listens."""
+        if self.terminal is None or self.terminal_token is None or not self.terminal.is_file():
+            return None
+        try:
+            return int(json.loads(self.terminal.read_text(encoding="utf-8"))["port"]), self.terminal_token
+        except (ValueError, KeyError, OSError):
+            return None
+
+    def kill(self) -> None:
+        """Ends the run's process and every process it started (but those started to outlive it)."""
+        if self.job is not None:
+            self.job.terminate()
+        else:  # found again after a restart: its job is gone, its processes are not
+            for pid in (_announced_pid(self.announce), self.pid):
+                if pid:
+                    terminate_pid(pid)
+        if self.process is not None and self.process.poll() is None:
+            self.process.kill()
+
     def info(self, tail: int = 40) -> RunInfo:
         """The run's state, with the end of its output."""
-        exit_code = self.process.poll()
+        alive = self.alive()
         port = self.poll_port()
-        status = "exited" if exit_code is not None else "running" if port is not None else "starting"
+        status = "exited" if not alive else "running" if port is not None else "starting"
         try:
-            lines = self.log.read_text(encoding="utf-8", errors="replace").splitlines()[-tail:]
+            lines = self.log.read_text(encoding="utf-8", errors="replace").splitlines()[-tail:] if tail else []
         except OSError:
             lines = []
         return RunInfo(
@@ -165,11 +219,49 @@ class _Launched:
             experiment=self.body.experiment,
             status=status,
             started_at=self.started_at,
-            pid=self.process.pid,
+            pid=self.pid,
+            from_rig=self.body.from_rig,
+            terminal=self.terminal is not None,
             port=port,
-            exit_code=exit_code,
+            exit_code=None if alive else self.exit_code(),
             log_tail=lines,
         )
+
+    def record(self) -> dict:
+        """What a restarted daemon needs to find this run again."""
+        return {
+            "body": self.body.model_dump(),
+            "pid": self.pid,
+            "log": str(self.log),
+            "announce": str(self.announce),
+            "token": self.token,
+            "terminal": str(self.terminal) if self.terminal else None,
+            "terminal_token": self.terminal_token,
+            "started_at": self.started_at.isoformat(),
+        }
+
+    @classmethod
+    def from_record(cls, record: dict) -> "_Launched":
+        """A run a previous daemon launched, from its `record`."""
+        return cls(
+            LaunchBody.model_validate(record["body"]),
+            None,
+            Path(record["log"]),
+            Path(record["announce"]),
+            record["token"],
+            pid=int(record["pid"]),
+            terminal=Path(record["terminal"]) if record.get("terminal") else None,
+            terminal_token=record.get("terminal_token"),
+            started_at=datetime.datetime.fromisoformat(record["started_at"]),
+        )
+
+
+def _announced_pid(announce: Path) -> int | None:
+    """The process id a run server announced (the ``clabe run`` process itself)."""
+    try:
+        return int(json.loads(announce.read_text(encoding="utf-8"))["pid"])
+    except (ValueError, KeyError, OSError):
+        return None
 
 
 class _Attached:
@@ -189,6 +281,10 @@ class _Attached:
         """The run server's port."""
         return self.port
 
+    def kill(self) -> None:
+        """Ends the run's process (it takes the processes it started with it)."""
+        terminate_pid(self.body.pid)
+
     def info(self, tail: int = 40) -> RunInfo:
         """The run's state (its output is in its own terminal)."""
         return RunInfo(
@@ -199,8 +295,28 @@ class _Attached:
             started_at=self.started_at,
             pid=self.body.pid,
             origin="terminal",
+            from_rig=True,
             port=self.port,
         )
+
+
+def terminate_pid(pid: int) -> None:
+    """Ends process ``pid`` (a ``clabe run`` process takes the processes it started with it)."""
+    if sys.platform == "win32":
+        import ctypes
+
+        kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
+        handle = kernel32.OpenProcess(0x0001, False, pid)  # PROCESS_TERMINATE
+        if handle:
+            kernel32.TerminateProcess(handle, 1)
+            kernel32.CloseHandle(handle)
+        return
+    import signal
+
+    try:
+        os.kill(pid, signal.SIGKILL)
+    except OSError:
+        pass
 
 
 def pid_alive(pid: int) -> bool:
@@ -235,14 +351,32 @@ def run_arguments(body: LaunchBody, port: int, token: str) -> list[str]:
         args.append("--open-browser")
     if body.experiment:
         args += ["--experiment-name", body.experiment]
-    return args
+    return args + body.arguments
+
+
+def _python() -> str:
+    """The Python of this environment with a console (the daemon itself may run windowless, as pythonw)."""
+    executable = Path(sys.executable)
+    console = executable.with_name("python.exe")
+    return str(console if executable.name.lower() == "pythonw.exe" and console.is_file() else executable)
+
+
+def open_window() -> None:
+    """Opens a window on this machine's screen showing the current run's terminal UI (`clabe daemon view`)."""
+    flags = subprocess.CREATE_NEW_CONSOLE | subprocess.CREATE_NEW_PROCESS_GROUP  # type: ignore[attr-defined]
+    try:
+        subprocess.Popen([_python(), "-m", "clabe", "daemon", "view"], creationflags=flags | 0x01000000)
+    except PermissionError:  # not allowed out of the daemon's job: fine, the daemon's job never ends its children
+        subprocess.Popen([_python(), "-m", "clabe", "daemon", "view"], creationflags=flags)
 
 
 class Host:
     """Lists the configured repositories and runs one experiment at a time.
 
-    A run is started as ``clabe run <file> --frontend headless --serve`` in the repository's own environment
-    (``settings.command``), bound to localhost with a token only the host knows; the daemon proxies it.
+    A run is started as ``clabe run <file> --serve`` in the repository's own environment (``settings.command``),
+    bound to localhost with a token only the host knows; the daemon proxies it. It runs headless, or, showing the
+    terminal UI, under a terminal host (see `clabe.daemon._terminal`) that windows on the rig show and leave. Each
+    run is in a job, so stopping it ends what it started. A restarted daemon finds the run it had launched again.
     """
 
     def __init__(self, settings: DaemonSettings, *, leased_by: Callable[[], str | None] = lambda: None) -> None:
@@ -251,6 +385,23 @@ class Host:
         self._lock = threading.Lock()
         self._current: _Launched | _Attached | None = None
         self._runs_dir = settings.runs_directory or Path(tempfile.gettempdir()) / "clabe-daemon"
+        self._current = self._find_running()
+
+    def _find_running(self) -> "_Launched | None":
+        """The run a previous daemon launched, if it is still going (its record is in the runs directory)."""
+        try:
+            records = sorted(self._runs_dir.glob("*.run.json"), reverse=True)
+        except OSError:
+            return None
+        for path in records[:1]:
+            try:
+                launched = _Launched.from_record(json.loads(path.read_text(encoding="utf-8")))
+            except (ValueError, KeyError, TypeError, OSError, ValidationError):
+                continue
+            if launched.alive():
+                logger.info("Found the run of %s (pid %s) again", launched.body.repository, launched.pid)
+                return launched
+        return None
 
     def repositories(self) -> list[RepositoryInfo]:
         """The configured repositories."""
@@ -296,8 +447,8 @@ class Host:
 
     def launch(self, body: LaunchBody) -> RunInfo:
         """Starts ``body``'s experiment; refused while another run is going."""
-        if body.frontend == "tui" and sys.platform != "win32":
-            raise HostError("The terminal UI can only be opened on a Windows rig.", status=400)
+        if body.frontend == "tui" and not _terminal.available():
+            raise HostError("The terminal UI can only be shown on a Windows rig (with pywinpty).", status=400)
         repository = self.repository(body.repository)
         with self._lock:
             if self._current is not None and self._current.alive():
@@ -318,23 +469,47 @@ class Host:
                 "PYTHONUNBUFFERED": "1",
             }
             logger.info("Launching %s", " ".join(command))
+            job = _new_job()
+            terminal = terminal_token = None
+            if body.frontend == "tui":  # in a hidden console, under a host that windows connect to
+                terminal = self._runs_dir / f"{stamp}-{repository.display_name}.terminal.json"
+                terminal_token = secrets.token_urlsafe(24)
+                spec = self._runs_dir / f"{stamp}-{repository.display_name}.terminal-spec.json"
+                spec.write_text(
+                    json.dumps(
+                        {
+                            "argv": command,
+                            "cwd": str(repository.path),
+                            "token": terminal_token,
+                            "address_file": str(terminal),
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                command = [_python(), "-m", "clabe.daemon._terminal", str(spec)]
             with log.open("w", encoding="utf-8") as output:
-                if body.frontend == "tui":  # the terminal UI needs a console of its own, on the rig's screen
-                    output.write("Started with the terminal UI: its output is in its console window.\n")
-                    streams = {}
-                    flags = subprocess.CREATE_NEW_CONSOLE
-                else:
-                    streams = {"stdin": subprocess.DEVNULL, "stdout": output, "stderr": subprocess.STDOUT}
-                    flags = NO_WINDOW
-                process = subprocess.Popen(
+                if terminal is not None:
+                    output.write("Started with the terminal UI: what it shows is in its window.\n")
+                    output.flush()
+                process = popen_in_job(
+                    job,
                     command,
                     cwd=repository.path,
                     env=env,
-                    creationflags=(subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0) | flags,
-                    **streams,
+                    stdin=subprocess.DEVNULL,
+                    stdout=output,
+                    stderr=subprocess.STDOUT,
+                    creationflags=(subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0) | NO_WINDOW,
                 )
-            self._current = _Launched(body, process, log, announce, token)
-            return self._current.info()
+            launched = _Launched(
+                body, process, log, announce, token, job=job, terminal=terminal, terminal_token=terminal_token
+            )
+            record = self._runs_dir / f"{stamp}-{repository.display_name}.run.json"
+            record.write_text(json.dumps(launched.record()), encoding="utf-8")
+            self._current = launched
+            if terminal is not None and body.window:
+                open_window()
+            return launched.info()
 
     def current(self) -> "_Launched | _Attached | None":
         """The run launched (or attached) last, running or not."""
@@ -359,20 +534,30 @@ class Host:
             if isinstance(self._current, _Attached) and self._current.body.pid == pid:
                 self._current.port = None
 
-    def stop(self, timeout: float = 10.0) -> RunInfo:
-        """Stops the current run's process (prefer aborting it through its API: it cleans up)."""
+    def stop(self, *, wait: bool = True) -> RunInfo:
+        """Stops the current run: asks it to abort and close, then ends it, and all it started, if it has not within
+        ``settings.stop_grace`` seconds. Without ``wait``, returns once it is asked (the rest happens behind)."""
         current = self._current
-        if isinstance(current, _Attached):
-            raise HostError("This run was started from a terminal: abort it (POST /run/api/abort).", status=409)
-        if current is None or current.process.poll() is not None:
+        if current is None or not current.alive():
             raise HostError("No run is going.", status=409)
-        current.process.terminate()
-        deadline = time.monotonic() + timeout
-        while current.process.poll() is None and time.monotonic() < deadline:
-            time.sleep(0.1)
-        if current.process.poll() is None:
-            current.process.kill()
+        asked = _ask_to_abort(current)
+        logger.info("Stopping the run of %s (pid %s)", current.body.repository, current.info(tail=0).pid)
+        grace = self.settings.stop_grace if asked else min(self.settings.stop_grace, 2.0)
+        if wait:
+            _end(current, grace)
+        else:
+            threading.Thread(target=_end, args=(current, grace), name="clabe-stop-run", daemon=True).start()
         return current.info()
+
+    def terminal_address(self) -> tuple[int, str]:
+        """Where a window reaches the current run's terminal UI (port and token)."""
+        current = self._current
+        if not isinstance(current, _Launched) or current.terminal is None or not current.alive():
+            raise HostError("The current run does not show the terminal UI.", status=404)
+        address = current.terminal_address()
+        if address is None:
+            raise HostError("The run's terminal UI is starting.", status=409)
+        return address
 
     def info(self) -> HostInfo:
         """Who the host is and what it runs."""
@@ -390,6 +575,7 @@ class Host:
             rig_id=rig_id(),
             ip=ip_address(),
             clabe_version=__version__,
+            terminals=_terminal.available(),
             status=status,
             run=run,
             leased_by=owner,
@@ -398,3 +584,53 @@ class Host:
     def busy(self) -> bool:
         """Whether a run launched (or attached) here is going."""
         return self._current is not None and self._current.alive()
+
+
+def _new_job() -> Job | None:
+    """A job for a launched run: it is never ended with the daemon (a restarted daemon finds the run again)."""
+    if sys.platform != "win32":
+        return None
+    try:
+        return Job(kill_on_close=False)
+    except OSError as exc:
+        logger.warning("Stopping a run will not end what it started: %s", exc)
+        return None
+
+
+def _ask_to_abort(run: "_Launched | _Attached") -> bool:
+    """Asks ``run`` to abort, through its API; whether it was asked."""
+    import httpx
+
+    port = run.poll_port()
+    if port is None:
+        return False
+    headers = {"Authorization": f"Bearer {run.token}"} if run.token else {}
+    try:
+        answer = httpx.post(
+            f"http://127.0.0.1:{port}/api/abort", json={"reason": "Stopped."}, headers=headers, timeout=5.0
+        )
+    except httpx.HTTPError as exc:
+        logger.info("Could not ask the run to abort: %s", exc)
+        return False
+    return answer.status_code < 400
+
+
+def _end(run: "_Launched | _Attached", grace: float) -> None:
+    """Closes ``run`` once it has aborted (its closing screen), or ends it after ``grace`` seconds."""
+    import httpx
+
+    deadline = time.monotonic() + grace
+    port = run.poll_port()
+    headers = {"Authorization": f"Bearer {run.token}"} if run.token else {}
+    while run.alive() and time.monotonic() < deadline:
+        if port is not None:
+            try:
+                httpx.post(
+                    f"http://127.0.0.1:{port}/api/close", json={"client": "daemon"}, headers=headers, timeout=2.0
+                )
+            except httpx.HTTPError:
+                pass
+        time.sleep(0.5)
+    if run.alive():
+        logger.warning("The run did not end within %.0f s: ending it and all it started", grace)
+        run.kill()
